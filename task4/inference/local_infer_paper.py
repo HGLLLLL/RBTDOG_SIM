@@ -28,9 +28,8 @@ FOOT_CONTACT_H = 0.03
 OBS_DIM, ACT_DIM = 76, 12
 _PO = np.array([0.0, np.pi, np.pi, 0.0])
 PHI = _PO[None, :] - _PO[:, None]
-# 羅盤走直線
-TARGET_YAW = 0.0
-HEADING_GAIN = 3.0
+# odom 走直線
+HEADING_GAIN = 3.0      # 航向 P 增益（= 控制律 K_YAW 預設）
 VX_CMD = 0.6
 
 
@@ -181,31 +180,86 @@ def run(args):
         os.environ.setdefault("MUJOCO_GL", "egl")
         ren = mujoco.Renderer(g.m, 480, 640); cam = mujoco.MjvCamera(); mujoco.mjv_defaultFreeCamera(g.m, cam)
 
-    c = cpg_init(); last_a = np.zeros(ACT_DIM); traj = []; x0, y0 = g.xy
-    fl_gid = mujoco.mj_name2id(g.m, mujoco.mjtObj.mjOBJ_GEOM, "FL"); fzmin = fzmax = None; fell = None
-    for i in range(int(args.secs / CTRL_DT)):
-        t = i * CTRL_DT; push_at(t)
-        yaw_rate = float(np.clip(-HEADING_GAIN * wrap(g.compass_yaw() - TARGET_YAW), -1, 1))
-        cmd = np.array([args.vx, 0.0, yaw_rate], np.float32)
-        obs = build_obs(g, c, cmd, last_a, foot_gid)
+    c = cpg_init(); last_a = np.zeros(ACT_DIM)
+    fl_gid = mujoco.mj_name2id(g.m, mujoco.mjtObj.mjOBJ_GEOM, "FL")
+    k_yaw = HEADING_GAIN
+
+    def step_policy(cmd):
+        nonlocal c, last_a
+        obs = build_obs(g, c, cmd.astype(np.float32), last_a, foot_gid)
         act = infer(obs)
         mux, muy, om = act_to_cmd(act); c = cpg_step(c, mux, muy, om, CTRL_DT)
         apply(joint_targets(c, f0s, jinvs)); last_a = act
-        traj.append(g.xy.copy())
-        fz = g.d.geom_xpos[fl_gid][2]
-        fzmin = fz if fzmin is None else min(fzmin, fz); fzmax = fz if fzmax is None else max(fzmax, fz)
-        if g.height < 0.15 and fell is None: fell = t
-        if ren is not None and i % 2 == 0:
-            x, y = g.xy; cam.lookat[:] = [x, y, 0.3]; cam.distance = 2.5
-            cam.elevation = -20; cam.azimuth = 90; ren.update_scene(g.d, cam); frames.append(ren.render())
 
-    traj = np.array(traj)
-    print(f"[result] 前進 x={traj[-1,0]-x0:+.2f}m 側偏 y={traj[-1,1]-y0:+.2f}m 高度={g.height:.2f}m "
-          f"跌倒={'是@%.1fs'%fell if fell else '否'}")
-    print(f"[result] FL 腳抬起量 ≈ {fzmax-fzmin:.3f} m")
+    def maybe_render(k):
+        if ren is not None and k % 2 == 0:
+            x, y, _ = g.odom(); cam.lookat[:] = [x, y, 0.3]; cam.distance = 2.5
+            cam.elevation = -20; cam.azimuth = 90
+            ren.update_scene(g.d, cam); frames.append(ren.render())
+
+    # ---- Phase 1：轉向到 psi_goal（右轉 → turn_deg 為負）----
+    _, _, start_yaw = g.odom()
+    psi_goal = wrap(start_yaw + np.radians(args.turn_deg))
+    settled = 0; kframe = 0; turn_t = 0.0
+    for i in range(int(args.turn_timeout / CTRL_DT)):
+        _, _, yaw = g.odom()
+        e = wrap(yaw - psi_goal)
+        wz = float(np.clip(-k_yaw * e, -1.0, 1.0))
+        step_policy(np.array([args.turn_vx, 0.0, wz], np.float32))
+        maybe_render(kframe); kframe += 1
+        turn_t = (i + 1) * CTRL_DT
+        settled = settled + 1 if abs(e) < np.radians(2) else 0
+        if settled >= int(0.3 / CTRL_DT):        # 穩住 0.3s 視為到位
+            break
+
+    # ---- Latch：鎖定當下 odom 位置+航向為目標線 ----
+    x0, y0, psi_target = g.odom()
+    p0 = np.array([x0, y0]); d_hat, _ = line_frame(psi_target)
+    print(f"[latch] 轉向完成 psi_target={np.degrees(psi_target):+.1f}° "
+          f"起點=({x0:+.2f},{y0:+.2f}) 轉向耗時={turn_t:.1f}s")
+
+    # ---- Phase 2：沿目標線直走 ----
+    traj = []; ects = []; eyaws = []; fzmin = fzmax = None; fell = None
+    for i in range(int(args.secs / CTRL_DT)):
+        t = i * CTRL_DT; push_at(t)
+        x, y, yaw = g.odom(); p = np.array([x, y])
+        cmd, e_ct, e_yaw = line_control(p, yaw, p0, psi_target, args.vx,
+                                        k_yaw, args.k_ct, args.no_lateral)
+        step_policy(cmd)
+        traj.append(p.copy()); ects.append(e_ct); eyaws.append(e_yaw)
+        fz = g.d.geom_xpos[fl_gid][2]
+        fzmin = fz if fzmin is None else min(fzmin, fz)
+        fzmax = fz if fzmax is None else max(fzmax, fz)
+        if g.height < 0.15 and fell is None: fell = t
+        maybe_render(kframe); kframe += 1
+
+    push_at(1e9)                                  # 收尾清掉殘留外力
+    traj = np.array(traj); ects = np.array(ects); eyaws = np.array(eyaws)
+    fwd = float(d_hat @ (traj[-1] - p0))
+    max_ct = float(np.max(np.abs(ects))); fin_ct = float(ects[-1])
+    yaw_rms = float(np.degrees(np.sqrt(np.mean(eyaws ** 2))))
+    print(f"[result] 沿線前進={fwd:+.2f}m  max|側偏|={max_ct:.3f}m  末端側偏={fin_ct:+.3f}m  "
+          f"航向RMS={yaw_rms:.2f}°  跌倒={'是@%.1fs' % fell if fell else '否'}")
+    print(f"[result] FL 抬腳量 ≈ {fzmax - fzmin:.3f} m  (no_lateral={args.no_lateral})")
+
+    tag = "_nolat" if args.no_lateral else ""
+    import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
+    fig, ax = plt.subplots(figsize=(6, 6))
+    L = max(fwd, 1.0) + 0.5
+    seg = np.stack([p0, p0 + L * d_hat])
+    ax.plot(seg[:, 0], seg[:, 1], "k--", lw=1, label="target line")
+    ax.plot(traj[:, 0], traj[:, 1], "b-", lw=2, label="path")
+    ax.plot([p0[0]], [p0[1]], "go", ms=8, label="latch/start")
+    ax.set_aspect("equal"); ax.grid(True); ax.legend()
+    ax.set_title(f"odom straight turn={args.turn_deg:+.0f}deg "
+                 f"max|ct|={max_ct:.3f}m yawRMS={yaw_rms:.2f}deg"
+                 + ("  [no_lateral]" if args.no_lateral else ""))
+    pout = f"/home/huang/rbtdog_sim/task4/outputs/odom_line{tag}.png"
+    fig.savefig(pout, dpi=120, bbox_inches="tight"); print("[result] 軌跡圖:", pout)
+
     if frames:
         import imageio.v2 as iio
-        out = "/home/huang/rbtdog_sim/task4/outputs/cpg_rl_paper_infer.mp4"
+        out = f"/home/huang/rbtdog_sim/task4/outputs/odom_line{tag}.mp4"
         iio.mimsave(out, frames, fps=25, codec="libx264"); print("[result] 影片:", out)
 
 
@@ -217,6 +271,13 @@ if __name__ == "__main__":
     ap.add_argument("--vx", type=float, default=VX_CMD)
     ap.add_argument("--video", action="store_true")
     ap.add_argument("--push", action="store_true")
+    ap.add_argument("--turn_deg", type=float, default=-45.0,
+                    help="開走前的相對轉角(度)，右轉為負；預設右轉 45°")
+    ap.add_argument("--turn_vx", type=float, default=0.0, help="轉向階段的前進指令(原地轉=0)")
+    ap.add_argument("--turn_timeout", type=float, default=6.0, help="轉向階段秒數上限")
+    ap.add_argument("--k_ct", type=float, default=1.5, help="cross-track P 增益(橫向修正)")
+    ap.add_argument("--no_lateral", action="store_true",
+                    help="關閉 vy 橫向修正(vy≡0)，重現舊的只鎖航向行為做 A/B 對照")
     ap.add_argument("--w_coup", type=float, default=8.0,
                     help="CPG 腿間耦合強度，須與訓練一致：耦合版=8.0，無耦合版=0.0")
     run(ap.parse_args())

@@ -17,7 +17,8 @@ def wrap(a):
 class Go2Gait:
     def __init__(self, freq=3.0, duty=0.55, lift=0.12, stride=0.22,
                  turn_gain=0.10, z0=-0.28, kp=70.0, kd=1.5,
-                 imu_heading_rms_deg=0.5, imu_heading_tau=20.0, imu_seed=0):
+                 imu_heading_rms_deg=0.5, imu_heading_tau=20.0, imu_seed=0,
+                 odom_xy_bias=(0.0, 0.0), odom_yaw_bias=0.0):
         # imu_*：Xsens MTi-680G 融合航向誤差模型參數。
         #   規格書 heading 精度 0.5° RMS；拆成「慢速零偏(Gauss-Markov, 時間常數 tau)」
         #   + 「白噪」兩部分合成，零偏占約 0.9、白噪補足其餘，使總 RMS≈規格值。
@@ -29,6 +30,8 @@ class Go2Gait:
         self.imu_heading_rms_deg = imu_heading_rms_deg
         self.imu_heading_tau = imu_heading_tau
         self.imu_seed = imu_seed
+        self._odom_xy_bias = np.asarray(odom_xy_bias, dtype=float)
+        self._odom_yaw_bias = float(odom_yaw_bias)
         self.flimit = self.m.actuator_ctrlrange[:, 1]
         self.f0, self.Jinv = self._calc_ik()
         self.center = np.array([self.f0[0], z0])
@@ -127,6 +130,15 @@ class Go2Gait:
         """真實 yaw（由 framequat，僅供對照/驗證）。"""
         w, x, y, z = self.sensor("imu_quat")
         return np.arctan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
+
+    def odom(self):
+        """完美里程計（取代羅盤）：回傳世界系 (x, y, yaw)。
+        位置取自 imu site 的 framepos，航向由 framequat 解算；bias 預設 0，可注入偏移做實驗。"""
+        x, y, _ = self.sensor("odom_pos")
+        w, xx, yy, zz = self.sensor("imu_quat")
+        yaw = np.arctan2(2 * (w * zz + xx * yy), 1 - 2 * (yy * yy + zz * zz))
+        bx, by = self._odom_xy_bias
+        return float(x + bx), float(y + by), wrap(yaw + self._odom_yaw_bias)
 
     @property
     def xy(self):

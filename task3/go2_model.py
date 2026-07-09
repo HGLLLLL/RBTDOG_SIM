@@ -16,7 +16,7 @@ def make_model():
         return s
     add("imu_acc",  mujoco.mjtSensor.mjSENS_ACCELEROMETER)
     add("imu_gyro", mujoco.mjtSensor.mjSENS_GYRO)
-    add("imu_mag",  mujoco.mjtSensor.mjSENS_MAGNETOMETER)
+    add("odom_pos", mujoco.mjtSensor.mjSENS_FRAMEPOS)     # 完美里程計位置（取代羅盤）
     add("imu_quat", mujoco.mjtSensor.mjSENS_FRAMEQUAT)   # 真實姿態，僅供對照
     return spec.compile()
 

@@ -2,11 +2,11 @@
   <!-- 引入 menagerie 的 Go2 場景（含地面、光源、go2 本體） -->
   <include file="../mujoco_menagerie/unitree_go2/scene.xml"/>
 
-  <!-- 9 軸 IMU（含 compass）掛在機身內建的 imu site 上 -->
+  <!-- IMU + 完美 odom（framepos）掛在機身內建的 imu site 上；本檔為 go2_model.py 的宣告式鏡像 -->
   <sensor>
     <accelerometer name="imu_acc"  site="imu"/>   <!-- 3 軸加速度計 -->
     <gyro          name="imu_gyro" site="imu"/>   <!-- 3 軸陀螺儀 -->
-    <magnetometer  name="imu_mag"  site="imu"/>   <!-- 3 軸磁力計 = 羅盤 -->
+    <framepos      name="odom_pos" objtype="site" objname="imu"/>   <!-- 完美里程計位置（取代羅盤） -->
     <!-- 真實姿態四元數（僅供對照/驗證，controller 不得用它當回授） -->
     <framequat     name="imu_quat" objtype="site" objname="imu"/>
   </sensor>

@@ -1,6 +1,6 @@
 """Go2 CPG trot 控制器（含轉彎）。指令介面: v_cmd(前進 0~1), turn_cmd(-1~1, 右轉為正)。
 力矩致動器 → 軟體 PD；站立相貼地後推、擺動相抬起前移；轉彎用左右腿差動步幅。
-航向來源 compass_yaw() 模擬 Xsens MTi-680G 的『融合航向』輸出（見下方誤差模型）。"""
+航向來源 compass_yaw() 模擬 Xsens MTi-680G 的『融合航向』輸出（見下方誤差模型）。另提供 odom() 完美里程計 (x,y,yaw) 供直線行走回授。"""
 import numpy as np, mujoco
 from go2_model import make_model
 
@@ -122,7 +122,8 @@ class Go2Gait:
         return wrap(self.true_yaw() + self._he_bias + self._he_white)
 
     def mag_yaw(self):
-        """（保留）由裸磁力計直接解算航向：yaw = atan2(-mag_x, -mag_y)。"""
+        """（已失效／保留備份）原由裸磁力計解算航向；imu_mag 已被 odom 取代而移除，
+        呼叫本方法會 KeyError。真正的備份航向請用 compass_yaw()。yaw = atan2(-mag_x, -mag_y)。"""
         mx, my, mz = self.sensor("imu_mag")
         return np.arctan2(-mx, -my)
 

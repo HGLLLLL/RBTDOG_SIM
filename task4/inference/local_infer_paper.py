@@ -1,4 +1,4 @@
-"""本機 CPU 推論（論文標準版）：載入 cpg_rl_paper_params.pkl，接回 task3 Go2 + 羅盤走直線。
+"""本機 CPU 推論（論文標準版）：載入 cpg_rl_paper_params.pkl，接回 task3 Go2 + odom 走絕對直線。
 CPG/IK 映射與 cpg_rl_paper_colab.ipynb 逐行對應（12維動作、2D腳掌、腿間耦合、固定離地 g_c）。
 用法:
   python local_infer_paper.py --dummy --secs 8 --video           # 沒權重先測管線
@@ -108,8 +108,10 @@ def line_control(p, yaw, p0, psi_target, vx, k_yaw, k_ct, no_lateral=False):
     """方案 A 解耦控制：wz 用航向誤差鎖航向、vy 用 cross-track 誤差滑回線上。
     p, p0 為世界系 (x,y)；回傳 (cmd[vx,vy,wz] float32, e_ct, e_yaw)。"""
     _, n = line_frame(psi_target)
+    # e_ct 為世界系橫向誤差；vy 為 body 系橫移。兩者僅在 yaw≈psi_target 時等價，
+    # 而 wz 主動鎖住航向確保此前提成立（大航向誤差時橫向修正方向會短暫失準）。
     e_ct = float(n @ (np.asarray(p, float) - np.asarray(p0, float)))
-    e_yaw = wrap(yaw - psi_target)
+    e_yaw = float(wrap(yaw - psi_target))
     wz = float(np.clip(-k_yaw * e_yaw, -1.0, 1.0))
     vy = 0.0 if no_lateral else float(np.clip(-k_ct * e_ct, -0.3, 0.3))
     return np.array([vx, vy, wz], np.float32), e_ct, e_yaw
@@ -234,6 +236,8 @@ def run(args):
         maybe_render(kframe); kframe += 1
 
     push_at(1e9)                                  # 收尾清掉殘留外力
+    if not traj:
+        print("[result] 直走階段 0 步（--secs 太小），略過量測"); return
     traj = np.array(traj); ects = np.array(ects); eyaws = np.array(eyaws)
     fwd = float(d_hat @ (traj[-1] - p0))
     max_ct = float(np.max(np.abs(ects))); fin_ct = float(ects[-1])

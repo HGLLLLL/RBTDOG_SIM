@@ -1,0 +1,20 @@
+# 第三方 / 大型依賴（各自獨立 clone，不納入本 repo）
+mujoco_menagerie/
+mujoco_mpc/
+
+# 示範影片（體積大，日後可用 git-lfs 或另存）
+*.mp4
+
+# Python 快取
+__pycache__/
+*.pyc
+*.pyo
+
+# 本機工具設定
+.claude/
+
+# 作業系統雜項
+.DS_Store
+
+# LibreOffice 鎖檔
+.~lock.*#

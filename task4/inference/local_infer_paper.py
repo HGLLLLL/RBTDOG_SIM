@@ -98,6 +98,24 @@ def w2b(q, v): return qrot(qinv(q), v)
 def wrap(a): return np.arctan2(np.sin(a), np.cos(a))
 
 
+def line_frame(psi):
+    """目標線的方向 d 與左法向 n（世界系單位向量）。"""
+    d = np.array([np.cos(psi), np.sin(psi)])
+    n = np.array([-np.sin(psi), np.cos(psi)])
+    return d, n
+
+
+def line_control(p, yaw, p0, psi_target, vx, k_yaw, k_ct, no_lateral=False):
+    """方案 A 解耦控制：wz 用航向誤差鎖航向、vy 用 cross-track 誤差滑回線上。
+    p, p0 為世界系 (x,y)；回傳 (cmd[vx,vy,wz] float32, e_ct, e_yaw)。"""
+    _, n = line_frame(psi_target)
+    e_ct = float(n @ (np.asarray(p, float) - np.asarray(p0, float)))
+    e_yaw = wrap(yaw - psi_target)
+    wz = float(np.clip(-k_yaw * e_yaw, -1.0, 1.0))
+    vy = 0.0 if no_lateral else float(np.clip(-k_ct * e_ct, -0.3, 0.3))
+    return np.array([vx, vy, wz], np.float32), e_ct, e_yaw
+
+
 def build_obs(g, c, cmd, last_a, foot_gid):
     quat = g.d.qpos[3:7]
     grav = w2b(quat, np.array([0, 0, -1.0])); blin = w2b(quat, g.d.qvel[0:3])

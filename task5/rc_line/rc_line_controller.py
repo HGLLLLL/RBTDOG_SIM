@@ -67,3 +67,137 @@ class Config:
     jump_yaw_rad: float = float(np.radians(30))
     slew_vy: float = 1.5                    # 輸出斜率限制 m/s²（0=關）
     slew_wz: float = 5.0                    # rad/s²（0=關）
+
+
+class _StickGate:
+    """單軸死區遲滯：|v|>on 進入 active，|v|<off 才離開，避免門檻邊緣顫振。"""
+
+    def __init__(self, on, off):
+        self.on, self.off = on, off
+        self.active = False
+
+    def update(self, v):
+        if self.active:
+            if abs(v) < self.off:
+                self.active = False
+        elif abs(v) > self.on:
+            self.active = True
+        return self.active
+
+
+class _YawRateEst:
+    """odom yaw 差分 + 一階低通估角速度；stable_for(now) 回傳連續穩定秒數。"""
+
+    def __init__(self, tau, thresh):
+        self.tau, self.thresh = tau, thresh
+        self.reset()
+
+    def reset(self):
+        self._prev = None                    # (yaw, stamp)
+        self.rate = 0.0
+        self._stable_since = None
+
+    def update(self, yaw, stamp):
+        if self._prev is not None:
+            dt = stamp - self._prev[1]
+            if dt > 1e-6:
+                raw = wrap(yaw - self._prev[0]) / dt
+                a = dt / (self.tau + dt)
+                self.rate += a * (raw - self.rate)
+        self._prev = (yaw, stamp)
+        if abs(self.rate) < self.thresh:
+            if self._stable_since is None:
+                self._stable_since = stamp
+        else:
+            self._stable_since = None
+
+    def stable_for(self, now):
+        return 0.0 if self._stable_since is None else max(0.0, now - self._stable_since)
+
+
+class RCLineController:
+    """遙控外圈直線控制器。每控制週期呼叫 update(sticks, odom, now) → cmd。
+
+    狀態機（spec §4）：
+      MANUAL   手動直通（任一接管條件：turn/lat 離中、odom 不可用、fwd 回中）
+      SETTLING fwd 離中且接管桿回中，等航向穩定
+      TRACKING 沿 latch 直線做 line_control 校正
+    """
+
+    def __init__(self, cfg=None):
+        self.cfg = cfg or Config()
+        c = self.cfg
+        self.state = MANUAL
+        self.degraded = True                 # 尚未收到 odom
+        self.latch = None                    # (p0: np.ndarray(2), psi) | None
+        self._gate_fwd = _StickGate(c.dead_on, c.dead_off)
+        self._gate_lat = _StickGate(c.dead_on, c.dead_off)
+        self._gate_turn = _StickGate(c.dead_on, c.dead_off)
+        self._yr = _YawRateEst(c.lpf_tau, c.yaw_rate_stable)
+        self._last_odom = None               # 最後接受的 Odom
+        self._prev_out = None                # (cmd, now)，slew 用
+
+    def update(self, sticks, odom, now):
+        c = self.cfg
+        fwd_on = self._gate_fwd.update(sticks.fwd)
+        lat_on = self._gate_lat.update(sticks.lat)
+        turn_on = self._gate_turn.update(sticks.turn)
+        fwd = sticks.fwd if fwd_on else 0.0
+
+        fresh = self._ingest_odom(odom, now)
+        self.degraded = not fresh
+
+        if turn_on or lat_on or not fresh or not fwd_on:   # 接管 → 手動直通
+            self.state = MANUAL
+            self.latch = None
+            lat_v = sticks.lat if lat_on else 0.0
+            turn_v = sticks.turn if turn_on else 0.0
+            cmd = np.array([fwd * c.vmax, lat_v * c.vymax, turn_v * c.wmax], np.float32)
+            return self._finish(cmd, now)
+
+        if self.latch is None:                             # 等航向穩才鎖線
+            if self._yr.stable_for(now) >= c.settle_s:
+                self.latch = (np.array([self._last_odom.x, self._last_odom.y]),
+                              float(self._last_odom.yaw))
+            else:
+                self.state = SETTLING
+                return self._finish(np.array([fwd * c.vmax, 0.0, 0.0], np.float32), now)
+
+        self.state = TRACKING
+        p0, psi = self.latch
+        cmd, _, _ = line_control((self._last_odom.x, self._last_odom.y),
+                                 self._last_odom.yaw, p0, psi,
+                                 fwd * c.vmax, c.k_yaw, c.k_ct)
+        return self._finish(cmd, now)
+
+    def _ingest_odom(self, odom, now):
+        """接收 odom：None/NaN 拒收；跳變作廢 latch；回傳「數據可用」（新鮮）。"""
+        c = self.cfg
+        if odom is None or not np.all(np.isfinite([odom.x, odom.y, odom.yaw, odom.stamp])):
+            return False
+        if self._last_odom is None or odom.stamp > self._last_odom.stamp:
+            if self._last_odom is not None:
+                dp = float(np.hypot(odom.x - self._last_odom.x, odom.y - self._last_odom.y))
+                dyaw = abs(float(wrap(odom.yaw - self._last_odom.yaw)))
+                if dp > c.jump_pos_m or dyaw > c.jump_yaw_rad:  # 外接定位重定位
+                    self.latch = None
+                    self._yr.reset()
+            self._yr.update(odom.yaw, odom.stamp)
+            self._last_odom = odom
+        return (now - self._last_odom.stamp) <= c.stale_s
+
+    def _finish(self, cmd, now):
+        """安全網：限幅 + vy/wz 斜率限制（平滑狀態切換跳變），最後才出模組。"""
+        c = self.cfg
+        cmd = np.asarray(cmd, np.float32).copy()
+        cmd[0] = np.clip(cmd[0], -c.vmax, c.vmax)
+        cmd[1] = np.clip(cmd[1], -max(c.vymax, c.vy_lim), max(c.vymax, c.vy_lim))
+        cmd[2] = np.clip(cmd[2], -max(c.wmax, c.wz_lim), max(c.wmax, c.wz_lim))
+        if self._prev_out is not None:
+            prev, t_prev = self._prev_out
+            dt = max(now - t_prev, 1e-6)
+            for i, rate in ((1, c.slew_vy), (2, c.slew_wz)):
+                if rate > 0:
+                    cmd[i] = np.clip(cmd[i], prev[i] - rate * dt, prev[i] + rate * dt)
+        self._prev_out = (cmd.copy(), now)
+        return cmd

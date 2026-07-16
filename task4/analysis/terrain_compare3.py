@@ -26,8 +26,8 @@ import cpg2 as C
 import obs2 as O
 import local_infer_terrain2 as L2
 
-OUT2 = "/home/huang/rbtdog_sim/task4/outputs/2026-07-16"
-NEW = "/home/huang/rbtdog_sim/task4/weights/cpg_rl_terrain2_params.pkl"
+OUT2 = "/home/huang/rbtdog_sim/task4/outputs/2026-07-16-v2.1"
+NEW = "/home/huang/rbtdog_sim/task4/weights/cpg_rl_terrain2_1_params.pkl"
 FOOT_CONTACT_H = 0.03
 HOME12 = np.array([0.0, 0.9, -1.8] * 4)
 P0 = np.array([0.0, 0.0])                  # 目標線錨點
@@ -118,10 +118,14 @@ def check():
 
 
 def main():
+    global NEW, OUT2
     ap = argparse.ArgumentParser()
     ap.add_argument("--exp", choices=["slope", "rough", "both"], default="both")
+    ap.add_argument("--params", default=NEW, help="權重路徑(預設 terrain2_1)")
+    ap.add_argument("--outdir", default=OUT2)
     ap.add_argument("--check", action="store_true")
     args = ap.parse_args()
+    NEW = args.params; OUT2 = args.outdir
     os.makedirs(OUT2, exist_ok=True)
     if args.check: check(); return
     if args.exp in ("slope", "both"):

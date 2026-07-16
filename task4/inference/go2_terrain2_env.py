@@ -140,10 +140,17 @@ class Go2Terrain2Env(Env):
         upright = grav[0] ** 2 + grav[1] ** 2
         gzb = gz_j(data.qpos[0], data.qpos[1])
         rel_h = data.qpos[2] - gzb
-        height_pen = (rel_h - 0.30) ** 2
-        act_rate = jnp.sum((action - state.info["last_action"]) ** 2)
+        # rel_h 夾在 [0,0.6]：機身被彈飛也不讓 height_pen 無上界爆炸(≤0.09)
+        height_pen = (jnp.clip(rel_h, 0.0, 0.6) - 0.30) ** 2
+        # act_rate 對「tanh 後的有界動作」算：raw 輸出飽和後行為不變，
+        # 若仍用 raw 差分，一旦 policy 發散懲罰會隨原始輸出無界爆炸(曾致 -1e5 reward)。
+        a_sq = jnp.tanh(action)
+        la_sq = jnp.tanh(state.info["last_action"])
+        act_rate = jnp.sum((a_sq - la_sq) ** 2)
         reward = (1.5 * r_lin + 1.2 * r_yaw - 1.0 * upright
                   - 0.5 * height_pen - 0.05 * act_rate + 0.05)   # 無 y_pen
+        # 保險下界：正常單步 reward∈~[-2,2.75]，-5 只截極端病態步、不影響正常學習
+        reward = jnp.maximum(reward, -5.0)
         done = jnp.where((rel_h < 0.18) | (grav[2] > -0.4), 1.0, 0.0)
         finite = (jnp.isfinite(reward) & jnp.all(jnp.isfinite(data.qpos))
                   & jnp.all(jnp.isfinite(data.qvel)))

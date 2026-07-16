@@ -132,10 +132,12 @@ r_yaw = jnp.exp(-((gyro[2]-cmd[2])**2) / 0.25)                          # 追 wz
 upright   = grav[0]**2 + grav[1]**2
 rel_h     = data.qpos[2] - gz_j(data.qpos[0], data.qpos[1])            # ★ 2D 相對地面
 height_pen= (rel_h - 0.30)**2
-act_rate  = jnp.sum((action - last_action)**2)                         # 16 維
+height_pen= (jnp.clip(rel_h, 0.0, 0.6) - 0.30)**2                      # ★ 夾住 rel_h 防爆
+act_rate  = jnp.sum((jnp.tanh(action) - jnp.tanh(last_action))**2)     # ★ 對 tanh 後有界動作算
 
 reward = (1.5*r_lin + 1.2*r_yaw - 1.0*upright
           - 0.5*height_pen - 0.05*act_rate + 0.05)                     # ★ 移除 y_pen
+reward = jnp.maximum(reward, -5.0)                                     # ★ 保險下界
 done   = jnp.where((rel_h < 0.18) | (grav[2] > -0.4), 1.0, 0.0)
 # finite 防護沿用 v1
 ```
@@ -163,7 +165,8 @@ grav(3) + blin(3) + gyro(3) + (qpos[7:19]−HOME12)(12) + qvel[6:18](12)
 - **PD**：`apply_pd` kp=90/kd=3、力矩上限（膝 45.43、其餘 23.7）。
 - **Domain randomization**：摩擦 [0.3,1.0]、kp[75,105]、kd[2,4]、連桿質量 ±20%、軀幹負重 0~8kg。
 - **抗推**：每 100 步（2s）注入隨機水平速度 kick（≤0.6 m/s）。
-- **PPO**：policy 256/256/128、value 256³、normalize obs、`num_envs=2048`、`num_timesteps=2e8`（比 v1 稍難，OOM 就降 num_envs）、其餘超參同 v1。
+- **PPO**：policy 256/256/128、value 256³、normalize obs、`num_envs=2048`、`num_timesteps=2e8`（比 v1 稍難，OOM 就降 num_envs）。
+- **穩定化（首次實跑 74M 步發散後修正）**：`entropy_cost` 由 1e-2 → **3e-3**（16 維動作 + 全向指令探索壓力大，1e-2 太高致震盪）。搭配上面 reward 的 `act_rate` 改對 tanh 後動作、`height_pen` 夾 rel_h、reward 下界 −5，杜絕「raw 動作發散 → 懲罰無界爆炸 → value 帶歪」的 runaway。
 
 ---
 

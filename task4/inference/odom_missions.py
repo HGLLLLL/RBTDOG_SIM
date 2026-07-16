@@ -211,7 +211,9 @@ def chart_line(traj, out):
                 label=f"{LABELS[nm]} (end |y|={abs(t[-1,1]):.3f} m)")
     a1.axhline(0, color="gray", ls="--", lw=1)
     a1.set_xlabel("Forward x (m)"); a1.set_ylabel("Lateral y (m)")
-    a1.set_title("Straight 40 m: compass vs odom"); a1.legend(); a1.set_aspect("equal", "box")
+    a1.set_title("Straight 40 m: compass vs odom")
+    a1.set_ylim(-1.0, 1.0)                      # 固定 y 範圍：0.8m 側偏才看得出來(等比例會壓成一條線)
+    a1.legend(fontsize=9, loc="upper left", framealpha=0.9)
     for nm in ("compass", "odom"):
         t = np.array(traj[nm])
         a2.plot(t[:, 0], np.abs(t[:, 1]), color=PLTCOL[nm], lw=1.6, label=LABELS[nm])
@@ -228,7 +230,8 @@ def run_course(policy, args):
     gx0 = {nm: r.xy.copy() for nm, r in dogs.items()}
     # 各狗以自己真值起點為原點推理想折線
     ideal = {nm: ideal_waypoints(SEGS, origin=gx0[nm]) for nm, r in dogs.items()}
-    state = {nm: {"seg": 0, "phase": "turn", "settle": 0, "seg_start": gx0[nm].copy()}
+    state = {nm: {"seg": 0, "phase": "turn", "settle": 0,
+                  "seg_start": gx0[nm].copy(), "t_seg": 0.0}
              for nm in dogs}
     traj = {nm: [] for nm in dogs}
     vid = f"{OUT}/exp_course_compare.mp4"
@@ -245,6 +248,9 @@ def run_course(policy, args):
             for nm in ("compass", "odom"):
                 s = state[nm]; seg = min(s["seg"], len(SEGS) - 1)
                 sub = f"seg {min(s['seg']+1, len(SEGS))}/{len(SEGS)}  {s['phase']}"
+                if nm == "compass" and s["phase"] == "straight" and s["seg"] < len(SEGS):
+                    el = dogs[nm].d.time - s["t_seg"]; tgt = SEGS[seg][1] / VX
+                    sub += f"  dist by time {el:.1f}/{tgt:.1f}s"
                 wp = [(p[0], p[1]) for p in ideal[nm]]
                 fr.append(frame(dogs[nm], LABELS[nm], COLORS[nm], wp, sub))
             writer.append_data(np.concatenate(fr, axis=1))
@@ -269,16 +275,19 @@ def course_cmd(r, s, ideal):
         e = wrap(yawm - hd)
         s["settle"] = s["settle"] + 1 if abs(e) < np.radians(2) else 0
         if s["settle"] >= int(0.3 / CTRL_DT):
-            s["phase"] = "straight"; s["settle"] = 0; s["seg_start"] = r.xy.copy()
+            s["phase"] = "straight"; s["settle"] = 0
+            s["seg_start"] = r.xy.copy(); s["t_seg"] = float(r.d.time)  # 記直行起點(位置給odom/繪圖、時間給compass)
         return np.array([0.0, 0.0, float(np.clip(-K_YAW * e, -1.0, 1.0))])
     dseg = np.array([np.cos(hd), np.sin(hd)])
     if r.mode == "odom":
         cmd, _, _ = P.line_control(r.odom_xy(), yawm, ideal[s["seg"]], hd, VX, K_YAW, K_CT)
-        prog = float(dseg @ (r.xy - ideal[s["seg"]]))        # 沿理想線的真值進度
+        done = float(dseg @ (r.xy - ideal[s["seg"]])) >= L    # odom：沿理想線的真值進度切段
     else:
+        # compass：無位置信號 → 只能用「指令速度×時間」估計走了多遠，走滿 L/VX 秒即切段。
+        # 若實際步速≠指令 VX，距離就會系統性偏差且無從修正，正是純羅盤的弱點。
         cmd = np.array([VX, 0.0, float(np.clip(-K_YAW * wrap(yawm - hd), -1.0, 1.0))])
-        prog = float(dseg @ (r.xy - s["seg_start"]))         # 沿航向的真值進度
-    if prog >= L:
+        done = (float(r.d.time) - s["t_seg"]) >= L / VX       # compass：以時間估計進度切段
+    if done:
         s["seg"] += 1; s["phase"] = "turn"; s["settle"] = 0
     return cmd
 
@@ -297,7 +306,9 @@ def chart_course(traj, ideal, out):
                 label=f"{LABELS[nm]} (end err={np.linalg.norm(end-ideal_end):.2f} m)")
     a1.axhline(0, color="gray", ls=":", lw=1)
     a1.set_xlabel("x (m)"); a1.set_ylabel("y (m)")
-    a1.set_title("Course tracking: compass vs odom"); a1.legend(); a1.set_aspect("equal", "box")
+    a1.set_title("Course tracking: compass vs odom"); a1.set_aspect("equal", "box")
+    a1.legend(fontsize=9, loc="upper center", bbox_to_anchor=(0.5, -0.16),
+              ncol=1, framealpha=0.9)          # 圖例移到圖下方，避免蓋住軌跡
     for nm in ("compass", "odom"):
         t = np.array(traj[nm])
         s = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(t, axis=0), axis=1))])
@@ -305,7 +316,7 @@ def chart_course(traj, ideal, out):
         a2.plot(s, ct, color=PLTCOL[nm], lw=1.6, label=LABELS[nm])
     a2.set_xlabel("Distance travelled (m)"); a2.set_ylabel("Dist. to ideal course (m)")
     a2.set_title("Cross-track error along the course"); a2.legend()
-    fig.tight_layout(); fig.savefig(out, dpi=120); print("[chart]", out)
+    fig.tight_layout(); fig.savefig(out, dpi=120, bbox_inches="tight"); print("[chart]", out)
 
 
 def main():

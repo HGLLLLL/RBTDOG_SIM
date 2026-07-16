@@ -66,3 +66,34 @@ MUJOCO_GL=egl conda run -n rbtdog python task4/analysis/terrain_compare2.py --ex
 - 兩者**地形通過能力其實都在**：新模型一樣爬完所有山丘、過完所有凹凸，只是最後漂出跑道。
 
 **這正好印證 07-15 README 的預告**：盲走直線要靠上層 odom/IMU 航向回授修正。差別是——**新的全向模型「吃得下」wz 航向修正指令，舊 v1 一給 wz 就崩**。所以要做真機直走任務，新模型才是對的底座（task5 的 RC/odom 外圈控制器可閉環修正），開環直走的漂移由外圈解決，不該要求底層盲走自己走絕對直線。
+
+---
+
+# 新模型 + odom 外圈閉環（重作兩實驗）
+
+腳本：`task4/analysis/terrain_compare3.py`。與開環唯一差別：每步指令改由 **`line_control` odom 線追蹤律**產生（`wz` 用航向誤差鎖航向、`vy` 用 cross-track 誤差 `e_ct` 滑回線上），目標線 = x 軸。odom 在 sim 即完美 framepos（機身真值位姿）。gain `K_YAW=3.0, K_CT=1.5`，同 `odom_missions`。
+
+```bash
+MUJOCO_GL=egl conda run -n rbtdog python task4/analysis/terrain_compare3.py --exp both
+```
+
+產出：`exp1_slope_odom.mp4` / `exp1_slope_odom_chart.png` / `exp2_rough_odom.mp4` / `exp2_rough_odom_chart.png`（影片左下角即時顯示 cross-track e）。
+
+## 三方對照：舊直走專用 vs 新開環 vs 新+odom閉環
+
+| 指標 | 舊 v1 直走專用(07-15) | 新16維 開環直走 | **新16維 + odom 閉環** |
+|---|---|---|---|
+| slope 最大側偏 | 2.71 m | 3.69 m | **0.87 m** |
+| slope 平均\|e_ct\| | — | — | **0.035 m** |
+| slope 跌倒 | 否 | @43.9s(x=22.3) | @41.8s(x=23.1) |
+| rough 最大側偏 | 2.91 m | 7.05 m | **0.14 m** |
+| rough 平均\|e_ct\| | — | — | **0.014 m** |
+| rough 跌倒 | 否 | @33.5s | **否** |
+
+## 結論
+
+- **rough：閉環完勝。** 側偏 7.05m → **0.14m（約 50×）**、平均 cross-track **僅 14mm**、**全程不跌**。新全向模型 + odom 外圈把機器狗牢牢釘在線上過 3/5/8cm 凹凸。
+- **slope：側偏 3.69m → 0.87m（約 4×）、平均 cross-track 35mm。** 兩支 slope 影片的「跌倒」其實是**走到有限跑道盡頭（地形只鋪到 x≈23.3m）踏空**，不是失穩——閉環走得更直更快、更早抵達終點才更早踏空（開環反而因為漂移沒走那麼遠）。把跑道加長就不會跌。
+- **對照舊 v1**：新模型 + odom 閉環在「直線精度」上（rough 0.14 vs 2.91m）大勝舊直走專用模型，**而且新模型還能同時吃轉向/橫移指令**（舊 v1 一給就崩）。→ **「新模型 + task5 odom 外圈」這條路線驗證成立**：底層負責全向運動與地形魯棒，絕對直線/航向由 odom 外圈閉環解決。
+
+> 備註：本閉環用 sim 完美 odom（framepos）。真機改用實際 odom/IMU 融合位姿即可，控制律與 gain 不變（task5 `rc_line` 已是這套介面）。

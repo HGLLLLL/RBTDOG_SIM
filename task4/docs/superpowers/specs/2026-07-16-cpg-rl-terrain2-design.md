@@ -30,7 +30,7 @@ v1（`cpg_rl_terrain_colab.ipynb`）有三個要修正的點：
 | 動作維度 | 12（每腿 μx,μy,ω） | **16（每腿 μx,μy,ω,g_c）** |
 | 觀測維度 | 76 | **80**（last_action 12→16） |
 | 指令取樣 | `[vx∈0.4~0.9, 0, 0]` | **`[vx∈0~1, vy∈±0.3, wz∈±1]`（全向）** |
-| 抬腳高度 | 固定 `G_C=0.08` | **每腿 RL 可調 `g_c∈[0.03,0.15]`** |
+| 抬腳高度 | 固定 `G_C=0.08` | **每腿 RL 可調 `g_c∈[0.05,0.15]`** |
 | 地形 | 平台+box 斜坡 | **統一 hfield：平台+斜坡+粗糙度漸變凹凸** |
 | 地面高度 `gz` | 解析 `interp(x)` | **對 H 網格雙線性內插 `gz(x,y)`** |
 | reward | 速度追蹤 + `y_pen` 絕對位移罰 | **純速度追蹤，移除 `y_pen`** |
@@ -45,7 +45,7 @@ v1（`cpg_rl_terrain_colab.ipynb`）有三個要修正的點：
 動作從 12 → 16，reshape 成 `(4,4)`，每腿 4 個參數：
 
 ```python
-GC_MIN, GC_MAX = 0.03, 0.15          # 抬腳高度可學範圍(m)
+GC_MIN, GC_MAX = 0.05, 0.15          # 抬腳高度可學範圍(m)
 
 def action_to_cpg_cmd(action):
     a = jnp.tanh(action).reshape(4, 4)          # ★ (4,3)→(4,4)
@@ -56,7 +56,7 @@ def action_to_cpg_cmd(action):
     return mux, muy, omega, gc
 ```
 
-- **下限 `GC_MIN=0.03`**：結構上防止在平滑段把腳壓到拖地（保留 v1「不能偷懶」的精神，但給 RL 空間）。
+- **下限 `GC_MIN=0.05`**：連最低抬腳都先清 5cm 小凸起（原 0.03 太低、凹凸易卡）；上限 0.15 足夠跨 8cm。
 - **上限 `GC_MAX=0.15`**：讓策略能為較大凸起抬高。
 - `G_P=0.01`（站立下壓）**維持固定**，不放給 RL。
 
@@ -135,8 +135,10 @@ height_pen= (rel_h - 0.30)**2
 height_pen= (jnp.clip(rel_h, 0.0, 0.6) - 0.30)**2                      # ★ 夾住 rel_h 防爆
 act_rate  = jnp.sum((jnp.tanh(action) - jnp.tanh(last_action))**2)     # ★ 對 tanh 後有界動作算
 
+swing     = jnp.clip(jnp.sin(cpg["theta"]), 0.0, None)                # ★ 擺動期(sinθ>0)
+scuff     = jnp.sum(foot_contact * swing)                             # ★ 擺動中仍觸地=卡住/拖地
 reward = (1.5*r_lin + 1.2*r_yaw - 1.0*upright
-          - 0.5*height_pen - 0.05*act_rate + 0.05)                     # ★ 移除 y_pen
+          - 0.5*height_pen - 0.05*act_rate - 0.4*scuff + 0.05)         # ★ 移除 y_pen；加擺動卡住懲罰
 reward = jnp.maximum(reward, -5.0)                                     # ★ 保險下界
 done   = jnp.where((rel_h < 0.18) | (grav[2] > -0.4), 1.0, 0.0)
 # finite 防護沿用 v1
@@ -167,6 +169,7 @@ grav(3) + blin(3) + gyro(3) + (qpos[7:19]−HOME12)(12) + qvel[6:18](12)
 - **抗推**：每 100 步（2s）注入隨機水平速度 kick（≤0.6 m/s）。
 - **PPO**：policy 256/256/128、value 256³、normalize obs、`num_envs=2048`、`num_timesteps=2e8`（比 v1 稍難，OOM 就降 num_envs）。
 - **穩定化（首次實跑 74M 步發散後修正）**：`entropy_cost` 由 1e-2 → **3e-3**（16 維動作 + 全向指令探索壓力大，1e-2 太高致震盪）。搭配上面 reward 的 `act_rate` 改對 tanh 後動作、`height_pen` 夾 rel_h、reward 下界 −5，杜絕「raw 動作發散 → 懲罰無界爆炸 → value 帶歪」的 runaway。
+- **抬腳強化（v2.1，實測凹凸會卡後）**：加 `-0.4·scuff` 擺動卡住懲罰 + `GC_MIN` 0.03→0.05，讓策略在凹凸地學會把腳抬高跨過（平地不受影響）。
 
 ---
 
@@ -209,7 +212,7 @@ grav(3) + blin(3) + gyro(3) + (qpos[7:19]−HOME12)(12) + qvel[6:18](12)
 ## 9. 已知風險 / 必須現場驗證
 
 1. **MJX hfield 效能/正確性 @2048 envs**：先單環境 smoke test（reward 有限、腳不穿地、done 不誤觸發），再上 GPU；若太慢/OOM → 降網格解析度、縮 y 範圍或 num_envs。
-2. **平滑段抬腳塌陷（拖地）**：靠 `GC_MIN=0.03` 下限 + 粗糙度漸變抑制；**監控指標**：平均 `gc`、FL 腳世界 z 抬腳量。若仍拖地，考慮加小額腳部離地獎勵。
+2. **平滑段抬腳塌陷／凹凸卡住**：靠 `GC_MIN=0.05` 下限 + **擺動卡住懲罰 `-0.4·scuff`**（擺動期腳仍觸地就罰、sinθ 加權，因地制宜逼凹凸地抬高）；**監控指標**：平均 `gc`、`scuff`、FL 腳抬腳量。
 3. **hfield 正規化 / pos 校正**：`mj_ray` 表面 vs 雙線性 `gz` 誤差 < 0.02 必過，否則觸地/rel_h 會錯。
 4. **版本差異**：本機 mujoco 3.10 的 MJX 有 hfield；Colab `pip` 可能更新 → 務必在 Colab 先跑 smoke test。
 5. **bump 振幅 vs 腳半徑/步幅**：`AMP_MAX=0.08m`（8cm）。`GC_MAX=0.15m`（15cm）對 8cm 凸起有清除餘裕；若訓練初期一直被 8cm 絆倒，可先用漸變讓遠端才到 8cm（已內建），或暫時降 `AMP_MAX` 熱身後再拉高。

@@ -109,7 +109,7 @@ class Go2Terrain2Env(Env):
         obs = self._obs(data, info)
         metrics = {"reward": jnp.zeros(()), "r_lin": jnp.zeros(()),
                    "r_yaw": jnp.zeros(()), "rel_h": jnp.zeros(()),
-                   "gc_mean": jnp.zeros(())}
+                   "gc_mean": jnp.zeros(()), "scuff": jnp.zeros(())}
         return State(data, obs, jnp.zeros(()), jnp.zeros(()), metrics, info)
 
     def step(self, state, action):
@@ -147,8 +147,13 @@ class Go2Terrain2Env(Env):
         a_sq = jnp.tanh(action)
         la_sq = jnp.tanh(state.info["last_action"])
         act_rate = jnp.sum((a_sq - la_sq) ** 2)
+        # 擺動卡住懲罰：擺動期(sinθ>0)的腳若仍觸地(=卡到凸起/拖地)就扣，sinθ 加權。
+        # 因地制宜：平地擺動腳不觸地→不罰；凹凸地擺動腳撞凸起→罰→逼它把 gc 抬高跨過。
+        swing = jnp.clip(jnp.sin(cpg["theta"]), 0.0, None)
+        scuff = jnp.sum(self._foot_contact(data) * swing)       # 有界 [0,4]
         reward = (1.5 * r_lin + 1.2 * r_yaw - 1.0 * upright
-                  - 0.5 * height_pen - 0.05 * act_rate + 0.05)   # 無 y_pen
+                  - 0.5 * height_pen - 0.05 * act_rate
+                  - 0.4 * scuff + 0.05)                          # 無 y_pen
         # 保險下界：正常單步 reward∈~[-2,2.75]，-5 只截極端病態步、不影響正常學習
         reward = jnp.maximum(reward, -5.0)
         done = jnp.where((rel_h < 0.18) | (grav[2] > -0.4), 1.0, 0.0)
@@ -157,7 +162,7 @@ class Go2Terrain2Env(Env):
         reward = jnp.where(finite, reward, 0.0)
         done = jnp.where(finite, done, 1.0)
         metrics = {"reward": reward, "r_lin": r_lin, "r_yaw": r_yaw,
-                   "rel_h": rel_h, "gc_mean": jnp.mean(gc)}
+                   "rel_h": rel_h, "gc_mean": jnp.mean(gc), "scuff": scuff}
         return state.replace(pipeline_state=data, obs=obs, reward=reward,
                              done=done, metrics=metrics, info=info)
 

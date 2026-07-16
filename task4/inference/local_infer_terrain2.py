@@ -10,24 +10,49 @@ import jax, jax.numpy as jnp
 import terrain2 as T
 import cpg2 as C
 import obs2 as O
-from local_infer_paper import load_policy   # 沿用既有 policy 建構/normalize/deterministic
+# 自建 dims-aware policy loader（支援 76/12 舊模型與 80/16 新模型）
 
 SCENE = "mujoco_menagerie/unitree_go2/scene.xml"
 CTRL_DT, SIM_DT = 0.02, 0.004
 HOME12 = np.array([0.0, 0.9, -1.8] * 4)
 
 
+def _detect_dims(path):
+    """直接從存檔 params tree 判維度：obs 取 normalizer mean，act 取 policy 末層 bias/2。"""
+    from brax.io import model
+    p = model.load_params(path)
+    obs_dim = int(p[0].mean.shape[0])                       # normalizer running mean
+    pol = p[1]["params"]                                    # policy MLP
+    last = max(pol.keys(), key=lambda k: int(k.split("_")[1]))
+    act_dim = int(pol[last]["bias"].shape[0]) // 2          # NormalTanh: 末層=2×act(mean+logstd)
+    return obs_dim, act_dim
+
+
+def load_policy_dims(path, obs_dim, act_dim):
+    """依指定維度重建 brax PPO 網路(policy 256/256/128、value 256³、normalize、deterministic)。"""
+    import jax, functools
+    from brax.io import model
+    from brax.training.agents.ppo import networks as ppo_networks
+    from brax.training.acme import running_statistics
+    factory = functools.partial(ppo_networks.make_ppo_networks,
+                                policy_hidden_layer_sizes=(256, 256, 128),
+                                value_hidden_layer_sizes=(256, 256, 256))
+    net = factory(obs_dim, act_dim, preprocess_observations_fn=running_statistics.normalize)
+    make_policy = ppo_networks.make_inference_fn(net)
+    pol = make_policy(model.load_params(path), deterministic=True)
+    jpol = jax.jit(pol); key = jax.random.PRNGKey(0)
+
+    def infer(obs):
+        return np.asarray(jpol(jnp.asarray(obs), key)[0])
+    infer(np.zeros(obs_dim, np.float32))                    # warm-up / 驗證維度相容
+    return infer
+
+
 def load_policy_any(path):
-    infer = load_policy(path)
-    # 用一個測試 obs 探測動作維度：先試 80，失敗再試 76
-    for od, ad in [(80, 16), (76, 12)]:
-        try:
-            a = np.array(infer(jnp.zeros(od, jnp.float32)))
-            if a.shape[-1] == ad:
-                return infer, ad
-        except Exception:
-            continue
-    raise RuntimeError("無法判定模型維度")
+    obs_dim, act_dim = _detect_dims(path)
+    if act_dim not in (12, 16):
+        raise ValueError(f"未知動作維度 {act_dim}（僅支援 12/16）")
+    return load_policy_dims(path, obs_dim, act_dim), act_dim
 
 
 def _make_model(terrain):

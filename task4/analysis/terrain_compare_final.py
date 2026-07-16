@@ -118,33 +118,43 @@ def render_run(params, builder, cam_kind, secs, control, title):
     return frames, summ
 
 
-def _combine(fl, fr, out):
+def _save(frames, out):
     import imageio.v2 as iio
+    iio.mimsave(out, frames, fps=TC.FPS, codec="libx264")
+    print("[video]", out, f"({len(frames)} 幀)")
+
+
+def _combine(fl, fr, out):
     k = min(len(fl), len(fr))
-    comp = [np.hstack([fl[i], fr[i]]) for i in range(k)]
-    iio.mimsave(out, comp, fps=TC.FPS, codec="libx264")
-    print("[video]", out, f"({k} 幀)")
+    _save([np.hstack([fl[i], fr[i]]) for i in range(k)], out)
 
 
-def exp1(video=True):
+def exp1(solo=False):
+    if solo:  # 最終效果：只留 v2.1 + odom（右側）
+        print("=== 實驗1 爬坡（最終）：v2.1 + odom ===")
+        fr, sr = render_run(W["v2.1"], TC.build_course_slopes, "side", 45.0, "odom", "terrain (RL-legheight)+odom")
+        _save(fr, f"{OUT}/exp1_slope_final.mp4"); return sr
     print("=== 實驗1 爬坡：v1 開環直走 ‖ v2.1 + odom ===")
     fl, sl = render_run(W["v1"], TC.build_course_slopes, "side", 45.0, "open", "terrain (開環直走)")
     fr, sr = render_run(W["v2.1"], TC.build_course_slopes, "side", 45.0, "odom", "terrain (RL-legheight)+odom")
-    if video: _combine(fl, fr, f"{OUT}/exp1_slope_compare.mp4")
-    return sl, sr
+    _combine(fl, fr, f"{OUT}/exp1_slope_compare.mp4"); return sl, sr
 
 
-def exp2(video=True):
+def exp2(solo=False):
+    if solo:  # 最終效果：只留 v2.1 + odom（右側）
+        print("=== 實驗2 凹凸（最終）：v2.1 + odom ===")
+        fr, sr = render_run(W["v2.1"], TC.build_course_rough, "rear45", 35.0, "odom", "terrain (RL-legheight)+odom")
+        _save(fr, f"{OUT}/exp2_rough_final.mp4"); return sr
     print("=== 實驗2 凹凸：v2.0 + odom ‖ v2.1 + odom ===")
     fl, sl = render_run(W["v2.0"], TC.build_course_rough, "rear45", 35.0, "odom", "terrain+odom")
     fr, sr = render_run(W["v2.1"], TC.build_course_rough, "rear45", 35.0, "odom", "terrain (RL-legheight)+odom")
-    if video: _combine(fl, fr, f"{OUT}/exp2_rough_compare.mp4")
-    return sl, sr
+    _combine(fl, fr, f"{OUT}/exp2_rough_compare.mp4"); return sl, sr
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--exp", choices=["1", "2", "both"], default="both")
+    ap.add_argument("--solo", action="store_true", help="只出 v2.1+odom 單支(最終效果,不做並排)")
     ap.add_argument("--check", action="store_true")
     args = ap.parse_args()
     os.makedirs(OUT, exist_ok=True)
@@ -155,8 +165,8 @@ def main():
         render_run(W["v2.0"], TC.build_course_rough, "rear45", 3.0, "odom", "v2.0 odom")
         render_run(W["v2.1"], TC.build_course_rough, "rear45", 3.0, "odom", "v2.1 odom")
         print("CHECK DONE"); return
-    if args.exp in ("1", "both"): exp1()
-    if args.exp in ("2", "both"): exp2()
+    if args.exp in ("1", "both"): exp1(args.solo)
+    if args.exp in ("2", "both"): exp2(args.solo)
 
 
 if __name__ == "__main__":

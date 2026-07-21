@@ -99,6 +99,7 @@ reward    = ... - W_SLIP * slip                 # 併入既有 reward
 ## 5. 訓練（從零 + 靠既有空間課程）
 
 - **從零訓練**：機器狗 spawn 中央平台，往外走進漸陡斜坡／漸大障礙（空間課程已內建，不需時間課程）。
+- **上/下坡各半**（沿用 v2 `reset`）：`bernoulli(0.5)` 決定 spawn 面 +x（上坡）或 -x（下坡）。地形左右對稱，故**下坡 30° 與上坡 30° 訓練量相同**；摩擦與滑動懲罰對「下坡下滑」「上坡蹬地滑」兩方向皆有效。
 - `num_timesteps: 2e8 → 3e8`（難度顯著提高，給更多步數）。其餘 PPO 超參沿用 v2（`num_envs=2048`、`batch_size=256`、`lr=3e-4`、`entropy_cost=3e-3`、`discounting=0.97` 等）。OOM 就降 `num_envs`。
 - progress 印出加 `slip`，連同既有 `gc / scuff / relh / len`。
 

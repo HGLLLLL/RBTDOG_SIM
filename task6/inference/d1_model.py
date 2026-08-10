@@ -20,6 +20,11 @@ LEGS = ["FL", "FR", "RL", "RR"]        # 見 task6/docs 對照表（官方文件
 HOME3 = np.array([0.0, 1.05, -2.00])   # abad, hip, knee；knee 軸為 +y，故 hip 為正（與點足版相反）
 HOME12 = np.tile(HOME3, 4)
 WHEEL_RADIUS = 0.0710                  # 輪半徑(m)；輪子在模擬中熔接鎖死，當成圓腳
+NOMINAL_HEIGHT = 0.2695  # 實際站定後的機身高度(m)。keyframe 的 0.2948 是純運動學值，
+                         # 實機/模擬因 kp=80 位置伺服的靜態撓度會沉降約 2.5cm。
+                         # 訓練的高度獎勵要用這個值，不是 key_qpos[2]。
+                         # 實測（輪碰撞 geom 修正為 y=±0.0475 之後）：
+                         # t=1s 0.26981 / 2s 0.27002 / 3s 0.26932 / 5s 0.26907
 
 # ---- 控制 ----
 CTRL_DT = 0.02      # 50 Hz，落在 SDK 建議的 20~50 Hz 內

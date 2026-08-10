@@ -84,7 +84,9 @@
               <inertial pos="0 0.04488028 0" mass="0.90130429"
                 fullinertia="0.00142854 0.00247230 0.00142858 0 0 0"/>
               <geom mesh="FL_FOOT_LINK" class="visual"/>
-              <geom name="FL" class="wheel" pos="0 0.04488028 0"/>
+              <!-- 碰撞圓柱對齊輪盤「幾何中心」y=0.0475（STL 實測 y 範圍 0.0235~0.0715），
+                   不是慣量質心 0.04488028。上面 <inertial> 的 0.04488028 是真質心，維持不動。 -->
+              <geom name="FL" class="wheel" pos="0 0.0475 0"/>
             </body>
           </body>
         </body>
@@ -114,7 +116,8 @@
               <inertial pos="0 -0.04488028 0" mass="0.90130429"
                 fullinertia="0.00142854 0.00247230 0.00142858 0 0 0"/>
               <geom mesh="FR_FOOT_LINK" class="visual"/>
-              <geom name="FR" class="wheel" pos="0 -0.04488028 0"/>
+              <!-- 碰撞圓柱對齊輪盤幾何中心 y=-0.0475（STL 實測），非慣量質心；見 FL 註解 -->
+              <geom name="FR" class="wheel" pos="0 -0.0475 0"/>
             </body>
           </body>
         </body>
@@ -144,7 +147,8 @@
               <inertial pos="0 0.04488028 0" mass="0.90130429"
                 fullinertia="0.00142854 0.00247230 0.00142858 0 0 0"/>
               <geom mesh="RL_FOOT_LINK" class="visual"/>
-              <geom name="RL" class="wheel" pos="0 0.04488028 0"/>
+              <!-- 碰撞圓柱對齊輪盤幾何中心 y=0.0475（STL 實測），非慣量質心；見 FL 註解 -->
+              <geom name="RL" class="wheel" pos="0 0.0475 0"/>
             </body>
           </body>
         </body>
@@ -174,7 +178,8 @@
               <inertial pos="0 -0.04488028 0" mass="0.90130429"
                 fullinertia="0.00142854 0.00247230 0.00142858 0 0 0"/>
               <geom mesh="RR_FOOT_LINK" class="visual"/>
-              <geom name="RR" class="wheel" pos="0 -0.04488028 0"/>
+              <!-- 碰撞圓柱對齊輪盤幾何中心 y=-0.0475（STL 實測），非慣量質心；見 FL 註解 -->
+              <geom name="RR" class="wheel" pos="0 -0.0475 0"/>
             </body>
           </body>
         </body>

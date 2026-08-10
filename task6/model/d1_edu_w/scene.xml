@@ -1,6 +1,11 @@
 <mujoco model="d1_edu_w scene">
   <include file="d1_edu_w.xml"/>
 
+  <!-- 本 CPU 場景刻意不覆寫 iterations / ls_iterations，使用 MuJoCo 預設值(100 / 50)；
+       只有 scene_mjx.xml 才降低求解器精度換取 GPU 訓練速度。
+       實測：改用 iterations=1/ls=5 會讓同一段開迴路走路只走 3.82 m（預設值 4.57 m，
+       運動學理論值 4.61 m），接觸約束解不收斂造成穿透與打滑。 -->
+
   <statistic center="0 0 0.1" extent="0.8"/>
 
   <visual>

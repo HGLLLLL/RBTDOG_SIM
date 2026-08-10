@@ -472,3 +472,21 @@ def test_nominal_height_matches_settled_simulation():
         f"模擬 3 秒後機身 z = {z:.5f} m，與 NOMINAL_HEIGHT "
         f"{d1_model.NOMINAL_HEIGHT} 差超過 5 mm；請重新量測並更新常數"
     )
+
+
+def test_cpu_and_mjx_scenes_differ_only_in_solver_iterations():
+    """MJX 的低迭代設定不得洩漏到 CPU 場景。
+
+    實測：iterations=1 會讓開迴路走路少走 16%（3.82m vs 4.57m，理論 4.61m），
+    因為接觸約束只解一次迭代會造成穿透與打滑。
+    """
+    import d1_model
+
+    cpu = d1_model.make_model(mjx=False)
+    mjx = d1_model.make_model(mjx=True)
+    assert mjx.opt.iterations < cpu.opt.iterations, "MJX 場景應使用較少迭代"
+    assert cpu.opt.iterations >= 50, f"CPU 場景迭代數 {cpu.opt.iterations} 過低，恐造成接觸打滑"
+    # 其餘物理設定必須一致，否則訓練與推論會對不起來
+    assert cpu.opt.timestep == mjx.opt.timestep
+    assert cpu.opt.cone == mjx.opt.cone
+    assert cpu.opt.impratio == mjx.opt.impratio

@@ -1,7 +1,10 @@
 <mujoco model="d1_edu_w">
   <compiler angle="radian" meshdir="meshes" autolimits="true"/>
 
-  <option timestep="0.004" cone="pyramidal" impratio="100" iterations="1" ls_iterations="5">
+  <!-- 求解器迭代數(iterations/ls_iterations)刻意不寫在本體檔：那是 MJX 訓練專用的
+       降精度設定，寫在這裡會連 CPU 場景一起吃到。改由各場景檔自行決定，
+       見 scene.xml / scene_mjx.xml（同 mujoco_menagerie 的 go2.xml vs go2_mjx.xml 做法）。 -->
+  <option timestep="0.004" cone="pyramidal" impratio="100">
     <flag eulerdamp="disable"/>
   </option>
 

@@ -1,6 +1,10 @@
 <mujoco model="d1_edu_w scene (mjx)">
   <include file="d1_edu_w.xml"/>
 
+  <!-- MJX 訓練專用：GPU 上大量平行環境，用降低求解器迭代數換取速度（犧牲接觸精度）。
+       本機 CPU 的 scene.xml 刻意不設這兩項，維持 MuJoCo 預設值。 -->
+  <option iterations="1" ls_iterations="5"/>
+
   <statistic center="0 0 0.1" extent="0.8"/>
 
   <visual>

@@ -349,10 +349,10 @@ SDK 已搬家：新家 [`zsibot/genisom_L1_sdk`](https://github.com/zsibot/genis
 | # | 事項 | 影響 | 何時解 |
 |---|---|---|---|
 | 1 | **官方 SDK 不提供輪足版關節控制**（`nm -D` 導出 0 個 LowLevel 符號）| 擋住經由 SDK 的 sim2real | 需原廠釋出 |
-| 1b | 板載 `/spline_shm` 共享記憶體介面對輪足版是否可用 —— **獨立於 SDK，未經硬體驗證** | 若可行則 sim2real 有路 | 依 `task6/docs/D1EDU_輪足_lowlevel_調查與實測指南.md` 的 Phase 0 唯讀偵察 |
+| 1b | 板載 `/spline_shm` 共享記憶體介面對輪足版是否可用 —— **獨立於 SDK；讀取方向已有實機證據**（已從 SHM 讀到關節狀態並據此判定 leg0=FR），**寫入方向仍未驗證** | 若可行則 sim2real 有路 | 依 `task6/docs/D1EDU_輪足_lowlevel_調查與實測指南.md` 的 Phase 0 唯讀偵察 |
 | 1c | 官方 MATRiX 模擬器有 xgw 的 MJCF（在百度網盤 runtime 包，不在 git repo）| 可用來交叉驗證本專案手寫的 MJCF，特別是 armature/damping 與 kp/kd 假設 | 使用者下載後比對 |
 | 2 | kp=80/kd=1 取自**點足版** demo，輪足版無對應資料 | 站姿與步態穩定性 | 關卡 2/3；不穩則回報 |
-| 3 | SDK 腿序官方文件自相矛盾 | 擋 sim2real，不擋訓練 | 實機驗證 |
+| 3 | SDK 腿序官方文件自相矛盾 | 擋 sim2real，不擋訓練 | **部分已解**：實機實測確認 `leg0 = 右前 FR`（手抬右前腿、觀察 leg0 的 knee.p 跟著變），即走 SHM enum 那套（FR 開頭）而非高層 API 那套。尚需實測一條後腿（leg2/leg3）鎖定前後順序。見 `task6/docs/D1EDU_輪足_lowlevel_調查與實測指南.md` |
 
 | 5 | armature / damping（URDF 未提供，假設 0.01 / 0.1）| 動力學真實度 | 關卡 2/3 |
 | 6 | 鎖死輪子的接觸摩擦係數 | 走路可行性 | 關卡 3；必要時調 DR 下限 |

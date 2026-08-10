@@ -108,3 +108,20 @@ def test_w2b_rotates_gravity_into_body_frame():
     q = np.array([np.cos(np.pi / 4), 0.0, np.sin(np.pi / 4), 0.0])
     got = cpg_d1.w2b(q, np.array([0.0, 0.0, -1.0]))
     assert got == pytest.approx([1.0, 0.0, 0.0], abs=1e-9)
+
+
+def test_openloop_walks_forward_without_falling():
+    """關卡 3 的回歸測試（較慢，約 10 秒）。
+
+    判準依 2026-08-10 實測校準：名目摩擦 0.8 下前進/理論 = 0.99、抬腳 0.084 m。
+    抬腳區間刻意寬於 Go2 版——G_C=0.08 是指令值，量到 ~0.084 代表追蹤良好。
+    """
+    import cpg_openloop_d1
+
+    res = cpg_openloop_d1.rollout(secs=6.0, video=False)
+    assert res["fell"] is None, f"開迴路 CPG 跌倒於 {res['fell']} s"
+    ratio = res["dist"] / res["theory"]
+    assert 0.85 < ratio < 1.20, (
+        f"前進 {res['dist']:.2f} m / 理論 {res['theory']:.2f} m = {ratio:.2f}，超出 0.85~1.20"
+    )
+    assert 0.05 < res["foot_lift"] < 0.12, f"抬腳量 {res['foot_lift']:.3f} m 不合理"

@@ -1,0 +1,212 @@
+<mujoco model="d1_edu_w">
+  <compiler angle="radian" meshdir="meshes" autolimits="true"/>
+
+  <option timestep="0.004" cone="pyramidal" impratio="100" iterations="1" ls_iterations="5">
+    <flag eulerdamp="disable"/>
+  </option>
+
+  <default>
+    <default class="d1w">
+      <geom friction="0.6" margin="0.001" condim="1"/>
+      <!-- armature / damping：URDF 未提供，見計畫 Global Constraints 的假設說明 -->
+      <joint armature="0.01" damping="0.1"/>
+      <general biastype="affine" gainprm="80 0 0" biasprm="0 -80 -1" forcerange="-28 28"/>
+
+      <default class="abad">
+        <joint axis="1 0 0" range="-0.4887 0.4887"/>
+        <general ctrlrange="-0.4687 0.4687"/>
+      </default>
+      <default class="hip">
+        <joint axis="0 1 0" range="-1.152 2.967"/>
+        <general ctrlrange="-1.132 2.947"/>
+      </default>
+      <default class="knee">
+        <joint axis="0 1 0" range="-2.723 -0.602"/>
+        <general ctrlrange="-2.703 -0.622"/>
+      </default>
+
+      <default class="visual">
+        <geom type="mesh" contype="0" conaffinity="0" group="2" rgba="0.75 0.75 0.75 1"/>
+      </default>
+      <default class="collision">
+        <geom group="3"/>
+        <default class="wheel">
+          <geom type="cylinder" size="0.0710 0.0240" quat="0.70710678 0.70710678 0 0"
+                priority="1" condim="6" solimp="0.015 1 0.031" friction="0.8 0.02 0.01"/>
+        </default>
+      </default>
+    </default>
+  </default>
+
+  <asset>
+    <mesh file="BASE_LINK.STL"/>
+    <mesh file="FL_ABAD_LINK.STL"/> <mesh file="FL_HIP_LINK.STL"/>
+    <mesh file="FL_KNEE_LINK.STL"/> <mesh file="FL_FOOT_LINK.STL"/>
+    <mesh file="FR_ABAD_LINK.STL"/> <mesh file="FR_HIP_LINK.STL"/>
+    <mesh file="FR_KNEE_LINK.STL"/> <mesh file="FR_FOOT_LINK.STL"/>
+    <mesh file="RL_ABAD_LINK.STL"/> <mesh file="RL_HIP_LINK.STL"/>
+    <mesh file="RL_KNEE_LINK.STL"/> <mesh file="RL_FOOT_LINK.STL"/>
+    <mesh file="RR_ABAD_LINK.STL"/> <mesh file="RR_HIP_LINK.STL"/>
+    <mesh file="RR_KNEE_LINK.STL"/> <mesh file="RR_FOOT_LINK.STL"/>
+  </asset>
+
+  <worldbody>
+    <body name="base" pos="0 0 0.2948" childclass="d1w">
+      <camera name="track" pos="0.85 -1.47 0.92" xyaxes="0.866 0.5 0 -0.171 0.296 0.94" mode="trackcom"/>
+      <inertial pos="0.0050538027 -0.000631701 0.0050408732" mass="6.7155497"
+        fullinertia="0.030172666 0.088387421 0.10431072 -0.00028335181 0.000084157847 -0.00056913307"/>
+      <freejoint/>
+      <geom mesh="BASE_LINK" class="visual"/>
+      <geom type="box" size="0.2778 0.1114 0.0687" pos="0.00445 0 0.0217" class="collision"/>
+      <site name="imu" pos="0 0 0"/>
+
+      <!-- ================= FL ================= -->
+      <body name="FL_abad" pos="0.17449 0.062 0">
+        <inertial pos="-0.027074453 -0.015458828 0.0000094167931" mass="0.45409769"
+          fullinertia="0.000251027 0.0004874808 0.00054102144 0.000153060 0.0000000321747 -0.0000000208886"/>
+        <joint name="FL_abad_joint" class="abad"/>
+        <geom mesh="FL_ABAD_LINK" class="visual"/>
+        <body name="FL_hip" pos="0 0.097412 0">
+          <inertial pos="-0.0018322311 -0.050798328 -0.01620581" mass="1.34038"
+            fullinertia="0.0055878127 0.0036181265 0.0028642756 0.000140269 -0.000271226 0.0011403235"/>
+          <joint name="FL_hip_joint" class="hip"/>
+          <geom mesh="FL_HIP_LINK" class="visual"/>
+          <geom type="capsule" fromto="0 0 -0.02 0 0 -0.19" size="0.030" class="collision"/>
+          <body name="FL_knee" pos="0 0 -0.2">
+            <inertial pos="0.00296222 -0.01016197 -0.18400768" mass="0.76510830"
+              fullinertia="0.00433034 0.00438029 0.00042299 -0.00001722 -0.00011502 -0.00027115"/>
+            <joint name="FL_knee_joint" class="knee"/>
+            <geom mesh="FL_KNEE_LINK" class="visual"/>
+            <geom type="capsule" fromto="0 0 -0.02 0 0 -0.20" size="0.022" class="collision"/>
+            <!-- 輪子：URDF 的 FL_FOOT_JOINT 為連續旋轉，本設計刻意不建立關節（鎖輪當圓腳），
+                 但質量 0.90130429 kg 與慣量完整保留 -->
+            <body name="FL_wheel" pos="0 0 -0.21366">
+              <inertial pos="0 0.04488028 0" mass="0.90130429"
+                fullinertia="0.00142854 0.00247230 0.00142858 0 0 0"/>
+              <geom mesh="FL_FOOT_LINK" class="visual"/>
+              <geom name="FL" class="wheel" pos="0 0.04488028 0"/>
+            </body>
+          </body>
+        </body>
+      </body>
+
+      <!-- ================= FR ================= -->
+      <body name="FR_abad" pos="0.1745 -0.062 0">
+        <inertial pos="-0.027074453 0.015458828 -0.0000094167931" mass="0.45409769"
+          fullinertia="0.000251027 0.0004874808 0.00054102144 -0.000153060 -0.0000000321747 -0.0000000208886"/>
+        <joint name="FR_abad_joint" class="abad"/>
+        <geom mesh="FR_ABAD_LINK" class="visual"/>
+        <body name="FR_hip" pos="0 -0.097399 0">
+          <inertial pos="-0.0018322311 0.050798328 -0.01620581" mass="1.34038"
+            fullinertia="0.0055878127 0.0036181265 0.0028642756 -0.000140269 -0.000271226 -0.0011403235"/>
+          <joint name="FR_hip_joint" class="hip"/>
+          <geom mesh="FR_HIP_LINK" class="visual"/>
+          <geom type="capsule" fromto="0 0 -0.02 0 0 -0.19" size="0.030" class="collision"/>
+          <body name="FR_knee" pos="0 0 -0.2">
+            <inertial pos="0.00294408 0.01016197 -0.18399731" mass="0.76510852"
+              fullinertia="0.00432973 0.00437978 0.00042308 0.00001787 -0.00011551 0.00027077"/>
+            <joint name="FR_knee_joint" class="knee"/>
+            <geom mesh="FR_KNEE_LINK" class="visual"/>
+            <geom type="capsule" fromto="0 0 -0.02 0 0 -0.20" size="0.022" class="collision"/>
+            <!-- 輪子：URDF 的 FR_FOOT_JOINT 為連續旋轉，本設計刻意不建立關節（鎖輪當圓腳），
+                 但質量 0.90130429 kg 與慣量完整保留 -->
+            <body name="FR_wheel" pos="0 0 -0.21366">
+              <inertial pos="0 -0.04488028 0" mass="0.90130429"
+                fullinertia="0.00142854 0.00247230 0.00142858 0 0 0"/>
+              <geom mesh="FR_FOOT_LINK" class="visual"/>
+              <geom name="FR" class="wheel" pos="0 -0.04488028 0"/>
+            </body>
+          </body>
+        </body>
+      </body>
+
+      <!-- ================= RL ================= -->
+      <body name="RL_abad" pos="-0.1745 0.062 0">
+        <inertial pos="0.027074453 -0.015458828 -0.0000094167931" mass="0.45409769"
+          fullinertia="0.000251027 0.0004874808 0.00054102144 -0.000153060 0.0000000321747 0.0000000208886"/>
+        <joint name="RL_abad_joint" class="abad"/>
+        <geom mesh="RL_ABAD_LINK" class="visual"/>
+        <body name="RL_hip" pos="0 0.09735 0">
+          <inertial pos="-0.0018322311 -0.050798328 -0.01620581" mass="1.34038"
+            fullinertia="0.0055878127 0.0036181265 0.0028642756 0.000140269 -0.000271226 0.0011403235"/>
+          <joint name="RL_hip_joint" class="hip"/>
+          <geom mesh="RL_HIP_LINK" class="visual"/>
+          <geom type="capsule" fromto="0 0 -0.02 0 0 -0.19" size="0.030" class="collision"/>
+          <body name="RL_knee" pos="0 0 -0.2">
+            <inertial pos="0.00296222 -0.01016197 -0.18400768" mass="0.76510830"
+              fullinertia="0.00433034 0.00438029 0.00042299 -0.00001722 -0.00011502 -0.00027115"/>
+            <joint name="RL_knee_joint" class="knee"/>
+            <geom mesh="RL_KNEE_LINK" class="visual"/>
+            <geom type="capsule" fromto="0 0 -0.02 0 0 -0.20" size="0.022" class="collision"/>
+            <!-- 輪子：URDF 的 RL_FOOT_JOINT 為連續旋轉，本設計刻意不建立關節（鎖輪當圓腳），
+                 但質量 0.90130429 kg 與慣量完整保留 -->
+            <body name="RL_wheel" pos="0 0 -0.21366">
+              <inertial pos="0 0.04488028 0" mass="0.90130429"
+                fullinertia="0.00142854 0.00247230 0.00142858 0 0 0"/>
+              <geom mesh="RL_FOOT_LINK" class="visual"/>
+              <geom name="RL" class="wheel" pos="0 0.04488028 0"/>
+            </body>
+          </body>
+        </body>
+      </body>
+
+      <!-- ================= RR ================= -->
+      <body name="RR_abad" pos="-0.1745 -0.062 0">
+        <inertial pos="0.027074453 0.015458828 0.0000094167931" mass="0.45409769"
+          fullinertia="0.000251027 0.0004874808 0.00054102144 0.000153060 -0.0000000321747 0.0000000208886"/>
+        <joint name="RR_abad_joint" class="abad"/>
+        <geom mesh="RR_ABAD_LINK" class="visual"/>
+        <body name="RR_hip" pos="0 -0.09735 0">
+          <inertial pos="-0.0018322311 0.050798328 -0.01620581" mass="1.34038"
+            fullinertia="0.0055878127 0.0036181265 0.0028642756 -0.000140269 -0.000271226 -0.0011403235"/>
+          <joint name="RR_hip_joint" class="hip"/>
+          <geom mesh="RR_HIP_LINK" class="visual"/>
+          <geom type="capsule" fromto="0 0 -0.02 0 0 -0.19" size="0.030" class="collision"/>
+          <body name="RR_knee" pos="0 0 -0.2">
+            <inertial pos="0.00294408 0.01016197 -0.18399731" mass="0.76510852"
+              fullinertia="0.00432973 0.00437978 0.00042308 0.00001787 -0.00011551 0.00027077"/>
+            <joint name="RR_knee_joint" class="knee"/>
+            <geom mesh="RR_KNEE_LINK" class="visual"/>
+            <geom type="capsule" fromto="0 0 -0.02 0 0 -0.20" size="0.022" class="collision"/>
+            <!-- 輪子：URDF 的 RR_FOOT_JOINT 為連續旋轉，本設計刻意不建立關節（鎖輪當圓腳），
+                 但質量 0.90130429 kg 與慣量完整保留 -->
+            <body name="RR_wheel" pos="0 0 -0.21366">
+              <inertial pos="0 -0.04488028 0" mass="0.90130429"
+                fullinertia="0.00142854 0.00247230 0.00142858 0 0 0"/>
+              <geom mesh="RR_FOOT_LINK" class="visual"/>
+              <geom name="RR" class="wheel" pos="0 -0.04488028 0"/>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <general class="abad" name="FL_abad" joint="FL_abad_joint"/>
+    <general class="hip"  name="FL_hip"  joint="FL_hip_joint"/>
+    <general class="knee" name="FL_knee" joint="FL_knee_joint"/>
+    <general class="abad" name="FR_abad" joint="FR_abad_joint"/>
+    <general class="hip"  name="FR_hip"  joint="FR_hip_joint"/>
+    <general class="knee" name="FR_knee" joint="FR_knee_joint"/>
+    <general class="abad" name="RL_abad" joint="RL_abad_joint"/>
+    <general class="hip"  name="RL_hip"  joint="RL_hip_joint"/>
+    <general class="knee" name="RL_knee" joint="RL_knee_joint"/>
+    <general class="abad" name="RR_abad" joint="RR_abad_joint"/>
+    <general class="hip"  name="RR_hip"  joint="RR_hip_joint"/>
+    <general class="knee" name="RR_knee" joint="RR_knee_joint"/>
+  </actuator>
+
+  <sensor>
+    <gyro site="imu" name="imu_gyro"/>
+    <accelerometer site="imu" name="imu_acc"/>
+    <framequat objtype="site" objname="imu" name="imu_quat"/>
+    <framepos objtype="site" objname="imu" name="odom_pos"/>
+  </sensor>
+
+  <keyframe>
+    <key name="home"
+         qpos="0 0 0.2948 1 0 0 0  0 1.05 -2.00  0 1.05 -2.00  0 1.05 -2.00  0 1.05 -2.00"
+         ctrl="0 1.05 -2.00  0 1.05 -2.00  0 1.05 -2.00  0 1.05 -2.00"/>
+  </keyframe>
+</mujoco>

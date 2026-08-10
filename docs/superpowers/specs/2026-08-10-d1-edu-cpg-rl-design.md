@@ -59,7 +59,8 @@
 | 用途 | 來源 | 版本/授權 |
 |---|---|---|
 | **URDF + STL 網格** | [zsibot/genisom_model](https://github.com/zsibot/genisom_model) `zsl-1w/` | BSD-3-Clause，commit `e6aa98e` |
-| **SDK 事實** | [AgibotTech/agibot_D1_Edu-Ultra](https://github.com/AgibotTech/agibot_D1_Edu-Ultra) | commit `db8accd`（SDK v0.2.7）|
+| **SDK 事實（文件）** | [AgibotTech/agibot_D1_Edu-Ultra](https://github.com/AgibotTech/agibot_D1_Edu-Ultra) | commit `db8accd`（v0.2.7，**已停維護**，但文件最全）|
+| **SDK 事實（現行）** | [zsibot/genisom_L1_sdk](https://github.com/zsibot/genisom_L1_sdk) | v1.0.0 / MIT / 維護中 |
 | **產品規格** | [agibot.com/products/D1_Pro](https://www.agibot.com/products/D1_Pro) | 官網 |
 
 **官方 SDK repo 不含任何 URDF / mesh / 模擬模型**（已實地 clone 驗證）。
@@ -224,12 +225,34 @@ Kuramoto trot 耦合、Brax PPO（policy 256/256/128、value 256³、120M steps�
 `docs/api_zsl-1w.md` 全篇只有「1. HighLevel函数介绍」；`demo/zsl-1w/` 只有 highlevel demo。
 SDK v0.2.7（2025-11-04）為 repo 內最新版。
 
-**結論**：輪足版實機**能讀**十六個關節的角度/速度/力矩與 IMU，
-但**不能下發任何關節指令**，只能用 `move(vx, vy, yaw_rate)` / `crawl` / `climb` 等原廠內建動作。
-**訓好的 CPG-RL policy 目前無法部署到實機。**
+**結論（SDK 庫層面）**：輪足版透過官方 SDK **能讀**十六個關節的角度/速度/力矩與 IMU，
+但**不能下發關節指令**，只能用 `move(vx, vy, yaw_rate)` / `crawl` / `climb` 等原廠內建動作。
 
-這不影響模擬訓練的價值，但必須誠實記錄。後續若原廠釋出輪足版 LowLevel，或使用者
-取得特殊韌體，才有部署可能。
+#### 補充（2026-08-10 追加調查，修正上述結論的範圍）
+
+SDK 已搬家：新家 [`zsibot/genisom_L1_sdk`](https://github.com/zsibot/genisom_L1_sdk)（v1.0.0、MIT、維護中），
+舊的 `AgibotTech/agibot_D1_Edu-Ultra` 官方已標示停止維護。**GENISOM-AI L1 系列 == D1 EDU 系列**，
+機型代號相同（`zsl-1`/`xgb` = 點足、`zsl-1w`/`xgw` = 輪足）。新舊兩邊都要看：舊 repo 的
+`deploy.md` / `architecture.md` / `faq.md` / 關節方向圖新 repo 沒有。
+
+輪足無 LowLevel 一事有更硬的證據：`nm -D` 驗證 `zsl-1w` 的庫**導出 0 個 LowLevel 符號**，
+新 SDK 的 `libzsibot.a` 亦然；點足 `zsl-1` 才有 `sendMotorCmd`。
+
+**但「無部署路徑」這個說法要收窄**：對三個 `.so` 做 `strings` 搜 `spline` / `shm` / `/dev/shm`
+**零命中**，代表共享記憶體介面**根本不在 SDK 庫裡**——`create_spline_shm()` 是標頭檔中的
+`static inline`，程式直接對機器上的 daemon 通訊、**完全繞過 SDK**。
+因此「輪足庫沒有 LowLevel」**管不到 `/spline_shm` 那條路，兩者互相獨立**。
+
+現況正確的說法是：
+- ✅ 已確認：官方 SDK **不提供**輪足版關節控制。
+- ❓ 未確認：板載 `/spline_shm` 共享記憶體介面對輪足版是否可用。**未經硬體驗證，不得假設可行。**
+- 可用來降低風險：官方模擬器 [`zsibot/matrix`](https://github.com/zsibot/matrix) 有
+  「Linux 模擬硬體」模式（UeSim ↔ 共享記憶體 ↔ 外部 `mc_ctrl`），理論上可在**不碰實機**的前提下
+  先驗證共享記憶體 ABI。
+
+完整調查與逐步實測指南見 `task6/docs/D1EDU_輪足_lowlevel_調查與實測指南.md`。
+
+這些都不影響本專案的模擬訓練，但決定了訓練成果最終能不能上機。
 
 ### 5.2 obs 的保守設計原則
 
@@ -304,7 +327,9 @@ SDK v0.2.7（2025-11-04）為 repo 內最新版。
 
 | # | 事項 | 影響 | 何時解 |
 |---|---|---|---|
-| 1 | **輪足版無 LowLevel，無部署路徑** | 擋住全部 sim2real | 需原廠釋出或使用者確認特殊韌體 |
+| 1 | **官方 SDK 不提供輪足版關節控制**（`nm -D` 導出 0 個 LowLevel 符號）| 擋住經由 SDK 的 sim2real | 需原廠釋出 |
+| 1b | 板載 `/spline_shm` 共享記憶體介面對輪足版是否可用 —— **獨立於 SDK，未經硬體驗證** | 若可行則 sim2real 有路 | 依 `task6/docs/D1EDU_輪足_lowlevel_調查與實測指南.md` 的 Phase 0 唯讀偵察 |
+| 1c | 官方 MATRiX 模擬器有 xgw 的 MJCF（在百度網盤 runtime 包，不在 git repo）| 可用來交叉驗證本專案手寫的 MJCF，特別是 armature/damping 與 kp/kd 假設 | 使用者下載後比對 |
 | 2 | kp=80/kd=1 取自**點足版** demo，輪足版無對應資料 | 站姿與步態穩定性 | 關卡 2/3；不穩則回報 |
 | 3 | SDK 腿序官方文件自相矛盾 | 擋 sim2real，不擋訓練 | 實機驗證 |
 | 4 | 觸地力矩門檻值 | obs 品質 | 關卡 3 實測 |

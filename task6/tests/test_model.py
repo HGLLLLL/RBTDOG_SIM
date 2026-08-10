@@ -117,3 +117,85 @@ def test_home_pose_wheels_are_on_the_ground(model):
                for leg in LEGS]
     clearance = np.array(wheel_z) - WHEEL_RADIUS
     assert np.abs(clearance).max() < 5e-3, f"四輪離地/陷地量 {clearance}（應接近 0）"
+
+
+# ---------- 關卡 2：站姿穩定 ----------
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "inference"))
+
+
+def test_d1_model_constants_are_single_source_of_truth():
+    import d1_model
+
+    assert d1_model.LEGS == ["FL", "FR", "RL", "RR"]
+    assert d1_model.HOME3 == pytest.approx([0.0, 1.05, -2.00])
+    assert d1_model.HOME12 == pytest.approx([0.0, 1.05, -2.00] * 4)
+    assert d1_model.OBS_DIM == 73
+    assert d1_model.ACT_DIM == 12
+    assert (d1_model.CTRL_DT, d1_model.SIM_DT) == (0.02, 0.004)
+
+
+def test_make_model_both_variants_compile():
+    import d1_model
+
+    for mjx in (False, True):
+        m = d1_model.make_model(mjx=mjx)
+        assert m.nq == 19 and m.nu == 12
+        assert mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, "floor") >= 0
+
+
+def test_home_pose_is_statically_stable():
+    """關卡 2：站姿穩定。
+
+    量測方式是「先沉降 1 秒，再量之後 1 秒的漂移」，而不是量總位移。
+    原因：kp=80 的位置伺服在 20.56 kg 下必然有靜態撓度，機身會比 keyframe 的
+    幾何高度低約 2.5 cm 後停在平衡點。那是物理，不是不穩定。
+    真正要測的是「沉降後有沒有停住」。
+    （實測基準：沉降 2.47 cm，之後 1 秒 z 峰對峰 1.36 mm，末速 -0.0004 m/s。）
+    """
+    import d1_model
+
+    m = d1_model.make_model()
+    d = mujoco.MjData(m)
+    mujoco.mj_resetDataKeyframe(m, d, 0)
+    d.ctrl[:] = d1_model.HOME12
+    mujoco.mj_forward(m, d)
+    z_start = float(d.qpos[2])
+
+    n1 = int(1.0 / m.opt.timestep)
+    for _ in range(n1):
+        mujoco.mj_step(m, d)
+    z_settled = float(d.qpos[2])
+
+    zs = []
+    for _ in range(n1):
+        mujoco.mj_step(m, d)
+        zs.append(float(d.qpos[2]))
+    zs = np.array(zs)
+
+    sag = z_start - z_settled
+    assert sag < 0.04, (
+        f"沉降 {sag*100:.1f} cm 過大（>4 cm），機器人可能正在塌陷。"
+        "kp=80/kd=1 為原廠值不得擅改；請回報數據給使用者決定。"
+    )
+    assert (zs.max() - zs.min()) < 0.003, (
+        f"沉降後 1 秒內 z 峰對峰 {(zs.max()-zs.min())*1000:.2f} mm（應 < 3 mm），機身仍在抖動。"
+    )
+    assert float(d.qvel[2]) == pytest.approx(0.0, abs=0.02), "站定後垂直速度應趨近 0"
+
+
+def test_home_pose_body_stays_level():
+    """站定後機身不應傾倒（重力在機身系的 z 分量應接近 -1）。"""
+    import d1_model
+
+    m = d1_model.make_model()
+    d = mujoco.MjData(m)
+    mujoco.mj_resetDataKeyframe(m, d, 0)
+    d.ctrl[:] = d1_model.HOME12
+    mujoco.mj_forward(m, d)
+    for _ in range(int(2.0 / m.opt.timestep)):
+        mujoco.mj_step(m, d)
+    base = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, "base")
+    grav_z_in_body = -d.xmat[base].reshape(3, 3)[2, 2]
+    assert grav_z_in_body < -0.99, f"機身傾斜過大 (重力 z 分量 {grav_z_in_body:.4f})"

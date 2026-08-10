@@ -6,7 +6,11 @@
 
 ---
 
-## ⚠️ 先讀這三件事
+## ⚠️ 先讀這四件事
+
+（下面所有「Cell N」與 notebook 一樣都是 **0-based**：第一格 markdown = Cell 0、
+安裝格 = Cell 1、版本檢查 = Cell 2、clone = Cell 3、常數 = Cell 4、
+IK = Cell 5、env = Cell 6、DR = Cell 7、smoke = Cell 8、訓練 = Cell 9。）
 
 ### 1. sim2real 目前沒有已驗證的部署路徑
 
@@ -31,15 +35,28 @@
 模擬端採 `LEGS = ("FL", "FR", "RL", "RR")`，內部自洽。
 **sim2real 前必須逐腿實測並補一層 offset / 正負校正。** 見規格文件 §5。
 
-### 3. Colab 執行前必須先 push 分支
+### 3. Colab 抓的是 origin 上的內容——本機新 commit 要先 push
 
 notebook 的 Cell 3 用
 `git clone --depth 1 --branch feat/d1-edu-cpg-rl https://github.com/HGLLLLL/RBTDOG_SIM.git`
-取模型檔，但**該分支目前尚未 push 到 origin**，`main` 上也沒有 `task6/`。
+取模型檔。分支 `feat/d1-edu-cpg-rl` **已經在 origin 上**（`main` 上仍然沒有 `task6/`），
+所以不需要「第一次 push」；但 `--depth 1` 抓的是**遠端當下的內容**，
+**本機剛改好還沒 push 的 MJCF/notebook 修正，Colab 看不到**。
 
-**請先 `git push -u origin feat/d1-edu-cpg-rl`，Colab 才跑得起來。**
+→ 每次改完 `task6/model/` 或 notebook，開 Colab 前先 `git push`。
 （或改用 Colab 左側檔案面板手動上傳整個 `task6/model/d1_edu_w/`，含 `meshes/` 的 17 個 STL。）
-Cell 3 有 assert 會當場擋下，不會拖到 Cell 6 才炸。
+Cell 3 有 assert 會當場擋下，不會拖到 Cell 5 才炸。
+
+### 4. jax 必須 `<0.10`（Colab GPU 端有不確定性）
+
+`brax==0.14.2` 的 `ppo.train` 用 `jax.device_put_replicated`，該 API 在 jax 0.10 已移除
+（本機 jax 0.10.2 實測直接 `AttributeError`）。notebook 的 Cell 1 因此安裝
+`"jax[cuda12]<0.10"`，Cell 2 有 `assert hasattr(jax, "device_put_replicated")` 早死擋著。
+
+**這一項無法在本機驗證**：Colab 的 GPU jax 是預裝的，降版未必能同時保住 CUDA 支援。
+裝完務必確認 Cell 2 印出的 `devices:` 有 `cuda`。
+**裝不起來或掉回 CPU 請回報，不要自行改 brax 版本**——換 brax 會動到
+`make_ppo_networks` 的預設 activation，權重與本機推論端會靜默不匹配。
 
 ---
 
@@ -55,7 +72,7 @@ task6/
 │                     cpg_openloop_d1.py  關卡 3：開迴路 CPG 驗證
 │                     local_infer_d1.py   關卡 6：本機 CPU 推論
 ├── notebooks/        cpg_rl_d1w_colab.ipynb（MJX + brax PPO）
-├── tests/            pytest（152 項）
+├── tests/            pytest（155 項；含 mjx.put_model 實跑與 base↔wheel exclude 的回歸）
 ├── weights/          訓練好的權重（.pkl；需自行從 Colab 下載放入）
 ├── outputs/          影片與圖（*.mp4 被 repo 全域 .gitignore 擋掉，不入庫）
 └── docs/             D1_EDU_W_規格與模型對照.md（規格 / SDK / obs / 腿序 / 已知限制）
@@ -75,6 +92,7 @@ task6/
 | obs | 76 維 | **69 維** = 76 −3（機身線速度）−4（觸地布林）|
 | 觸地判定 | 腳掌世界高度 | **移除**（實測四個候選訊號全部不可用）|
 | 高度獎勵基準 | keyframe z | **0.2695 m**（實際站定高度，非 keyframe 的 0.2948）|
+| `done` 低姿門檻 | 0.18（站立高 0.30）| **0.16** = 0.18/0.30×0.2695 等比例換算 |
 | 負重 DR | 0~8 kg | 0~5 kg（官方額定 payload）|
 | IMU DR | 無 | 重力 / 角速度加雜訊與偏差 |
 
@@ -87,7 +105,7 @@ conda run --no-capture-output -n rbtdog python -m pytest task6/tests -v
 # 2. 開迴路 CPG 驗證 + 影片（關卡 3）
 conda run --no-capture-output -n rbtdog python task6/inference/cpg_openloop_d1.py --secs 8 --video
 
-# 3. 訓練（Colab GPU）：先確認上面第 3 點的分支已 push，
+# 3. 訓練（Colab GPU）：先確認上面第 3 點——最新 commit 已 push 到 origin，
 #    再上傳並開啟 notebooks/cpg_rl_d1w_colab.ipynb，
 #    執行階段 → 變更類型 → GPU，先跑 Cell 8 的 Smoke test 印出 PASSED 再開訓練，
 #    訓完下載 cpg_rl_d1w_params.pkl 放進 task6/weights/
@@ -107,7 +125,7 @@ conda run --no-capture-output -n rbtdog python task6/inference/local_infer_d1.py
 | 1 | MJCF 與 URDF 逐項對帳（質量 / 慣量 / 限位 / 膝軸 / 致動器）| PASS |
 | 2 | home 姿態靜態穩定 | 沉降 2.47 cm 後停住，之後 1 秒 z 峰對峰 1.36 mm |
 | 3 | 開迴路 CPG 走路 | 前進 **4.57 m** / 理論 4.61 m = **0.99**、不跌倒、FL 抬腳 0.083 m、末端機身高 0.250 m |
-| 4/5 | Colab MJX 環境 smoke test | obs (69,)、reward 有限值 |
+| 4/5 | Colab MJX 環境 smoke test | obs (69,)、reward 有限值；`mjx.put_model` 實跑通過；本機 CPU 以極小規模（num_envs=4、num_timesteps=40、num_evals=2）實跑完整 `ppo.train`，兩次 eval 皆通過並存出權重 |
 | 6 | 本機 CPU 推論管線 | 可載入 brax 權重並輸出影片與指標 |
 
 理論值的算法（trot 每個 CPG 週期有**兩個**站立相，漏掉這個 2 會把正常步態誤判成打滑）：
@@ -132,6 +150,12 @@ home keyframe 的機身高度 0.2948 m 是**純運動學值**（四輪剛好觸�
   訓練的摩擦 DR 範圍是 [0.3, 1.0]，該範圍內全部正常（0.3/0.5/0.8/1.0 → 5.28/5.20/4.57/4.12 m）。
 - `armature` / `damping` = 0.01 / 0.1 為**假設值**（URDF 未提供）。
 - kp/kd 取自**點足版** demo（輪足版沒有 LowLevel demo）；已用 DR kp∈[60,100]、kd∈[0.5,2.0] 涵蓋。
+- **MJX 不支援 (cylinder, box) 碰撞組合**，而 base 的碰撞 box 與四顆輪的碰撞 cylinder
+  會產生 4 組 pair，`mjx.put_model` 會直接拋 `NotImplementedError`
+  （只做 `MjModel.from_xml_path` 編譯是驗不出來的）。
+  `d1_edu_w.xml` 因此加了 `<contact><exclude body1="base" body2="*_wheel"/>`。
+  對 CPU 物理零影響——全關節行程隨機掃 32008 個姿態，base 盒與輪的最短距離 0.0348 m
+  （margin 只有 0.001 m）；加 exclude 前後跑同一段 5 秒開迴路走路，qpos 軌跡逐步 bitwise 相同。
 - 本機 CPU 場景刻意使用 MuJoCo 預設求解器迭代（100/50）。
   改用 MJX 的 1/5 會讓同一段開迴路只走 3.82 m（接觸約束不收斂造成穿透與打滑）。
 

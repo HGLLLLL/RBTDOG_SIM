@@ -622,3 +622,73 @@ def test_home12_matches_keyframe(d1m):
 
 # NOMINAL_HEIGHT 與「實際模擬 3 秒後機身 z（容差 5 mm）」的比對，
 # 見上方 test_nominal_height_matches_settled_simulation（不重複跑 3 秒模擬）。
+
+
+def test_base_wheel_contacts_excluded(model):
+    """MJX 不支援 (cylinder, box) 碰撞：base 的碰撞盒與四顆輪的碰撞圓柱必須被 exclude。
+
+    少了這四條 <exclude>，`mjx.put_model` 會拋
+    `NotImplementedError: (mjGEOM_CYLINDER, mjGEOM_BOX) collisions not implemented`——
+    而只做 `MjModel.from_xml_path` 是驗不出來的（編譯完全正常）。
+    """
+    base_bid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "base")
+    assert model.nexclude == 4, f"應有 4 條 base↔wheel 的 contact exclude，實得 {model.nexclude}"
+    got = set()
+    for i in range(model.nexclude):
+        sig = int(model.exclude_signature[i])
+        got.add((sig >> 16, sig & 0xFFFF))
+    for leg in LEGS:
+        wb = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, f"{leg}_wheel")
+        assert (base_bid, wb) in got or (wb, base_bid) in got, \
+            f"base 與 {leg}_wheel 的碰撞未被 exclude"
+
+
+def test_base_box_never_reaches_wheels(model):
+    """exclude 的前提：兩者在全關節行程內根本碰不到，所以 CPU 物理不受影響。
+
+    這條若失敗，代表 exclude 開始吃掉真實接觸，訓練(MJX)與推論(CPU)會分岔。
+    """
+    data = mujoco.MjData(model)
+    base_bid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "base")
+    base_gid = [g for g in range(model.ngeom)
+                if model.geom_bodyid[g] == base_bid
+                and model.geom_type[g] == mujoco.mjtGeom.mjGEOM_BOX]
+    assert len(base_gid) == 1
+    jids = [mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, f"{leg}_{j}_joint")
+            for leg in LEGS for j in ("abad", "hip", "knee")]
+    lo = np.array([model.jnt_range[j][0] for j in jids])
+    hi = np.array([model.jnt_range[j][1] for j in jids])
+
+    rng = np.random.default_rng(0)
+    # 隨機 200 組 + 全 lo / 全 hi 兩個角落（完整的 32008 組掃描見 README 已知限制）
+    poses = np.vstack([rng.uniform(lo, hi, size=(200, 12)), lo[None, :], hi[None, :]])
+    worst = np.inf
+    for q in poses:
+        data.qpos[:] = model.key_qpos[0]
+        data.qpos[7:19] = q
+        mujoco.mj_kinematics(model, data)
+        for leg in LEGS:
+            gid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, leg)
+            worst = min(worst, mujoco.mj_geomDistance(model, data, base_gid[0], gid, 1.0, None))
+    margin = float(max(model.geom_margin[base_gid[0]],
+                       max(model.geom_margin[mujoco.mj_name2id(
+                           model, mujoco.mjtObj.mjOBJ_GEOM, leg)] for leg in LEGS)))
+    assert worst > margin * 5, (
+        f"base 碰撞盒與輪的最短距離 {worst:.5f} m 已逼近 margin {margin} m，"
+        "<contact><exclude> 可能開始吃掉真實接觸"
+    )
+
+
+def test_mjx_put_model_actually_works():
+    """真的跑一次 mjx.put_model —— 只驗 from_xml_path 編譯成功是不夠的。
+
+    task6 曾經在這裡踩過：MJCF 編譯、CPU 模擬、152 項測試全過，
+    但 Colab 一跑 `mjx.put_model` 就 NotImplementedError（見上一條測試）。
+    """
+    mjx = pytest.importorskip("mujoco.mjx")
+    import d1_model
+
+    sys_mjx = mjx.put_model(d1_model.make_model(mjx=True))
+    assert sys_mjx.nu == 12
+    # biastype 必須留在 affine，否則 ctrl 會被當力矩施加、機器人直接塌掉
+    assert int(sys_mjx.actuator_biastype[0]) == int(mujoco.mjtBias.mjBIAS_AFFINE)

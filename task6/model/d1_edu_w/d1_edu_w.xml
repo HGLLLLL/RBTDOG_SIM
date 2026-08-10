@@ -190,6 +190,19 @@
     </body>
   </worldbody>
 
+  <!-- MJX 不支援 (mjGEOM_CYLINDER, mjGEOM_BOX) 碰撞：base 的碰撞 box 與四顆輪的碰撞
+       cylinder 會產生 4 組 pair，mjx.put_model 直接拋 NotImplementedError。
+       排除掉這 4 組即可，CPU 物理零影響：全 12 關節【完整 joint range】隨機掃 32008 個姿態
+       （含全極值角落），base box 與輪的最短距離為 0.0348 m（FL/FR/RL/RR 皆同量級），
+       而兩者 margin 都只有 0.001 m — 物理上根本碰不到，兩端不會分岔。
+       複驗腳本邏輯：mj_kinematics + mj_geomDistance(base_box, wheel)。 -->
+  <contact>
+    <exclude body1="base" body2="FL_wheel"/>
+    <exclude body1="base" body2="FR_wheel"/>
+    <exclude body1="base" body2="RL_wheel"/>
+    <exclude body1="base" body2="RR_wheel"/>
+  </contact>
+
   <actuator>
     <general class="abad" name="FL_abad" joint="FL_abad_joint"/>
     <general class="hip"  name="FL_hip"  joint="FL_hip_joint"/>

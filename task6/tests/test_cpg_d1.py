@@ -98,6 +98,9 @@ def test_joint_targets_returns_12_and_stays_in_limits():
         assert q.shape == (12,)
         assert np.all(q >= m.jnt_range[1:, 0] - 1e-6), "關節目標角低於下限"
         assert np.all(q <= m.jnt_range[1:, 1] + 1e-6), "關節目標角超過上限"
+        # 還要在致動器 ctrlrange 內才不會被 clip（abad 的 ctrlrange 比 jnt_range 更緊）
+        assert np.all(q >= m.actuator_ctrlrange[:, 0] - 1e-6), "關節目標角低於 ctrlrange"
+        assert np.all(q <= m.actuator_ctrlrange[:, 1] + 1e-6), "關節目標角超過 ctrlrange"
 
 
 def test_w2b_rotates_gravity_into_body_frame():

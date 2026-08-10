@@ -3,12 +3,18 @@
 與 task4 論文標準版逐行對應；差別只在 HOME3 與模型名稱由 d1_model 提供。
 IK 用「home 姿態的數值 Jacobian 求逆」，對關節正負號自動免疫，
 因此 D1 的 knee 軸為 -y、hip 正負號與 Go2 相反都不需要特別處理。
+
+足端偏移的前後與側向用兩個不同尺度：前後維持 D_STEP=0.12（不犧牲走速），
+側向改用較小的 D_STEP_Y=0.09。原因是側向偏移只由 abad 關節吸收（靈敏度約
+4.47 rad/m），而本機 D1 輪足的 abad 行程僅 ±28°，遠小於 task4 目標機 Go2 的
+±60°；沿用 0.12 會讓 abad 目標角達 ±0.536 rad，超出致動器 ctrlrange ±0.4687。
 """
 import mujoco
 import numpy as np
 
-from d1_model import (A_CONV, D_STEP, G_C, G_P, HOME3, LEGS, MU_MAX, MU_MIN,
-                      N_CPG_SUB, OMEGA_MAX, OMEGA_MIN, PHASE_OFFSET, W_COUP)
+from d1_model import (A_CONV, D_STEP, D_STEP_Y, G_C, G_P, HOME3, LEGS, MU_MAX,
+                      MU_MIN, N_CPG_SUB, OMEGA_MAX, OMEGA_MIN, PHASE_OFFSET,
+                      W_COUP)
 
 PHI = PHASE_OFFSET[None, :] - PHASE_OFFSET[:, None]   # (4,4) 目標相位差
 
@@ -80,7 +86,7 @@ def joint_targets(c: dict, f0s, jinvs) -> np.ndarray:
     fx = 2 * (c["rx"] - MU_MIN) / (MU_MAX - MU_MIN) - 1
     fy = 2 * (c["ry"] - MU_MIN) / (MU_MAX - MU_MIN) - 1
     dx = -D_STEP * fx * np.cos(th)
-    dy = D_STEP * fy * np.cos(th)
+    dy = D_STEP_Y * fy * np.cos(th)   # 側向用較小的尺度，見 d1_model.D_STEP_Y
     dz = np.where(np.sin(th) > 0, G_C * np.sin(th), G_P * np.sin(th))
     off = np.stack([dx, dy, dz], -1)
     q = np.zeros((4, 3))

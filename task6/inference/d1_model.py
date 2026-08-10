@@ -16,7 +16,9 @@ SCENE = str(_MODEL_DIR / "scene.xml")
 SCENE_MJX = str(_MODEL_DIR / "scene_mjx.xml")
 
 # ---- 機構 ----
-LEGS = ["FL", "FR", "RL", "RR"]        # 見 task6/docs 對照表（官方文件腿序自相矛盾，尚未定案）
+LEGS = ("FL", "FR", "RL", "RR")        # 見 task6/docs 對照表（官方文件腿序自相矛盾，尚未定案）
+                                       # 用 tuple：腿序一旦被就地改寫，PHASE_OFFSET 的 trot 對角
+                                       # 關係會靜默失效（見 test_cpg_d1 的相位釘住測試）
 HOME3 = np.array([0.0, 1.05, -2.00])   # abad, hip, knee；knee 軸為 +y，故 hip 為正（與點足版相反）
 HOME12 = np.tile(HOME3, 4)
 WHEEL_RADIUS = 0.0710                  # 輪半徑(m)；輪子在模擬中熔接鎖死，當成圓腳
@@ -48,6 +50,13 @@ PHASE_OFFSET = np.array([0.0, np.pi, np.pi, 0.0])   # trot：FL, FR, RL, RR
 OBS_DIM = 69        # 76 −3(機身線速度，實機拿不到) −4(觸地布林，無可用訊號，見關卡3)
 ACT_DIM = 12
 
+# ---- 唯讀鎖 ----
+# 這三個是 ndarray，預設可就地改寫（HOME3[0] = 99 會成功且不報錯），
+# 任一處被汙染就會全域擴散到訓練與推論。鎖成唯讀，改寫會直接丟 ValueError。
+for _const in (HOME3, HOME12, PHASE_OFFSET):
+    _const.flags.writeable = False
+del _const
+
 
 def make_model(mjx: bool = False) -> mujoco.MjModel:
     """建立 D1 EDU 模型。mjx=True 回傳訓練用場景，False 回傳本機渲染場景。"""
@@ -58,10 +67,26 @@ def foot_geom_ids(m: mujoco.MjModel) -> list[int]:
     """四顆輪子碰撞 geom 的 id，順序同 LEGS。
 
     輪子鎖死當圓腳，功能上等同足端，故沿用 foot_* 命名供 IK 與觸地判定引用。
+    名稱查不到時 mj_name2id 回傳 -1，而 Python 的 -1 索引會靜默拿到最後一個元素
+    （拿到 RR 的資料卻以為是 FL），所以這裡必須當場擋下來。
     """
-    return [mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, leg) for leg in LEGS]
+    ids = []
+    for leg in LEGS:
+        gid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, leg)
+        assert gid >= 0, f"名稱契約破裂：找不到 geom {leg}"
+        ids.append(gid)
+    return ids
 
 
 def knee_actuator_ids(m: mujoco.MjModel) -> list[int]:
-    """四個膝致動器的 id，順序同 LEGS。供診斷用（obs 不再使用力矩判觸地，見關卡 3）。"""
-    return [mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_ACTUATOR, f"{leg}_knee") for leg in LEGS]
+    """四個膝致動器的 id，順序同 LEGS。供診斷用（obs 不再使用力矩判觸地，見關卡 3）。
+
+    同 foot_geom_ids：-1 會被 Python 索引靜默吃掉，必須 assert。
+    """
+    ids = []
+    for leg in LEGS:
+        name = f"{leg}_knee"
+        aid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_ACTUATOR, name)
+        assert aid >= 0, f"名稱契約破裂：找不到 actuator {name}"
+        ids.append(aid)
+    return ids

@@ -128,10 +128,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "inference"))
 def test_d1_model_constants_are_single_source_of_truth():
     import d1_model
 
-    assert d1_model.LEGS == ["FL", "FR", "RL", "RR"]
+    assert d1_model.LEGS == ("FL", "FR", "RL", "RR")
     assert d1_model.HOME3 == pytest.approx([0.0, 1.05, -2.00])
     assert d1_model.HOME12 == pytest.approx([0.0, 1.05, -2.00] * 4)
-    assert d1_model.OBS_DIM == 73
+    assert d1_model.OBS_DIM == 69   # 觸地布林經實測無可用訊號後移除，由 76 → 73 → 69
     assert d1_model.ACT_DIM == 12
     assert (d1_model.CTRL_DT, d1_model.SIM_DT) == (0.02, 0.004)
 
@@ -490,3 +490,135 @@ def test_cpu_and_mjx_scenes_differ_only_in_solver_iterations():
     assert cpu.opt.timestep == mjx.opt.timestep
     assert cpu.opt.cone == mjx.opt.cone
     assert cpu.opt.impratio == mjx.opt.impratio
+
+
+# =====================================================================
+# 「單一事實來源」的實質護欄（Task 6 審查加測）
+#
+# 加測動機：審查者實測發現 d1_model 的「單一事實來源」保證是假的——
+#   - 把 foot_geom_ids 改成回傳全 -1、knee_actuator_ids 改指向 _hip，29 個測試全過
+#     （mj_name2id 查不到回傳 -1，Python 的 -1 索引靜默拿到最後一個元素，不報錯）
+#   - 把 KP/KD 改 50/3、TAU_MAX 改 5.0、WHEEL_RADIUS 改 0.05，29 個測試全過
+#     （本檔的舊測試比對的是自己檔內的字面值，從不比對 d1_model）
+# 以下把 d1_model 的常數對到「實際編出來的模型」，讓常數與 MJCF 只要脫鉤就爆掉。
+# 常數若在訓練與推論之間對不上，代價是整批 GPU 時數白燒、權重檔作廢。
+# =====================================================================
+
+@pytest.fixture(scope="module")
+def d1m():
+    import d1_model
+
+    return d1_model.make_model()
+
+
+def test_helper_ids_resolve_to_the_intended_named_entities(d1m):
+    """helper 回傳的 id 必須真的指向該叫的那個東西。
+
+    只斷言 id >= 0 不夠：knee_actuator_ids 若改查 f"{leg}_hip"，名稱是存在的，
+    assert 不會響，但 12 個致動器裡拿到的是完全不同的三個。故用 id2name 反查比對。
+    """
+    import d1_model
+
+    foot = d1_model.foot_geom_ids(d1m)
+    knee = d1_model.knee_actuator_ids(d1m)
+    assert len(foot) == len(knee) == 4
+    assert all(i >= 0 for i in foot + knee), f"helper 回傳負 id：{foot} {knee}"
+
+    got_geoms = [mujoco.mj_id2name(d1m, mujoco.mjtObj.mjOBJ_GEOM, i) for i in foot]
+    assert got_geoms == ["FL", "FR", "RL", "RR"], (
+        f"foot_geom_ids 應依序指向四顆輪的碰撞 geom，實得 {got_geoms}"
+    )
+    got_acts = [mujoco.mj_id2name(d1m, mujoco.mjtObj.mjOBJ_ACTUATOR, i) for i in knee]
+    assert got_acts == ["FL_knee", "FR_knee", "RL_knee", "RR_knee"], (
+        f"knee_actuator_ids 應依序指向四個膝致動器，實得 {got_acts}"
+    )
+    # 再從模型端確認：foot geom 是輪的碰撞圓柱、knee 致動器接的是膝關節
+    for gid in foot:
+        assert d1m.geom_type[gid] == mujoco.mjtGeom.mjGEOM_CYLINDER
+    for aid in knee:
+        jname = mujoco.mj_id2name(d1m, mujoco.mjtObj.mjOBJ_JOINT, d1m.actuator_trnid[aid][0])
+        assert jname.endswith("_knee_joint"), f"致動器 {aid} 接到的是 {jname}，不是膝關節"
+
+
+def test_helper_asserts_fire_when_name_contract_breaks(d1m):
+    """名稱契約破裂時要當場拋錯，而不是回傳 -1 讓下游靜默索引到最後一個元素。"""
+    import d1_model
+
+    bad = mujoco.mj_name2id(d1m, mujoco.mjtObj.mjOBJ_GEOM, "no_such_geom")
+    assert bad == -1, "前提檢查：mj_name2id 查不到應回 -1（-1 索引在 Python 不會報錯）"
+    with pytest.raises(AssertionError, match="名稱契約破裂"):
+        d1_model.foot_geom_ids(mujoco.MjModel.from_xml_string(
+            "<mujoco><worldbody><geom name='x' size='1'/></worldbody></mujoco>"))
+
+
+def test_constants_are_immutable():
+    """常數必須改不動。實測原本 HOME3[0] = 99 與 LEGS.append(...) 都會成功。"""
+    import d1_model
+
+    for name in ("HOME3", "HOME12", "PHASE_OFFSET"):
+        arr = getattr(d1_model, name)
+        assert not arr.flags.writeable, f"{name} 可就地改寫，任一處汙染就會擴散到全域"
+        with pytest.raises(ValueError):
+            arr[0] = 99.0
+    assert isinstance(d1_model.LEGS, tuple), "LEGS 必須是 tuple，list 會被 append/就地改序"
+
+
+def test_gains_match_compiled_model(d1m):
+    """KP/KD 對 MJCF 的 position 致動器。tau = kp*(ctrl-q) - kd*qd，
+    故 gainprm[0]=kp、biasprm[1]=-kp、biasprm[2]=-kd（kd 在模型中是負值）。"""
+    import d1_model
+
+    assert d1m.actuator_gainprm[:, 0] == pytest.approx(d1_model.KP, abs=1e-9), (
+        f"d1_model.KP={d1_model.KP} 與模型的 {d1m.actuator_gainprm[0, 0]} 不符"
+    )
+    assert d1m.actuator_biasprm[:, 1] == pytest.approx(-d1_model.KP, abs=1e-9)
+    assert d1m.actuator_biasprm[:, 2] == pytest.approx(-d1_model.KD, abs=1e-9), (
+        f"d1_model.KD={d1_model.KD} 與模型的 {-d1m.actuator_biasprm[0, 2]} 不符"
+    )
+
+
+def test_tau_max_matches_compiled_model(d1m):
+    import d1_model
+
+    assert d1m.actuator_forcerange[:, 0] == pytest.approx(-d1_model.TAU_MAX, abs=1e-9)
+    assert d1m.actuator_forcerange[:, 1] == pytest.approx(+d1_model.TAU_MAX, abs=1e-9), (
+        f"d1_model.TAU_MAX={d1_model.TAU_MAX} 與模型 forcerange 不符"
+    )
+
+
+def test_wheel_radius_matches_compiled_model(d1m):
+    """WHEEL_RADIUS 是 IK 與步幅換算的分母，跟 geom 尺寸脫鉤會讓走行距離系統性偏差。"""
+    import d1_model
+
+    for gid in d1_model.foot_geom_ids(d1m):
+        assert float(d1m.geom_size[gid][0]) == pytest.approx(d1_model.WHEEL_RADIUS, abs=1e-9), (
+            f"d1_model.WHEEL_RADIUS={d1_model.WHEEL_RADIUS} 與 geom "
+            f"{mujoco.mj_id2name(d1m, mujoco.mjtObj.mjOBJ_GEOM, gid)} 的半徑不符"
+        )
+
+
+def test_sim_dt_matches_compiled_model():
+    """SIM_DT 對 <option timestep>。兩者不同會讓 CTRL_DT/SIM_DT 的 substep 數算錯。"""
+    import d1_model
+
+    for mjx in (False, True):
+        m = d1_model.make_model(mjx=mjx)
+        assert float(m.opt.timestep) == pytest.approx(d1_model.SIM_DT, abs=1e-12), (
+            f"d1_model.SIM_DT={d1_model.SIM_DT} 與 {'mjx' if mjx else 'cpu'} 場景的 "
+            f"timestep {m.opt.timestep} 不符"
+        )
+    n_sub = d1_model.CTRL_DT / d1_model.SIM_DT
+    assert n_sub == pytest.approx(round(n_sub), abs=1e-9), "CTRL_DT 必須是 SIM_DT 的整數倍"
+
+
+def test_home12_matches_keyframe(d1m):
+    """HOME12 同時是 keyframe 的關節角與致動器目標；三者任一脫鉤就會出生即抽搐。"""
+    import d1_model
+
+    assert d1m.key_qpos[0][7:19] == pytest.approx(d1_model.HOME12, abs=1e-9)
+    assert d1m.key_ctrl[0] == pytest.approx(d1_model.HOME12, abs=1e-9)
+    assert d1_model.HOME12 == pytest.approx(np.tile(d1_model.HOME3, 4), abs=1e-12)
+
+
+# NOMINAL_HEIGHT 與「實際模擬 3 秒後機身 z（容差 5 mm）」的比對，
+# 見上方 test_nominal_height_matches_settled_simulation（不重複跑 3 秒模擬）。

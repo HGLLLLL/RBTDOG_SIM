@@ -125,3 +125,103 @@ def test_openloop_walks_forward_without_falling():
         f"前進 {res['dist']:.2f} m / 理論 {res['theory']:.2f} m = {ratio:.2f}，超出 0.85~1.20"
     )
     assert 0.05 < res["foot_lift"] < 0.12, f"抬腳量 {res['foot_lift']:.3f} m 不合理"
+
+
+# =====================================================================
+# CPG 常數釘住（Task 6 審查加測）
+#
+# 加測動機：審查者實測把 D_STEP 改成 0.99、把 PHASE_OFFSET 改成 pace 步態，
+# 既有 29 個測試全部照樣通過。CPG 常數是訓練與推論之間的隱形契約——
+# 訓練時用 D_STEP=0.12 學到的策略，推論時若變成 0.99，權重直接作廢。
+# 期望值抄自 task6/inference/d1_model.py 現行值（＝ task4 論文標準版）。
+# =====================================================================
+
+# 常數名 -> 期望值（與 d1_model.py 逐項對照，不得由 d1_model 反推）
+CPG_CONSTANTS = {
+    "MU_MIN": 1.0,
+    "MU_MAX": 2.0,
+    "OMEGA_MIN": 0.0,
+    "OMEGA_MAX": 4.5,
+    "A_CONV": 50.0,
+    "D_STEP": 0.12,
+    "D_STEP_Y": 0.09,
+    "G_C": 0.08,
+    "G_P": 0.01,
+    "W_COUP": 8.0,
+    "N_CPG_SUB": 4,
+}
+
+
+@pytest.mark.parametrize("name", sorted(CPG_CONSTANTS))
+def test_cpg_constant_is_pinned(name):
+    """逐一釘住 CPG 常數。改動任一個都必須是有意識的決定（含同步更新本表與權重）。"""
+    got = getattr(d1_model, name)
+    want = CPG_CONSTANTS[name]
+    assert got == pytest.approx(want, abs=1e-12), (
+        f"d1_model.{name} = {got}，期望 {want}。"
+        "若這是刻意調整，請一併確認訓練用的權重是否需要重跑——"
+        "CPG 常數在訓練與推論之間對不上，等於整批 GPU 時數白燒。"
+    )
+
+
+def test_n_cpg_sub_is_an_int_not_a_float():
+    """N_CPG_SUB 拿來當 range() 的次數，變成 float 會在推論時才炸。"""
+    assert isinstance(d1_model.N_CPG_SUB, int) and not isinstance(d1_model.N_CPG_SUB, bool)
+
+
+def test_cpg_ranges_are_ordered():
+    assert d1_model.MU_MIN < d1_model.MU_MAX
+    assert d1_model.OMEGA_MIN < d1_model.OMEGA_MAX
+
+
+def test_d_step_y_is_smaller_than_d_step():
+    """側向擺幅必須小於前後步幅。
+
+    原因：本機 abad 行程僅 ±28°（Go2 是 ±60°），沿用前後的 0.12 會超出 abad 限位約 14%，
+    IK 解出來的目標角會被 ctrlrange clip 掉，步態靜默走樣。
+    """
+    assert d1_model.D_STEP_Y < d1_model.D_STEP, (
+        f"D_STEP_Y={d1_model.D_STEP_Y} 應小於 D_STEP={d1_model.D_STEP}；"
+        "abad 行程僅 ±28°，側向沿用前後尺度會超限"
+    )
+
+
+def test_phase_offset_is_trot_not_any_other_gait():
+    """PHASE_OFFSET 必須是 trot：對角腿同相，兩組相差 pi。
+
+    腿序是 LEGS = ("FL", "FR", "RL", "RR")，所以對角組是 index (0, 3) 與 (1, 2)。
+    這條特別重要：若日後有人改動腿序卻忘了同步改 PHASE_OFFSET，步態會從 trot
+    靜默變成 pace 或 bound——機器人照樣會動，只是走得爛，而且沒有任何測試會響。
+    """
+    legs = list(d1_model.LEGS)
+    assert legs == ["FL", "FR", "RL", "RR"], (
+        f"腿序改成了 {legs}；PHASE_OFFSET 的對角配對是綁在腿序上的，必須同步更新"
+    )
+    ph = np.asarray(d1_model.PHASE_OFFSET, dtype=float)
+    assert ph.shape == (4,)
+
+    def diff(a, b):
+        """相位差摺回 [0, pi]，避免 0 與 2pi 被判為不同。"""
+        return abs(np.angle(np.exp(1j * (a - b))))
+
+    i_fl, i_fr, i_rl, i_rr = (legs.index(n) for n in ("FL", "FR", "RL", "RR"))
+    assert diff(ph[i_fl], ph[i_rr]) == pytest.approx(0.0, abs=1e-9), (
+        f"對角腿 FL/RR 應同相，實得相位差 {diff(ph[i_fl], ph[i_rr]):.4f} rad（PHASE_OFFSET={ph}）"
+    )
+    assert diff(ph[i_fr], ph[i_rl]) == pytest.approx(0.0, abs=1e-9), (
+        f"對角腿 FR/RL 應同相，實得相位差 {diff(ph[i_fr], ph[i_rl]):.4f} rad（PHASE_OFFSET={ph}）"
+    )
+    assert diff(ph[i_fl], ph[i_fr]) == pytest.approx(np.pi, abs=1e-9), (
+        f"兩組對角腿應相差 pi（trot），實得 {diff(ph[i_fl], ph[i_fr]):.4f} rad；"
+        f"若同相則是 bound、若 FL/FR 同相則是 pace。PHASE_OFFSET={ph}"
+    )
+    # 逐項釘住現行值，順便擋下「整體平移一個常數」這種等價但會改變落地相位的改動
+    assert ph == pytest.approx([0.0, np.pi, np.pi, 0.0], abs=1e-12)
+
+
+def test_cpg_init_uses_phase_offset_directly():
+    """cpg_init 的初始相位必須來自 PHASE_OFFSET，不能另外寫死一份。"""
+    c = cpg_d1.cpg_init()
+    assert c["theta"] == pytest.approx(np.asarray(d1_model.PHASE_OFFSET), abs=1e-12)
+    c["theta"][0] += 1.0
+    assert d1_model.PHASE_OFFSET[0] == pytest.approx(0.0), "cpg_init 回傳的相位不得是常數本體的別名"

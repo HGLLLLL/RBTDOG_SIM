@@ -8,8 +8,18 @@
       --params task6/weights/cpg_rl_d1w_params.pkl --secs 20 --video --push
 
 網路結構必須與 Colab 訓練時逐項相同（policy (256,256,128)、value (256,256,256)、
-normalize_observations=True）。對不上時 brax 不會報錯，只會靜默載入錯誤的權重，
-行為完全錯亂卻沒有任何訊息，所以這些數字不得單方面修改。
+normalize_observations=True），這些數字不得單方面修改。
+
+不匹配時的後果分兩種，差別很大：
+
+  - **隱藏層大小**對不上 → flax 會丟 `ScopeParamShapeError`，當場停住，安全。
+  - **activation 函式與動作分布類型**對不上 → 參數形狀完全相同，brax
+    **不會報錯**，權重照樣載入，只是 policy 行為錯亂而毫無訊息
+    （實測 deterministic 動作偏差可達 0.59）。
+
+而 activation 與分布是由 `make_ppo_networks` 的**預設值**決定的，也就是說
+它們由 **brax 的版本**決定，不由本檔的參數決定。所以 Colab notebook 的安裝格
+鎖死 `brax==0.14.2`（本機推論端版本）並在裝完後斷言，是這個靜默失敗的唯一防線。
 """
 import argparse
 import os
@@ -116,7 +126,7 @@ def run(args) -> dict:
         last_a = act
 
         grav = cpg_d1.w2b(d.qpos[3:7], np.array([0.0, 0.0, -1.0]))
-        if grav[2] > -0.4 and fell is None:        # 機身傾倒超過約 66 度
+        if grav[2] > d1_model.FALL_GRAV_Z and fell is None:   # 機身傾倒超過約 66 度
             fell = t
         fz = float(d.geom_xpos[foot_gid[0]][2])
         fz_min, fz_max = min(fz_min, fz), max(fz_max, fz)

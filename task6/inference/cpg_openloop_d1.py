@@ -83,7 +83,7 @@ def rollout(secs: float = 8.0, omega: float = 2.0, mu: float = 1.8,
         apply(cpg_d1.joint_targets(c, f0s, jinvs))
 
         grav = cpg_d1.w2b(d.qpos[3:7], np.array([0.0, 0.0, -1.0]))
-        if grav[2] > -0.4 and fell is None:        # 機身傾倒超過約 66 度
+        if grav[2] > d1_model.FALL_GRAV_Z and fell is None:   # 機身傾倒超過約 66 度
             fell = i * d1_model.CTRL_DT
         fz = float(d.geom_xpos[fl_gid][2])
         fz_min, fz_max = min(fz_min, fz), max(fz_max, fz)

@@ -45,9 +45,8 @@ N_CPG_SUB = 4
 PHASE_OFFSET = np.array([0.0, np.pi, np.pi, 0.0])   # trot：FL, FR, RL, RR
 
 # ---- 觀測 ----
-OBS_DIM = 73        # 76 − 3（移除實機拿不到的機身線速度）
+OBS_DIM = 69        # 76 −3(機身線速度，實機拿不到) −4(觸地布林，無可用訊號，見關卡3)
 ACT_DIM = 12
-TAU_CONTACT = 8.0   # 膝關節力矩觸地門檻(N·m)；Task 5 由開迴路力矩分佈定案
 
 
 def make_model(mjx: bool = False) -> mujoco.MjModel:
@@ -64,5 +63,5 @@ def foot_geom_ids(m: mujoco.MjModel) -> list[int]:
 
 
 def knee_actuator_ids(m: mujoco.MjModel) -> list[int]:
-    """四個膝致動器的 id，順序同 LEGS。用於力矩觸地判定。"""
+    """四個膝致動器的 id，順序同 LEGS。供診斷用（obs 不再使用力矩判觸地，見關卡 3）。"""
     return [mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_ACTUATOR, f"{leg}_knee") for leg in LEGS]

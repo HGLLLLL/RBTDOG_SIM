@@ -1,4 +1,4 @@
-"""73 維 observation 測試。維度與欄位順序一旦改變，訓練好的權重就失效。"""
+"""69 維 observation 測試。維度與欄位順序一旦改變，訓練好的權重就失效。"""
 import sys
 from pathlib import Path
 
@@ -37,8 +37,8 @@ class _FakeData:
 
 
 # 哨兵：每個區塊一組互不相同、可辨識的值，任兩區塊對調都會被抓到。
-_KNEE_AID = [2, 5, 8, 11]
 _SEN_LINVEL = np.array([-9.1, -9.2, -9.3])          # 機身線速度：絕不該出現在 obs
+_SEN_ACT_FORCE = np.arange(12, dtype=np.float64) + 500.0   # 致動器力矩：同樣不該出現
 _SEN_GYRO = np.array([0.31, 0.32, 0.33])
 _SEN_JOINT_POS = np.arange(12, dtype=np.float64) + 300.0
 _SEN_JOINT_VEL = np.arange(12, dtype=np.float64) + 400.0
@@ -61,12 +61,9 @@ def _sentinel_obs():
     qvel[0:3] = _SEN_LINVEL
     qvel[3:6] = _SEN_GYRO
     qvel[6:18] = _SEN_JOINT_VEL
-    force = np.zeros(12)
-    force[_KNEE_AID] = [d1_model.TAU_CONTACT + 1.0, 0.0,
-                        -(d1_model.TAU_CONTACT + 1.0), 0.0]   # → [1,0,1,0]
-    d = _FakeData(qpos, qvel, force)
+    d = _FakeData(qpos, qvel, _SEN_ACT_FORCE.copy())
     obs = obs_d1.build_obs(d, {k: v.copy() for k, v in _SEN_CPG.items()},
-                           _SEN_CMD, _SEN_LAST_A, _KNEE_AID)
+                           _SEN_CMD, _SEN_LAST_A)
     return d, obs
 
 
@@ -107,9 +104,17 @@ def test_sentinel_cmd_and_last_action_blocks_not_swapped():
     assert obs[_slice("last_action")] == pytest.approx(_SEN_LAST_A, rel=1e-6)
 
 
-def test_sentinel_foot_contact_block():
+def test_no_foot_contact_block_and_no_actuator_force_leak():
+    """關卡 3：輪足版沒有可用觸地訊號，obs 不得含 foot_contact，也不得含致動器力矩。
+
+    0.901 kg 的輪讓擺動相的膝力矩與位置誤差都大於站立相，訊號方向是反的。
+    """
+    assert "foot_contact" not in [k for k, _ in obs_d1.OBS_LAYOUT]
+    assert not hasattr(obs_d1, "foot_contact"), "foot_contact() 應已移除"
     _, obs = _sentinel_obs()
-    assert obs[_slice("foot_contact")] == pytest.approx([1.0, 0.0, 1.0, 0.0])
+    for i, v in enumerate(_SEN_ACT_FORCE):
+        assert not np.any(np.isclose(obs, v, rtol=1e-5)), \
+            f"obs 出現致動器力矩分量 actuator_force[{i}]={v}"
 
 
 def test_sentinel_cpg_block_order_rx_rxd_ry_ryd_sin_cos():
@@ -135,18 +140,18 @@ def test_build_obs_rejects_wrong_length_cmd_or_last_action():
     d, _ = _sentinel_obs()
     c = {k: v.copy() for k, v in _SEN_CPG.items()}
     with pytest.raises(AssertionError):
-        obs_d1.build_obs(d, c, np.zeros(2), _SEN_LAST_A, _KNEE_AID)
+        obs_d1.build_obs(d, c, np.zeros(2), _SEN_LAST_A)
     with pytest.raises(AssertionError):
-        obs_d1.build_obs(d, c, _SEN_CMD, np.zeros(11), _KNEE_AID)
+        obs_d1.build_obs(d, c, _SEN_CMD, np.zeros(11))
 
 
-def test_layout_sums_to_73_and_has_no_base_linear_velocity():
+def test_layout_sums_to_69_and_has_no_base_linear_velocity():
     total = sum(n for _, n in obs_d1.OBS_LAYOUT)
-    assert total == d1_model.OBS_DIM == 73
+    assert total == d1_model.OBS_DIM == 69
     names = [k for k, _ in obs_d1.OBS_LAYOUT]
     assert "base_linvel" not in names, "機身線速度實機拿不到，不得放進 obs"
     assert names == ["gravity", "gyro", "joint_pos", "joint_vel",
-                     "cmd", "last_action", "foot_contact", "cpg"]
+                     "cmd", "last_action", "cpg"]
 
 
 def test_build_obs_shape_and_dtype():
@@ -154,11 +159,10 @@ def test_build_obs_shape_and_dtype():
     d = mujoco.MjData(m)
     mujoco.mj_resetDataKeyframe(m, d, 0)
     mujoco.mj_forward(m, d)
-    knee_aid = d1_model.knee_actuator_ids(m)
     obs = obs_d1.build_obs(d, cpg_d1.cpg_init(),
                            np.array([0.6, 0.0, 0.0], np.float32),
-                           np.zeros(12), knee_aid)
-    assert obs.shape == (73,)
+                           np.zeros(12))
+    assert obs.shape == (69,)
     assert obs.dtype == np.float32
     assert np.all(np.isfinite(obs))
 
@@ -169,9 +173,8 @@ def test_joint_pos_block_is_deviation_from_home():
     d = mujoco.MjData(m)
     mujoco.mj_resetDataKeyframe(m, d, 0)
     mujoco.mj_forward(m, d)
-    knee_aid = d1_model.knee_actuator_ids(m)
     obs = obs_d1.build_obs(d, cpg_d1.cpg_init(),
-                           np.zeros(3, np.float32), np.zeros(12), knee_aid)
+                           np.zeros(3, np.float32), np.zeros(12))
     assert obs[_slice("joint_pos")] == pytest.approx(np.zeros(12), abs=1e-9)
 
 
@@ -180,19 +183,6 @@ def test_gravity_block_points_down_when_upright():
     d = mujoco.MjData(m)
     mujoco.mj_resetDataKeyframe(m, d, 0)
     mujoco.mj_forward(m, d)
-    knee_aid = d1_model.knee_actuator_ids(m)
     obs = obs_d1.build_obs(d, cpg_d1.cpg_init(),
-                           np.zeros(3, np.float32), np.zeros(12), knee_aid)
+                           np.zeros(3, np.float32), np.zeros(12))
     assert obs[_slice("gravity")] == pytest.approx([0.0, 0.0, -1.0], abs=1e-6)
-
-
-def test_foot_contact_uses_absolute_torque_threshold():
-    knee_aid = [2, 5, 8, 11]
-    force = np.zeros(12)
-    force[2] = d1_model.TAU_CONTACT + 1.0      # 超過門檻 → 觸地
-    force[5] = -(d1_model.TAU_CONTACT + 1.0)   # 負號同樣算觸地（取絕對值）
-    force[8] = d1_model.TAU_CONTACT - 1.0      # 未達門檻 → 未觸地
-    force[11] = 0.0
-    got = obs_d1.foot_contact(force, knee_aid)
-    assert got == pytest.approx([1.0, 1.0, 0.0, 0.0])
-    assert got.dtype == np.float32

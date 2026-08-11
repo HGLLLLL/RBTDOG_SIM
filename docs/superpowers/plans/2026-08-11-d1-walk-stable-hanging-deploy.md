@@ -15,7 +15,11 @@
 - **狗上（`task6/realbot/`）只能依賴 python3 標準庫 + numpy。** 不得 `import mujoco` —— 車載電腦沒有。`shm_common.py` 與 `L7_gait_shm.py` 都受此限制。`gait_export.py` 在開發機跑，可以用 mujoco。
 - **不得修改 `task6/inference/d1_model.py` 的任何常數。** 那是訓練與推論的共用契約，改了會讓既有權重作廢。
 - **不得修改 `task6/inference/cpg_walk_d1.py` 的 `GAIT_G_C`、`GAITS` 或任何步態參數。** 那支腳本產生了影片，是對照基準。部署用的 `G_C` 放在 `gait_export.py` 自己的常數裡。
-- **不得複製 `cpg_walk_d1.py` 的軌跡邏輯。** `gait_export.py` 必須 `import` 它的 `make_cpg_step` / `joint_targets` / `GAITS` / `MU_Y` / `SETTLE_S`。兩份會漂移，而漂移是靜默的。
+- **不得複製 `cpg_walk_d1.py` 的軌跡邏輯 —— 但有一個明確的例外。** `gait_export.py` 必須 `import` 它的 `make_cpg_step` / `joint_targets` / `GAITS` / `MU_Y` / `SETTLE_S`。兩份會漂移，而漂移是靜默的。
+
+  **例外（使用者決策，2026-08-11）**：`L7_gait_shm.py` 的 `--source live` 模式必須在狗上重新實作一份 CPG 積分 + IK。這不是疏忽，是需求 —— 使用者要「一個模式直接播寫死的軌跡、一個模式在狗上自己算」，而狗上沒有 mujoco（`leg_ik_consts` 要跑 forward kinematics），無法 import 開發機那份。
+
+  漂移防線是 `test_live_trajectory_matches_the_file_frame_by_frame`：兩份的輸出逐幀比對，容忍 1e-9。那個測試轉紅就代表兩份漂移了。**審查時請把這份重複當作已決策事項，但仍應檢查防線是否真的有效**（例如測試是否只在某個特例下成立）。
 - **SHM 結構定義只能有一份**，在 `shm_common.py`。`SplineData` 大小必須是 608 bytes。
 - **腿序有兩套，不可混用**：policy/MJCF 腿序是 `(FL, FR, RL, RR)`；SHM 腿序是 `legs[0]=FR, [1]=FL, [2]=RR, [3]=RL`。轉換只能透過 `calib_map.LEG_MJCF2SHM`。
 - **部署步態參數**（`walk_stable`，除 `G_C` 外全部沿用）：`duty=0.80, ω=1.4, μx=1.90, μy=1.5, x_off=-0.055`。
@@ -1106,6 +1110,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import calib_map
 import shm_common as SC
 
+# --- live 模式重列的常數 ---
+# 必須與 d1_model / cpg_walk_d1 一致。狗上不能 import d1_model（它 import mujoco），
+# 所以在此重列。提到模組層級是為了讓 test_live_constants_match_d1_model 讀得到值
+# 逐項比對 —— 比對數值，不是比對原始碼字串。
+MU_MIN, MU_MAX = 1.0, 2.0
+A_CONV, W_COUP, N_CPG_SUB = 50.0, 8.0, 4
+D_STEP, D_STEP_Y, G_P = 0.12, 0.09, 0.01
+HOME3 = np.array([0.0, 1.05, -2.00])
+PHASE_WALK = np.array([0.0, np.pi, 1.5 * np.pi, 0.5 * np.pi])
+
 LEG_KP, LEG_KD = 20.0, 0.7     # 原廠站立實測值
 STOP_KD = 3.0
 CATCH_SEC = 0.5
@@ -1166,11 +1180,16 @@ def playback_times(n_frames, ctrl_dt, time_scale, hz=SC.CTRL_HZ):
 
 
 def live_trajectory(npz_path, secs):
-    """狗上純 numpy 重算軌跡。存在的理由是為之後的閉環推論鋪路，
-    以及當作 file 路線的交叉驗證。**離線檔是黃金標準**，不吻合就不准用。
+    """狗上純 numpy 自己算軌跡，不讀 npz 的 q_shm。**離線檔是黃金標準**，
+    不逐幀吻合就不准用。
 
-    ⚠️ 只支援 1.0 倍速。放慢時間等同於降低 ω，會產生不同的軌跡
-    （A_CONV 主導的振幅收斂發生在真實時間裡，不隨 ω 縮放）。
+    ★ CPG 一律在【未縮放的 50 Hz 網格】上積分，與 --time-scale 無關。
+      時間縮放純粹是播放層的事（sample_at + playback_times），兩個模式共用。
+      這樣 live 與 file 在任何倍速下都產生完全相同的路點序列。
+
+      不要改成「用縮放後的 dt 即時積分」：那會在慢速下產生更密的路點，
+      在擺動→站立交界處（duty_remap 讓 dθ/dt 跳 4 倍的那個折點）與 file
+      差到 7.5°。兩者都不算錯，但就不再是同一條指令串流，黃金標準也就沒了。
     """
     z = np.load(npz_path, allow_pickle=False)
     meta = json.loads(str(z["meta_json"]))
@@ -1180,20 +1199,15 @@ def live_trajectory(npz_path, secs):
 def _cpg_rollout(meta, jinvs, secs):
     """CPG 積分 + IK + calib_map，純 numpy。逐行對應 cpg_walk_d1 的實作。
 
-    ⚠️ 這是 cpg_walk_d1 的第二份實作，違反「不得複製」的原則，但無法避免：
-       開發機那份 import 了 mujoco（leg_ik_consts 要跑 forward kinematics），
-       狗上沒有 mujoco。折衷是把 jinvs 預先算好由 npz 帶上來，讓這裡只剩
-       純算術，並用 test_live_trajectory_matches_the_file_frame_by_frame
-       逐幀釘住兩份的一致性（容忍 1e-9）。那個測試轉紅就代表兩份漂移了。
-    """
-    # 這些常數必須與 d1_model / cpg_walk_d1 一致。狗上不能 import d1_model
-    # （它 import mujoco），所以在此重列，並由 test_live_constants_match_d1_model 釘住。
-    MU_MIN, MU_MAX = 1.0, 2.0
-    A_CONV, W_COUP, N_CPG_SUB = 50.0, 8.0, 4
-    D_STEP, D_STEP_Y, G_P = 0.12, 0.09, 0.01
-    HOME3 = np.array([0.0, 1.05, -2.00])
-    PHASE_WALK = np.array([0.0, np.pi, 1.5 * np.pi, 0.5 * np.pi])
+    ⚠️ 這是 cpg_walk_d1 的第二份實作。這是【使用者決策的例外】而非疏忽 ——
+       需求是「一個模式播寫死的軌跡、一個模式在狗上自己算」，而狗上沒有
+       mujoco（leg_ik_consts 要跑 forward kinematics），無法 import 那份。
+       折衷是把 jinvs 預先算好由 npz 帶上來，讓這裡只剩純算術，並用
+       test_live_trajectory_matches_the_file_frame_by_frame 逐幀釘住
+       （容忍 1e-9）。那個測試轉紅就代表兩份漂移了。
 
+    ★ 一律用 meta["ctrl_dt"]（50 Hz）積分，不吃 time_scale —— 見 live_trajectory。
+    """
     dt = meta["ctrl_dt"]
     mux, muy = np.full(4, meta["mu_x"]), np.full(4, meta["mu_y"])
     omega = np.full(4, meta["omega"])
@@ -1258,20 +1272,38 @@ def test_calib_hash_agrees_across_modules():
 
 def test_live_constants_match_d1_model():
     """_cpg_rollout 重列了 d1_model 的常數（狗上不能 import d1_model）。
-    任何一個漂掉，live 路線就會安靜地產生不同的軌跡。"""
-    import inspect
-    src = inspect.getsource(L7._cpg_rollout)
-    for name, val in (("MU_MIN, MU_MAX = 1.0, 2.0", None),
-                      ("A_CONV, W_COUP, N_CPG_SUB = 50.0, 8.0, 4", None)):
-        assert name in src, f"常數宣告變了：{name}"
-    assert (d1_model.MU_MIN, d1_model.MU_MAX) == (1.0, 2.0)
-    assert (d1_model.A_CONV, d1_model.W_COUP, d1_model.N_CPG_SUB) == (50.0, 8.0, 4)
-    assert (d1_model.D_STEP, d1_model.D_STEP_Y, d1_model.G_P) == (0.12, 0.09, 0.01)
-    assert list(d1_model.HOME3) == [0.0, 1.05, -2.00]
+    任何一個漂掉，live 路線就會安靜地產生不同的軌跡。
+
+    ⚠️ 比對【實際數值】，不要比對原始碼字串。用 inspect.getsource 比字串
+       會在無害的排版改動上誤報，又抓不到「宣告沒變但別處覆寫了」的情況。
+       把常數從函式裡提到模組層級，就能直接讀值比對。
+    """
+    assert (L7.MU_MIN, L7.MU_MAX) == (d1_model.MU_MIN, d1_model.MU_MAX)
+    assert L7.A_CONV == d1_model.A_CONV
+    assert L7.W_COUP == d1_model.W_COUP
+    assert L7.N_CPG_SUB == d1_model.N_CPG_SUB
+    assert L7.D_STEP == d1_model.D_STEP
+    assert L7.D_STEP_Y == d1_model.D_STEP_Y
+    assert L7.G_P == d1_model.G_P
+    assert list(L7.HOME3) == list(d1_model.HOME3)
+    import cpg_walk_d1 as W
+    assert list(L7.PHASE_WALK) == list(W.PHASE_WALK)
+
+
+def test_live_matches_file_at_every_playback_speed(npz):
+    """時間縮放是播放層的事，CPG 一律在未縮放的 50 Hz 網格上積分。
+    所以 live 與 file 在任何倍速下都必須產生相同的 500 Hz 指令串流。"""
+    q_file, meta = L7.load_trajectory(npz)
+    q_live = L7.live_trajectory(npz, meta["secs"])
+    dt = meta["ctrl_dt"]
+    for s in (0.25, 0.5, 1.0):
+        u = L7.playback_times(len(q_file), dt, s)
+        assert L7.sample_at(q_live, dt, u) == pytest.approx(
+            L7.sample_at(q_file, dt, u), abs=1e-9), f"{s}× 不吻合"
 ```
 
 Run: `conda run --no-capture-output -n rbtdog python -m pytest task6/tests/test_L7_gait.py -q`
-Expected: PASS（10 passed）
+Expected: PASS（11 passed）
 
 - [ ] **Step 7: 確認狗上的依賴限制沒被違反**
 
@@ -1800,7 +1832,7 @@ def main():
     ap.add_argument("--traj", default=None, help="gait_export 產生的 npz（leg/gait 模式必填）")
     ap.add_argument("--source", choices=("file", "live"), default="file")
     ap.add_argument("--time-scale", type=float, default=0.25, dest="time_scale",
-                    help="播放倍率。0.25=四分之一速（預設，先慢再快）。live 只支援 1.0")
+                    help="播放倍率。0.25=四分之一速（預設，先慢再快）。file/live 皆適用")
     ap.add_argument("--secs", type=float, default=5.0, help="播放秒數（從軌跡頭開始）")
     ap.add_argument("--kp", type=float, default=LEG_KP)
     ap.add_argument("--kd", type=float, default=LEG_KD)
@@ -1816,8 +1848,6 @@ def main():
 
     if args.mode in ("leg", "gait") and not args.traj:
         ap.error("--mode leg/gait 需要 --traj")
-    if args.source == "live" and args.time_scale != 1.0:
-        ap.error("--source live 只支援 --time-scale 1.0（放慢等同降 ω，會是不同的軌跡）")
 
     try:
         skip = {int(x) for x in args.skip_legs.split(",") if x.strip() != ""}
@@ -2152,6 +2182,9 @@ RMS/最大誤差/互相關求相位延遲，只分析被驅動的腿。
 | G1 jog | `sudo python3 L7_gait_shm.py --mode jog --jog-leg 0 --jog-joint hip --confirm` | 方向與 MJCF 正向定義一致 |
 | G2 leg | `--mode leg --only-leg 1 --time-scale 0.25 --secs 5 --confirm` | 不中止 |
 | G3 gait | `--mode gait --skip-legs 2 --time-scale 0.25 --secs 5 --confirm` | 不中止 |
+| G3-live | 同上加 `--source live` | 不中止，且追蹤誤差與 `--source file` 同一級的數字一致 |
+
+`--source file` 是播放寫死的軌跡檔，`--source live` 是狗上自己算 CPG + IK。兩者在任何倍速下都應該送出相同的指令，所以 G3-live 是對「狗上算得對不對、算得夠不夠快」的獨立驗證 —— 特別看 500 Hz 週期超時率有沒有比 file 模式高。
 
 G1 要對 `leg0` 的 abad / hip / knee 三軸各跑一次。**hip 是重點** —— `calib_map.py` 明寫它的號是暫定的。
 

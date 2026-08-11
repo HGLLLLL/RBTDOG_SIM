@@ -47,8 +47,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from shm_common import (CTRL_HZ, DT, EXPECT_SIZE, FAULT_BITS, LEGNAME, POSE_LABEL,
-                        POSE_LIE, POSE_STAND, POSES, SHM_PATH, SplineData,
+from shm_common import (DT, LEGNAME, POSE_LABEL,
+                        POSE_LIE, POSE_STAND, POSES, SHM_PATH,
                         check_guards, check_struct_size, open_shm,
                         passive_stop, preflight_mc_stopped,
                         preflight_motors_healthy, publish, read_leg_q,

@@ -97,3 +97,38 @@ def test_pose_stand_and_lie_are_per_leg_mirrored():
         assert set(pose) == {0, 1, 2, 3}
         # leg0(FR) 與 leg1(FL) 的 abad 號相反
         assert pose[0]["abad"] * pose[1]["abad"] < 0
+
+
+def test_check_struct_size_exits_when_size_mismatches(monkeypatch):
+    """大小不符必須中止。這道關卡失效的話，會對著錯誤的記憶體佈局寫關節指令。"""
+    monkeypatch.setattr(SC, "EXPECT_SIZE", 999)
+    with pytest.raises(SystemExit) as e:
+        SC.check_struct_size()
+    assert e.value.code == 1
+
+
+def test_check_struct_size_passes_at_the_real_size():
+    SC.check_struct_size()          # 不應拋出任何東西
+
+
+def test_check_struct_size_survives_python_dash_O():
+    """★ 這條是重點：assert 在 python -O 下會被剝除，這道關卡不能用 assert。
+
+    用子行程實跑 -O，確認大小不符時仍然中止。改用 assert 的話這條會失敗，
+    因為 -O 會讓 assert 整行消失，函式就直接正常返回了。
+    """
+    import subprocess
+    import sys as _sys
+    from pathlib import Path
+    code = (
+        "import sys; sys.path.insert(0, %r);"
+        "import shm_common as SC;"
+        "SC.EXPECT_SIZE = 999;"
+        "SC.check_struct_size();"
+        "print('GUARD_DID_NOT_FIRE')"
+        % str(Path(__file__).resolve().parents[1] / "realbot")
+    )
+    r = subprocess.run([_sys.executable, "-O", "-c", code],
+                       capture_output=True, text=True)
+    assert r.returncode == 1, f"關卡在 -O 下沒有中止：{r.stdout!r} {r.stderr!r}"
+    assert "GUARD_DID_NOT_FIRE" not in r.stdout

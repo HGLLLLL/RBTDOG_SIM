@@ -271,8 +271,14 @@ def _ramp_frames(a, b, secs, hz=SC.CTRL_HZ):
     return np.asarray(a)[None] * (1 - w) + np.asarray(b)[None] * w
 
 
-def run_gait(d, traj, meta, active_legs, time_scale, kp, kd, dry, log_path):
-    """catch → ramp 到第 0 幀 → 播放 → ramp 回站姿 → 卸力。"""
+def run_gait(d, traj, meta, active_legs, time_scale, kp, kd, dry, log_path,
+             mode="gait"):
+    """catch → ramp 到第 0 幀 → 播放 → ramp 回站姿 → 卸力。
+
+    mode：寫進 log meta 的模式名稱（"gait" 或 "leg"）。由呼叫端傳入實際
+    模式 —— 不然 --mode leg 跑出來的 log 也會被記成 "gait"，事後分析
+    分不清這次到底驅動了幾條腿是刻意的還是步態模式本來就這樣。
+    """
     torque_abort, vel_abort = guard_thresholds(meta, kp, kd, time_scale)
     pred = meta["air_sim"][f"{kp}/{kd}"][str(time_scale)]
     print(f"\n[*] 保護門檻：力矩 {torque_abort:.2f} N·m、速度 {vel_abort:.2f} rad/s")
@@ -306,11 +312,21 @@ def run_gait(d, traj, meta, active_legs, time_scale, kp, kd, dry, log_path):
           f"→ {u[-1] / time_scale:.1f}s 牆鐘、{len(u)} 個控制週期")
 
     def stage(label, frames, kp_seq=None):
-        """跑一段。kp_seq 給定時逐幀套用不同增益（接住段用）。回傳 True/False。"""
+        """跑一段。kp_seq 給定時逐幀套用不同增益（接住段用）。回傳 True/False。
+
+        dry-run 下的 kp_seq 分支不逐比例呼叫 _stream：frames[:1] 每次都只有
+        一個元素，_stream 內部的迴圈索引每次都從 0 開始，dry-run 的列印條件
+        （k % (CTRL_HZ//2) == 0）因此每次都成立，會洗出 251 行重複訊息。
+        改成印一行摘要——dry-run 本來就只是預覽，不需要真的跑漸入迴圈。
+        """
         print(f"\n[*] {label}")
         if kp_seq is None:
             ok, why = _stream(d, frames, active_legs, kp, kd,
                               torque_abort, vel_abort, log, dry, label)
+        elif dry:
+            print(f"  [{label}] {CATCH_SEC}s，kp 0 → {kp:.1f}，"
+                  f"p_des 保持在當前角度不動")
+            ok, why = True, ""
         else:
             ok, why = True, ""
             for r in kp_seq:
@@ -340,10 +356,11 @@ def run_gait(d, traj, meta, active_legs, time_scale, kp, kd, dry, log_path):
         n_over = int(np.sum(log["overrun"]))
         print(f"[*] 完成。500 Hz 週期超時 {n_over} / {len(log['t'])} "
               f"（{100.0 * n_over / max(1, len(log['t'])):.2f}%）")
-        SC.write_log(log_path, {k: np.asarray(v) for k, v in log.items()},
-                     meta={"mode": "gait", "time_scale": time_scale,
-                           "kp": kp, "kd": kd,
-                           "active_legs": list(active_legs), **meta})
+        if log_path is not None:
+            SC.write_log(log_path, {k: np.asarray(v) for k, v in log.items()},
+                         meta={"mode": mode, "time_scale": time_scale,
+                               "kp": kp, "kd": kd,
+                               "active_legs": list(active_legs), **meta})
     return True
 
 
@@ -380,7 +397,8 @@ def run_jog(d, leg, joint_name, kp, kd, log_path):
     SC.passive_stop(d, (leg,), 800, STOP_KD)
     SC.write_log(log_path, {k: np.asarray(v) for k, v in log.items()},
                  meta={"mode": "jog", "leg": leg, "joint": joint_name,
-                       "kp": kp, "kd": kd, "start": start.tolist()})
+                       "kp": kp, "kd": kd, "start": start.tolist(),
+                       "active_legs": [leg], "time_scale": 1.0})
     return ok
 
 
@@ -419,10 +437,14 @@ def main():
     if args.mode == "leg":
         if args.only_leg is None:
             ap.error("--mode leg 需要 --only-leg")
+        if not (0 <= args.only_leg <= 3):
+            ap.error(f"--only-leg 只能是 0~3，收到 {args.only_leg}")
         if args.only_leg in skip:
             ap.error(f"--only-leg {args.only_leg} 同時被 --skip-legs 排除了")
         active = (args.only_leg,)
     if args.mode == "jog":
+        if not (0 <= args.jog_leg <= 3):
+            ap.error(f"--jog-leg 只能是 0~3，收到 {args.jog_leg}")
         if args.jog_leg in skip:
             ap.error(f"--jog-leg {args.jog_leg} 同時被 --skip-legs 排除了")
         active = (args.jog_leg,)
@@ -453,9 +475,10 @@ def main():
         print("DRY-RUN：不開啟、不寫入共享記憶體，只印出動作計畫。")
         print("要真的驅動硬體請加 --confirm（且需 sudo）。")
         print("=" * 66)
-        if args.mode == "gait":
+        if args.mode in ("gait", "leg"):
             run_gait(None, traj, meta, active, args.time_scale,
-                     args.kp, args.kd, dry=True, log_path=args.log)
+                     args.kp, args.kd, dry=True, log_path=args.log,
+                     mode=args.mode)
         print("\n⚠️ 跑真機前必讀：狗要吊掛、四腳離地、mc_ctrl 已 SIGSTOP、estop 隨手可按。")
         return
 
@@ -477,7 +500,8 @@ def main():
     try:
         if args.mode == "gait" or args.mode == "leg":
             run_gait(d, traj, meta, active, args.time_scale,
-                     args.kp, args.kd, dry=False, log_path=args.log)
+                     args.kp, args.kd, dry=False, log_path=args.log,
+                     mode=args.mode)
         else:
             run_jog(d, active[0], args.jog_joint, args.kp, args.kd, args.log)
     except KeyboardInterrupt:

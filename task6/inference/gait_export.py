@@ -56,6 +56,9 @@ GAIT = "walk_stable"
 DEPLOY_G_C = 0.110          # 見檔頭 §。影片版是 cpg_walk_d1.GAIT_G_C = 0.12
 MARGIN_MIN = 0.05           # 限位餘裕門檻(rad) = 2.9°
 
+LAG_MAX_STEPS = 200      # 最多往後找幾個控制週期
+LAG_CONST_EPS = 1e-6     # 指令峰對峰小於此值(rad)視為靜止軸，延遲無定義
+
 # 跨幀跳變門檻(rad)。步態本身單 tick 最大約 0.27 rad（13.5 rad/s × 0.02s），
 # 取 0.40 留餘裕：正常軌跡不會碰到，注入式的階躍會被抓到。
 JUMP_MAX = 0.40
@@ -233,20 +236,32 @@ def air_servo_sim(m, q_mjcf, kp, kd, time_scale, settle_sec=1.0):
 
     wall = (len(q_mjcf) - 1) * dt / time_scale
     tau_pk = vel_pk = 0.0
+    base_drift = 0.0
+    max_contacts = 0
     errs = []
     for k in range(int(wall / m2.opt.timestep)):
         tgt = sample(k * m2.opt.timestep * time_scale)
         d.ctrl[:] = np.clip(tgt, lo, hi)
         pin()
+        # 診斷：吊掛模擬的第一個前提是「機身固定」——就在 pin() 剛做完的
+        # 這一刻檢查，才量得到 pin() 有沒有真的生效（若 pin() 被清空，
+        # 這裡量到的就是上一步物理演化後、沒被歸位的殘留值，且會隨時間累積）。
+        # 若改成 mj_step 之後再量，量到的是單一積分步的正常物理殘差
+        # （量級 ~1e-4，不是 0），會讓這個不變量檢查失去意義。
+        base_drift = max(base_drift, float(np.abs(d.qpos[:7] - base_qpos).max()))
         mujoco.mj_step(m2, d)
         tau_pk = max(tau_pk, float(np.abs(d.actuator_force).max()))
         vel_pk = max(vel_pk, float(np.abs(d.qvel[vidx]).max()))
         errs.append(np.abs(d.qpos[idx] - tgt))
+        # 第二個前提「接觸關閉」：mjDSBL_CONTACT 生效時 d.ncon 全程應為 0。
+        max_contacts = max(max_contacts, int(d.ncon))
     errs = np.asarray(errs)
     return {"tau_peak": tau_pk,
             "err_peak_deg": float(np.degrees(errs.max())),
             "err_rms_deg": float(np.degrees(np.sqrt((errs ** 2).mean()))),
-            "vel_peak": vel_pk}
+            "vel_peak": vel_pk,
+            "base_drift": base_drift,
+            "max_contacts": max_contacts}
 
 
 def air_sim_table(m, q_mjcf):
@@ -257,7 +272,10 @@ def air_sim_table(m, q_mjcf):
         table[key] = {}
         for s in AIR_SIM_SCALES:
             r = air_servo_sim(m, q_mjcf, kp, kd, s)
-            table[key][str(s)] = r
+            # 只保留既有的四個欄位進 npz——診斷欄位（base_drift/max_contacts）
+            # 不能進去，schema 已經被測試與版控中的 gait_walk_stable.npz 釘住。
+            table[key][str(s)] = {k: r[k] for k in
+                                  ("tau_peak", "err_peak_deg", "err_rms_deg", "vel_peak")}
             print(f"  kp={kp} kd={kd} {s:>5.2f}×  力矩 {r['tau_peak']:6.2f} N·m  "
                   f"誤差峰值 {r['err_peak_deg']:6.2f}°  RMS {r['err_rms_deg']:5.2f}°  "
                   f"速度 {r['vel_peak']:5.2f} rad/s")
@@ -300,6 +318,33 @@ def export(m, out_path, g_c=DEPLOY_G_C, secs=20.0):
     return out_path
 
 
+def _lag_steps(cmd, act):
+    """互相關求相位延遲，回傳位移的控制週期數；指令近似不動的軸回傳 None。
+
+    ⚠️ 每個位移量都要用【同樣長度】的視窗比較。原本的寫法讓 k 越大切片越短，
+       再各自取 .mean()，不同長度的浮點捨入噪訊足以讓它在靜止訊號上挑到
+       假的位移（實測對完全靜止的訊號給出 220 ms）。
+
+    ⚠️ 本步態的 abad 軸依設計恆定不動（mu_y=1.5 → fy=0），所以「靜止軸」
+       不是邊緣案例，是每次都會遇到的常態。這種軸的延遲沒有定義，回傳 None
+       比回傳一個看起來很真實的數字誠實。
+    """
+    if float(np.ptp(cmd)) < LAG_CONST_EPS:
+        return None
+    kmax = min(LAG_MAX_STEPS, len(cmd) // 4)
+    m = len(cmd) - kmax
+    if kmax < 1 or m < 1:
+        return None
+    ref = cmd[:m]
+    best, best_k = np.inf, 0
+    for k in range(kmax):
+        d = act[k:k + m] - ref
+        s = float(d @ d)          # 同長度，用平方和即可
+        if s < best:
+            best, best_k = s, k
+    return best_k
+
+
 def analyze(log_path):
     """讀實機 log，算逐軸追蹤誤差。回傳 {'axes': {...}, 'overrun_pct': float, 'meta': {...}}。
 
@@ -320,23 +365,19 @@ def analyze(log_path):
             err = a - c
             rms = float(np.degrees(np.sqrt((err ** 2).mean())))
             mx = float(np.degrees(np.abs(err).max()))
-            # 相位延遲：平移實際角，找誤差最小的位移
-            best, best_k = np.inf, 0
-            for k in range(0, min(200, len(c) // 4)):
-                d_ = (a[k:] - c[:len(c) - k]) if k else (a - c)
-                s = float((d_ ** 2).mean())
-                if s < best:
-                    best, best_k = s, k
-            axes[(leg, jn)] = {"rms_deg": rms, "max_deg": mx,
-                               "lag_ms": best_k * dt * 1000.0}
-            rows.append((leg, jn, rms, mx, best_k * dt * 1000.0))
+            # 相位延遲：互相關找誤差最小的位移；指令不動的軸沒有定義
+            best_k = _lag_steps(c, a)
+            lag_ms = None if best_k is None else best_k * dt * 1000.0
+            axes[(leg, jn)] = {"rms_deg": rms, "max_deg": mx, "lag_ms": lag_ms}
+            rows.append((leg, jn, rms, mx, lag_ms))
 
     over = float(100.0 * np.sum(z["overrun"]) / max(1, len(z["overrun"])))
     print(f"\n[分析] {log_path}  模式={meta.get('mode')}  "
           f"time_scale={meta.get('time_scale')}  kp={meta.get('kp')}")
     print(f"{'軸':<12} {'RMS(°)':>9} {'最大(°)':>9} {'延遲(ms)':>10}")
     for leg, jn, rms, mx, lag in rows:
-        print(f"leg{leg}({LEGNAME[leg]}).{jn:<5} {rms:>9.2f} {mx:>9.2f} {lag:>10.1f}")
+        lag_str = "—" if lag is None else f"{lag:.1f}"
+        print(f"leg{leg}({LEGNAME[leg]}).{jn:<5} {rms:>9.2f} {mx:>9.2f} {lag_str:>10}")
     print(f"\n500 Hz 週期超時 {over:.2f}%"
           + ("  ⚠️ 超過 1% 時追蹤誤差的解讀要打折" if over > 1.0 else ""))
     return {"axes": axes, "overrun_pct": over, "meta": meta}

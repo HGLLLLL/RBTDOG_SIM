@@ -195,6 +195,14 @@ def test_calib_hash_changes_when_calibration_changes(monkeypatch):
     assert GE.calib_hash() != h0
 
 
+def test_calib_hash_changes_when_leg_order_changes(monkeypatch):
+    """腿序重排也是校正的一部分。它改了但雜湊沒變，等於拒跑機制對
+    「四條腿指令互換」這種最嚴重的錯誤完全失明。"""
+    h0 = GE.calib_hash()
+    monkeypatch.setattr(calib_map, "LEG_MJCF2SHM", [0, 1, 2, 3])
+    assert GE.calib_hash() != h0
+
+
 def test_run_checks_passes_for_deploy_g_c(model):
     q_mjcf, q_shm = GE.build_trajectory(model, GE.DEPLOY_G_C, secs=20.0)
     ok, problems, stats = GE.run_checks(model, q_mjcf, q_shm)
@@ -284,6 +292,26 @@ def test_full_speed_torque_exceeds_l4_ceiling(model):
     assert r["tau_peak"] > 8.0
 
 
+def test_air_servo_sim_keeps_the_base_pinned_and_contacts_off(model):
+    """吊掛空跑的兩個前提：機身固定（模擬吊具）、接觸關閉。
+    這兩件事若失效，量到的力矩就不是吊掛情境的力矩——但力矩本身的變化
+    小到會被 20% 容忍帶蓋掉，所以直接斷言不變量。"""
+    q_mjcf, _ = GE.build_trajectory(model, GE.DEPLOY_G_C, secs=3.0)
+    r = GE.air_servo_sim(model, q_mjcf, kp=20.0, kd=0.7, time_scale=1.0)
+    assert r["base_drift"] == pytest.approx(0.0, abs=1e-12), "機身沒有被固定住"
+    assert r["max_contacts"] == 0, "接觸沒有被關掉"
+
+
+def test_air_sim_table_does_not_leak_diagnostics_into_npz(model):
+    """診斷欄位不進 npz——schema 已被測試與既有的 gait_walk_stable.npz 釘住。"""
+    q_mjcf, _ = GE.build_trajectory(model, GE.DEPLOY_G_C, secs=3.0)
+    table = GE.air_sim_table(model, q_mjcf)
+    for gains, per_scale in table.items():
+        for scale, entry in per_scale.items():
+            assert set(entry) == {"tau_peak", "err_peak_deg",
+                                  "err_rms_deg", "vel_peak"}, f"{gains} {scale}"
+
+
 def test_export_embeds_the_air_sim_table(model, tmp_path):
     import json
     out = GE.export(model, tmp_path / "g.npz", secs=8.0)
@@ -335,3 +363,37 @@ def test_analyze_skips_legs_that_were_not_driven(tmp_path):
     r = GE.analyze(_synthetic_log(tmp_path))
     assert (2, "hip") not in r["axes"]
     assert (0, "hip") in r["axes"]
+
+
+def test_analyze_reports_no_lag_for_a_motionless_axis(tmp_path):
+    """本步態的 abad 依設計恆定不動（mu_y=1.5 → fy=0）。
+    靜止軸的相位延遲沒有定義，必須回報 None 而不是一個假數字。"""
+    r = GE.analyze(_synthetic_log(tmp_path, lag_steps=10))
+    assert r["axes"][(0, "abad")]["lag_ms"] is None
+    assert r["axes"][(0, "hip")]["lag_ms"] == pytest.approx(20.0, abs=2.0)
+
+
+def test_analyze_does_not_invent_lag_from_rounding_noise(tmp_path):
+    """靜止軸不能因為浮點噪訊被挑出假位移。這是原演算法的實際失效模式
+    （實測對完全靜止的訊號給出 220 ms）。"""
+    import json
+    n, dt = 2000, 1.0 / 500
+    t = np.arange(n) * dt
+    cmd = np.zeros((n, 4, 3))
+    cmd[:, :, 1] = 0.3                      # 完全不動，但不是 0
+    p = cmd + 1e-9 * np.sin(np.arange(n))[:, None, None]   # 只有量化級別的噪訊
+    path = tmp_path / "flat.npz"
+    np.savez(path, t=t, cmd=cmd, p=p, v=np.zeros((n, 4, 3)),
+             tau=np.zeros((n, 4, 3)), overrun=np.zeros(n, dtype=bool),
+             meta_json=np.array(json.dumps(
+                 {"mode": "gait", "time_scale": 1.0, "active_legs": [0]})))
+    r = GE.analyze(path)
+    for jn in GE.JN:
+        assert r["axes"][(0, jn)]["lag_ms"] is None, f"{jn} 憑空生出延遲"
+
+
+def test_analyze_prints_without_crashing_on_none_lag(tmp_path, capsys):
+    """列印路徑要能處理 None，不能 format 炸掉。"""
+    GE.analyze(_synthetic_log(tmp_path))
+    out = capsys.readouterr().out
+    assert "abad" in out

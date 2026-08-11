@@ -122,3 +122,63 @@ def test_max_joint_vel_far_exceeds_l4_threshold(model):
     _, q_shm = GE.build_trajectory(model, GE.DEPLOY_G_C, secs=20.0)
     v = GE.max_joint_vel(q_shm)
     assert 12.0 < v < 15.0
+
+
+def test_worst_margin_detects_a_lower_bound_violation(model):
+    """只違反下界的軌跡必須被抓到。
+
+    ⚠️ 不能只靠真實軌跡測這件事：FR/FL、RR/RL 是鏡像腿，leg0.knee 的上界餘裕
+       與 leg1.knee 的下界餘裕數值相同，光看上界會意外得到正確答案，
+       下界分支整個刪掉也測不出來（審查者實測 11 測試全過）。
+    """
+    lim = GE.shm_limits(model)
+    # 造一條「每一軸都停在自己區間正中央」的軌跡當乾淨底稿
+    q = np.zeros((10, 4, 3))
+    for leg in range(4):
+        for j, jn in enumerate(GE.JN):
+            lo, hi = lim[(leg, jn)]
+            q[:, leg, j] = (lo + hi) / 2
+    clean, _ = GE.worst_margin(q, lim)
+    assert clean > 0.1, "底稿本身就該有很大的餘裕"
+
+    # 只把 leg2.hip 壓到下界之外，其他不動
+    lo2, _ = lim[(2, "hip")]
+    q[5, 2, 1] = lo2 - 0.03
+    margin, where = GE.worst_margin(q, lim)
+    assert margin == pytest.approx(-0.03, abs=1e-9)
+    assert "leg2" in where and "hip" in where and "下界" in where
+
+
+def test_worst_margin_detects_an_upper_bound_violation(model):
+    """對稱的上界版本，確認兩個方向都真的有在看。"""
+    lim = GE.shm_limits(model)
+    q = np.zeros((10, 4, 3))
+    for leg in range(4):
+        for j, jn in enumerate(GE.JN):
+            lo, hi = lim[(leg, jn)]
+            q[:, leg, j] = (lo + hi) / 2
+    _, hi3 = lim[(3, "abad")]
+    q[7, 3, 0] = hi3 + 0.02
+    margin, where = GE.worst_margin(q, lim)
+    assert margin == pytest.approx(-0.02, abs=1e-9)
+    assert "leg3" in where and "abad" in where and "上界" in where
+
+
+def test_x_off_shows_up_as_a_real_foot_offset(model):
+    """x_off 是足端前後基準偏移（配平機身抬頭），不是可有可無的參數。
+
+    驗法與 build_trajectory 的實作路徑獨立：把關節角逆推回足端位置。
+    IK 是 q = HOME3 + jinv @ offset，所以 offset = inv(jinv) @ (q - HOME3)。
+    前後擺動項在整個步態週期上平均為 0，所以足端 x 的週期平均 = x_off。
+    """
+    import cpg_d1
+    cfg = W.GAITS[GE.GAIT]
+    q_mjcf, _ = GE.build_trajectory(model, GE.DEPLOY_G_C, secs=20.0)
+    _, jinvs = cpg_d1.leg_ik_consts(model)
+
+    for leg in range(4):
+        q3 = q_mjcf[:, leg * 3:leg * 3 + 3] - d1_model.HOME3
+        offs = q3 @ np.linalg.inv(jinvs[leg]).T        # (N,3) 足端偏移
+        mean_x = offs[:, 0].mean()
+        assert mean_x == pytest.approx(cfg["x_off"], abs=2e-3), (
+            f"leg{leg} 足端 x 週期平均 {mean_x:.4f}，應為 x_off={cfg['x_off']}")

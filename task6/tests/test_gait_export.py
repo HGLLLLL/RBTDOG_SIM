@@ -293,3 +293,45 @@ def test_export_embeds_the_air_sim_table(model, tmp_path):
     for s in ("0.25", "0.5", "1.0"):
         entry = table["20.0/0.7"][s]
         assert set(entry) == {"tau_peak", "err_peak_deg", "err_rms_deg", "vel_peak"}
+
+
+def _synthetic_log(tmp_path, lag_steps=0, err_rad=0.0):
+    """造一份假的 state log：實際角 = 指令角延遲 lag_steps 再加固定偏差。"""
+    import json
+    import numpy as np
+    n, dt = 2000, 1.0 / 500
+    t = np.arange(n) * dt
+    cmd = np.zeros((n, 4, 3))
+    cmd[:, :, 1] = np.sin(2 * np.pi * 1.4 * t)[:, None]
+    p = np.roll(cmd, lag_steps, axis=0) + err_rad
+    p[:lag_steps] = cmd[:lag_steps]
+    path = tmp_path / "log.npz"
+    np.savez(path, t=t, cmd=cmd, p=p, v=np.zeros((n, 4, 3)),
+             tau=np.zeros((n, 4, 3)), overrun=np.zeros(n, dtype=bool),
+             meta_json=np.array(json.dumps({"mode": "gait", "time_scale": 1.0,
+                                            "active_legs": [0, 1, 3]})))
+    return path
+
+
+def test_analyze_reports_zero_error_for_perfect_tracking(tmp_path):
+    r = GE.analyze(_synthetic_log(tmp_path))
+    assert r["axes"][(0, "hip")]["rms_deg"] == pytest.approx(0.0, abs=1e-9)
+    assert r["overrun_pct"] == pytest.approx(0.0)
+
+
+def test_analyze_recovers_a_known_constant_offset(tmp_path):
+    r = GE.analyze(_synthetic_log(tmp_path, err_rad=np.radians(3.0)))
+    assert r["axes"][(0, "hip")]["rms_deg"] == pytest.approx(3.0, abs=0.01)
+
+
+def test_analyze_recovers_a_known_lag(tmp_path):
+    """延遲 10 個 500 Hz 週期 = 20 ms。"""
+    r = GE.analyze(_synthetic_log(tmp_path, lag_steps=10))
+    assert r["axes"][(0, "hip")]["lag_ms"] == pytest.approx(20.0, abs=2.0)
+
+
+def test_analyze_skips_legs_that_were_not_driven(tmp_path):
+    """RR 沒被驅動，它的誤差是無意義的，不該出現在報告裡。"""
+    r = GE.analyze(_synthetic_log(tmp_path))
+    assert (2, "hip") not in r["axes"]
+    assert (0, "hip") in r["axes"]

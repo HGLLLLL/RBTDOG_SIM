@@ -300,6 +300,48 @@ def export(m, out_path, g_c=DEPLOY_G_C, secs=20.0):
     return out_path
 
 
+def analyze(log_path):
+    """讀實機 log，算逐軸追蹤誤差。回傳 {'axes': {...}, 'overrun_pct': float, 'meta': {...}}。
+
+    相位延遲用互相關求：把實際角相對指令角平移，找誤差平方和最小的位移量。
+    只分析被驅動的腿——跳過的腿全程零增益，它的「誤差」沒有意義。
+    """
+    from shm_common import LEGNAME
+    z = np.load(log_path, allow_pickle=False)
+    meta = json.loads(str(z["meta_json"]))
+    cmd, p, t = z["cmd"], z["p"], z["t"]
+    dt = float(np.median(np.diff(t))) if len(t) > 1 else 1.0 / 500
+    active = meta.get("active_legs", [0, 1, 2, 3])
+
+    axes, rows = {}, []
+    for leg in active:
+        for j, jn in enumerate(JN):
+            c, a = cmd[:, leg, j], p[:, leg, j]
+            err = a - c
+            rms = float(np.degrees(np.sqrt((err ** 2).mean())))
+            mx = float(np.degrees(np.abs(err).max()))
+            # 相位延遲：平移實際角，找誤差最小的位移
+            best, best_k = np.inf, 0
+            for k in range(0, min(200, len(c) // 4)):
+                d_ = (a[k:] - c[:len(c) - k]) if k else (a - c)
+                s = float((d_ ** 2).mean())
+                if s < best:
+                    best, best_k = s, k
+            axes[(leg, jn)] = {"rms_deg": rms, "max_deg": mx,
+                               "lag_ms": best_k * dt * 1000.0}
+            rows.append((leg, jn, rms, mx, best_k * dt * 1000.0))
+
+    over = float(100.0 * np.sum(z["overrun"]) / max(1, len(z["overrun"])))
+    print(f"\n[分析] {log_path}  模式={meta.get('mode')}  "
+          f"time_scale={meta.get('time_scale')}  kp={meta.get('kp')}")
+    print(f"{'軸':<12} {'RMS(°)':>9} {'最大(°)':>9} {'延遲(ms)':>10}")
+    for leg, jn, rms, mx, lag in rows:
+        print(f"leg{leg}({LEGNAME[leg]}).{jn:<5} {rms:>9.2f} {mx:>9.2f} {lag:>10.1f}")
+    print(f"\n500 Hz 週期超時 {over:.2f}%"
+          + ("  ⚠️ 超過 1% 時追蹤誤差的解讀要打折" if over > 1.0 else ""))
+    return {"axes": axes, "overrun_pct": over, "meta": meta}
+
+
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser(description="walk_stable 軌跡導出與離線檢驗")
@@ -308,12 +350,18 @@ if __name__ == "__main__":
                     default=None, help="匯出 npz 到指定路徑")
     ap.add_argument("--g-c", type=float, default=DEPLOY_G_C, dest="g_c")
     ap.add_argument("--secs", type=float, default=20.0)
+    ap.add_argument("--analyze", metavar="LOGPATH", default=None,
+                    help="分析實機 log，輸出逐軸追蹤誤差")
     args = ap.parse_args()
 
-    model = d1_model.make_model()
-    if args.sweep:
-        sweep(model, (0.080, 0.090, 0.095, 0.100, 0.105, 0.110, 0.115, 0.120))
-    if args.export:
-        export(model, args.export, args.g_c, args.secs)
-    if not args.sweep and not args.export:
-        ap.error("要 --sweep 或 --export 其中之一")
+    if not any((args.sweep, args.export, args.analyze)):
+        ap.error("要 --sweep / --export / --analyze 其中之一")
+
+    if args.sweep or args.export:
+        model = d1_model.make_model()
+        if args.sweep:
+            sweep(model, (0.080, 0.090, 0.095, 0.100, 0.105, 0.110, 0.115, 0.120))
+        if args.export:
+            export(model, args.export, args.g_c, args.secs)
+    if args.analyze:
+        analyze(args.analyze)

@@ -180,5 +180,116 @@ def test_x_off_shows_up_as_a_real_foot_offset(model):
         q3 = q_mjcf[:, leg * 3:leg * 3 + 3] - d1_model.HOME3
         offs = q3 @ np.linalg.inv(jinvs[leg]).T        # (N,3) 足端偏移
         mean_x = offs[:, 0].mean()
-        assert mean_x == pytest.approx(cfg["x_off"], abs=2e-3), (
+        # 5e-4：2e-3 太鬆，x_off 被打折成 -0.054 也會過（誤差 1e-3）。
+        # 收緊到只容得下數值積分的殘差，讓「小幅度打折」這種隱蔽迴歸也擋得住。
+        assert mean_x == pytest.approx(cfg["x_off"], abs=5e-4), (
             f"leg{leg} 足端 x 週期平均 {mean_x:.4f}，應為 x_off={cfg['x_off']}")
+
+
+def test_calib_hash_changes_when_calibration_changes(monkeypatch):
+    """npz 帶著校正雜湊，是為了防止『改了校正卻拿舊軌跡去跑』。"""
+    h0 = GE.calib_hash()
+    patched = {k: dict(v) for k, v in calib_map.CALIB.items()}
+    patched[0]["hip"] = (+1, +1.166)          # 把暫定的 hip 號翻過來
+    monkeypatch.setattr(calib_map, "CALIB", patched)
+    assert GE.calib_hash() != h0
+
+
+def test_run_checks_passes_for_deploy_g_c(model):
+    q_mjcf, q_shm = GE.build_trajectory(model, GE.DEPLOY_G_C, secs=20.0)
+    ok, problems, stats = GE.run_checks(model, q_mjcf, q_shm)
+    assert ok, problems
+    assert stats["clip_pct"] == 0.0
+    assert stats["worst_margin"] >= GE.MARGIN_MIN
+
+
+def test_run_checks_rejects_video_g_c_on_margin(model):
+    q_mjcf, q_shm = GE.build_trajectory(model, W.GAIT_G_C, secs=20.0)
+    ok, problems, _ = GE.run_checks(model, q_mjcf, q_shm)
+    assert not ok
+    assert any("餘裕" in p for p in problems)
+
+
+def test_run_checks_catches_a_discontinuity(model):
+    """跨幀跳變檢驗：注入一個階躍，必須被抓到。"""
+    q_mjcf, q_shm = GE.build_trajectory(model, GE.DEPLOY_G_C, secs=5.0)
+    q_shm = q_shm.copy()
+    q_shm[100:, 1, 2] += 0.9
+    ok, problems, _ = GE.run_checks(model, q_mjcf, q_shm)
+    assert not ok
+    assert any("跳變" in p for p in problems)
+
+
+def test_export_writes_npz_with_the_agreed_schema(model, tmp_path):
+    out = GE.export(model, tmp_path / "g.npz", secs=2.0)
+    z = np.load(out, allow_pickle=False)
+    assert set(z.files) == {"t", "q_mjcf", "q_shm", "f0s", "jinvs", "meta_json"}
+    n = int(2.0 / d1_model.CTRL_DT)
+    assert z["t"].shape == (n,)
+    assert z["q_mjcf"].shape == (n, 12)
+    assert z["q_shm"].shape == (n, 4, 3)
+    assert z["f0s"].shape == (4, 3)
+    assert z["jinvs"].shape == (4, 3, 3)
+    assert z["t"][1] - z["t"][0] == pytest.approx(d1_model.CTRL_DT)
+
+    import json
+    meta = json.loads(str(z["meta_json"]))
+    for k in ("gait", "g_c", "omega", "mu_x", "mu_y", "x_off", "duty", "ctrl_dt",
+              "secs", "calib_hash", "max_joint_vel", "worst_margin",
+              "start_offset_from_stand"):
+        assert k in meta, k
+    assert meta["g_c"] == pytest.approx(GE.DEPLOY_G_C)
+    assert meta["gait"] == "walk_stable"
+    assert meta["calib_hash"] == GE.calib_hash()
+
+
+def test_export_refuses_when_checks_fail(model, tmp_path):
+    out = tmp_path / "bad.npz"
+    with pytest.raises(SystemExit):
+        GE.export(model, out, g_c=W.GAIT_G_C, secs=2.0)
+    assert not out.exists(), "檢驗沒過就不該留下檔案"
+
+
+def test_start_offset_from_stand_matches_measured_value(model):
+    """起步位移決定 ramp 時間。實測最大 0.4553 rad（leg1 hip）。"""
+    q_mjcf, q_shm = GE.build_trajectory(model, GE.DEPLOY_G_C, secs=2.0)
+    _, _, stats = GE.run_checks(model, q_mjcf, q_shm)
+    assert 0.2 < stats["start_offset_from_stand"] < 0.7
+
+
+def test_air_servo_sim_matches_the_measured_baseline(model):
+    """原廠增益 1.0× 的基準值。這幾個數字是保護門檻與誤差預測的來源，
+    偏離超過 20% 代表模型或軌跡被改動了，要重新確認而不是改門檻。"""
+    q_mjcf, _ = GE.build_trajectory(model, GE.DEPLOY_G_C, secs=8.0)
+    r = GE.air_servo_sim(model, q_mjcf, kp=20.0, kd=0.7, time_scale=1.0)
+    assert r["tau_peak"] == pytest.approx(10.18, rel=0.20)
+    assert r["err_peak_deg"] == pytest.approx(39.20, rel=0.20)
+    assert r["err_rms_deg"] == pytest.approx(9.30, rel=0.20)
+    assert r["vel_peak"] == pytest.approx(12.96, rel=0.20)
+
+
+def test_air_servo_sim_gets_easier_when_slowed_down(model):
+    """--time-scale 存在的理由：放慢之後力矩與誤差都要顯著下降。"""
+    q_mjcf, _ = GE.build_trajectory(model, GE.DEPLOY_G_C, secs=8.0)
+    fast = GE.air_servo_sim(model, q_mjcf, 20.0, 0.7, 1.0)
+    slow = GE.air_servo_sim(model, q_mjcf, 20.0, 0.7, 0.25)
+    assert slow["tau_peak"] < fast["tau_peak"] / 3
+    assert slow["err_rms_deg"] < fast["err_rms_deg"] / 3
+
+
+def test_full_speed_torque_exceeds_l4_ceiling(model):
+    """釘住『L4 的 8.0 不能照搬』這個結論。"""
+    q_mjcf, _ = GE.build_trajectory(model, GE.DEPLOY_G_C, secs=8.0)
+    r = GE.air_servo_sim(model, q_mjcf, 20.0, 0.7, 1.0)
+    assert r["tau_peak"] > 8.0
+
+
+def test_export_embeds_the_air_sim_table(model, tmp_path):
+    import json
+    out = GE.export(model, tmp_path / "g.npz", secs=8.0)
+    meta = json.loads(str(np.load(out, allow_pickle=False)["meta_json"]))
+    table = meta["air_sim"]
+    assert "20.0/0.7" in table
+    for s in ("0.25", "0.5", "1.0"):
+        entry = table["20.0/0.7"][s]
+        assert set(entry) == {"tau_peak", "err_peak_deg", "err_rms_deg", "vel_peak"}

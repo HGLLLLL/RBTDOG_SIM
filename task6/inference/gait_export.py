@@ -33,9 +33,12 @@ leg0 abad 超出 0.0089、leg2 超出 0.0138 rad）。也就是說實機的膝�
 代價：前腳離地量從 77 掉到 59 mm（−23%）。後腳幾乎不變（56.6 → 53.1）。
 副作用是前後更均勻了（比值 1.37 → 1.12）。
 """
+import hashlib
+import json
 import sys
 from pathlib import Path
 
+import mujoco
 import numpy as np
 
 _HERE = Path(__file__).resolve().parent
@@ -52,6 +55,10 @@ JN = ("abad", "hip", "knee")
 GAIT = "walk_stable"
 DEPLOY_G_C = 0.110          # 見檔頭 §。影片版是 cpg_walk_d1.GAIT_G_C = 0.12
 MARGIN_MIN = 0.05           # 限位餘裕門檻(rad) = 2.9°
+
+# 跨幀跳變門檻(rad)。步態本身單 tick 最大約 0.27 rad（13.5 rad/s × 0.02s），
+# 取 0.40 留餘裕：正常軌跡不會碰到，注入式的階躍會被抓到。
+JUMP_MAX = 0.40
 
 
 def shm_limits(m):
@@ -131,11 +138,182 @@ def sweep(m, g_c_values):
               f"{max_joint_vel(q_shm):>11.2f}  {mark}")
 
 
+def calib_hash():
+    """calib_map 內容的雜湊。npz 帶著它，L7 上機前比對，不符就拒跑。"""
+    payload = json.dumps(
+        {"legs": calib_map.LEG_MJCF2SHM,
+         "calib": {str(k): {jn: list(v[jn]) for jn in JN}
+                   for k, v in sorted(calib_map.CALIB.items())}},
+        sort_keys=True).encode()
+    return hashlib.sha256(payload).hexdigest()[:16]
+
+
+def run_checks(m, q_mjcf, q_shm):
+    """五項離線檢驗。回傳 (ok, 問題清單, 統計)。"""
+    from shm_common import POSE_STAND
+    lim = shm_limits(m)
+    problems = []
+
+    # 1) 限位餘裕
+    margin, where = worst_margin(q_shm, lim)
+    if margin < MARGIN_MIN:
+        problems.append(f"限位餘裕不足：{where} 只剩 {margin:.4f} rad "
+                        f"（{np.degrees(margin):.2f}°），門檻 {MARGIN_MIN}")
+
+    # 2) 角速度（不擋，只記錄——L7 拿它設 VEL_ABORT）
+    vmax = max_joint_vel(q_shm)
+
+    # 3) 跨幀跳變
+    jump = np.abs(np.diff(q_shm, axis=0))
+    if jump.max() > JUMP_MAX:
+        idx = np.unravel_index(jump.argmax(), jump.shape)
+        problems.append(f"跨幀跳變過大：{jump.max():.4f} rad @ 幀{idx[0]} "
+                        f"leg{idx[1]}.{JN[idx[2]]}，門檻 {JUMP_MAX}")
+
+    # 4) 起步位移（不擋，只記錄——L7 拿它算 ramp 時間）
+    start_off = max(abs(q_shm[0, leg, j] - POSE_STAND[leg][jn])
+                    for leg in range(4) for j, jn in enumerate(JN))
+
+    # 5) MJCF 側 ctrlrange clip 率必須為 0
+    lo, hi = m.actuator_ctrlrange[:, 0], m.actuator_ctrlrange[:, 1]
+    clipped = int(np.sum((q_mjcf < lo - 1e-9) | (q_mjcf > hi + 1e-9)))
+    clip_pct = 100.0 * clipped / q_mjcf.size
+    if clipped:
+        problems.append(f"MJCF ctrlrange clip {clip_pct:.3f}%（{clipped} 個指令），必須為 0")
+
+    stats = {"worst_margin": float(margin), "worst_margin_at": where,
+             "max_joint_vel": float(vmax), "max_frame_jump": float(jump.max()),
+             "start_offset_from_stand": float(start_off), "clip_pct": clip_pct}
+    return not problems, problems, stats
+
+
+AIR_SIM_GRID = ((20.0, 0.7), (40.0, 1.0))     # (kp, kd)。20/0.7 是原廠站立實測值
+AIR_SIM_SCALES = (0.25, 0.5, 1.0)
+
+
+def air_servo_sim(m, q_mjcf, kp, kd, time_scale, settle_sec=1.0):
+    """吊掛空跑的直接模擬：機身固定、無接觸、位置伺服 kp/kd。
+
+    量的是【實際會發生的事】——致動器力矩、追蹤誤差、關節速度峰值。
+
+    ⚠️ 不要改用 mj_inverse。逆動力學會得到 45.8 N·m（超過 URDF 的 28 N·m
+       effort 上限），因為 duty_remap 在擺動→站立交界處讓 dθ/dt 差 4 倍，
+       指令軌跡有速度折點，二階差分的加速度會爆掉。那描述的是「完美追蹤
+       所需的力矩」，而完美追蹤本來就不會發生——位置伺服必然落後。
+    """
+    m2 = mujoco.MjModel.from_xml_path(d1_model.SCENE)
+    m2.opt.disableflags |= mujoco.mjtDisableBit.mjDSBL_CONTACT
+    for a in range(m2.nu):                     # 覆寫位置伺服增益
+        m2.actuator_gainprm[a][0] = kp
+        m2.actuator_biasprm[a][1] = -kp
+        m2.actuator_biasprm[a][2] = -kd
+
+    d = mujoco.MjData(m2)
+    mujoco.mj_resetDataKeyframe(m2, d, 0)
+    base_qpos = d.qpos[:7].copy()              # 吊具：機身固定在初始位姿
+    lo, hi = m2.actuator_ctrlrange[:, 0], m2.actuator_ctrlrange[:, 1]
+    idx, vidx = d1_model.LEG_QPOS_IDX, d1_model.LEG_QVEL_IDX
+    dt = d1_model.CTRL_DT
+
+    def sample(u):
+        x = np.clip(u / dt, 0.0, len(q_mjcf) - 1)
+        i0 = int(np.floor(x))
+        i1 = min(i0 + 1, len(q_mjcf) - 1)
+        w = x - i0
+        return q_mjcf[i0] * (1 - w) + q_mjcf[i1] * w
+
+    def pin():
+        d.qpos[:7] = base_qpos
+        d.qvel[:6] = 0.0
+
+    for _ in range(int(settle_sec / m2.opt.timestep)):    # 先靜置到第 0 幀
+        d.ctrl[:] = np.clip(q_mjcf[0], lo, hi)
+        pin()
+        mujoco.mj_step(m2, d)
+
+    wall = (len(q_mjcf) - 1) * dt / time_scale
+    tau_pk = vel_pk = 0.0
+    errs = []
+    for k in range(int(wall / m2.opt.timestep)):
+        tgt = sample(k * m2.opt.timestep * time_scale)
+        d.ctrl[:] = np.clip(tgt, lo, hi)
+        pin()
+        mujoco.mj_step(m2, d)
+        tau_pk = max(tau_pk, float(np.abs(d.actuator_force).max()))
+        vel_pk = max(vel_pk, float(np.abs(d.qvel[vidx]).max()))
+        errs.append(np.abs(d.qpos[idx] - tgt))
+    errs = np.asarray(errs)
+    return {"tau_peak": tau_pk,
+            "err_peak_deg": float(np.degrees(errs.max())),
+            "err_rms_deg": float(np.degrees(np.sqrt((errs ** 2).mean()))),
+            "vel_peak": vel_pk}
+
+
+def air_sim_table(m, q_mjcf):
+    """對 AIR_SIM_GRID × AIR_SIM_SCALES 全部算一遍。寫進 npz 的 meta。"""
+    table = {}
+    for kp, kd in AIR_SIM_GRID:
+        key = f"{kp}/{kd}"
+        table[key] = {}
+        for s in AIR_SIM_SCALES:
+            r = air_servo_sim(m, q_mjcf, kp, kd, s)
+            table[key][str(s)] = r
+            print(f"  kp={kp} kd={kd} {s:>5.2f}×  力矩 {r['tau_peak']:6.2f} N·m  "
+                  f"誤差峰值 {r['err_peak_deg']:6.2f}°  RMS {r['err_rms_deg']:5.2f}°  "
+                  f"速度 {r['vel_peak']:5.2f} rad/s")
+    return table
+
+
+def export(m, out_path, g_c=DEPLOY_G_C, secs=20.0):
+    """產生軌跡、跑檢驗、寫 npz。檢驗沒過就 sys.exit(1) 且不留檔案。"""
+    cfg = W.GAITS[GAIT]
+    q_mjcf, q_shm = build_trajectory(m, g_c, secs)
+    ok, problems, stats = run_checks(m, q_mjcf, q_shm)
+
+    print(f"[檢驗] G_C={g_c}  最小餘裕 {stats['worst_margin']:.4f} rad "
+          f"（{np.degrees(stats['worst_margin']):.2f}°）@ {stats['worst_margin_at']}")
+    print(f"       最大角速度 {stats['max_joint_vel']:.2f} rad/s  "
+          f"最大跨幀跳變 {stats['max_frame_jump']:.4f} rad  "
+          f"起步位移 {stats['start_offset_from_stand']:.4f} rad  "
+          f"clip {stats['clip_pct']:.3f}%")
+    if not ok:
+        for p in problems:
+            print(f"  ✗ {p}")
+        print("→ 拒絕匯出。修正參數後重跑。")
+        sys.exit(1)
+
+    print("[空中模擬] 機身固定、無接觸，量實際力矩與追蹤誤差：")
+    air = air_sim_table(m, q_mjcf)
+
+    meta = {"gait": GAIT, "g_c": float(g_c), "omega": cfg["omega"],
+            "mu_x": cfg["mu_x"], "mu_y": W.MU_Y, "x_off": cfg["x_off"],
+            "duty": cfg["duty"], "ctrl_dt": d1_model.CTRL_DT, "secs": float(secs),
+            "calib_hash": calib_hash(), "air_sim": air, **stats}
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    f0s, jinvs = cpg_d1.leg_ik_consts(m)
+    np.savez(out_path,
+             t=np.arange(len(q_mjcf)) * d1_model.CTRL_DT,
+             q_mjcf=q_mjcf, q_shm=q_shm, f0s=f0s, jinvs=jinvs,
+             meta_json=np.array(json.dumps(meta, ensure_ascii=False)))
+    print(f"[匯出] {out_path}  {len(q_mjcf)} 幀  calib_hash={meta['calib_hash']}")
+    return out_path
+
+
 if __name__ == "__main__":
     import argparse
-    ap = argparse.ArgumentParser()
+    ap = argparse.ArgumentParser(description="walk_stable 軌跡導出與離線檢驗")
     ap.add_argument("--sweep", action="store_true", help="印出 G_C 掃描表")
+    ap.add_argument("--export", metavar="PATH",
+                    default=None, help="匯出 npz 到指定路徑")
+    ap.add_argument("--g-c", type=float, default=DEPLOY_G_C, dest="g_c")
+    ap.add_argument("--secs", type=float, default=20.0)
     args = ap.parse_args()
+
+    model = d1_model.make_model()
     if args.sweep:
-        sweep(d1_model.make_model(),
-              (0.080, 0.090, 0.095, 0.100, 0.105, 0.110, 0.115, 0.120))
+        sweep(model, (0.080, 0.090, 0.095, 0.100, 0.105, 0.110, 0.115, 0.120))
+    if args.export:
+        export(model, args.export, args.g_c, args.secs)
+    if not args.sweep and not args.export:
+        ap.error("要 --sweep 或 --export 其中之一")

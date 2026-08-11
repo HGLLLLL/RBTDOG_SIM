@@ -1,4 +1,5 @@
 """L7 的離線核心測試。不碰硬體，不需要狗。"""
+import json
 import sys
 from pathlib import Path
 
@@ -413,3 +414,243 @@ def test_jog_leg_out_of_range_is_rejected_at_cli(monkeypatch, capsys):
     with pytest.raises(SystemExit):
         L7.main()
     assert "0~3" in capsys.readouterr().err
+
+
+# ============================================================
+# 修正 1（Critical）：run_jog 必須在 MJCF 空間下指令，不是 SHM 空間
+# ============================================================
+
+def test_jog_commands_in_mjcf_space_so_the_manual_criterion_holds(fake_shm, monkeypatch):
+    """驗號是唯一能抓到 sign 錯誤的關卡，判準必須與手冊的 MJCF 正向定義同一個空間。
+
+    leg0(FR) 的 hip sign = -1：MJCF 正向位移必須對應 SHM 的負向指令。
+    若 jog 直接在 SHM 空間加正值，校正正確時操作者會看到相反的方向，
+    進而把對的校正改壞。
+    """
+    import calib_map
+    import shm_common as SC
+    s, o = calib_map.CALIB[0]["hip"]
+    assert s == -1, "前提變了，這個測試要重寫"
+
+    monkeypatch.setattr(SC, "preflight_mc_stopped", lambda d: (True, 0))
+    start_shm = SC.POSE_STAND[0]["hip"]
+    fake_shm.state.legs[0].hip.p = start_shm
+
+    sent = []
+    orig = L7._stream
+
+    def spy(d, frames, active, kp, kd, ta, va, log, dry, label):
+        sent.extend(np.asarray(frames)[:, 0, 1].tolist())   # leg0 的 hip 指令
+        return orig(d, frames, active, kp, kd, ta, va, log, dry, label)
+
+    monkeypatch.setattr(L7, "_stream", spy)
+    L7.run_jog(fake_shm, 0, "hip", 20.0, 0.7, log_path=None)
+
+    sent = np.asarray(sent)
+    # MJCF 空間 +0.10 rad → sign=-1 → SHM 指令要往【負】方向偏離起點
+    assert sent.min() < start_shm - 0.09, "MJCF 正向沒有對應到 SHM 負向"
+    assert sent.max() < start_shm + 0.01, "SHM 指令往正向跑了，座標空間搞反"
+    # 幅度仍是 ±0.10 rad（sign 只改方向不改大小）
+    assert (sent.max() - sent.min()) == pytest.approx(0.10, abs=5e-3)
+
+
+def test_jog_returns_to_the_starting_angle(fake_shm, monkeypatch):
+    import shm_common as SC
+    monkeypatch.setattr(SC, "preflight_mc_stopped", lambda d: (True, 0))
+    start_shm = SC.POSE_STAND[0]["knee"]
+    fake_shm.state.legs[0].knee.p = start_shm
+    sent = []
+    orig = L7._stream
+    monkeypatch.setattr(L7, "_stream", lambda d, f, a, kp, kd, ta, va, lg, dry, lb: (
+        sent.extend(np.asarray(f)[:, 0, 2].tolist()) or orig(d, f, a, kp, kd, ta, va, lg, dry, lb)))
+    L7.run_jog(fake_shm, 0, "knee", 20.0, 0.7, log_path=None)
+    # abs=1e-6 而非更緊：JointState.p 是 ctypes c_float（單精度），寫入時
+    # 就已經把 start_shm 從 python float64 截成 float32，讀回來本身就帶著
+    # ~1e-8 rad 的截斷差；1e-9 是量錯了精度，不是量到真的漂移。
+    assert sent[0] == pytest.approx(start_shm, abs=1e-6)
+    assert sent[-1] == pytest.approx(start_shm, abs=1e-6)
+
+
+@pytest.mark.parametrize("leg", [0, 1, 3])
+def test_jog_works_for_every_leg_g1_needs_to_check(fake_shm, monkeypatch, leg):
+    """G1 要對 leg 0/1/3 各驗一次——CALIB 的 abad 號不是左右鏡像而是對角
+    （FR/RL +1，FL/RR -1），不能只驗過 leg0 就假設其他腿同理。leg2(RR)
+    整條已失聯，不驗。"""
+    import shm_common as SC
+    monkeypatch.setattr(SC, "preflight_mc_stopped", lambda d: (True, 0))
+    ok = L7.run_jog(fake_shm, leg=leg, joint_name="abad", kp=20.0, kd=0.7,
+                    log_path=None)
+    assert ok is True
+
+
+def test_jog_mode_has_a_dry_run_preview(monkeypatch, capsys):
+    """第三條 dry-run 命令之前沒有預覽路徑——跑真機前至少要能先看到這條
+    路徑不會馬上炸掉，理由跟當初補 leg 模式 dry-run 一樣。"""
+    monkeypatch.setattr(sys, "argv",
+                        ["L7_gait_shm.py", "--mode", "jog",
+                         "--jog-leg", "0", "--jog-joint", "hip"])
+    L7.main()
+    out = capsys.readouterr().out
+    assert "DRY-RUN" in out
+    assert "jog 計畫" in out
+    assert "sign=" in out
+
+
+# ============================================================
+# 修正 2：保護觸發／例外／Ctrl-C 都要留下 log
+# ============================================================
+
+def test_run_gait_writes_aborted_log_with_reason_when_a_guard_trips(
+        fake_shm, npz, monkeypatch, tmp_path):
+    """保護觸發不能把整份 log 丟掉——3 分鐘操作窗口內，觸發前那幾個週期的
+    cmd/p/v/tau 是診斷價值最高的一次。
+
+    保護門檻要在跑了幾個週期之後才觸發（不是一開始就壞），才能驗到「觸發
+    前的資料真的被留下來」而不是巧合地一筆都還沒寫。
+    """
+    import shm_common as SC
+    monkeypatch.setattr(SC, "preflight_mc_stopped", lambda d: (True, 0))
+    calls = {"n": 0}
+
+    def flaky_guard(d, active_legs, torque_abort, vel_abort):
+        calls["n"] += 1
+        if calls["n"] > 20:
+            return False, "FR.hip 力矩 99.00 > 20.00"
+        return True, ""
+
+    monkeypatch.setattr(SC, "check_guards", flaky_guard)
+    traj, meta = L7.load_trajectory(npz)
+    log_path = tmp_path / "run.npz"
+    r = L7.run_gait(fake_shm, traj[:5], meta, (0, 1, 3), 1.0, 20.0, 0.7,
+                    dry=False, log_path=log_path)
+    assert r is False
+
+    aborted = tmp_path / "run_ABORTED.npz"
+    assert aborted.exists(), "保護觸發後 log 檔沒有留下來"
+    z = np.load(aborted, allow_pickle=False)
+    m = json.loads(str(z["meta_json"]))
+    assert m["aborted"] is True
+    assert "FR" in m["abort_reason"] and "hip" in m["abort_reason"]
+    assert m["aborted_stage"] == "接住"
+    assert len(z["t"]) > 0, "應該至少留下觸發前那幾筆"
+    assert len(z["stage"]) == len(z["t"])
+
+
+def test_run_gait_writes_aborted_log_on_keyboard_interrupt(
+        fake_shm, npz, monkeypatch, tmp_path):
+    """Ctrl-C 中止也不能把 log 丟掉，且要重新拋出讓上層知道發生了中斷。"""
+    import shm_common as SC
+    monkeypatch.setattr(SC, "preflight_mc_stopped", lambda d: (True, 0))
+
+    def boom(*a, **k):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(L7, "_stream", boom)
+    traj, meta = L7.load_trajectory(npz)
+    log_path = tmp_path / "run.npz"
+    with pytest.raises(KeyboardInterrupt):
+        L7.run_gait(fake_shm, traj[:5], meta, (0, 1, 3), 1.0, 20.0, 0.7,
+                    dry=False, log_path=log_path)
+
+    aborted = tmp_path / "run_ABORTED.npz"
+    assert aborted.exists()
+    m = json.loads(str(np.load(aborted, allow_pickle=False)["meta_json"]))
+    assert m["aborted"] is True
+    assert "Ctrl" in m["abort_reason"] or "中止" in m["abort_reason"]
+
+
+def test_run_jog_writes_aborted_log_on_guard_trip(fake_shm, monkeypatch, tmp_path):
+    import shm_common as SC
+    monkeypatch.setattr(SC, "preflight_mc_stopped", lambda d: (True, 0))
+    fake_shm.state.legs[0].hip.t = 99.0   # 遠超 jog 的保護門檻 8.0 N·m
+    log_path = tmp_path / "jog.npz"
+    ok = L7.run_jog(fake_shm, leg=0, joint_name="hip", kp=20.0, kd=0.7,
+                    log_path=log_path)
+    assert ok is False
+    aborted = tmp_path / "jog_ABORTED.npz"
+    assert aborted.exists()
+    m = json.loads(str(np.load(aborted, allow_pickle=False)["meta_json"]))
+    assert m["aborted"] is True
+    assert "hip" in m["abort_reason"]
+
+
+# ============================================================
+# 修正 3：log 要有階段標記，meta 要有 source，secs 要是實際播放秒數
+# ============================================================
+
+def test_run_gait_log_stage_field_marks_each_phase(fake_shm, npz, monkeypatch, tmp_path):
+    """stage 沒有標記的話，事後分析會把接住／ramp 段混進『播放步態』的統計，
+    稀釋 RMS（總審實測 1.0× 配 --secs 5 稀釋 27%）。"""
+    import shm_common as SC
+    monkeypatch.setattr(SC, "preflight_mc_stopped", lambda d: (True, 0))
+    traj, meta = L7.load_trajectory(npz)
+    log_path = tmp_path / "run.npz"
+    r = L7.run_gait(fake_shm, traj[:5], meta, (0, 1, 3), 1.0, 20.0, 0.7,
+                    dry=False, log_path=log_path)
+    assert r is True
+
+    z = np.load(log_path, allow_pickle=False)
+    stage = z["stage"]
+    assert stage.dtype == np.int8
+    assert len(stage) == len(z["t"])
+    assert set(np.unique(stage).tolist()) == {0, 1, 2, 3}, \
+        "四段（接住/到起始姿/播放步態/回站姿）都要出現在 stage 裡"
+    play_idx = np.where(stage == 2)[0]
+    assert play_idx.size > 0
+    assert stage[play_idx[0] - 1] == 1, "播放步態前應緊接著到起始姿"
+    assert stage[play_idx[-1] + 1] == 3, "播放步態後應緊接著回站姿"
+
+
+def test_run_gait_log_meta_has_source_and_actual_played_secs(
+        fake_shm, npz, monkeypatch, tmp_path):
+    """G3-live 的通過條件是『追蹤誤差與同一倍速的 --source file 一致』，log
+    沒記 source 就事後分不出哪份是哪份；meta['secs'] 之前被 **meta 帶進來
+    的是軌跡全長（本 fixture 是 6.0），不是這次實際播的秒數。"""
+    import shm_common as SC
+    monkeypatch.setattr(SC, "preflight_mc_stopped", lambda d: (True, 0))
+    traj, meta = L7.load_trajectory(npz)
+    assert meta["secs"] == pytest.approx(6.0)   # npz fixture 的軌跡全長
+
+    n = int(1.0 / meta["ctrl_dt"])              # 模擬 --secs 1.0 的截斷
+    log_path = tmp_path / "run.npz"
+    r = L7.run_gait(fake_shm, traj[:n], meta, (0, 1, 3), 1.0, 20.0, 0.7,
+                    dry=False, log_path=log_path, source="live")
+    assert r is True
+
+    m = json.loads(str(np.load(log_path, allow_pickle=False)["meta_json"]))
+    assert m["source"] == "live"
+    assert m["secs"] == pytest.approx(1.0, abs=0.05), \
+        "meta['secs'] 沿用了軌跡全長，沒有換成這次實際播放的秒數"
+    assert m["secs"] != pytest.approx(6.0)
+
+
+def test_run_jog_log_meta_source_is_jog(fake_shm, monkeypatch, tmp_path):
+    import shm_common as SC
+    monkeypatch.setattr(SC, "preflight_mc_stopped", lambda d: (True, 0))
+    log_path = tmp_path / "jog.npz"
+    L7.run_jog(fake_shm, leg=0, joint_name="hip", kp=20.0, kd=0.7,
+              log_path=log_path)
+    m = json.loads(str(np.load(log_path, allow_pickle=False)["meta_json"]))
+    assert m["source"] == "jog"
+
+
+def test_log_default_filename_encodes_mode_source_scale(npz, monkeypatch):
+    """--log 不給時，預設檔名要能區分不同執行，不能每次都覆蓋同一個
+    l7_log.npz（G3-live 要跟同一倍速的 --source file 比對，第二次執行
+    才不會把第一次的 log 蓋掉）。"""
+    captured = {}
+
+    def fake_run_gait(d, traj, meta, active, time_scale, kp, kd, dry, log_path,
+                      mode="gait", source="file"):
+        captured["log_path"] = str(log_path)
+        return True
+
+    monkeypatch.setattr(L7, "run_gait", fake_run_gait)
+    monkeypatch.setattr(sys, "argv",
+                        ["L7_gait_shm.py", "--mode", "gait", "--skip-legs", "2",
+                         "--traj", str(npz), "--time-scale", "0.5",
+                         "--secs", "1.0", "--source", "file"])
+    L7.main()
+    name = captured["log_path"]
+    assert name != "l7_log.npz"
+    assert "gait" in name and "file" in name and "0.5" in name

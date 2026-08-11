@@ -6,9 +6,12 @@
    右後腿(leg2)整條已從 CAN 失聯，一律用 --skip-legs 2 排除。
 
 三種模式：
-  jog    單關節 ±0.10 rad 三角波。用來確認 calib_map 的正負號。
-         calib_map 自己標注 hip 的號是「暫定」——號反了腿會往反方向甩到限位，
-         而離線檢驗完全看不出來，因為數字本身很正常。所以這關必須先過。
+  jog    單關節在 MJCF 空間下 +0.10 rad 三角波（一個來回），逐幀轉回 SHM。
+         用來確認 calib_map 的正負號——calib_map 自己標注 hip 的號是「暫
+         定」，號反了腿會往反方向甩到限位，而離線檢驗完全看不出來，因為
+         數字本身很正常。指令必須下在 MJCF 空間（手冊判準表格用的座標），
+         不是 SHM 空間，否則校正正確時操作者看到的方向會跟判準相反，反而
+         把對的校正改壞。所以這關必須先過。
   leg    只驅動一條腿跑完整步態，其餘零增益。把風險限制在單腿。
   gait   三條腿同步跑。
 
@@ -197,6 +200,29 @@ def guard_thresholds(meta, kp, kd, time_scale):
     return float(e["tau_peak"] * TORQUE_SAFETY), float(e["vel_peak"] * VEL_SAFETY)
 
 
+def _aborted_path(log_path):
+    """保護觸發／例外／Ctrl-C 中止時的 log 檔名，加 _ABORTED 後綴。
+
+    3 分鐘操作窗口內，觸發前那幾個週期的 cmd/p/v/tau 往往是診斷價值最高的
+    一次，不能因為沒跑完全部段落就沒有檔案。後綴標明「這份是中止的」，
+    不要跟正常收尾的 log 撞檔名、事後分不清楚。
+    """
+    p = Path(log_path)
+    return p.with_name(p.stem + "_ABORTED" + p.suffix)
+
+
+def _log_arrays(log):
+    """log dict（list of rows）轉成 np.savez 要的 dict of ndarray。
+
+    stage 欄位強制轉 int8——契約是 0=接住/1=到起始姿/2=播放步態/3=回站姿，
+    寫成別的 dtype 的話，讀取端（gait_export.analyze）逐段過濾會對不上。
+    """
+    out = {k: np.asarray(v) for k, v in log.items()}
+    if "stage" in out:
+        out["stage"] = out["stage"].astype(np.int8)
+    return out
+
+
 def jog_targets(start_q, joint_idx, amp, secs, hz=SC.CTRL_HZ):
     """單關節三角波，兩個來回，起點與終點都回到 start_q。
 
@@ -271,13 +297,23 @@ def _ramp_frames(a, b, secs, hz=SC.CTRL_HZ):
     return np.asarray(a)[None] * (1 - w) + np.asarray(b)[None] * w
 
 
+STAGE_CODE = {"接住": 0, "到起始姿": 1, "播放步態": 2, "回站姿": 3}
+
+
 def run_gait(d, traj, meta, active_legs, time_scale, kp, kd, dry, log_path,
-             mode="gait"):
+             mode="gait", source="file"):
     """catch → ramp 到第 0 幀 → 播放 → ramp 回站姿 → 卸力。
 
     mode：寫進 log meta 的模式名稱（"gait" 或 "leg"）。由呼叫端傳入實際
     模式 —— 不然 --mode leg 跑出來的 log 也會被記成 "gait"，事後分析
     分不清這次到底驅動了幾條腿是刻意的還是步態模式本來就這樣。
+
+    source：寫進 log meta（"file" 或 "live"）。G3-live 的通過條件是「追蹤
+    誤差與同一倍速的 --source file 一致」，log 裡沒記就事後分不出哪份是哪份。
+
+    ⚠️ 保護觸發、例外、KeyboardInterrupt 都要留下 log（見 abort_log）——
+       3 分鐘操作窗口、倍速階梯本來就預期會撞到門檻，觸發前那幾個週期的
+       cmd/p/v/tau 是診斷價值最高的一次，不能因為沒跑完四段就被丟掉。
     """
     torque_abort, vel_abort = guard_thresholds(meta, kp, kd, time_scale)
     pred = meta["air_sim"][f"{kp}/{kd}"][str(time_scale)]
@@ -304,12 +340,36 @@ def run_gait(d, traj, meta, active_legs, time_scale, kp, kd, dry, log_path,
             return False
         init = np.array([SC.read_leg_q(d, i) for i in range(4)])
 
-    log = {k: [] for k in ("t", "cmd", "p", "v", "tau", "overrun")}
+    log = {k: [] for k in ("t", "cmd", "p", "v", "tau", "overrun", "stage")}
     frame0 = traj[0]
     ramp_sec = max(RAMP_MIN_SEC, meta["start_offset_from_stand"] / 0.25)
     u = playback_times(len(traj), meta["ctrl_dt"], time_scale)
     print(f"[*] 播放 {len(traj)} 幀 @ {time_scale}×  "
           f"→ {u[-1] / time_scale:.1f}s 牆鐘、{len(u)} 個控制週期")
+
+    current_stage = {"label": None}
+
+    def abort_log(reason):
+        """保護觸發／例外／Ctrl-C 都要寫這份 log，檔名加 _ABORTED 後綴。
+
+        meta["secs"] 記的是「到中止為止實際跑了幾秒」，不是軌跡全長——
+        中止當下的長度才是接下來要拿去看的東西。
+        """
+        if dry or log_path is None:
+            return
+        n = len(log["t"])
+        if len(log["stage"]) < n:
+            # 例外/Ctrl-C 打斷在某段中途，該段還沒來得及記 stage 碼，補上。
+            code = STAGE_CODE.get(current_stage["label"], -1)
+            log["stage"].extend([code] * (n - len(log["stage"])))
+        out_path = _aborted_path(log_path)
+        SC.write_log(out_path, _log_arrays(log),
+                     meta={"mode": mode, "time_scale": time_scale,
+                           "kp": kp, "kd": kd, "active_legs": list(active_legs),
+                           "source": source, **meta, "secs": n * SC.DT,
+                           "aborted": True, "abort_reason": reason,
+                           "aborted_stage": current_stage["label"]})
+        print(f"[記錄] 中止 log 已寫入：{out_path}  {n} 筆")
 
     def stage(label, frames, kp_seq=None):
         """跑一段。kp_seq 給定時逐幀套用不同增益（接住段用）。回傳 True/False。
@@ -319,7 +379,9 @@ def run_gait(d, traj, meta, active_legs, time_scale, kp, kd, dry, log_path,
         （k % (CTRL_HZ//2) == 0）因此每次都成立，會洗出 251 行重複訊息。
         改成印一行摘要——dry-run 本來就只是預覽，不需要真的跑漸入迴圈。
         """
+        current_stage["label"] = label
         print(f"\n[*] {label}")
+        n_before = len(log["t"])
         if kp_seq is None:
             ok, why = _stream(d, frames, active_legs, kp, kd,
                               torque_abort, vel_abort, log, dry, label)
@@ -334,22 +396,34 @@ def run_gait(d, traj, meta, active_legs, time_scale, kp, kd, dry, log_path,
                                   torque_abort, vel_abort, log, dry, label)
                 if not ok:
                     break
+        if not dry:
+            log["stage"].extend([STAGE_CODE[label]] * (len(log["t"]) - n_before))
         if not ok:
             print(f"⚠️ 保護觸發：{why} → 卸力中止")
             SC.passive_stop(d, active_legs, 300, STOP_KD)
+            abort_log(f"保護觸發：{why}")
         return ok
 
-    # 接住：p_des 固定在當前實際角度，kp/kd 由 0 平滑升到設定值。
-    # 凍結 mc_ctrl 後腿會因重力垂下，先用漸入增益接住，避免力矩突跳。
-    n_catch = int(CATCH_SEC * SC.CTRL_HZ)
-    if not stage("接住", init[None], np.linspace(0.0, 1.0, n_catch + 1)):
-        return False
-    if not stage("到起始姿", _ramp_frames(init, frame0, ramp_sec)):
-        return False
-    if not stage("播放步態", sample_at(traj, meta["ctrl_dt"], u)):
-        return False
-    if not stage("回站姿", _ramp_frames(traj[-1], stand, RAMP_MIN_SEC)):
-        return False
+    try:
+        # 接住：p_des 固定在當前實際角度，kp/kd 由 0 平滑升到設定值。
+        # 凍結 mc_ctrl 後腿會因重力垂下，先用漸入增益接住，避免力矩突跳。
+        n_catch = int(CATCH_SEC * SC.CTRL_HZ)
+        if not stage("接住", init[None], np.linspace(0.0, 1.0, n_catch + 1)):
+            return False
+        if not stage("到起始姿", _ramp_frames(init, frame0, ramp_sec)):
+            return False
+        if not stage("播放步態", sample_at(traj, meta["ctrl_dt"], u)):
+            return False
+        if not stage("回站姿", _ramp_frames(traj[-1], stand, RAMP_MIN_SEC)):
+            return False
+    except (KeyboardInterrupt, Exception) as exc:
+        reason = ("使用者中止(Ctrl+C)" if isinstance(exc, KeyboardInterrupt)
+                  else f"例外：{exc!r}")
+        print(f"\n⚠️ {reason} → 卸力中止")
+        if not dry:
+            SC.passive_stop(d, active_legs, 300, STOP_KD)
+        abort_log(reason)
+        raise
 
     if not dry:
         SC.passive_stop(d, active_legs, 800, STOP_KD)
@@ -357,15 +431,36 @@ def run_gait(d, traj, meta, active_legs, time_scale, kp, kd, dry, log_path,
         print(f"[*] 完成。500 Hz 週期超時 {n_over} / {len(log['t'])} "
               f"（{100.0 * n_over / max(1, len(log['t'])):.2f}%）")
         if log_path is not None:
-            SC.write_log(log_path, {k: np.asarray(v) for k, v in log.items()},
+            SC.write_log(log_path, _log_arrays(log),
                          meta={"mode": mode, "time_scale": time_scale,
                                "kp": kp, "kd": kd,
-                               "active_legs": list(active_legs), **meta})
+                               "active_legs": list(active_legs), "source": source,
+                               **meta, "secs": float(u[-1] / time_scale)})
     return True
 
 
-def run_jog(d, leg, joint_name, kp, kd, log_path):
-    """單關節微動驗號。只驅動一條腿的一個關節。"""
+def run_jog(d, leg, joint_name, kp, kd, log_path=None):
+    """單關節微動驗號。只驅動一條腿的一個關節。
+
+    ⚠️ 這是本檔最重要的安全關卡：唯一能抓到 calib_map 正負號錯誤的地方
+       （calib_map.py 自己標注 hip 的號是「暫定」）。指令必須下在 MJCF
+       空間（手冊判準表格用的座標：+knee→伸直、+abad→外張、+hip→後擺），
+       不是 SHM 空間 —— 否則 sign 錯的時候，校正「正確」時操作者看到的
+       方向會跟手冊判準完全相反，反而會把對的校正改壞成錯的
+       （2026-08-11 總審報告記錄的實際事故路徑：leg0.hip 因此被改壞，
+        離線檢驗五項全過，直到上機才會在 9 秒內把 FR 髖拉向機構限位）。
+
+    做法：
+      1. 讀當前 SHM 角度 shm0
+      2. 轉成 MJCF：mjcf0 = (shm0 - offset) / sign
+      3. 在 MJCF 空間做單方向 +0.10 rad 三角波（0 → +amp → 0，一個來回）
+      4. 每一幀轉回 SHM：shm = sign * mjcf + offset
+    這樣操作者看到的方向就直接對應 MJCF 正向定義，手冊判準表格不用改就是對
+    的。順帶驗到的是「sign 與 offset 合起來的複合映射」——真正在乎的東西，
+    而不是只驗 sign 單獨一項。
+
+    log_path=None 時不寫檔（供離線測試用，不落地任何檔案）。
+    """
     ji = ("abad", "hip", "knee").index(joint_name)
     ok, trans = SC.preflight_mc_stopped(d)
     if not ok:
@@ -378,27 +473,74 @@ def run_jog(d, leg, joint_name, kp, kd, log_path):
             print(f"    • {p}")
         return False
 
-    start = np.array(SC.read_leg_q(d, leg))
+    start_shm = np.array(SC.read_leg_q(d, leg))
+    sign, offset = calib_map.CALIB[leg][joint_name]
+    mjcf0 = (start_shm[ji] - offset) / sign
+
+    amp, secs = 0.10, 8.0
+    n = int(secs * SC.CTRL_HZ)
+    ph = np.linspace(0.0, 1.0, n)                       # 0..1（含端點），一個來回
+    tri = np.where(ph < 0.5, ph * 2.0, 2.0 - ph * 2.0)   # 0 → +1 → 0
+    mjcf_delta = amp * tri                               # MJCF 位移，恆 ≥ 0
+
     print(f"\n[*] jog：leg{leg}({SC.LEGNAME[leg]}).{joint_name} "
-          f"起點 {start[ji]:+.4f} rad，±0.10 rad 兩個來回")
+          f"SHM 起點 {start_shm[ji]:+.4f} rad（換算 MJCF {mjcf0:+.4f} rad），"
+          f"MJCF 空間 +{amp:.2f} rad 一個來回")
     print("    ⚠️ 盯著腿看。對照 MJCF 正向定義：+knee→伸直、+abad→外張、+hip→後擺。")
+    print(f"    leg{leg}.{joint_name} 的 calib_map sign={sign:+d}，"
+          f"校正正確時 SHM 指令應往{'正' if sign > 0 else '負'}方向偏離起點。")
     print("    方向不符就停下來修 calib_map，不要往下走。")
 
-    frames = jog_targets(start, ji, amp=0.10, secs=8.0)
-    full = np.tile(start, (len(frames), 4, 1))
-    full[:, leg, :] = frames
+    full = np.tile(start_shm, (n, 4, 1))
+    full[:, leg, ji] = sign * (mjcf0 + mjcf_delta) + offset
+
     log = {k: [] for k in ("t", "cmd", "p", "v", "tau", "overrun")}
-    # jog 不查空中模擬表：±0.10 rad 的慢速微動，用 L4 的保守值就對。
-    ok, why = _stream(d, full, (leg,), kp, kd,
-                      torque_abort=8.0, vel_abort=1.0,
-                      log=log, dry=False, label="jog")
+    try:
+        # jog 不查空中模擬表：±0.10 rad 的慢速微動，用 L4 的保守值就對。
+        # ⚠️ 全部位置參數，不要改成關鍵字——測試用 spy 包一層 _stream，
+        #    參數名跟 run_gait 那邊共用同一組（ta/va/...），關鍵字呼叫會炸。
+        ok, why = _stream(d, full, (leg,), kp, kd, 8.0, 1.0, log, False, "jog")
+    except (KeyboardInterrupt, Exception) as exc:
+        reason = ("使用者中止(Ctrl+C)" if isinstance(exc, KeyboardInterrupt)
+                  else f"例外：{exc!r}")
+        print(f"\n⚠️ {reason} → 卸力中止")
+        SC.passive_stop(d, (leg,), 300, STOP_KD)
+        if log_path is not None:
+            SC.write_log(_aborted_path(log_path), _log_arrays(log),
+                         meta={"mode": "jog", "leg": leg, "joint": joint_name,
+                               "kp": kp, "kd": kd, "start": start_shm.tolist(),
+                               "active_legs": [leg], "time_scale": 1.0,
+                               "source": "jog", "aborted": True,
+                               "abort_reason": reason})
+        raise
+
     if not ok:
         print(f"⚠️ 保護觸發：{why} → 卸力中止")
     SC.passive_stop(d, (leg,), 800, STOP_KD)
-    SC.write_log(log_path, {k: np.asarray(v) for k, v in log.items()},
-                 meta={"mode": "jog", "leg": leg, "joint": joint_name,
-                       "kp": kp, "kd": kd, "start": start.tolist(),
-                       "active_legs": [leg], "time_scale": 1.0})
+
+    # 數值佐證：不要只靠人眼。指令的 MJCF 方向 vs 實測 SHM 方向，換算後是否一致。
+    if log["p"]:
+        p_series = np.asarray(log["p"])[:, leg, ji]
+        i_peak = int(np.argmax(mjcf_delta[:len(p_series)]))
+        shm_delta = float(p_series[i_peak] - start_shm[ji])
+        expect_dir = "+" if sign > 0 else "-"
+        actual_dir = ("+" if shm_delta > 1e-4 else
+                      "-" if shm_delta < -1e-4 else "0（未量到位移）")
+        print("\n[*] 驗號數值佐證（不要只靠人眼）：")
+        print(f"    指令 MJCF 位移方向：+（三角波峰值 mjcf={mjcf0 + mjcf_delta[i_peak]:+.4f}）")
+        print(f"    實測 SHM 位移（d.state.p，同一時刻）：{shm_delta:+.4f} rad"
+              f"（方向 {actual_dir}）")
+        print(f"    calib_map sign={sign:+d} → 預期 SHM 方向 {expect_dir}："
+              f"{'✓ 一致' if actual_dir == expect_dir else '⚠ 不一致，回頭核對 calib_map'}")
+
+    if log_path is not None:
+        out_path = log_path if ok else _aborted_path(log_path)
+        extra = {} if ok else {"aborted": True, "abort_reason": f"保護觸發：{why}"}
+        SC.write_log(out_path, _log_arrays(log),
+                     meta={"mode": "jog", "leg": leg, "joint": joint_name,
+                           "kp": kp, "kd": kd, "start": start_shm.tolist(),
+                           "active_legs": [leg], "time_scale": 1.0,
+                           "source": "jog", **extra})
     return ok
 
 
@@ -418,12 +560,18 @@ def main():
                     help="leg 模式：只驅動這一條（SHM 腿序）")
     ap.add_argument("--jog-leg", type=int, default=0)
     ap.add_argument("--jog-joint", choices=("abad", "hip", "knee"), default="hip")
-    ap.add_argument("--log", default="l7_log.npz")
+    ap.add_argument("--log", default=None,
+                    help="log 檔路徑。預設依 mode/source/time_scale/時間戳自動命名"
+                         "（避免多次執行互相覆蓋，見 G3-live 的比對需求）")
     ap.add_argument("--confirm", action="store_true", help="真的驅動硬體")
     args = ap.parse_args()
 
     if args.mode in ("leg", "gait") and not args.traj:
         ap.error("--mode leg/gait 需要 --traj")
+
+    if args.log is None:
+        stamp = time.strftime("%Y%m%d_%H%M%S")
+        args.log = f"l7_log_{args.mode}_{args.source}_{args.time_scale:g}x_{stamp}.npz"
 
     try:
         skip = {int(x) for x in args.skip_legs.split(",") if x.strip() != ""}
@@ -478,7 +626,21 @@ def main():
         if args.mode in ("gait", "leg"):
             run_gait(None, traj, meta, active, args.time_scale,
                      args.kp, args.kd, dry=True, log_path=args.log,
-                     mode=args.mode)
+                     mode=args.mode, source=args.source)
+        else:
+            # jog 模式沒開 SHM，讀不到當前角度，所以只能預覽方向邏輯，不能
+            # 預覽實際數值——理由跟當初補 leg 模式 dry-run 一樣：跑真機前
+            # 至少要能先看到這條路徑不會馬上炸掉。
+            leg = active[0]
+            sign, offset = calib_map.CALIB[leg][args.jog_joint]
+            print(f"\n[*] jog 計畫：leg{leg}({SC.LEGNAME[leg]}).{args.jog_joint}，"
+                  f"MJCF 空間 +0.10 rad 一個來回（0 → +amp → 0）")
+            print(f"    calib_map：sign={sign:+d}，offset={offset:+.4f}")
+            print(f"    校正正確時，SHM 指令應往{'正' if sign > 0 else '負'}"
+                  f"方向偏離目前角度；操作者應看到符合 MJCF 正向定義的動作"
+                  f"（+knee→伸直、+abad→外張、+hip→後擺）。")
+            print("    （dry-run 未開 SHM，讀不到目前角度，無法預覽實際數值；"
+                  "--confirm 執行時 run_jog 會印出數值佐證。）")
         print("\n⚠️ 跑真機前必讀：狗要吊掛、四腳離地、mc_ctrl 已 SIGSTOP、estop 隨手可按。")
         return
 
@@ -501,7 +663,7 @@ def main():
         if args.mode == "gait" or args.mode == "leg":
             run_gait(d, traj, meta, active, args.time_scale,
                      args.kp, args.kd, dry=False, log_path=args.log,
-                     mode=args.mode)
+                     mode=args.mode, source=args.source)
         else:
             run_jog(d, active[0], args.jog_joint, args.kp, args.kd, args.log)
     except KeyboardInterrupt:

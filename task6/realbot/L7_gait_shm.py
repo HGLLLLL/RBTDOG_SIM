@@ -23,6 +23,7 @@
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -194,3 +195,299 @@ def guard_thresholds(meta, kp, kd, time_scale):
         sys.exit(1)
     e = table[key][skey]
     return float(e["tau_peak"] * TORQUE_SAFETY), float(e["vel_peak"] * VEL_SAFETY)
+
+
+def jog_targets(start_q, joint_idx, amp, secs, hz=SC.CTRL_HZ):
+    """單關節三角波，兩個來回，起點與終點都回到 start_q。
+
+    用來確認 calib_map 的正負號：人眼看腿往哪邊動，對照 MJCF 的正向定義
+    （+knee→伸直、+abad→外張、+hip→後擺）。號反了就停在這關修映射。
+
+    amp 刻意小（0.10 rad = 5.7°）：驗號只需要看得出方向，不需要大動作。
+
+    ⚠️ 相位網格用 np.linspace(0.0, 2.0, n)（含右端點），不是 np.arange(n)/n*2.0。
+       後者在 n 個樣本時最後一點停在 2 - 2/n，量出來的收尾殘差是 amp * 4/n
+       （n=2000, amp=0.10 時約 2e-4 rad）——遠超過 test_...starting_and_ending_at_rest
+       要求的 abs=1e-6，也就是「起點終點都回到 start_q」這個安全承諾在最後一刻
+       沒兌現。含右端點才能讓相位在最後一個樣本精確落在 2.0（tri=0）。
+    """
+    n = int(secs * hz)
+    ph = np.linspace(0.0, 2.0, n)                     # 0..2（含端點），兩個來回
+    tri = np.where(ph < 0.5, ph * 2,
+                   np.where(ph < 1.5, 2 - ph * 2, ph * 2 - 4))
+    q = np.tile(np.asarray(start_q, dtype=float), (n, 1))
+    q[:, joint_idx] += amp * tri
+    return q
+
+
+def _stream(d, targets_iter, active_legs, kp, kd, torque_abort, vel_abort,
+            log, dry, label):
+    """核心串流迴圈：每個 500 Hz 週期寫一組目標、檢查保護、記錄 state。
+
+    回傳 (ok, 原因)。ok=False 時呼叫端負責卸力。
+
+    ⚠️ log 的時間戳用 len(log["t"]) 而非本次呼叫的迴圈索引 —— 一次執行會分成
+       接住／到起始姿／播放／回站姿四段，每段各呼叫一次本函式。用迴圈索引的話
+       時間戳會每段從 0 重來，事後分析對齊指令時會整個錯位。
+    """
+    for k, tgt in enumerate(targets_iter):
+        t_start = time.monotonic()
+        if not dry:
+            SC.zero_all(d)
+            for i in active_legs:
+                SC.set_leg_position(d, i, tgt[i][0], tgt[i][1], tgt[i][2], kp, kd)
+            SC.publish(d)
+            ok, why = SC.check_guards(d, active_legs, torque_abort, vel_abort)
+            if not ok:
+                return False, why
+            log["t"].append(len(log["t"]) * SC.DT)
+            log["cmd"].append(np.asarray(tgt, dtype=float).copy())
+            log["p"].append(np.array([[getattr(d.state.legs[i], jn).p
+                                       for jn in ("abad", "hip", "knee")]
+                                      for i in range(4)]))
+            log["v"].append(np.array([[getattr(d.state.legs[i], jn).v
+                                       for jn in ("abad", "hip", "knee")]
+                                      for i in range(4)]))
+            log["tau"].append(np.array([[getattr(d.state.legs[i], jn).t
+                                         for jn in ("abad", "hip", "knee")]
+                                        for i in range(4)]))
+            # 超時要記錄：Python 在 RK3588 上被 GC 打斷是正常的，但不記的話
+            # 超時造成的軌跡失真會被誤讀成追蹤誤差。
+            spent = time.monotonic() - t_start
+            log["overrun"].append(spent > SC.DT)
+            if spent < SC.DT:
+                time.sleep(SC.DT - spent)
+        elif k % (SC.CTRL_HZ // 2) == 0:
+            print(f"  [{label}] t={k * SC.DT:5.2f}s  "
+                  f"leg{active_legs[0]} 目標 " +
+                  " ".join(f"{v:+.3f}" for v in tgt[active_legs[0]]))
+    return True, ""
+
+
+def _ramp_frames(a, b, secs, hz=SC.CTRL_HZ):
+    """從姿勢 a 線性內插到姿勢 b，兩者都是 (4,3)。回傳 (N,4,3)。"""
+    n = int(secs * hz)
+    w = np.linspace(0.0, 1.0, n)[:, None, None]
+    return np.asarray(a)[None] * (1 - w) + np.asarray(b)[None] * w
+
+
+def run_gait(d, traj, meta, active_legs, time_scale, kp, kd, dry, log_path):
+    """catch → ramp 到第 0 幀 → 播放 → ramp 回站姿 → 卸力。"""
+    torque_abort, vel_abort = guard_thresholds(meta, kp, kd, time_scale)
+    pred = meta["air_sim"][f"{kp}/{kd}"][str(time_scale)]
+    print(f"\n[*] 保護門檻：力矩 {torque_abort:.2f} N·m、速度 {vel_abort:.2f} rad/s")
+    print(f"[*] 模擬預測：誤差峰值 {pred['err_peak_deg']:.2f}°、"
+          f"RMS {pred['err_rms_deg']:.2f}° —— 實機量到的值拿來跟這個比")
+
+    stand = np.array([[SC.POSE_STAND[i][jn] for jn in ("abad", "hip", "knee")]
+                      for i in range(4)])
+    if dry:
+        init = stand.copy()
+        print("[dry-run] 假設起點為站姿（真機會讀 state.legs[*]）")
+    else:
+        ok, trans = SC.preflight_mc_stopped(d)
+        if not ok:
+            print(f"✗ 中止：cmd 旗標仍在跳動({trans}) → mc_ctrl 沒停。先 SIGSTOP mc_ctrl。")
+            return False
+        SC.report_legs(d, active_legs)
+        ok, problems = SC.preflight_motors_healthy(d, active_legs)
+        if not ok:
+            print(f"\n✗ 中止：被驅動的腿有 {len(problems)} 個馬達問題，拒絕寫入 ——")
+            for p in problems:
+                print(f"    • {p}")
+            return False
+        init = np.array([SC.read_leg_q(d, i) for i in range(4)])
+
+    log = {k: [] for k in ("t", "cmd", "p", "v", "tau", "overrun")}
+    frame0 = traj[0]
+    ramp_sec = max(RAMP_MIN_SEC, meta["start_offset_from_stand"] / 0.25)
+    u = playback_times(len(traj), meta["ctrl_dt"], time_scale)
+    print(f"[*] 播放 {len(traj)} 幀 @ {time_scale}×  "
+          f"→ {u[-1] / time_scale:.1f}s 牆鐘、{len(u)} 個控制週期")
+
+    def stage(label, frames, kp_seq=None):
+        """跑一段。kp_seq 給定時逐幀套用不同增益（接住段用）。回傳 True/False。"""
+        print(f"\n[*] {label}")
+        if kp_seq is None:
+            ok, why = _stream(d, frames, active_legs, kp, kd,
+                              torque_abort, vel_abort, log, dry, label)
+        else:
+            ok, why = True, ""
+            for r in kp_seq:
+                ok, why = _stream(d, frames[:1], active_legs, kp * r, kd * r,
+                                  torque_abort, vel_abort, log, dry, label)
+                if not ok:
+                    break
+        if not ok:
+            print(f"⚠️ 保護觸發：{why} → 卸力中止")
+            SC.passive_stop(d, active_legs, 300, STOP_KD)
+        return ok
+
+    # 接住：p_des 固定在當前實際角度，kp/kd 由 0 平滑升到設定值。
+    # 凍結 mc_ctrl 後腿會因重力垂下，先用漸入增益接住，避免力矩突跳。
+    n_catch = int(CATCH_SEC * SC.CTRL_HZ)
+    if not stage("接住", init[None], np.linspace(0.0, 1.0, n_catch + 1)):
+        return False
+    if not stage("到起始姿", _ramp_frames(init, frame0, ramp_sec)):
+        return False
+    if not stage("播放步態", sample_at(traj, meta["ctrl_dt"], u)):
+        return False
+    if not stage("回站姿", _ramp_frames(traj[-1], stand, RAMP_MIN_SEC)):
+        return False
+
+    if not dry:
+        SC.passive_stop(d, active_legs, 800, STOP_KD)
+        n_over = int(np.sum(log["overrun"]))
+        print(f"[*] 完成。500 Hz 週期超時 {n_over} / {len(log['t'])} "
+              f"（{100.0 * n_over / max(1, len(log['t'])):.2f}%）")
+        SC.write_log(log_path, {k: np.asarray(v) for k, v in log.items()},
+                     meta={"mode": "gait", "time_scale": time_scale,
+                           "kp": kp, "kd": kd,
+                           "active_legs": list(active_legs), **meta})
+    return True
+
+
+def run_jog(d, leg, joint_name, kp, kd, log_path):
+    """單關節微動驗號。只驅動一條腿的一個關節。"""
+    ji = ("abad", "hip", "knee").index(joint_name)
+    ok, trans = SC.preflight_mc_stopped(d)
+    if not ok:
+        print(f"✗ 中止：cmd 旗標仍在跳動({trans}) → mc_ctrl 沒停。")
+        return False
+    SC.report_legs(d, (leg,))
+    ok, problems = SC.preflight_motors_healthy(d, (leg,))
+    if not ok:
+        for p in problems:
+            print(f"    • {p}")
+        return False
+
+    start = np.array(SC.read_leg_q(d, leg))
+    print(f"\n[*] jog：leg{leg}({SC.LEGNAME[leg]}).{joint_name} "
+          f"起點 {start[ji]:+.4f} rad，±0.10 rad 兩個來回")
+    print("    ⚠️ 盯著腿看。對照 MJCF 正向定義：+knee→伸直、+abad→外張、+hip→後擺。")
+    print("    方向不符就停下來修 calib_map，不要往下走。")
+
+    frames = jog_targets(start, ji, amp=0.10, secs=8.0)
+    full = np.tile(start, (len(frames), 4, 1))
+    full[:, leg, :] = frames
+    log = {k: [] for k in ("t", "cmd", "p", "v", "tau", "overrun")}
+    # jog 不查空中模擬表：±0.10 rad 的慢速微動，用 L4 的保守值就對。
+    ok, why = _stream(d, full, (leg,), kp, kd,
+                      torque_abort=8.0, vel_abort=1.0,
+                      log=log, dry=False, label="jog")
+    if not ok:
+        print(f"⚠️ 保護觸發：{why} → 卸力中止")
+    SC.passive_stop(d, (leg,), 800, STOP_KD)
+    SC.write_log(log_path, {k: np.asarray(v) for k, v in log.items()},
+                 meta={"mode": "jog", "leg": leg, "joint": joint_name,
+                       "kp": kp, "kd": kd, "start": start.tolist()})
+    return ok
+
+
+def main():
+    ap = argparse.ArgumentParser(description="D1 EDU 輪足：步態串流（吊掛空跑用）")
+    ap.add_argument("--mode", choices=("jog", "leg", "gait"), required=True)
+    ap.add_argument("--traj", default=None, help="gait_export 產生的 npz（leg/gait 模式必填）")
+    ap.add_argument("--source", choices=("file", "live"), default="file")
+    ap.add_argument("--time-scale", type=float, default=0.25, dest="time_scale",
+                    help="播放倍率。0.25=四分之一速（預設，先慢再快）。file/live 皆適用")
+    ap.add_argument("--secs", type=float, default=5.0, help="播放秒數（從軌跡頭開始）")
+    ap.add_argument("--kp", type=float, default=LEG_KP)
+    ap.add_argument("--kd", type=float, default=LEG_KD)
+    ap.add_argument("--skip-legs", default="2",
+                    help="不驅動的腿（0=FR 1=FL 2=RR 3=RL）。預設 2 —— RR 整條已失聯")
+    ap.add_argument("--only-leg", type=int, default=None,
+                    help="leg 模式：只驅動這一條（SHM 腿序）")
+    ap.add_argument("--jog-leg", type=int, default=0)
+    ap.add_argument("--jog-joint", choices=("abad", "hip", "knee"), default="hip")
+    ap.add_argument("--log", default="l7_log.npz")
+    ap.add_argument("--confirm", action="store_true", help="真的驅動硬體")
+    args = ap.parse_args()
+
+    if args.mode in ("leg", "gait") and not args.traj:
+        ap.error("--mode leg/gait 需要 --traj")
+
+    try:
+        skip = {int(x) for x in args.skip_legs.split(",") if x.strip() != ""}
+    except ValueError:
+        print(f"✗ --skip-legs 格式錯誤：{args.skip_legs!r}")
+        sys.exit(1)
+    if not skip <= {0, 1, 2, 3}:
+        print(f"✗ --skip-legs 只能是 0~3，收到 {sorted(skip)}")
+        sys.exit(1)
+    active = tuple(i for i in range(4) if i not in skip)
+    if args.mode == "leg":
+        if args.only_leg is None:
+            ap.error("--mode leg 需要 --only-leg")
+        if args.only_leg in skip:
+            ap.error(f"--only-leg {args.only_leg} 同時被 --skip-legs 排除了")
+        active = (args.only_leg,)
+    if args.mode == "jog":
+        if args.jog_leg in skip:
+            ap.error(f"--jog-leg {args.jog_leg} 同時被 --skip-legs 排除了")
+        active = (args.jog_leg,)
+    if not active:
+        print("✗ 四條腿都被跳過了，沒事可做。")
+        sys.exit(1)
+
+    SC.check_struct_size()
+
+    traj = meta = None
+    if args.traj:
+        if args.source == "file":
+            traj, meta = load_trajectory(args.traj)
+        else:
+            _, meta = load_trajectory(args.traj)
+            traj = live_trajectory(args.traj, meta["secs"])
+        n = int(args.secs / meta["ctrl_dt"])
+        traj = traj[:n]
+
+    print(f"\n[*] 驅動的腿：{', '.join(f'leg{i}({SC.LEGNAME[i]})' for i in active)}")
+    skipped = [i for i in range(4) if i not in active]
+    if skipped:
+        print(f"[*] ⚠️ 跳過的腿：{', '.join(f'leg{i}({SC.LEGNAME[i]})' for i in skipped)}"
+              f" —— 全程零增益，完全不出力")
+
+    if not args.confirm:
+        print("=" * 66)
+        print("DRY-RUN：不開啟、不寫入共享記憶體，只印出動作計畫。")
+        print("要真的驅動硬體請加 --confirm（且需 sudo）。")
+        print("=" * 66)
+        if args.mode == "gait":
+            run_gait(None, traj, meta, active, args.time_scale,
+                     args.kp, args.kd, dry=True, log_path=args.log)
+        print("\n⚠️ 跑真機前必讀：狗要吊掛、四腳離地、mc_ctrl 已 SIGSTOP、estop 隨手可按。")
+        return
+
+    print("=" * 66)
+    print("⚠️ 真機模式：即將驅動【腿關節】。確認：狗已吊掛四腳離地、mc_ctrl 已停。")
+    print("=" * 66)
+    if __import__("os").geteuid() != 0:
+        print("✗ 需要 root：請用 sudo 執行。")
+        sys.exit(1)
+    try:
+        d, _buf = SC.open_shm()
+    except FileNotFoundError:
+        print(f"✗ 找不到 {SC.SHM_PATH}（機器人運控沒起來？）")
+        sys.exit(1)
+    except PermissionError:
+        print("✗ 權限不足：請用 sudo。")
+        sys.exit(1)
+
+    try:
+        if args.mode == "gait" or args.mode == "leg":
+            run_gait(d, traj, meta, active, args.time_scale,
+                     args.kp, args.kd, dry=False, log_path=args.log)
+        else:
+            run_jog(d, active[0], args.jog_joint, args.kp, args.kd, args.log)
+    except KeyboardInterrupt:
+        print("\n[*] 收到 Ctrl+C → 卸力收尾")
+        SC.passive_stop(d, active, 800, STOP_KD)
+    finally:
+        SC.zero_all(d)
+        SC.publish(d)
+        print("[*] 已歸零收尾，watchdog 兜底。測完 SIGCONT 解凍 mc_ctrl 還原。")
+
+
+if __name__ == "__main__":
+    main()

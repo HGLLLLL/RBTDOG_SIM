@@ -143,3 +143,41 @@ def test_guard_thresholds_refuse_an_untabulated_combination(npz):
         L7.guard_thresholds(meta, 33.0, 0.7, 1.0)
     with pytest.raises(SystemExit):
         L7.guard_thresholds(meta, 20.0, 0.7, 0.75)
+
+
+def test_jog_targets_is_a_triangle_starting_and_ending_at_rest():
+    start = np.array([0.5, -2.2, 1.25])
+    q = L7.jog_targets(start, joint_idx=1, amp=0.10, secs=4.0, hz=500)
+    assert q.shape == (2000, 3)
+    assert q[0] == pytest.approx(start)
+    assert q[-1] == pytest.approx(start, abs=1e-6)
+    # 只動指定的那一軸
+    assert np.ptp(q[:, 0]) == pytest.approx(0.0, abs=1e-12)
+    assert np.ptp(q[:, 2]) == pytest.approx(0.0, abs=1e-12)
+    # 幅度剛好 ±amp，兩個來回
+    assert q[:, 1].max() == pytest.approx(start[1] + 0.10, abs=1e-3)
+    assert q[:, 1].min() == pytest.approx(start[1] - 0.10, abs=1e-3)
+
+
+def test_jog_targets_never_steps_more_than_a_safe_increment():
+    """jog 是用來驗號的，不能自己變成危險動作。"""
+    start = np.zeros(3)
+    q = L7.jog_targets(start, joint_idx=1, amp=0.10, secs=4.0, hz=500)
+    assert np.abs(np.diff(q, axis=0)).max() < 0.002
+
+
+def test_write_and_read_log_roundtrip(tmp_path):
+    import shm_common as SC
+    n = 7
+    log = {"t": np.arange(n) * SC.DT,
+           "cmd": np.zeros((n, 4, 3)), "p": np.ones((n, 4, 3)),
+           "v": np.zeros((n, 4, 3)), "tau": np.zeros((n, 4, 3)),
+           "overrun": np.zeros(n, dtype=bool)}
+    path = tmp_path / "log.npz"
+    SC.write_log(path, log, meta={"mode": "gait", "time_scale": 0.25})
+    z = np.load(path, allow_pickle=False)
+    assert set(z.files) == {"t", "cmd", "p", "v", "tau", "overrun", "meta_json"}
+    assert z["p"].shape == (n, 4, 3)
+    assert z["overrun"].dtype == bool
+    import json
+    assert json.loads(str(z["meta_json"]))["time_scale"] == 0.25

@@ -15,6 +15,7 @@ import ctypes
 import os
 import sys
 import time
+from pathlib import Path
 
 # ============================================================
 # 1) 共享記憶體結構定義（對應 include/lowlevel/lowlevel.h，packed）
@@ -224,3 +225,19 @@ def check_struct_size():
     if size != EXPECT_SIZE:
         print(f"✗ 結構大小不符（{size} != {EXPECT_SIZE}）→ 拒絕執行，避免寫壞共享記憶體。")
         sys.exit(1)
+
+
+def write_log(path, log, meta):
+    """把一次執行的 cmd/state 記錄寫成 npz。由 gait_export --analyze 讀。
+
+    欄位契約（改動要同步改 gait_export 的讀取端與 test_write_and_read_log_roundtrip）：
+      t (N,)  cmd (N,4,3)  p (N,4,3)  v (N,4,3)  tau (N,4,3)  overrun (N,) bool
+    索引是 SHM 腿序 (0=FR 1=FL 2=RR 3=RL)、關節序 (abad, hip, knee)。
+    """
+    import json
+    import numpy as np
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez(path, meta_json=np.array(json.dumps(meta, ensure_ascii=False)),
+             **{k: np.asarray(v) for k, v in log.items()})
+    print(f"[記錄] {path}  {len(log['t'])} 筆")

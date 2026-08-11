@@ -303,13 +303,42 @@ def test_air_servo_sim_keeps_the_base_pinned_and_contacts_off(model):
 
 
 def test_air_sim_table_does_not_leak_diagnostics_into_npz(model):
-    """診斷欄位不進 npz——schema 已被測試與既有的 gait_walk_stable.npz 釘住。"""
+    """診斷欄位不進 npz——schema 已被測試與既有的 gait_walk_stable.npz 釘住。
+    per_axis 是新加的必留欄位（逐軸預測值的來源），base_drift/max_contacts 仍要濾掉。"""
     q_mjcf, _ = GE.build_trajectory(model, GE.DEPLOY_G_C, secs=3.0)
     table = GE.air_sim_table(model, q_mjcf)
     for gains, per_scale in table.items():
         for scale, entry in per_scale.items():
-            assert set(entry) == {"tau_peak", "err_peak_deg",
-                                  "err_rms_deg", "vel_peak"}, f"{gains} {scale}"
+            assert set(entry) == {"tau_peak", "err_peak_deg", "err_rms_deg",
+                                  "vel_peak", "per_axis"}, f"{gains} {scale}"
+            assert set(entry["per_axis"]) == {"rms_deg", "peak_deg"}
+            assert np.array(entry["per_axis"]["rms_deg"]).shape == (4, 3)
+            assert np.array(entry["per_axis"]["peak_deg"]).shape == (4, 3)
+
+
+def test_mjcf_to_shm_per_axis_reorders_legs_only(model):
+    """逐軸預測值存進 npz 前要換成 SHM 腿序，關節序 (abad,hip,knee) 不變。
+
+    這是總審點名的索引順序問題：air_servo_sim 在 MJCF 腿序 (FL,FR,RL,RR) 工作，
+    log 是 SHM 腿序，兩者對不上就會把某條腿的誤差錯記到另一條腿頭上。"""
+    arr = np.arange(12, dtype=float).reshape(4, 3)   # mjcf 腿序，每列 = [abad,hip,knee]
+    out = GE._mjcf_to_shm_per_axis(arr)
+    assert out.shape == (4, 3)
+    for mjcf_leg in range(4):
+        shm_leg = calib_map.LEG_MJCF2SHM[mjcf_leg]
+        assert np.array_equal(out[shm_leg], arr[mjcf_leg]), (
+            f"mjcf_leg{mjcf_leg} 沒有正確映射到 shm_leg{shm_leg}")
+
+
+def test_air_servo_sim_per_axis_rms_is_consistent_with_the_aggregate(model):
+    """逐軸 RMS 與既有的 12 軸 aggregate RMS 必須是同一組底層誤差算出來的——
+    腿序重排不改變數值集合，只改變哪個位置是哪條腿，所以兩者換算後要相等。
+    （腿序方向本身由 test_mjcf_to_shm_per_axis_reorders_legs_only 釘住。）"""
+    q_mjcf, _ = GE.build_trajectory(model, GE.DEPLOY_G_C, secs=3.0)
+    r = GE.air_servo_sim(model, q_mjcf, kp=20.0, kd=0.7, time_scale=1.0)
+    per_axis_rad = np.radians(np.array(r["per_axis"]["rms_deg"]))
+    recombined = float(np.degrees(np.sqrt((per_axis_rad ** 2).mean())))
+    assert recombined == pytest.approx(r["err_rms_deg"], rel=1e-6)
 
 
 def test_export_embeds_the_air_sim_table(model, tmp_path):
@@ -320,7 +349,8 @@ def test_export_embeds_the_air_sim_table(model, tmp_path):
     assert "20.0/0.7" in table
     for s in ("0.25", "0.5", "1.0"):
         entry = table["20.0/0.7"][s]
-        assert set(entry) == {"tau_peak", "err_peak_deg", "err_rms_deg", "vel_peak"}
+        assert set(entry) == {"tau_peak", "err_peak_deg", "err_rms_deg",
+                              "vel_peak", "per_axis"}
 
 
 def _synthetic_log(tmp_path, lag_steps=0, err_rad=0.0):
@@ -397,3 +427,164 @@ def test_analyze_prints_without_crashing_on_none_lag(tmp_path, capsys):
     GE.analyze(_synthetic_log(tmp_path))
     out = capsys.readouterr().out
     assert "abad" in out
+
+
+# ---------------------------------------------------------------------------
+# 修正 1：統計視窗只看 stage==2（播放步態），接住/ramp/回站姿不該混進 RMS。
+# ---------------------------------------------------------------------------
+
+def _synthetic_log_with_stages(tmp_path, err_by_stage, lag_steps=0,
+                                active_legs=(0, 1, 3), fname="log_stage.npz"):
+    """依 stage 分四等分（各占 n//4）合成 log，每段可以指定各自的固定誤差。"""
+    import json
+    n, dt = 2000, 1.0 / 500
+    t = np.arange(n) * dt
+    cmd = np.zeros((n, 4, 3))
+    cmd[:, :, 1] = np.sin(2 * np.pi * 1.4 * t)[:, None]
+    stage = np.zeros(n, dtype=np.int8)
+    quarter = n // 4
+    for s in range(4):
+        stage[s * quarter:(s + 1) * quarter] = s
+    err = np.zeros(n)
+    for s, e in err_by_stage.items():
+        err[stage == s] = e
+    p = np.roll(cmd, lag_steps, axis=0) + err[:, None, None]
+    p[:lag_steps] = cmd[:lag_steps]
+    path = tmp_path / fname
+    np.savez(path, t=t, cmd=cmd, p=p, v=np.zeros((n, 4, 3)),
+             tau=np.zeros((n, 4, 3)), overrun=np.zeros(n, dtype=bool), stage=stage,
+             meta_json=np.array(json.dumps({"mode": "gait", "time_scale": 1.0,
+                                            "active_legs": list(active_legs),
+                                            "source": "live"})))
+    return path
+
+
+def test_analyze_windows_stats_to_stage2_only(tmp_path, capsys):
+    """接住/ramp/回站姿段的大誤差不能稀釋播放段的 RMS——這是總審抓到的
+    『手冊預設配置下播放段只佔 53%，RMS 被稀釋 27%』那題。"""
+    path = _synthetic_log_with_stages(
+        tmp_path, {0: np.radians(30.0), 1: np.radians(30.0),
+                   2: np.radians(3.0), 3: np.radians(30.0)})
+    r = GE.analyze(path)
+    assert r["axes"][(0, "hip")]["rms_deg"] == pytest.approx(3.0, abs=0.05), (
+        "RMS 被非播放段稀釋了——沒有只窗到 stage==2")
+    assert r["n_total"] == 2000
+    assert r["n_play"] == 500
+    out = capsys.readouterr().out
+    assert "播放步態 500" in out and "25.0%" in out
+
+
+def test_analyze_falls_back_to_whole_log_without_stage_field(tmp_path, capsys):
+    """舊 log 沒有 stage 欄位：退回整份分析，且要印明顯警告，不能悄悄算錯。"""
+    r = GE.analyze(_synthetic_log(tmp_path, err_rad=np.radians(3.0)))
+    assert r["n_total"] == r["n_play"] == 2000
+    out = capsys.readouterr().out
+    assert "⚠️" in out and "舊格式" in out
+
+
+# ---------------------------------------------------------------------------
+# 修正 2：靜止軸的假延遲——ramp 段的極小位移不能打敗播放段的靜止判定。
+# ---------------------------------------------------------------------------
+
+def test_analyze_windowed_lag_ignores_ramp_drift_on_static_axis(tmp_path):
+    """POSE_STAND 與軌跡起點的 abad 差約 1e-4 rad——ramp 段(stage 1)因此有個
+    1e-4 的爬升，但播放段(stage 2)依設計完全不動。統計視窗沒切到播放段的話，
+    這個 1e-4 的 ptp 會打敗 LAG_CONST_EPS，讓每條腿各自因浮點捨入雜訊挑出
+    不同的假延遲（總審實測 leg0=80ms／leg1=—／leg3=0.0，三條腿三個答案）。"""
+    import json
+    n, dt = 2000, 1.0 / 500
+    t = np.arange(n) * dt
+    cmd = np.zeros((n, 4, 3))
+    stage = np.zeros(n, dtype=np.int8)
+    quarter = n // 4
+    for s in range(4):
+        stage[s * quarter:(s + 1) * quarter] = s
+    ramp = np.linspace(0.0, 1e-4, quarter)          # 只有 ramp 段(stage 1)的 abad 在爬升
+    cmd[quarter:2 * quarter, :, 0] = ramp[:, None]
+    p = cmd.copy()                                    # 完美追蹤：只測窗口切得對不對
+    path = tmp_path / "ramp_drift.npz"
+    np.savez(path, t=t, cmd=cmd, p=p, v=np.zeros((n, 4, 3)),
+             tau=np.zeros((n, 4, 3)), overrun=np.zeros(n, dtype=bool), stage=stage,
+             meta_json=np.array(json.dumps({"mode": "gait", "time_scale": 1.0,
+                                            "active_legs": [0, 1, 3]})))
+    r = GE.analyze(path)
+    for leg in (0, 1, 3):
+        assert r["axes"][(leg, "abad")]["lag_ms"] is None, (
+            f"leg{leg} abad 從 ramp 段的 1e-4 位移憑空生出延遲")
+
+
+# ---------------------------------------------------------------------------
+# 修正 3：--traj 查表印逐軸預測值，且必須是逐軸而不是拿 aggregate 硬比。
+# ---------------------------------------------------------------------------
+
+def _synthetic_log_with_gains(tmp_path, kp, kd, time_scale, active_legs=(0, 1, 3),
+                              fname="log_gains.npz"):
+    import json
+    n, dt = 2000, 1.0 / 500
+    t = np.arange(n) * dt
+    cmd = np.zeros((n, 4, 3))
+    cmd[:, :, 1] = np.sin(2 * np.pi * 1.4 * t)[:, None]
+    p = cmd.copy()
+    path = tmp_path / fname
+    np.savez(path, t=t, cmd=cmd, p=p, v=np.zeros((n, 4, 3)),
+             tau=np.zeros((n, 4, 3)), overrun=np.zeros(n, dtype=bool),
+             meta_json=np.array(json.dumps({"mode": "gait", "time_scale": time_scale,
+                                            "kp": kp, "kd": kd,
+                                            "active_legs": list(active_legs)})))
+    return path
+
+
+def test_analyze_traj_arg_looks_up_predicted_per_axis_rms(model, tmp_path, capsys):
+    """--traj 給了才印預測欄；查表鍵是 log meta 的 kp/kd/time_scale，
+    印出來的必須是逐軸預測，不是拿 12 軸 aggregate 硬比。"""
+    import json
+    traj = GE.export(model, tmp_path / "traj.npz", secs=3.0)
+    traj_meta = json.loads(str(np.load(traj, allow_pickle=False)["meta_json"]))
+    log = _synthetic_log_with_gains(tmp_path, kp=20.0, kd=0.7, time_scale=1.0)
+    r = GE.analyze(log, traj_path=traj)
+    assert r["predicted"] is not None
+    expected = traj_meta["air_sim"]["20.0/0.7"]["1.0"]["per_axis"]
+    assert r["predicted"] == expected
+    out = capsys.readouterr().out
+    assert "預測RMS" in out
+
+
+def test_analyze_without_traj_arg_has_no_predicted_column(tmp_path, capsys):
+    """沒給 --traj 就只印量測值，不能無中生有印出一欄。"""
+    r = GE.analyze(_synthetic_log(tmp_path))
+    assert r["predicted"] is None
+    out = capsys.readouterr().out
+    assert "預測RMS" not in out
+
+
+def test_analyze_traj_arg_warns_when_gains_not_in_table(model, tmp_path, capsys):
+    """log 的 kp/kd 不在 npz 的 air_sim 表裡：印警告，不當掉，量測值照印。"""
+    traj = GE.export(model, tmp_path / "traj.npz", secs=3.0)
+    log = _synthetic_log_with_gains(tmp_path, kp=999.0, kd=1.0, time_scale=1.0)
+    r = GE.analyze(log, traj_path=traj)
+    assert r["predicted"] is None
+    out = capsys.readouterr().out
+    assert "⚠️" in out
+    assert "hip" in out, "查無預測值時，量測值仍要照印"
+
+
+# ---------------------------------------------------------------------------
+# 修正 4：--analyze 要能在沒有 mujoco 的車載電腦上跑。
+# ---------------------------------------------------------------------------
+
+def test_analyze_works_without_mujoco(tmp_path):
+    """--analyze 要能在機器狗的車載電腦上跑，那台沒有 mujoco。"""
+    import subprocess
+    import sys as _sys
+    log = _synthetic_log(tmp_path)
+    code = (
+        "import sys;"
+        "sys.modules['mujoco'] = None;"      # 讓 import mujoco 失敗
+        "sys.path.insert(0, %r); sys.path.insert(0, %r);"
+        "import gait_export as GE;"
+        "r = GE.analyze(%r);"
+        "print('OK', len(r['axes']))"
+        % (str(_ROOT / "inference"), str(_ROOT / "realbot"), str(log))
+    )
+    r = subprocess.run([_sys.executable, "-c", code], capture_output=True, text=True)
+    assert "OK" in r.stdout, f"analyze 需要 mujoco：{r.stdout!r} {r.stderr!r}"

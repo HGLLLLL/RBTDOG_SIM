@@ -38,17 +38,31 @@ import json
 import sys
 from pathlib import Path
 
-import mujoco
 import numpy as np
 
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
 sys.path.insert(0, str(_HERE.parents[0] / "realbot"))
 
-import calib_map
-import cpg_d1
-import cpg_walk_d1 as W
-import d1_model
+import calib_map      # 純 numpy，不依賴 mujoco——analyze() 的逐軸重排要用它
+
+# mujoco 與整條相依鏈（cpg_d1 / cpg_walk_d1 / d1_model 都在模組層 import mujoco）
+# 延遲到真的要跑模擬時才載入。原因：機器狗車載電腦沒有 mujoco，但要能在狗上跑
+# `--analyze` 分析錄回來的 log（analyze() 本身只用 numpy/json/shm_common）。
+mujoco = cpg_d1 = W = d1_model = None
+
+
+def _ensure_mujoco_stack():
+    """需要建模/模擬的函式（build_trajectory、air_servo_sim、export、sweep、
+    __main__ 的 sweep/export 分支）進入時第一件事就呼叫這個。"""
+    global mujoco, cpg_d1, W, d1_model
+    if mujoco is None:
+        import mujoco as _mujoco
+        import cpg_d1 as _cpg_d1
+        import cpg_walk_d1 as _W
+        import d1_model as _d1_model
+        mujoco, cpg_d1, W, d1_model = _mujoco, _cpg_d1, _W, _d1_model
+
 
 JN = ("abad", "hip", "knee")
 
@@ -88,6 +102,7 @@ def build_trajectory(m, g_c, secs=20.0):
     軌跡邏輯全部來自 cpg_walk_d1（import，不複製）。本函式只負責：
     指定 g_c、跑滿 secs、把結果轉成 SHM 慣例。
     """
+    _ensure_mujoco_stack()
     cfg = W.GAITS[GAIT]
     step = W.make_cpg_step(cfg["phase"])
     f0s, jinvs = cpg_d1.leg_ik_consts(m)
@@ -126,11 +141,13 @@ def worst_margin(q_shm, lim):
 
 def max_joint_vel(q_shm):
     """逐幀差分的最大關節角速度(rad/s)。用來設 L7 的 VEL_ABORT。"""
+    _ensure_mujoco_stack()
     return float(np.abs(np.diff(q_shm, axis=0) / d1_model.CTRL_DT).max())
 
 
 def sweep(m, g_c_values):
     """印出 G_C 掃描表。用來重現檔頭 § 的那張表。"""
+    _ensure_mujoco_stack()
     lim = shm_limits(m)
     print(f"{'G_C':>6} {'膝餘裕(rad)':>12} {'(度)':>7} {'最大角速度':>11}  ")
     for g_c in g_c_values:
@@ -194,6 +211,20 @@ AIR_SIM_GRID = ((20.0, 0.7), (40.0, 1.0))     # (kp, kd)。20/0.7 是原廠站�
 AIR_SIM_SCALES = (0.25, 0.5, 1.0)
 
 
+def _mjcf_to_shm_per_axis(arr12):
+    """(12,) MJCF 腿序 (FL,FR,RL,RR)×(abad,hip,knee) 的逐軸量 → (4,3) SHM 腿序。
+
+    只換腿的排列，不做 sign/offset——air_servo_sim 算的是誤差量值（已取絕對值），
+    sign 不影響大小。跟 calib_hash 用的是同一個 LEG_MJCF2SHM，腿序錯了兩邊會一起錯，
+    見 test_mjcf_to_shm_per_axis_reorders_legs_only。
+    """
+    arr = np.asarray(arr12, dtype=float).reshape(4, 3)
+    out = np.zeros_like(arr)
+    for mjcf_leg in range(4):
+        out[calib_map.LEG_MJCF2SHM[mjcf_leg]] = arr[mjcf_leg]
+    return out
+
+
 def air_servo_sim(m, q_mjcf, kp, kd, time_scale, settle_sec=1.0):
     """吊掛空跑的直接模擬：機身固定、無接觸、位置伺服 kp/kd。
 
@@ -204,6 +235,7 @@ def air_servo_sim(m, q_mjcf, kp, kd, time_scale, settle_sec=1.0):
        指令軌跡有速度折點，二階差分的加速度會爆掉。那描述的是「完美追蹤
        所需的力矩」，而完美追蹤本來就不會發生——位置伺服必然落後。
     """
+    _ensure_mujoco_stack()
     m2 = mujoco.MjModel.from_xml_path(d1_model.SCENE)
     m2.opt.disableflags |= mujoco.mjtDisableBit.mjDSBL_CONTACT
     for a in range(m2.nu):                     # 覆寫位置伺服增益
@@ -255,13 +287,17 @@ def air_servo_sim(m, q_mjcf, kp, kd, time_scale, settle_sec=1.0):
         errs.append(np.abs(d.qpos[idx] - tgt))
         # 第二個前提「接觸關閉」：mjDSBL_CONTACT 生效時 d.ncon 全程應為 0。
         max_contacts = max(max_contacts, int(d.ncon))
-    errs = np.asarray(errs)
+    errs = np.asarray(errs)      # (T,12)，mjcf 腿序 (FL,FR,RL,RR)×(abad,hip,knee)，已取絕對值
+    rms_mjcf = np.degrees(np.sqrt((errs ** 2).mean(axis=0)))    # (12,)
+    peak_mjcf = np.degrees(errs.max(axis=0))                     # (12,)
     return {"tau_peak": tau_pk,
             "err_peak_deg": float(np.degrees(errs.max())),
             "err_rms_deg": float(np.degrees(np.sqrt((errs ** 2).mean()))),
             "vel_peak": vel_pk,
             "base_drift": base_drift,
-            "max_contacts": max_contacts}
+            "max_contacts": max_contacts,
+            "per_axis": {"rms_deg": _mjcf_to_shm_per_axis(rms_mjcf).tolist(),
+                        "peak_deg": _mjcf_to_shm_per_axis(peak_mjcf).tolist()}}
 
 
 def air_sim_table(m, q_mjcf):
@@ -272,10 +308,11 @@ def air_sim_table(m, q_mjcf):
         table[key] = {}
         for s in AIR_SIM_SCALES:
             r = air_servo_sim(m, q_mjcf, kp, kd, s)
-            # 只保留既有的四個欄位進 npz——診斷欄位（base_drift/max_contacts）
+            # 只保留既有欄位 + per_axis 進 npz——純診斷欄位（base_drift/max_contacts）
             # 不能進去，schema 已經被測試與版控中的 gait_walk_stable.npz 釘住。
             table[key][str(s)] = {k: r[k] for k in
-                                  ("tau_peak", "err_peak_deg", "err_rms_deg", "vel_peak")}
+                                  ("tau_peak", "err_peak_deg", "err_rms_deg",
+                                   "vel_peak", "per_axis")}
             print(f"  kp={kp} kd={kd} {s:>5.2f}×  力矩 {r['tau_peak']:6.2f} N·m  "
                   f"誤差峰值 {r['err_peak_deg']:6.2f}°  RMS {r['err_rms_deg']:5.2f}°  "
                   f"速度 {r['vel_peak']:5.2f} rad/s")
@@ -284,6 +321,7 @@ def air_sim_table(m, q_mjcf):
 
 def export(m, out_path, g_c=DEPLOY_G_C, secs=20.0):
     """產生軌跡、跑檢驗、寫 npz。檢驗沒過就 sys.exit(1) 且不留檔案。"""
+    _ensure_mujoco_stack()
     cfg = W.GAITS[GAIT]
     q_mjcf, q_shm = build_trajectory(m, g_c, secs)
     ok, problems, stats = run_checks(m, q_mjcf, q_shm)
@@ -345,11 +383,38 @@ def _lag_steps(cmd, act):
     return best_k
 
 
-def analyze(log_path):
-    """讀實機 log，算逐軸追蹤誤差。回傳 {'axes': {...}, 'overrun_pct': float, 'meta': {...}}。
+def _lookup_predicted_per_axis(traj_path, meta):
+    """從導出用的軌跡 npz 讀 air_sim 表，用這份 log 的 kp/kd/time_scale 查逐軸預測值。
+
+    查不到（舊 npz 沒有 per_axis、或這組 gains/scale 沒跑過）就回傳 None 並印警告，
+    不當掉——預測值是錦上添花，缺了它 --analyze 仍要能印出量測值。
+    """
+    tz = np.load(traj_path, allow_pickle=False)
+    tmeta = json.loads(str(tz["meta_json"]))
+    air = tmeta.get("air_sim", {})
+    kp, kd, ts = meta.get("kp"), meta.get("kd"), meta.get("time_scale")
+    gains_key = f"{kp}/{kd}" if kp is not None and kd is not None else None
+    scale_key = None if ts is None else str(ts)
+    entry = air.get(gains_key, {}).get(scale_key) if gains_key else None
+    if entry is None or "per_axis" not in entry:
+        print(f"⚠️ {traj_path} 沒有 kp={kp}/kd={kd} @ {ts}× 的逐軸預測值，只印量測。")
+        return None
+    return entry["per_axis"]
+
+
+def analyze(log_path, traj_path=None):
+    """讀實機 log，算逐軸追蹤誤差。回傳 {'axes', 'overrun_pct', 'meta', 'predicted',
+    'n_total', 'n_play'}。
 
     相位延遲用互相關求：把實際角相對指令角平移，找誤差平方和最小的位移量。
     只分析被驅動的腿——跳過的腿全程零增益，它的「誤差」沒有意義。
+
+    只統計 stage==2（播放步態）的週期——一次執行分「接住／到起始姿／播放步態／
+    回站姿」四段，接住與 ramp 段的角速度、加速度都跟步態本身無關，混進 RMS
+    會把真正要量的數字系統性稀釋。沒有 stage 欄位的舊 log 退回整份分析，並印警告。
+
+    traj_path 給了才會印預測 RMS 這一欄：預測是 12 軸 aggregate 之外另算的逐軸值，
+    量測是逐軸，兩者不能直接互相比對亂數字，所以查表對齊之後才並排印出來。
     """
     from shm_common import LEGNAME
     z = np.load(log_path, allow_pickle=False)
@@ -358,29 +423,54 @@ def analyze(log_path):
     dt = float(np.median(np.diff(t))) if len(t) > 1 else 1.0 / 500
     active = meta.get("active_legs", [0, 1, 2, 3])
 
+    n_total = len(t)
+    if "stage" in z.files:
+        play_mask = z["stage"] == 2
+        n_play = int(np.sum(play_mask))
+        pct = 100.0 * n_play / max(1, n_total)
+        print(f"\n[分析] {log_path}  總週期 {n_total}，播放步態 {n_play}（{pct:.1f}%）")
+        cmd_w, p_w = cmd[play_mask], p[play_mask]
+    else:
+        n_play = n_total
+        cmd_w, p_w = cmd, p
+        print(f"\n[分析] {log_path}  ⚠️ 這份 log 沒有 stage 欄位（舊格式，"
+              f"source={meta.get('source', '?')}）——退回整份 {n_total} 週期分析，"
+              f"含接住/ramp 段，RMS 會被稀釋，數字僅供參考！")
+
     axes, rows = {}, []
     for leg in active:
         for j, jn in enumerate(JN):
-            c, a = cmd[:, leg, j], p[:, leg, j]
+            c, a = cmd_w[:, leg, j], p_w[:, leg, j]
             err = a - c
             rms = float(np.degrees(np.sqrt((err ** 2).mean())))
             mx = float(np.degrees(np.abs(err).max()))
-            # 相位延遲：互相關找誤差最小的位移；指令不動的軸沒有定義
+            # 相位延遲：互相關找誤差最小的位移；指令不動的軸沒有定義。
+            # c/a 已經是播放段窗口，靜止軸判定自然只看播放段的指令 ptp。
             best_k = _lag_steps(c, a)
             lag_ms = None if best_k is None else best_k * dt * 1000.0
             axes[(leg, jn)] = {"rms_deg": rms, "max_deg": mx, "lag_ms": lag_ms}
             rows.append((leg, jn, rms, mx, lag_ms))
 
+    predicted = _lookup_predicted_per_axis(traj_path, meta) if traj_path else None
+
     over = float(100.0 * np.sum(z["overrun"]) / max(1, len(z["overrun"])))
-    print(f"\n[分析] {log_path}  模式={meta.get('mode')}  "
-          f"time_scale={meta.get('time_scale')}  kp={meta.get('kp')}")
-    print(f"{'軸':<12} {'RMS(°)':>9} {'最大(°)':>9} {'延遲(ms)':>10}")
+    print(f"模式={meta.get('mode')}  time_scale={meta.get('time_scale')}  "
+          f"kp={meta.get('kp')}")
+    header = f"{'軸':<12} {'RMS(°)':>9} {'最大(°)':>9} {'延遲(ms)':>10}"
+    if predicted is not None:
+        header += f" {'預測RMS(°)':>11}"
+    print(header)
     for leg, jn, rms, mx, lag in rows:
         lag_str = "—" if lag is None else f"{lag:.1f}"
-        print(f"leg{leg}({LEGNAME[leg]}).{jn:<5} {rms:>9.2f} {mx:>9.2f} {lag_str:>10}")
+        line = f"leg{leg}({LEGNAME[leg]}).{jn:<5} {rms:>9.2f} {mx:>9.2f} {lag_str:>10}"
+        if predicted is not None:
+            j = JN.index(jn)
+            line += f" {predicted['rms_deg'][leg][j]:>11.2f}"
+        print(line)
     print(f"\n500 Hz 週期超時 {over:.2f}%"
           + ("  ⚠️ 超過 1% 時追蹤誤差的解讀要打折" if over > 1.0 else ""))
-    return {"axes": axes, "overrun_pct": over, "meta": meta}
+    return {"axes": axes, "overrun_pct": over, "meta": meta, "predicted": predicted,
+            "n_total": n_total, "n_play": n_play}
 
 
 if __name__ == "__main__":
@@ -393,16 +483,19 @@ if __name__ == "__main__":
     ap.add_argument("--secs", type=float, default=20.0)
     ap.add_argument("--analyze", metavar="LOGPATH", default=None,
                     help="分析實機 log，輸出逐軸追蹤誤差")
+    ap.add_argument("--traj", metavar="NPZ", default=None,
+                    help="搭配 --analyze：導出用的軌跡 npz，用來查逐軸預測 RMS 對照")
     args = ap.parse_args()
 
     if not any((args.sweep, args.export, args.analyze)):
         ap.error("要 --sweep / --export / --analyze 其中之一")
 
     if args.sweep or args.export:
+        _ensure_mujoco_stack()
         model = d1_model.make_model()
         if args.sweep:
             sweep(model, (0.080, 0.090, 0.095, 0.100, 0.105, 0.110, 0.115, 0.120))
         if args.export:
             export(model, args.export, args.g_c, args.secs)
     if args.analyze:
-        analyze(args.analyze)
+        analyze(args.analyze, traj_path=args.traj)

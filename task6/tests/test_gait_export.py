@@ -10,6 +10,7 @@ sys.path.insert(0, str(_ROOT / "inference"))
 sys.path.insert(0, str(_ROOT / "realbot"))
 
 import calib_map
+import cpg_walk_d1 as W
 import d1_model
 import gait_export as GE
 
@@ -73,3 +74,51 @@ def test_captured_stand_pose_lies_inside_shm_limits(model):
             lo, hi = lim[(shm_leg, jn)]
             v = SC.POSE_STAND[shm_leg][jn]
             assert lo <= v <= hi, f"leg{shm_leg}.{jn} 站姿 {v} 不在 [{lo}, {hi}]"
+
+
+def test_build_trajectory_shapes_and_leg_order(model):
+    q_mjcf, q_shm = GE.build_trajectory(model, GE.DEPLOY_G_C, secs=2.0)
+    n = int(2.0 / d1_model.CTRL_DT)
+    assert q_mjcf.shape == (n, 12)
+    assert q_shm.shape == (n, 4, 3)
+    # q_shm 必須是 q_mjcf 經 sign/offset + 腿序重排的結果
+    for mjcf_leg in range(4):
+        shm_leg = calib_map.LEG_MJCF2SHM[mjcf_leg]
+        for j, jn in enumerate(GE.JN):
+            s, o = calib_map.CALIB[shm_leg][jn]
+            assert q_shm[:, shm_leg, j] == pytest.approx(
+                s * q_mjcf[:, mjcf_leg * 3 + j] + o, abs=1e-12)
+
+
+def test_mu_y_1_5_means_abad_never_moves(model):
+    """μy=1.5 → fy=0 → dy=0。abad 不動是直線走路的前提，也是限位餘裕的來源。"""
+    q_mjcf, _ = GE.build_trajectory(model, GE.DEPLOY_G_C, secs=5.0)
+    abad = q_mjcf[:, ::3]
+    assert np.ptp(abad) < 1e-9
+
+
+def test_deploy_g_c_meets_margin_threshold(model):
+    """DEPLOY_G_C 必須通過餘裕門檻——這是選它的唯一理由。"""
+    _, q_shm = GE.build_trajectory(model, GE.DEPLOY_G_C, secs=20.0)
+    margin, where = GE.worst_margin(q_shm, GE.shm_limits(model))
+    assert margin >= GE.MARGIN_MIN, f"{where} 餘裕只有 {margin:.4f}"
+
+
+def test_video_g_c_would_fail_the_margin_threshold(model):
+    """釘住我們為什麼不用影片那組參數。這個測試轉綠代表門檻或校正被改動了。"""
+    _, q_shm = GE.build_trajectory(model, W.GAIT_G_C, secs=20.0)
+    margin, _ = GE.worst_margin(q_shm, GE.shm_limits(model))
+    assert margin < GE.MARGIN_MIN
+
+
+def test_worst_margin_identifies_the_knee(model):
+    _, q_shm = GE.build_trajectory(model, GE.DEPLOY_G_C, secs=20.0)
+    _, where = GE.worst_margin(q_shm, GE.shm_limits(model))
+    assert "knee" in where
+
+
+def test_max_joint_vel_far_exceeds_l4_threshold(model):
+    """步態需要 ~13.5 rad/s，L4 的 VEL_ABORT=2.0 直接搬會一路誤中止。"""
+    _, q_shm = GE.build_trajectory(model, GE.DEPLOY_G_C, secs=20.0)
+    v = GE.max_joint_vel(q_shm)
+    assert 12.0 < v < 15.0

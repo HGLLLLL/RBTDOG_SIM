@@ -70,3 +70,72 @@ def shm_limits(m):
             s, o = calib_map.CALIB[shm_leg][jn]
             out[(shm_leg, jn)] = tuple(sorted((s * lo[col] + o, s * hi[col] + o)))
     return out
+
+
+def build_trajectory(m, g_c, secs=20.0):
+    """產生步態的關節軌跡。回傳 (q_mjcf (N,12), q_shm (N,4,3))。
+
+    軌跡邏輯全部來自 cpg_walk_d1（import，不複製）。本函式只負責：
+    指定 g_c、跑滿 secs、把結果轉成 SHM 慣例。
+    """
+    cfg = W.GAITS[GAIT]
+    step = W.make_cpg_step(cfg["phase"])
+    f0s, jinvs = cpg_d1.leg_ik_consts(m)
+
+    c = cpg_d1.cpg_init()
+    c["theta"] = cfg["phase"].copy()      # cpg_init 用的是 d1_model 的 trot 相位
+    n = int(secs / d1_model.CTRL_DT)
+    q_mjcf = np.zeros((n, 12))
+    for i in range(n):
+        c = step(c, np.full(4, cfg["mu_x"]), np.full(4, W.MU_Y),
+                 np.full(4, cfg["omega"]), d1_model.CTRL_DT)
+        q_mjcf[i] = W.joint_targets(c, f0s, jinvs, cfg["x_off"], g_c, cfg["duty"])
+
+    q_shm = np.zeros((n, 4, 3))
+    for mjcf_leg in range(4):
+        shm_leg = calib_map.LEG_MJCF2SHM[mjcf_leg]
+        for j, jn in enumerate(JN):
+            s, o = calib_map.CALIB[shm_leg][jn]
+            q_shm[:, shm_leg, j] = s * q_mjcf[:, mjcf_leg * 3 + j] + o
+    return q_mjcf, q_shm
+
+
+def worst_margin(q_shm, lim):
+    """最小限位餘裕(rad) 與發生在哪一軸。負值代表已經超限。"""
+    from shm_common import LEGNAME
+    worst, where = np.inf, ""
+    for shm_leg in range(4):
+        for j, jn in enumerate(JN):
+            lo, hi = lim[(shm_leg, jn)]
+            col = q_shm[:, shm_leg, j]
+            for margin, side in ((col.min() - lo, "下界"), (hi - col.max(), "上界")):
+                if margin < worst:
+                    worst, where = margin, f"leg{shm_leg}({LEGNAME[shm_leg]}).{jn} {side}"
+    return float(worst), where
+
+
+def max_joint_vel(q_shm):
+    """逐幀差分的最大關節角速度(rad/s)。用來設 L7 的 VEL_ABORT。"""
+    return float(np.abs(np.diff(q_shm, axis=0) / d1_model.CTRL_DT).max())
+
+
+def sweep(m, g_c_values):
+    """印出 G_C 掃描表。用來重現檔頭 § 的那張表。"""
+    lim = shm_limits(m)
+    print(f"{'G_C':>6} {'膝餘裕(rad)':>12} {'(度)':>7} {'最大角速度':>11}  ")
+    for g_c in g_c_values:
+        _, q_shm = build_trajectory(m, g_c)
+        margin, _ = worst_margin(q_shm, lim)
+        mark = "✓" if margin >= MARGIN_MIN else "✗"
+        print(f"{g_c:>6.3f} {margin:>12.4f} {np.degrees(margin):>7.2f} "
+              f"{max_joint_vel(q_shm):>11.2f}  {mark}")
+
+
+if __name__ == "__main__":
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--sweep", action="store_true", help="印出 G_C 掃描表")
+    args = ap.parse_args()
+    if args.sweep:
+        sweep(d1_model.make_model(),
+              (0.080, 0.090, 0.095, 0.100, 0.105, 0.110, 0.115, 0.120))

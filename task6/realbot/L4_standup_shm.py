@@ -92,7 +92,8 @@ EXPECT_SIZE = 608          # cmd 344 + state 264；對不上就不准跑（見 m
 CTRL_HZ   = 500
 DT        = 1.0 / CTRL_HZ
 CATCH_SEC = 0.5            # 階段 1：增益漸入「接住」腿的時間
-RAMP_SEC  = 2.0            # 階段 2：內插到站姿的時間（同範例 duration）
+RAMP_SEC  = 2.0            # 階段 2：內插到站姿的時間（可用 --ramp 覆寫）
+HOLD_SEC  = 3.0            # 階段 3：到位後維持站姿的時間（可用 --hold；0=不維持，負數=無限）
 
 # ✅ 2026-08-11 改用【原廠實測值】：L0_cmd_probe 量到輪足 D1 EDU 原廠 mc_ctrl 站立時，
 #    16 個腿關節恆定 kp=20.000 / kd=0.700（輪關節 kp=0/kd=0.1，本程式輪子直接零增益）。
@@ -111,6 +112,19 @@ POSE_STAND = {
     2: {"abad": -0.5039, "hip": -2.1493, "knee": +1.2194},  # leg2 RR 右後
     3: {"abad": +0.5132, "hip": +2.1528, "knee": -1.2570},  # leg3 RL 左後
 }
+
+# ✅ 同樣由 calib_capture.py 於 2026-08-10 從【這台實機】的趴姿擷取。來源：calib_lie.json
+#    趴→站的位移：knee 約 ±72°（主要動作）、abad 約 ±27°、hip 約 ±14°
+POSE_LIE = {
+    0: {"abad": +0.9836, "hip": -1.9568, "knee": +0.0027},  # leg0 FR 右前
+    1: {"abad": -0.9756, "hip": +1.9507, "knee": -0.0044},  # leg1 FL 左前
+    2: {"abad": -0.9865, "hip": -1.9396, "knee": +0.0067},  # leg2 RR 右後
+    3: {"abad": +0.9783, "hip": +1.9251, "knee": -0.0068},  # leg3 RL 左後
+}
+
+# 可用於 --sequence 的姿勢名稱
+POSES = {"lie": POSE_LIE, "stand": POSE_STAND}
+POSE_LABEL = {"lie": "趴下", "stand": "站立"}
 
 # 安全保護（真機模式才作用）
 # 依 MJCF (task6/model/d1_edu_w) 計算：吊掛站姿下重力力矩最大僅 knee 2.67 / abad 2.46 N·m，
@@ -167,8 +181,8 @@ def preflight_mc_stopped(d):
             trans += 1; prev = c
     return trans <= 4, trans
 
-def preflight_motors_healthy(d):
-    """16 顆馬達必須全部 ready 且無故障位，否則拒絕執行。回傳 (ok, 問題清單)。
+def preflight_motors_healthy(d, active_legs):
+    """被驅動的腿其馬達必須全部 ready 且無故障位，否則拒絕執行。回傳 (ok, 問題清單)。
 
     為什麼需要這道關卡（2026-08-11 實機教訓）：
       當天實機出現「右後輪馬達 ready=0」的硬體故障，原廠 mc_ctrl 因此把全部 16 顆
@@ -180,9 +194,12 @@ def preflight_motors_healthy(d):
       - flags bit0 = ready。0 = 該馬達未啟用/故障
       - 完全失聯的節點會被 daemon 歸零 → 溫度與電壓欄位讀到 0
       - bit1~5 = 過壓 / 過流 / 過溫 / 超速 / 雙編碼器故障
+
+    只檢查 active_legs（會被驅動的腿）。被 --skip-legs 排除的腿不檢查，
+    但 report_legs() 會把它們的狀態原樣印出來，讓操作者親眼確認跳過的是什麼。
     """
     problems = []
-    for i in range(4):
+    for i in active_legs:
         s = d.state.legs[i]
         for jn in ("abad", "hip", "knee", "foot"):
             f = getattr(s, jn).flags
@@ -198,23 +215,39 @@ def preflight_motors_healthy(d):
                     problems.append(f"{tag} {name}")
     return not problems, problems
 
-def check_guards(d):
-    """回傳 (ok, 說明)。任一關節力矩/速度超限 → not ok。"""
+def report_legs(d, active_legs):
+    """把四條腿的馬達狀態原樣印出，標明哪些會被驅動、哪些被跳過。"""
+    print("\n[*] 16 顆馬達現況（★ = 這次會被驅動）：")
     for i in range(4):
+        mark = "★" if i in active_legs else " "
+        cells = []
+        for jn in ("abad", "hip", "knee", "foot"):
+            f = getattr(d.state.legs[i], jn).flags
+            cells.append(f"{jn}:{'ok' if f & 1 else 'XX'}/{(f >> 8) & 0xFF}C")
+        print(f"    {mark} leg{i} {LEGNAME[i]}  " + "  ".join(f"{c:<14}" for c in cells))
+
+def check_guards(d, active_legs):
+    """回傳 (ok, 說明)。被驅動的腿任一關節力矩/速度超限 → not ok。
+
+    只檢查 active_legs：被跳過的腿若是故障中，其 t/v 欄位可能是損壞資料
+    （實測 2026-08-11 的 RR.foot 會在 0/28/44/95 之間亂跳），拿來當保護判準
+    會造成無意義的誤中止。被跳過的腿全程零增益，本來就不會出力。
+    """
+    for i in active_legs:
         s = d.state.legs[i]
         for jn in ("abad", "hip", "knee", "foot"):
             js = getattr(s, jn)
             if abs(js.t) > TORQUE_ABORT:
-                return False, f"leg{i}.{jn} 力矩 {js.t:.2f} > {TORQUE_ABORT}"
+                return False, f"{LEGNAME[i]}.{jn} 力矩 {js.t:.2f} > {TORQUE_ABORT}"
             if abs(js.v) > VEL_ABORT:
-                return False, f"leg{i}.{jn} 速度 {js.v:.2f} > {VEL_ABORT}"
+                return False, f"{LEGNAME[i]}.{jn} 速度 {js.v:.2f} > {VEL_ABORT}"
     return True, ""
 
-def passive_stop(d, cycles=1500):
-    """卸力收尾：腿關節 kp=0、kd=STOP_KD，軟軟停住（同範例）。"""
+def passive_stop(d, active_legs, cycles=1500):
+    """卸力收尾：被驅動的腿 kp=0、kd=STOP_KD，軟軟停住；被跳過的腿維持全零。"""
     for _ in range(cycles):
         zero_all(d)
-        for i in range(4):
+        for i in active_legs:
             for jn in ("abad", "hip", "knee"):
                 getattr(d.cmd.legs[i], jn).kd = STOP_KD
         publish(d)
@@ -229,7 +262,14 @@ def passive_stop(d, cycles=1500):
 def interpolate(a, b, ratio):
     return a * (1.0 - ratio) + b * ratio
 
-def run_standup(d, dry=True):
+def run_standup(d, dry=True, active_legs=(0, 1, 2, 3), sequence=("stand",)):
+    active_legs = tuple(sorted(active_legs))
+    skipped = [i for i in range(4) if i not in active_legs]
+    print(f"\n[*] 驅動的腿：{', '.join(f'leg{i}({LEGNAME[i]})' for i in active_legs)}")
+    if skipped:
+        print(f"[*] ⚠️ 跳過的腿：{', '.join(f'leg{i}({LEGNAME[i]})' for i in skipped)}"
+              f" —— 全程零增益，完全不出力")
+
     # --- 起點 ---
     if dry:
         init = [(0.0, 0.0, 0.0)] * 4          # 離線用 0 當起點示意
@@ -241,37 +281,43 @@ def run_standup(d, dry=True):
             print(f"✗ 中止：cmd 旗標仍在跳動({trans}) → mc_ctrl 沒停。先 SIGSTOP mc_ctrl。")
             return False
 
-        # 預檢 2：16 顆馬達必須全部健康（見 preflight_motors_healthy 的說明）
-        ok, problems = preflight_motors_healthy(d)
+        report_legs(d, active_legs)
+
+        # 預檢 2：被驅動的腿其馬達必須健康（見 preflight_motors_healthy 的說明）
+        ok, problems = preflight_motors_healthy(d, active_legs)
         if not ok:
-            print(f"✗ 中止：偵測到 {len(problems)} 個馬達問題，拒絕寫入 ——")
+            print(f"\n✗ 中止：被驅動的腿有 {len(problems)} 個馬達問題，拒絕寫入 ——")
             for p in problems:
                 print(f"    • {p}")
             print("  在馬達故障狀態下寫入 = 繞過原廠唯一在動作的安全機制。")
-            print("  先排除硬體問題（可用 L5_faultwatch.py --once 檢視）再重試。")
+            print("  若該腿本來就要跳過，請用 --skip-legs 排除它。")
             return False
-        print("[*] 預檢通過：mc_ctrl 已凍結、16 顆馬達全部 ready 且無故障位。")
+        print(f"\n[*] 預檢通過：mc_ctrl 已凍結；被驅動的 {len(active_legs)} 條腿"
+              f"（共 {len(active_legs)*4} 顆馬達）全部 ready 且無故障位。")
 
         init = [read_leg_q(d, i) for i in range(4)]
         print("[*] 讀到起點角度：")
         for i, (a, h, k) in enumerate(init):
-            print(f"    leg{i}: abad={a:+.3f} hip={h:+.3f} knee={k:+.3f}")
+            tag = "★" if i in active_legs else "跳過"
+            print(f"    {tag} leg{i} {LEGNAME[i]}: abad={a:+.3f} hip={h:+.3f} knee={k:+.3f}")
 
     def drive(targets, kp, kd):
-        """把四條腿的目標一次寫進 cmd 並送出。回傳 (ok, 原因)。
+        """把「被驅動的腿」的目標寫進 cmd 並送出。回傳 (ok, 原因)。
 
-        ⚠️ zero_all() 一定要在「四條腿的迴圈之外」——它會清掉全部四條腿，
-           放進迴圈裡會把前一條腿剛設好的指令抹掉，最後只剩 leg3 有指令。
+        ⚠️ zero_all() 一定要在「腿的迴圈之外」——它會清掉全部四條腿，
+           放進迴圈裡會把前一條腿剛設好的指令抹掉，最後只剩最後一條有指令。
+           被跳過的腿因為 zero_all 已經歸零、之後不再碰，所以維持零增益。
         """
         zero_all(d)                                   # 先壓全零（輪子也歸零）
-        for i, (a, h, k) in enumerate(targets):
+        for i in active_legs:
+            a, h, k = targets[i]
             set_leg_position(d, i, a, h, k, kp, kd)
         publish(d)
-        return check_guards(d)
+        return check_guards(d, active_legs)
 
     def abort(why):
         print(f"⚠️ 保護觸發：{why} → 卸力中止")
-        passive_stop(d, 300)
+        passive_stop(d, active_legs, 300)
 
     # --- 階段 1：增益漸入「接住」腿（p_des 固定在當前角度，kp/kd 由 0 升上來）---
     n_catch = int(CATCH_SEC / DT)
@@ -289,33 +335,72 @@ def run_standup(d, dry=True):
             print(f"  t={step*DT:4.2f}s  kp={kp:5.1f} kd={kd:4.2f}  "
                   f"leg0 目標 abad={init[0][0]:+.3f} hip={init[0][1]:+.3f} knee={init[0][2]:+.3f}（不動）")
 
-    # --- 階段 2：滿增益下，從接住點平滑內插到 POSE_STAND（每腿各自的目標）---
-    n = int(RAMP_SEC / DT)
-    print(f"\n[*] 階段 2：站起（{RAMP_SEC}s，kp={LEG_KP} kd={LEG_KD}）")
-    for step in range(n + 1):
-        ratio = min(step / n, 1.0)
-        targets = []
-        for i in range(4):
-            a0, h0, k0 = init[i]
-            tgt = POSE_STAND[i]
-            targets.append((interpolate(a0, tgt["abad"], ratio),
-                            interpolate(h0, tgt["hip"],  ratio),
-                            interpolate(k0, tgt["knee"], ratio)))
-        if not dry:
-            ok, why = drive(targets, LEG_KP, LEG_KD)
-            if not ok:
-                abort(why)
-                return False
-            time.sleep(DT)
-        elif step % int(0.5 / DT) == 0:           # dry-run：每 0.5 秒印一次 leg0 目標
-            a, h, k = targets[0]
-            print(f"  t={step*DT:4.1f}s ratio={ratio:.2f}  "
-                  f"leg0 目標 abad={a:+.3f} hip={h:+.3f} knee={k:+.3f}  (kp={LEG_KP} kd={LEG_KD})")
+    # --- 階段 2+：依序走過 --sequence 指定的每一個姿勢 ---
+    # 每個姿勢都是「ramp 內插過去 → hold 維持」。ramp 的起點用【上一個姿勢的指令值】
+    # 而不是重讀實際角度，否則重力造成的穩態下垂會在每段開頭變成一個階躍。
+    cur = list(init)
+    for si, pose_name in enumerate(sequence, start=2):
+        pose = POSES[pose_name]
+        label = POSE_LABEL[pose_name]
+        goal = [(pose[i]["abad"], pose[i]["hip"], pose[i]["knee"]) for i in range(4)]
 
-    print("\n[*] 站姿序列完成。")
+        # ---- ramp ----
+        n = int(RAMP_SEC / DT)
+        print(f"\n[*] 階段 {si}a：{label}（內插 {RAMP_SEC}s，kp={LEG_KP} kd={LEG_KD}）")
+        for step in range(n + 1):
+            ratio = min(step / n, 1.0)
+            targets = [(interpolate(cur[i][0], goal[i][0], ratio),
+                        interpolate(cur[i][1], goal[i][1], ratio),
+                        interpolate(cur[i][2], goal[i][2], ratio)) for i in range(4)]
+            if not dry:
+                ok, why = drive(targets, LEG_KP, LEG_KD)
+                if not ok:
+                    abort(why)
+                    return False
+                time.sleep(DT)
+            elif step % int(0.5 / DT) == 0:
+                a, h, k = targets[0]
+                print(f"  t={step*DT:4.1f}s ratio={ratio:.2f}  "
+                      f"leg0 目標 abad={a:+.3f} hip={h:+.3f} knee={k:+.3f}")
+
+        # ---- hold ----
+        if HOLD_SEC != 0:
+            n_hold = int(HOLD_SEC / DT) if HOLD_SEC > 0 else None
+            hlabel = f"{HOLD_SEC}s" if HOLD_SEC > 0 else "無限（按 Ctrl+C 進入下一步）"
+            print(f"\n[*] 階段 {si}b：維持{label}（{hlabel}）"
+                  f"  每 0.5s 回報追蹤誤差（絕對值才可比，左右腿編碼器慣例鏡像）")
+            if dry:
+                print(f"  （dry-run：實機會回報 {len(active_legs)} 條腿的追蹤誤差）")
+            else:
+                step = 0
+                try:
+                    while n_hold is None or step <= n_hold:
+                        ok, why = drive(goal, LEG_KP, LEG_KD)
+                        if not ok:
+                            abort(why)
+                            return False
+                        time.sleep(DT)
+                        if step % int(0.5 / DT) == 0:
+                            parts = []
+                            for i in active_legs:
+                                a, h, k = read_leg_q(d, i)
+                                ta, th, tk = goal[i]
+                                parts.append(f"{LEGNAME[i]}[{(a-ta)*57.3:+5.1f} "
+                                             f"{(h-th)*57.3:+5.1f} {(k-tk)*57.3:+5.1f}]")
+                            print(f"  t={step*DT:5.1f}s  誤差°(abad hip knee)  " + "  ".join(parts))
+                        step += 1
+                except KeyboardInterrupt:
+                    if n_hold is None:
+                        print("\n  （Ctrl+C：結束本段維持，繼續下一步）")
+                    else:
+                        raise
+
+        cur = goal          # 下一段從這個姿勢接著走
+
+    print(f"\n[*] 動作序列完成：{' → '.join(POSE_LABEL[x] for x in sequence)} → 洩力停止")
     if not dry:
         print("[*] 進行卸力收尾 ...")
-        passive_stop(d, 800)
+        passive_stop(d, active_legs, 800)
     return True
 
 
@@ -326,7 +411,40 @@ def main():
     ap = argparse.ArgumentParser(description="輪足 D1 EDU：SHM 版站姿（移植自點足 lowlevel_demo.py）")
     ap.add_argument("--confirm", action="store_true",
                     help="真的驅動硬體（否則只做 dry-run，不碰硬體）")
+    ap.add_argument("--sequence", default="stand",
+                    help="要依序走過的姿勢，逗號分隔。可用：lie（趴下）、stand（站立）。"
+                         "例如 --sequence lie,stand 表示先趴下再站起來，最後一律洩力停止。")
+    ap.add_argument("--ramp", type=float, default=RAMP_SEC,
+                    help=f"階段 2 內插到站姿的秒數（預設 {RAMP_SEC}）。動作太快就調大。")
+    ap.add_argument("--hold", type=float, default=HOLD_SEC,
+                    help=f"階段 3 維持站姿的秒數（預設 {HOLD_SEC}）。"
+                         "0 = 到位後立刻卸力；負數 = 一直維持到你按 Ctrl+C。")
+    ap.add_argument("--skip-legs", default="",
+                    help="不驅動的腿，逗號分隔的 index（0=FR 1=FL 2=RR 3=RL）。"
+                         "例如 --skip-legs 2 表示右後腿全程零增益。"
+                         "被跳過的腿不列入預檢與保護判準。")
     args = ap.parse_args()
+
+    try:
+        skip = {int(x) for x in args.skip_legs.split(",") if x.strip() != ""}
+    except ValueError:
+        print(f"✗ --skip-legs 格式錯誤：{args.skip_legs!r}（要像 2 或 0,2）")
+        sys.exit(1)
+    if not skip <= {0, 1, 2, 3}:
+        print(f"✗ --skip-legs 只能是 0~3，收到 {sorted(skip)}")
+        sys.exit(1)
+    globals()["RAMP_SEC"] = args.ramp
+    globals()["HOLD_SEC"] = args.hold
+    sequence = tuple(x.strip() for x in args.sequence.split(",") if x.strip())
+    bad = [x for x in sequence if x not in POSES]
+    if bad or not sequence:
+        print(f"✗ --sequence 不認得 {bad or '(空的)'}；可用：{', '.join(POSES)}")
+        sys.exit(1)
+
+    active_legs = tuple(i for i in range(4) if i not in skip)
+    if not active_legs:
+        print("✗ 四條腿都被跳過了，沒事可做。")
+        sys.exit(1)
 
     # 結構大小對不上 = 這支程式對 SHM 的理解跟 daemon 不一致，寫下去會寫到錯的欄位。
     # 用 sys.exit 而非 assert：assert 在 python -O 下會被拿掉，這道關卡不能被關掉。
@@ -341,7 +459,7 @@ def main():
         print("DRY-RUN 模式：不開啟、不寫入共享記憶體，只印出動作計畫。")
         print("要真的驅動硬體請加 --confirm（且需 sudo）。")
         print("="*66 + "\n")
-        run_standup(None, dry=True)
+        run_standup(None, dry=True, active_legs=active_legs, sequence=sequence)
         print("\n⚠️ 提醒：跑真機前必讀檔頭四點 —— 尤其【狗要吊掛】與【POSE 需校正】。")
         return
 
@@ -363,10 +481,10 @@ def main():
 
     print(f"[*] 已映射 {SHM_PATH}")
     try:
-        run_standup(d, dry=False)
+        run_standup(d, dry=False, active_legs=active_legs, sequence=sequence)
     except KeyboardInterrupt:
         print("\n[*] 收到 Ctrl+C → 卸力收尾")
-        passive_stop(d, 800)
+        passive_stop(d, active_legs, 800)
     finally:
         zero_all(d); publish(d)
         print("[*] 已歸零收尾，watchdog 兜底。測完 SIGCONT 解凍 mc_ctrl 還原。")

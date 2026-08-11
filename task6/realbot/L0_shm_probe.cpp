@@ -73,8 +73,12 @@ static const char* LEG_NAME[4] = {"leg0", "leg1", "leg2", "leg3"};
 //   請用步驟 0-7 手動扳動關節，實測出真正的對應再改這裡。
 
 static void decode_flags(int32_t f, char* out, size_t n) {
-    int temp = ((f >> 8) & 0xFF) - 40;   // -40 ~ 215 °C
-    int volt = (f >> 16) & 0xFF;         // 0 ~ 255 V
+    // 2026-08-11 修正：原本這裡減了 40，是錯的。實機驗證原始值直接就是攝氏度：
+    //   腿關節讀到 42~47、輪子讀到 29~31（開機數分鐘後，物理上合理）。
+    //   減 40 之後會變成 2~7°C / -10°C，室溫下不可能，曾害我們誤判「溫度資料不可信」。
+    //   失聯的節點溫度與電壓都會讀到 0（daemon 歸零），可據此判斷馬達是否掉線。
+    int temp = (f >> 8) & 0xFF;          // 直接是 °C，0 = 失聯
+    int volt = (f >> 16) & 0xFF;         // 0 ~ 255 V，0 = 失聯
     snprintf(out, n, "en=%d %s%s%s%s%s T=%d°C V=%dV",
              f & 1,
              (f >> 1) & 1 ? "過壓 " : "",

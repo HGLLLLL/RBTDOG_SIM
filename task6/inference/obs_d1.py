@@ -29,7 +29,7 @@
 import numpy as np
 
 from cpg_d1 import w2b
-from d1_model import ACT_DIM, HOME12
+from d1_model import ACT_DIM, HOME12, LEG_QPOS_IDX, LEG_QVEL_IDX
 
 OBS_LAYOUT = [
     ("gravity", 3),
@@ -57,8 +57,8 @@ def build_obs(d, c: dict, cmd: np.ndarray, last_a: np.ndarray) -> np.ndarray:
     return np.concatenate([
         w2b(quat, _DOWN),            # gravity 3
         d.qvel[3:6],                 # gyro 3
-        d.qpos[7:19] - HOME12,       # joint_pos 12
-        d.qvel[6:18],                # joint_vel 12
+        d.qpos[LEG_QPOS_IDX] - HOME12,   # joint_pos 12（輪關節夾在中間，不可用 7:19 切）
+        d.qvel[LEG_QVEL_IDX],            # joint_vel 12
         cmd,                         # cmd 3
         last_a,                      # last_action 12
         c["rx"], c["rx_d"], c["ry"], c["ry_d"],     # cpg 16

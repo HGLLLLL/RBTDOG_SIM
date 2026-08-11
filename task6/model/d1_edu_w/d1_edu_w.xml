@@ -11,8 +11,11 @@
   <default>
     <default class="d1w">
       <geom friction="0.6" margin="0.001" condim="1"/>
-      <!-- armature / damping：URDF 未提供，見計畫 Global Constraints 的假設說明 -->
-      <joint armature="0.01" damping="0.1"/>
+      <!-- armature / damping：URDF 未提供，見計畫 Global Constraints 的假設說明。
+           frictionloss=0.2：官方輪足 MJCF 的實際值，取自
+           zsibot/MATRiX_Python_SDK 的 model/xgw/xgw.xml（腿關節，非猜測）。
+           2026-08-11 實測開迴路加上前後差異 <0.5 mm，加它是為了與官方一致，不是為了改行為。 -->
+      <joint armature="0.01" damping="0.1" frictionloss="0.2"/>
       <general biastype="affine" gainprm="80 0 0" biasprm="0 -80 -1" forcerange="-28 28"/>
 
       <default class="abad">
@@ -26,6 +29,16 @@
       <default class="knee">
         <joint axis="0 1 0" range="-2.723 -0.602"/>
         <general ctrlrange="-2.703 -0.622"/>
+      </default>
+
+      <!-- 輪子鉸鏈：不熔死，受力可以轉。無致動器（實機量到原廠輪 kp=0，從不做位置控制）。
+           damping=2.0  = 部署時我們自己要對輪子下的速度保持指令 kd（v_des=0）。
+                          原廠站立用 kd=0.1 幾乎自由轉，但那是站著不動；
+                          實測純自由轉會讓開迴路 CPG 的推進力全被輪子轉掉（+5.80 m → +0.14 m）。
+           frictionloss=0.3 = L2 實機量到的輪馬達靜摩擦掙脫門檻（0.3~0.5 N·m）。
+           armature 沿用 class d1w 的 0.01 假設值。 -->
+      <default class="wheel_joint">
+        <joint axis="0 1 0" damping="2.0" frictionloss="0.3"/>
       </default>
 
       <default class="visual">
@@ -81,11 +94,12 @@
             <joint name="FL_knee_joint" class="knee"/>
             <geom mesh="FL_KNEE_LINK" class="visual"/>
             <geom type="capsule" fromto="0 0 -0.02 0 0 -0.20" size="0.022" class="collision"/>
-            <!-- 輪子：URDF 的 FL_FOOT_JOINT 為連續旋轉，本設計刻意不建立關節（鎖輪當圓腳），
-                 但質量 0.90130429 kg 與慣量完整保留 -->
+            <!-- 輪子：對應 URDF 的 *_FOOT_JOINT（連續旋轉）。2026-08-11 起建立實際鉸鏈，
+                 不再熔接鎖死——實機輪子受力就是會轉，見 class wheel_joint 的說明。 -->
             <body name="FL_wheel" pos="0 0 -0.21366">
               <inertial pos="0 0.04488028 0" mass="0.90130429"
                 fullinertia="0.00142854 0.00247230 0.00142858 0 0 0"/>
+              <joint name="FL_wheel_joint" class="wheel_joint"/>
               <geom mesh="FL_FOOT_LINK" class="visual"/>
               <!-- 碰撞圓柱對齊輪盤「幾何中心」y=0.0475（STL 實測 y 範圍 0.0235~0.0715），
                    不是慣量質心 0.04488028。上面 <inertial> 的 0.04488028 是真質心，維持不動。 -->
@@ -113,11 +127,11 @@
             <joint name="FR_knee_joint" class="knee"/>
             <geom mesh="FR_KNEE_LINK" class="visual"/>
             <geom type="capsule" fromto="0 0 -0.02 0 0 -0.20" size="0.022" class="collision"/>
-            <!-- 輪子：URDF 的 FR_FOOT_JOINT 為連續旋轉，本設計刻意不建立關節（鎖輪當圓腳），
-                 但質量 0.90130429 kg 與慣量完整保留 -->
+            <!-- 輪子：對應 URDF 的 FR_FOOT_JOINT（連續旋轉），已建立鉸鏈；見 FL 與 class wheel_joint -->
             <body name="FR_wheel" pos="0 0 -0.21366">
               <inertial pos="0 -0.04488028 0" mass="0.90130429"
                 fullinertia="0.00142854 0.00247230 0.00142858 0 0 0"/>
+              <joint name="FR_wheel_joint" class="wheel_joint"/>
               <geom mesh="FR_FOOT_LINK" class="visual"/>
               <!-- 碰撞圓柱對齊輪盤幾何中心 y=-0.0475（STL 實測），非慣量質心；見 FL 註解 -->
               <geom name="FR" class="wheel" pos="0 -0.0475 0"/>
@@ -144,11 +158,11 @@
             <joint name="RL_knee_joint" class="knee"/>
             <geom mesh="RL_KNEE_LINK" class="visual"/>
             <geom type="capsule" fromto="0 0 -0.02 0 0 -0.20" size="0.022" class="collision"/>
-            <!-- 輪子：URDF 的 RL_FOOT_JOINT 為連續旋轉，本設計刻意不建立關節（鎖輪當圓腳），
-                 但質量 0.90130429 kg 與慣量完整保留 -->
+            <!-- 輪子：對應 URDF 的 RL_FOOT_JOINT（連續旋轉），已建立鉸鏈；見 FL 與 class wheel_joint -->
             <body name="RL_wheel" pos="0 0 -0.21366">
               <inertial pos="0 0.04488028 0" mass="0.90130429"
                 fullinertia="0.00142854 0.00247230 0.00142858 0 0 0"/>
+              <joint name="RL_wheel_joint" class="wheel_joint"/>
               <geom mesh="RL_FOOT_LINK" class="visual"/>
               <!-- 碰撞圓柱對齊輪盤幾何中心 y=0.0475（STL 實測），非慣量質心；見 FL 註解 -->
               <geom name="RL" class="wheel" pos="0 0.0475 0"/>
@@ -175,11 +189,11 @@
             <joint name="RR_knee_joint" class="knee"/>
             <geom mesh="RR_KNEE_LINK" class="visual"/>
             <geom type="capsule" fromto="0 0 -0.02 0 0 -0.20" size="0.022" class="collision"/>
-            <!-- 輪子：URDF 的 RR_FOOT_JOINT 為連續旋轉，本設計刻意不建立關節（鎖輪當圓腳），
-                 但質量 0.90130429 kg 與慣量完整保留 -->
+            <!-- 輪子：對應 URDF 的 RR_FOOT_JOINT（連續旋轉），已建立鉸鏈；見 FL 與 class wheel_joint -->
             <body name="RR_wheel" pos="0 0 -0.21366">
               <inertial pos="0 -0.04488028 0" mass="0.90130429"
                 fullinertia="0.00142854 0.00247230 0.00142858 0 0 0"/>
+              <joint name="RR_wheel_joint" class="wheel_joint"/>
               <geom mesh="RR_FOOT_LINK" class="visual"/>
               <!-- 碰撞圓柱對齊輪盤幾何中心 y=-0.0475（STL 實測），非慣量質心；見 FL 註解 -->
               <geom name="RR" class="wheel" pos="0 -0.0475 0"/>
@@ -226,8 +240,10 @@
   </sensor>
 
   <keyframe>
+    <!-- qpos 每腿 4 個數：abad hip knee 輪（輪角 0）。nq=23——
+         少寫會被靜默補零並讓整組關節角錯位一格，不會報錯。 -->
     <key name="home"
-         qpos="0 0 0.2948 1 0 0 0  0 1.05 -2.00  0 1.05 -2.00  0 1.05 -2.00  0 1.05 -2.00"
+         qpos="0 0 0.2948 1 0 0 0  0 1.05 -2.00 0  0 1.05 -2.00 0  0 1.05 -2.00 0  0 1.05 -2.00 0"
          ctrl="0 1.05 -2.00  0 1.05 -2.00  0 1.05 -2.00  0 1.05 -2.00"/>
   </keyframe>
 </mujoco>

@@ -24,18 +24,31 @@ def model():
 
 def test_freejoint_present_and_dof_count(model):
     # 沒有 freejoint 的話 nq=12 且 BASE_LINK 會被熔進 worldbody
-    assert model.nq == 19, f"nq 應為 19（7 自由基座 + 12 關節），實得 {model.nq}"
-    assert model.nv == 18
-    assert model.nu == 12, f"輪子不建關節，致動器應為 12 個，實得 {model.nu}"
+    assert model.nq == 23, f"nq 應為 23（7 自由基座 + 12 腿關節 + 4 輪關節），實得 {model.nq}"
+    assert model.nv == 22
+    assert model.nu == 12, f"輪子不上致動器，致動器應為 12 個，實得 {model.nu}"
 
 
-def test_wheels_have_no_joint(model):
-    """輪子熔接鎖死：URDF 的 4 個 *_FOOT_JOINT 不得出現在 MJCF。"""
+def test_wheels_have_passive_hinge(model):
+    """輪子是「可受力轉動但無致動器」的鉸鏈，不是熔死、也不是主動輪。
+
+    實機量到原廠對輪子下的是 kp=0 / kd=0.1（純阻尼），從不做位置控制，
+    所以模擬端也不能給致動器；阻尼與靜摩擦寫在 class wheel_joint。
+    """
     names = [mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_JOINT, i) for i in range(model.njnt)]
-    assert not [n for n in names if n and ("wheel" in n or "foot" in n.lower())], \
-        f"輪子不該有關節，實際關節清單：{names}"
-    # 1 個 freejoint + 12 個 hinge
-    assert model.njnt == 13, f"關節總數應為 13（1 freejoint + 12 hinge），實得 {model.njnt}"
+    wheels = [n for n in names if n and "wheel" in n]
+    assert len(wheels) == 4, f"應有 4 個輪關節，實得 {wheels}"
+    # 1 個 freejoint + 12 個腿 hinge + 4 個輪 hinge
+    assert model.njnt == 17, f"關節總數應為 17，實得 {model.njnt}"
+
+    act_joints = {mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_JOINT, int(model.actuator_trnid[a][0]))
+                  for a in range(model.nu)}
+    assert not (act_joints & set(wheels)), f"輪關節不得掛致動器：{act_joints & set(wheels)}"
+
+    for n in wheels:
+        j = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, n)
+        assert model.dof_damping[model.jnt_dofadr[j]] > 0, f"{n} 少了阻尼，會變成完全自由的輪"
+        assert model.dof_frictionloss[model.jnt_dofadr[j]] > 0, f"{n} 少了靜摩擦"
 
 
 def test_total_mass_matches_urdf(model):
@@ -48,7 +61,7 @@ def test_total_mass_matches_urdf(model):
 
 
 def test_wheel_mass_preserved(model):
-    """鎖死不等於簡化掉：四顆輪的質量與慣量都要在。"""
+    """四顆輪的質量與慣量都要完整保留。"""
     for leg in LEGS:
         bid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, f"{leg}_wheel")
         assert bid >= 0, f"找不到 body {leg}_wheel"
@@ -104,7 +117,10 @@ def test_wheel_collision_is_cylinder_with_correct_radius(model):
 def test_home_keyframe(model):
     assert model.nkey >= 1
     qpos = model.key_qpos[0]
-    assert qpos[7:19] == pytest.approx([0.0, 1.05, -2.00] * 4, abs=1e-6)
+    import d1_model
+
+    assert qpos[d1_model.LEG_QPOS_IDX] == pytest.approx([0.0, 1.05, -2.00] * 4, abs=1e-6)
+    assert qpos[d1_model.WHEEL_QPOS_IDX] == pytest.approx([0.0] * 4, abs=1e-12)
     assert model.key_ctrl[0] == pytest.approx([0.0, 1.05, -2.00] * 4, abs=1e-6)
 
 
@@ -141,7 +157,7 @@ def test_make_model_both_variants_compile():
 
     for mjx in (False, True):
         m = d1_model.make_model(mjx=mjx)
-        assert m.nq == 19 and m.nu == 12
+        assert m.nq == 23 and m.nu == 12
         assert mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, "floor") >= 0
 
 
@@ -615,7 +631,7 @@ def test_home12_matches_keyframe(d1m):
     """HOME12 同時是 keyframe 的關節角與致動器目標；三者任一脫鉤就會出生即抽搐。"""
     import d1_model
 
-    assert d1m.key_qpos[0][7:19] == pytest.approx(d1_model.HOME12, abs=1e-9)
+    assert d1m.key_qpos[0][d1_model.LEG_QPOS_IDX] == pytest.approx(d1_model.HOME12, abs=1e-9)
     assert d1m.key_ctrl[0] == pytest.approx(d1_model.HOME12, abs=1e-9)
     assert d1_model.HOME12 == pytest.approx(np.tile(d1_model.HOME3, 4), abs=1e-12)
 
@@ -644,6 +660,8 @@ def test_base_wheel_contacts_excluded(model):
 
 
 def test_base_box_never_reaches_wheels(model):
+    import d1_model
+
     """exclude 的前提：兩者在全關節行程內根本碰不到，所以 CPU 物理不受影響。
 
     這條若失敗，代表 exclude 開始吃掉真實接觸，訓練(MJX)與推論(CPU)會分岔。
@@ -665,7 +683,7 @@ def test_base_box_never_reaches_wheels(model):
     worst = np.inf
     for q in poses:
         data.qpos[:] = model.key_qpos[0]
-        data.qpos[7:19] = q
+        data.qpos[d1_model.LEG_QPOS_IDX] = q
         mujoco.mj_kinematics(model, data)
         for leg in LEGS:
             gid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, leg)
@@ -692,3 +710,60 @@ def test_mjx_put_model_actually_works():
     assert sys_mjx.nu == 12
     # biastype 必須留在 affine，否則 ctrl 會被當力矩施加、機器人直接塌掉
     assert int(sys_mjx.actuator_biastype[0]) == int(mujoco.mjtBias.mjBIAS_AFFINE)
+
+
+def test_leg_and_wheel_indices_match_name_lookup(model):
+    """LEG_QPOS_IDX 等四張位址表必須與實際模型的名稱查詢一致。
+
+    這幾張表是手寫常數（obs 與 MJX 訓練都要靜態索引，不能在 jit 內查名稱）。
+    一旦 MJCF 的 body 順序或關節增減改動，表就會靜默指到別的關節——
+    obs 會餵錯 12 個數字、IK 的 Jacobian 會變奇異，兩者都不會自己報錯。
+    """
+    import d1_model
+
+    leg_qpos, leg_qvel, wheel_qpos, wheel_qvel = [], [], [], []
+    for leg in d1_model.LEGS:
+        for j in ("abad", "hip", "knee"):
+            jid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, f"{leg}_{j}_joint")
+            assert jid >= 0, f"名稱契約破裂：找不到 {leg}_{j}_joint"
+            leg_qpos.append(int(model.jnt_qposadr[jid]))
+            leg_qvel.append(int(model.jnt_dofadr[jid]))
+        wid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, f"{leg}_wheel_joint")
+        assert wid >= 0, f"名稱契約破裂：找不到 {leg}_wheel_joint"
+        wheel_qpos.append(int(model.jnt_qposadr[wid]))
+        wheel_qvel.append(int(model.jnt_dofadr[wid]))
+
+    assert list(d1_model.LEG_QPOS_IDX) == leg_qpos
+    assert list(d1_model.LEG_QVEL_IDX) == leg_qvel
+    assert list(d1_model.WHEEL_QPOS_IDX) == wheel_qpos
+    assert list(d1_model.WHEEL_QVEL_IDX) == wheel_qvel
+    # 腿與輪不得重疊，且合起來要蓋滿基座以外的所有自由度
+    assert not set(leg_qpos) & set(wheel_qpos)
+    assert sorted(leg_qpos + wheel_qpos) == list(range(7, model.nq))
+    assert sorted(leg_qvel + wheel_qvel) == list(range(6, model.nv))
+
+
+def test_notebook_leg_indices_match_d1_model():
+    """Colab notebook 的位址表是**另一份拷貝**，改一邊沒改另一邊 = 訓練與推論對不起來。
+
+    症狀不會是報錯，而是訓練出來的權重在本機推論時行為錯亂，所以在這裡釘住。
+    """
+    import ast
+    import json
+    import re
+
+    import d1_model
+
+    nb_path = Path(__file__).resolve().parents[1] / "notebooks" / "cpg_rl_d1w_colab.ipynb"
+    nb = json.loads(nb_path.read_text())
+    src = "".join("".join(c["source"]) for c in nb["cells"] if c["cell_type"] == "code")
+
+    for name, expected in (("LEG_QPOS_IDX", d1_model.LEG_QPOS_IDX),
+                           ("LEG_QVEL_IDX", d1_model.LEG_QVEL_IDX)):
+        m = re.search(rf"^{name} = jnp\.array\((\[[^\]]*\])\)", src, re.M)
+        assert m, f"notebook 裡找不到 {name} 的定義"
+        assert ast.literal_eval(m.group(1)) == list(expected), (
+            f"notebook 的 {name} 與 d1_model 不一致")
+
+    m = re.search(r"^LEG_QPOS_IDX_np = (\[[^\]]*\])", src, re.M)
+    assert m and ast.literal_eval(m.group(1)) == list(d1_model.LEG_QPOS_IDX)

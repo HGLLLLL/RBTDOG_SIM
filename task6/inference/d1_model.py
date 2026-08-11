@@ -21,7 +21,17 @@ LEGS = ("FL", "FR", "RL", "RR")        # 見 task6/docs 對照表（官方文件
                                        # 關係會靜默失效（見 test_cpg_d1 的相位釘住測試）
 HOME3 = np.array([0.0, 1.05, -2.00])   # abad, hip, knee；knee 軸為 +y，故 hip 為正（與點足版相反）
 HOME12 = np.tile(HOME3, 4)
-WHEEL_RADIUS = 0.0710                  # 輪半徑(m)；輪子在模擬中熔接鎖死，當成圓腳
+WHEEL_RADIUS = 0.0710                  # 輪半徑(m)
+
+# ---- 關節在 qpos / qvel 裡的位址 ----
+# 輪子有自己的鉸鏈（2026-08-11 起不再熔死），所以 12 個腿關節在 qpos 裡**不連續**：
+#   qpos: 0-6 基座 | 7,8,9 FL abad/hip/knee | 10 FL 輪 | 11,12,13 FR | 14 FR 輪 | ...
+# 「腿關節 = qpos[7:19]」這個舊假設會靜默把輪角當成關節角讀進去（IK 會變奇異矩陣，
+# obs 會餵錯 12 個數字而不報錯），所以改用明列位址，並由 test_model 對名稱查詢驗證。
+LEG_QPOS_IDX = np.array([7, 8, 9, 11, 12, 13, 15, 16, 17, 19, 20, 21])
+LEG_QVEL_IDX = np.array([6, 7, 8, 10, 11, 12, 14, 15, 16, 18, 19, 20])
+WHEEL_QPOS_IDX = np.array([10, 14, 18, 22])
+WHEEL_QVEL_IDX = np.array([9, 13, 17, 21])
 NOMINAL_HEIGHT = 0.2695  # 實際站定後的機身高度(m)。keyframe 的 0.2948 是純運動學值，
                          # 實機/模擬因 kp=80 位置伺服的靜態撓度會沉降約 2.5cm。
                          # 訓練的高度獎勵要用這個值，不是 key_qpos[2]。
@@ -34,12 +44,20 @@ FALL_GRAV_Z = -0.4       # 機身座標系中重力 z 分量高於此值視為�
 # ---- 控制 ----
 CTRL_DT = 0.02      # 50 Hz，落在 SDK 建議的 20~50 Hz 內
 SIM_DT = 0.004
-KP, KD = 80.0, 1.0  # 原廠 demo 值（取自點足版 lowlevel_demo；輪足版無 LowLevel demo）不得擅改
+KP, KD = 80.0, 1.0  # 取自點足版 lowlevel_demo:68-73（輪足版官方沒有 LowLevel demo）。
+                    # 2026-08-11 實機從 /spline_shm 指令區量到原廠**站立**用的是
+                    # 腿 kp=20/kd=0.7、輪 kp=0/kd=0.1，比這裡軟 4 倍；但原廠是把 p_des
+                    # 當力矩合成把手（站立時刻意留 22° 追蹤誤差、t_ff=0），與本專案
+                    # 「p_des 是真實目標」的架構不同，不能直接搬。走路時的原廠增益尚未量到。
+                    # 決策：走路沿用點足版的 80/1（後腳實測能正常抬腿）。不得擅改。
 TAU_MAX = 28.0      # URDF effort；官網 48 N·m 為峰值，取保守值
 
 # ---- CPG（與 task4 論文標準版逐項相同）----
 MU_MIN, MU_MAX = 1.0, 2.0
-OMEGA_MIN, OMEGA_MAX = 0.0, 4.5
+OMEGA_MIN, OMEGA_MAX = 0.0, 2.5   # 4.5 → 2.5（2026-08-11）：kp=80 時 ω≈2.4–3.4 是倒退走帶
+                                  # （抬不夠的腿在擺動相被往前拖，把機身往後推），舊上限讓
+                                  # 動作空間有一大半落在裡面。訓好的 policy 常用 1.3–1.75。
+                                  # ★ 與 notebook 的 OMEGA_MAX 是兩份，改一邊必須改另一邊。
 A_CONV = 50.0
 D_STEP = 0.12      # 前後步幅尺度
 D_STEP_Y = 0.09    # 側向擺幅尺度：本機 abad 行程僅 ±28°(Go2 ±60°)，沿用 0.12 會超限 14%
@@ -69,7 +87,7 @@ def make_model(mjx: bool = False) -> mujoco.MjModel:
 def foot_geom_ids(m: mujoco.MjModel) -> list[int]:
     """四顆輪子碰撞 geom 的 id，順序同 LEGS。
 
-    輪子鎖死當圓腳，功能上等同足端，故沿用 foot_* 命名供 IK 與觸地判定引用。
+    輪子有自己的被動鉸鏈，但輪心仍是 IK 與觸地判定的參考點，故沿用 foot_* 命名。
     名稱查不到時 mj_name2id 回傳 -1，而 Python 的 -1 索引會靜默拿到最後一個元素
     （拿到 RR 的資料卻以為是 FL），所以這裡必須當場擋下來。
     """

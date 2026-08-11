@@ -54,13 +54,15 @@ _SEN_CPG = {
 
 
 def _sentinel_obs():
-    qpos = np.zeros(19)
+    # nq=23 / nv=22：輪關節夾在腿關節之間，所以用 LEG_*_IDX 而不是連續切片。
+    # 輪關節故意塞哨兵值——若 build_obs 誤用 qpos[7:19] 就會把它讀進 obs 而被抓到。
+    qpos = np.full(23, 9999.0)
+    qvel = np.full(22, 9999.0)
     qpos[3:7] = [1.0, 0.0, 0.0, 0.0]                # 單位四元數 → gravity = (0,0,-1)
-    qpos[7:19] = d1_model.HOME12 + _SEN_JOINT_POS   # build_obs 會減掉 HOME12
-    qvel = np.zeros(18)
+    qpos[d1_model.LEG_QPOS_IDX] = d1_model.HOME12 + _SEN_JOINT_POS   # build_obs 會減掉 HOME12
     qvel[0:3] = _SEN_LINVEL
     qvel[3:6] = _SEN_GYRO
-    qvel[6:18] = _SEN_JOINT_VEL
+    qvel[d1_model.LEG_QVEL_IDX] = _SEN_JOINT_VEL
     d = _FakeData(qpos, qvel, _SEN_ACT_FORCE.copy())
     obs = obs_d1.build_obs(d, {k: v.copy() for k, v in _SEN_CPG.items()},
                            _SEN_CMD, _SEN_LAST_A)

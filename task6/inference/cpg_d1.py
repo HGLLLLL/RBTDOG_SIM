@@ -12,9 +12,9 @@ IK 用「home 姿態的數值 Jacobian 求逆」，對關節正負號自動免�
 import mujoco
 import numpy as np
 
-from d1_model import (A_CONV, D_STEP, D_STEP_Y, G_C, G_P, HOME3, LEGS, MU_MAX,
-                      MU_MIN, N_CPG_SUB, OMEGA_MAX, OMEGA_MIN, PHASE_OFFSET,
-                      W_COUP)
+from d1_model import (A_CONV, D_STEP, D_STEP_Y, G_C, G_P, HOME3, LEG_QPOS_IDX,
+                      LEGS, MU_MAX, MU_MIN, N_CPG_SUB, OMEGA_MAX, OMEGA_MIN,
+                      PHASE_OFFSET, W_COUP)
 
 PHI = PHASE_OFFSET[None, :] - PHASE_OFFSET[:, None]   # (4,4) 目標相位差
 
@@ -58,13 +58,13 @@ def leg_ik_consts(m: mujoco.MjModel):
     d = mujoco.MjData(m)
     f0s, jinvs = [], []
     for k, leg in enumerate(LEGS):
-        jb = 7 + 3 * k
+        sl = LEG_QPOS_IDX[3 * k:3 * k + 3]   # 輪關節夾在腿關節之間，位址不連續
         gid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, leg)
         hip = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, f"{leg}_abad")
 
         def foot(q3):
             mujoco.mj_resetDataKeyframe(m, d, 0)
-            d.qpos[jb:jb + 3] = q3
+            d.qpos[sl] = q3
             mujoco.mj_forward(m, d)
             return (d.geom_xpos[gid] - d.xpos[hip]).copy()
 

@@ -77,7 +77,7 @@ def test_ik_jacobian_moves_foot_in_requested_direction():
     q3 = d1_model.HOME3 + jinvs[0] @ want
 
     mujoco.mj_resetDataKeyframe(m, d, 0)
-    d.qpos[7:10] = q3
+    d.qpos[d1_model.LEG_QPOS_IDX[0:3]] = q3   # FL abad/hip/knee（輪關節不連續，別用 7:10）
     mujoco.mj_forward(m, d)
     gid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, "FL")
     hid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, "FL_abad")
@@ -96,8 +96,11 @@ def test_joint_targets_returns_12_and_stays_in_limits():
         c = cpg_d1.cpg_step(c, np.full(4, 2.0), np.full(4, 2.0), om, d1_model.CTRL_DT)
         q = cpg_d1.joint_targets(c, f0s, jinvs)
         assert q.shape == (12,)
-        assert np.all(q >= m.jnt_range[1:, 0] - 1e-6), "關節目標角低於下限"
-        assert np.all(q <= m.jnt_range[1:, 1] + 1e-6), "關節目標角超過上限"
+        # jnt_range 現在還含 4 個輪關節（無限位），不能再用 [1:] 一把抓，改用名稱取 12 個腿關節
+        leg_jids = [mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, f"{leg}_{j}_joint")
+                    for leg in d1_model.LEGS for j in ("abad", "hip", "knee")]
+        assert np.all(q >= m.jnt_range[leg_jids, 0] - 1e-6), "關節目標角低於下限"
+        assert np.all(q <= m.jnt_range[leg_jids, 1] + 1e-6), "關節目標角超過上限"
         # 還要在致動器 ctrlrange 內才不會被 clip（abad 的 ctrlrange 比 jnt_range 更緊）
         assert np.all(q >= m.actuator_ctrlrange[:, 0] - 1e-6), "關節目標角低於 ctrlrange"
         assert np.all(q <= m.actuator_ctrlrange[:, 1] + 1e-6), "關節目標角超過 ctrlrange"
@@ -141,7 +144,7 @@ CPG_CONSTANTS = {
     "MU_MIN": 1.0,
     "MU_MAX": 2.0,
     "OMEGA_MIN": 0.0,
-    "OMEGA_MAX": 4.5,
+    "OMEGA_MAX": 2.5,
     "A_CONV": 50.0,
     "D_STEP": 0.12,
     "D_STEP_Y": 0.09,

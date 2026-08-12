@@ -152,10 +152,11 @@ def probe_stops(buf, leg, joint):
 
     scale = span_shm / span_mjcf
     sign = 1 if b > a else -1          # MJCF 正向端對應 SHM 較大 → sign=+1
-    shm_at_lo, shm_at_hi = (a, b) if sign > 0 else (b, a)
-    # shm = sign*mjcf + offset → offset 由兩端各算一次取平均
-    o1 = shm_at_lo - sign * lo_mjcf
-    o2 = shm_at_hi - sign * hi_mjcf
+    # a 是在【MJCF 負向端】量的、b 是【正向端】——這是操作順序決定的，
+    # 與 sign 無關。⚠️ 曾經在 sign<0 時把兩者對調，導致印出的 o1/o2 是垃圾、
+    # 一致性警告變成假警報（平均值剛好不受影響，所以結果是對的、檢查是壞的）。
+    o1 = a - sign * lo_mjcf
+    o2 = b - sign * hi_mjcf
     offset = 0.5 * (o1 + o2)
 
     cur_sign, cur_off = calib_map.CALIB[leg][joint]

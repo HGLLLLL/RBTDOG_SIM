@@ -420,37 +420,46 @@ def test_jog_leg_out_of_range_is_rejected_at_cli(monkeypatch, capsys):
 # 修正 1（Critical）：run_jog 必須在 MJCF 空間下指令，不是 SHM 空間
 # ============================================================
 
-def test_jog_commands_in_mjcf_space_so_the_manual_criterion_holds(fake_shm, monkeypatch):
+@pytest.mark.parametrize("leg,joint,jidx", [(0, "hip", 1), (1, "hip", 1),
+                                            (0, "abad", 0), (3, "knee", 2)])
+def test_jog_commands_in_mjcf_space_so_the_manual_criterion_holds(
+        fake_shm, monkeypatch, leg, joint, jidx):
     """驗號是唯一能抓到 sign 錯誤的關卡，判準必須與手冊的 MJCF 正向定義同一個空間。
 
-    leg0(FR) 的 hip sign = -1：MJCF 正向位移必須對應 SHM 的負向指令。
-    若 jog 直接在 SHM 空間加正值，校正正確時操作者會看到相反的方向，
-    進而把對的校正改壞。
+    jog 在 MJCF 空間下 +0.10 rad，所以 SHM 指令要往 sign 的方向偏離起點：
+    sign=-1 的關節往負、sign=+1 的往正。若 jog 直接在 SHM 空間加正值，
+    sign=-1 的關節在校正正確時會讓操作者看到相反的方向，進而把對的校正改壞。
+
+    ⚠️ 不寫死某一顆關節的 sign——2026-08-12 重新校正時 leg0.hip 從 -1 變成 +1，
+       寫死會讓測試在校正變動時失敗而非在真的有 bug 時失敗。這裡涵蓋
+       sign=-1 與 sign=+1 兩種情形。
     """
     import calib_map
     import shm_common as SC
-    s, o = calib_map.CALIB[0]["hip"]
-    assert s == -1, "前提變了，這個測試要重寫"
+    s, _o = calib_map.CALIB[leg][joint]
 
     monkeypatch.setattr(SC, "preflight_mc_stopped", lambda d: (True, 0))
-    start_shm = SC.POSE_STAND[0]["hip"]
-    fake_shm.state.legs[0].hip.p = start_shm
+    start_shm = SC.POSE_STAND[leg][joint]
+    setattr(getattr(fake_shm.state.legs[leg], joint), "p", start_shm)
 
     sent = []
     orig = L7._stream
 
     def spy(d, frames, active, kp, kd, ta, va, log, dry, label):
-        sent.extend(np.asarray(frames)[:, 0, 1].tolist())   # leg0 的 hip 指令
+        sent.extend(np.asarray(frames)[:, leg, jidx].tolist())
         return orig(d, frames, active, kp, kd, ta, va, log, dry, label)
 
     monkeypatch.setattr(L7, "_stream", spy)
-    L7.run_jog(fake_shm, 0, "hip", 20.0, 0.7, log_path=None)
+    L7.run_jog(fake_shm, leg, joint, 20.0, 0.7, log_path=None)
 
     sent = np.asarray(sent)
-    # MJCF 空間 +0.10 rad → sign=-1 → SHM 指令要往【負】方向偏離起點
-    assert sent.min() < start_shm - 0.09, "MJCF 正向沒有對應到 SHM 負向"
-    assert sent.max() < start_shm + 0.01, "SHM 指令往正向跑了，座標空間搞反"
-    # 幅度仍是 ±0.10 rad（sign 只改方向不改大小）
+    if s < 0:
+        assert sent.min() < start_shm - 0.09, "MJCF 正向沒有對應到 SHM 負向"
+        assert sent.max() < start_shm + 0.01, "SHM 指令往正向跑了，座標空間搞反"
+    else:
+        assert sent.max() > start_shm + 0.09, "MJCF 正向沒有對應到 SHM 正向"
+        assert sent.min() > start_shm - 0.01, "SHM 指令往負向跑了，座標空間搞反"
+    # 幅度恆為 0.10 rad（sign 只改方向不改大小）
     assert (sent.max() - sent.min()) == pytest.approx(0.10, abs=5e-3)
 
 

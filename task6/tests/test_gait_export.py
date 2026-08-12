@@ -33,14 +33,21 @@ def test_shm_limits_swaps_bounds_when_sign_is_negative(model):
             lo, hi = lim[(shm_leg, jn)]
             assert lo < hi, f"leg{shm_leg}.{jn} 上下界顛倒：{lo} !< {hi}"
 
-    # leg0 = FR，其 knee 的 sign 是 -1（見 calib_map.CALIB）
-    assert calib_map.CALIB[0]["knee"][0] == -1
-    s, o = calib_map.CALIB[0]["knee"]
-    mjcf_lo, mjcf_hi = -2.7030, -0.6220          # FR_knee 的 ctrlrange
-    lo, hi = lim[(0, "knee")]
-    # sign=-1：MJCF 下界映到 SHM 上界
-    assert hi == pytest.approx(s * mjcf_lo + o, abs=1e-6)
-    assert lo == pytest.approx(s * mjcf_hi + o, abs=1e-6)
+    # 找一個 sign=-1 的關節來驗上下界對調。不寫死是哪一顆——2026-08-12 重新校正
+    # 之後 leg0.knee 從 -1 變成 +1，寫死會讓這個測試在校正變動時失敗而非在
+    # 真的有 bug 時失敗。
+    neg = [(leg, jn) for leg in range(4) for jn in GE.JN
+           if calib_map.CALIB[leg][jn][0] == -1]
+    assert neg, "沒有任何 sign=-1 的關節，這個測試就失去意義了"
+    MJCF_RANGE = {"abad": (-0.4687, +0.4687), "hip": (-1.1320, +2.9470),
+                  "knee": (-2.7030, -0.6220)}      # ctrlrange，四條腿相同
+    for leg, jn in neg:
+        s, o = calib_map.CALIB[leg][jn]
+        mjcf_lo, mjcf_hi = MJCF_RANGE[jn]
+        lo, hi = lim[(leg, jn)]
+        # sign=-1：MJCF 下界映到 SHM 上界
+        assert hi == pytest.approx(s * mjcf_lo + o, abs=1e-6), f"leg{leg}.{jn}"
+        assert lo == pytest.approx(s * mjcf_hi + o, abs=1e-6), f"leg{leg}.{jn}"
 
 
 def test_calib_map_round_trips():
@@ -259,10 +266,18 @@ def test_export_refuses_when_checks_fail(model, tmp_path):
 
 
 def test_start_offset_from_stand_matches_measured_value(model):
-    """起步位移決定 ramp 時間。實測最大 0.4553 rad（leg1 hip）。"""
+    """起步位移決定 ramp 時間。
+
+    2026-08-12 重新校正後從 0.44 變成 0.87 rad——因為舊校正把「實機站姿」
+    當成 MJCF home，新校正實測出兩者差 knee 34°、hip 20°。位移變大是正確的，
+    ramp 時間會跟著從 2.0s 拉到約 3.5s（0.87/0.25）。
+
+    上界 1.5 rad 是安全性斷言而非精度斷言：超過那個量代表校正又跑掉了，
+    L7 會用很長的時間把腿拉到一個很遠的地方，是先前 Critical 的失效樣態。
+    """
     q_mjcf, q_shm = GE.build_trajectory(model, GE.DEPLOY_G_C, secs=2.0)
     _, _, stats = GE.run_checks(model, q_mjcf, q_shm)
-    assert 0.2 < stats["start_offset_from_stand"] < 0.7
+    assert 0.5 < stats["start_offset_from_stand"] < 1.5
 
 
 def test_air_servo_sim_matches_the_measured_baseline(model):

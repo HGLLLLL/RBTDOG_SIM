@@ -214,6 +214,9 @@ def test_run_jog_writes_active_legs_and_time_scale_into_log(tmp_path, monkeypatc
     for i in range(4):
         for jn in ("abad", "hip", "knee", "foot"):
             getattr(d.state.legs[i], jn).flags = 1 | (30 << 8) | (44 << 16)
+        for jn in ("abad", "hip", "knee"):
+            # 初始化成站姿：留 0.0 會落在機構限位上，被行程餘裕檢查正確拒跑
+            getattr(d.state.legs[i], jn).p = SC.POSE_STAND[i][jn]
     monkeypatch.setattr(_time, "sleep", lambda _s: None)
     captured = {}
 
@@ -233,13 +236,20 @@ def test_run_jog_writes_active_legs_and_time_scale_into_log(tmp_path, monkeypatc
 
 @pytest.fixture
 def fake_shm(monkeypatch):
-    """記憶體版 SplineData + 停用 sleep。讓真機執行路徑可測，不需要硬體。"""
+    """記憶體版 SplineData + 停用 sleep。讓真機執行路徑可測，不需要硬體。
+
+    ⚠️ state.p 要初始化成【站姿】而不是留 0.0。0.0 在新校正下換算成 MJCF
+       會落在機構限位上（例如 hip 的 0.0 → MJCF +2.9558，上限是 +2.967），
+       run_jog 的行程餘裕檢查會正確地拒跑，讓測試在一個不真實的前提下失敗。
+    """
     import time as _time
     import shm_common as SC
     d = SC.SplineData()
     for i in range(4):
         for jn in ("abad", "hip", "knee", "foot"):
             getattr(d.state.legs[i], jn).flags = 1 | (30 << 8) | (44 << 16)
+        for jn in ("abad", "hip", "knee"):
+            getattr(d.state.legs[i], jn).p = SC.POSE_STAND[i][jn]
     monkeypatch.setattr(_time, "sleep", lambda _s: None)
     return d
 
@@ -452,14 +462,19 @@ def test_jog_commands_in_mjcf_space_so_the_manual_criterion_holds(
     monkeypatch.setattr(L7, "_stream", spy)
     L7.run_jog(fake_shm, leg, joint, 20.0, 0.7, log_path=None)
 
+    # SHM 指令方向 = sign × 該關節 jog 的 MJCF 方向。
+    # abad 是逐腿指定「外張」（右腿 MJCF -、左腿 +），hip/knee 統一 +。
+    jd = L7.JOG_DIR[joint]
+    d_mjcf = jd if isinstance(jd, int) else jd[leg]
+    expect = s * d_mjcf
     sent = np.asarray(sent)
-    if s < 0:
-        assert sent.min() < start_shm - 0.09, "MJCF 正向沒有對應到 SHM 負向"
-        assert sent.max() < start_shm + 0.01, "SHM 指令往正向跑了，座標空間搞反"
+    if expect < 0:
+        assert sent.min() < start_shm - 0.09, "指令沒有往預期的 SHM 負向走"
+        assert sent.max() < start_shm + 0.01, "指令往正向跑了，座標空間搞反"
     else:
-        assert sent.max() > start_shm + 0.09, "MJCF 正向沒有對應到 SHM 正向"
-        assert sent.min() > start_shm - 0.01, "SHM 指令往負向跑了，座標空間搞反"
-    # 幅度恆為 0.10 rad（sign 只改方向不改大小）
+        assert sent.max() > start_shm + 0.09, "指令沒有往預期的 SHM 正向走"
+        assert sent.min() > start_shm - 0.01, "指令往負向跑了，座標空間搞反"
+    # 幅度恆為 0.10 rad（sign 與方向都只改正負，不改大小）
     assert (sent.max() - sent.min()) == pytest.approx(0.10, abs=5e-3)
 
 

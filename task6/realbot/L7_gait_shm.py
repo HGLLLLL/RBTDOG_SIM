@@ -46,6 +46,21 @@ D_STEP, D_STEP_Y, G_P = 0.12, 0.09, 0.01
 HOME3 = np.array([0.0, 1.05, -2.00])
 PHASE_WALK = np.array([0.0, np.pi, 1.5 * np.pi, 0.5 * np.pi])
 
+# --- jog 驗號的動作方向 ---
+# abad 逐腿指定「外張」是 MJCF 的哪一向：MJCF +abad 是四條腿都往【左】，
+# 所以右腿(FR=0, RR=2)的外側是 -、左腿(FL=1, RL=3)的外側是 +。
+# 統一往外張有兩個好處：判準不必分左右講，而且吊掛時腿常內收頂在限位上，
+# 往外動是離開限位而不是往裡壓。
+JOG_DIR = {"abad": {0: -1, 1: +1, 2: -1, 3: +1},
+           "hip": +1,        # MJCF +hip = 後擺，四條腿一致
+           "knee": +1}       # MJCF +knee = 伸直，四條腿一致
+JOG_DESC = {"abad": "外張", "hip": "後擺", "knee": "伸直"}
+
+# MJCF 機構範圍，用來算 jog 的行程餘裕（joint range，不是 ctrlrange）
+JOINT_RANGE_MJCF = {"abad": (-0.4887, +0.4887),
+                    "hip": (-1.1520, +2.9670),
+                    "knee": (-2.7230, -0.6020)}
+
 LEG_KP, LEG_KD = 20.0, 0.7     # 原廠站立實測值
 STOP_KD = 3.0
 CATCH_SEC = 0.5
@@ -493,19 +508,40 @@ def run_jog(d, leg, joint_name, kp, kd, log_path=None):
     sign, offset = calib_map.CALIB[leg][joint_name]
     mjcf0 = (start_shm[ji] - offset) / sign
 
+    # 要往 MJCF 的哪一向動。abad 用【每條腿各自的外側】而不是統一 +（=往左）：
+    #   MJCF +abad 是四條腿都往左，所以對右腿(FR/RR)來說 + 是【內收】。
+    #   吊掛時腿常常已經內收頂在限位上，往內再推就是往機構限位裡壓。
+    #   一律往外張既安全、判準也統一（四條腿都是「外張」，不必分左右講）。
+    d_mjcf = JOG_DIR[joint_name] if isinstance(JOG_DIR[joint_name], int) \
+        else JOG_DIR[joint_name][leg]
+    move_desc = JOG_DESC[joint_name]
+
     amp, secs = 0.10, 8.0
+    # 行程餘裕檢查：往指令方向若不足 amp，就是要往限位裡壓 → 拒跑。
+    # （2026-08-12：量完兩端限位之後四條腿都停在內收限位上，這時跑 abad 會撞）
+    lo_mjcf, hi_mjcf = JOINT_RANGE_MJCF[joint_name]
+    headroom = (hi_mjcf - mjcf0) if d_mjcf > 0 else (mjcf0 - lo_mjcf)
+    if headroom < amp + 0.02:
+        print(f"\n✗ 拒跑：leg{leg}({SC.LEGNAME[leg]}).{joint_name} 目前在 "
+              f"MJCF {mjcf0:+.4f}，往「{move_desc}」方向只剩 {headroom:.4f} rad 行程，"
+              f"不足 {amp:.2f}。")
+        print("  再推下去就是往機構限位裡壓。請先用手把這一軸移離限位一點再跑。")
+        print(f"  （該軸 MJCF 機構範圍 [{lo_mjcf:+.4f}, {hi_mjcf:+.4f}]）")
+        return False
+
     n = int(secs * SC.CTRL_HZ)
     ph = np.linspace(0.0, 1.0, n)                       # 0..1（含端點），一個來回
     tri = np.where(ph < 0.5, ph * 2.0, 2.0 - ph * 2.0)   # 0 → +1 → 0
-    mjcf_delta = amp * tri                               # MJCF 位移，恆 ≥ 0
+    mjcf_delta = d_mjcf * amp * tri                      # MJCF 位移
 
+    shm_dir = "正" if sign * d_mjcf > 0 else "負"
     print(f"\n[*] jog：leg{leg}({SC.LEGNAME[leg]}).{joint_name} "
-          f"SHM 起點 {start_shm[ji]:+.4f} rad（換算 MJCF {mjcf0:+.4f} rad），"
-          f"MJCF 空間 +{amp:.2f} rad 一個來回")
-    print("    ⚠️ 盯著腿看。對照 MJCF 正向定義：+knee→伸直、+abad→外張、+hip→後擺。")
-    print(f"    leg{leg}.{joint_name} 的 calib_map sign={sign:+d}，"
-          f"校正正確時 SHM 指令應往{'正' if sign > 0 else '負'}方向偏離起點。")
-    print("    方向不符就停下來修 calib_map，不要往下走。")
+          f"SHM 起點 {start_shm[ji]:+.4f} rad（換算 MJCF {mjcf0:+.4f} rad）")
+    print(f"    動作：{move_desc}，幅度 {amp:.2f} rad 一個來回"
+          f"（MJCF {d_mjcf:+d} 向，行程餘裕 {headroom:.3f} rad）")
+    print(f"    ⚠️ 盯著腿看，應該看到【{move_desc}】。")
+    print(f"    calib_map sign={sign:+d} → 校正正確時 SHM 指令應往{shm_dir}方向偏離起點。")
+    print("    方向不符就停下來，用 L8_sign_probe.py --stops 重量，不要直接改 calib_map。")
 
     full = np.tile(start_shm, (n, 4, 1))
     full[:, leg, ji] = sign * (mjcf0 + mjcf_delta) + offset
@@ -534,20 +570,30 @@ def run_jog(d, leg, joint_name, kp, kd, log_path=None):
         print(f"⚠️ 保護觸發：{why} → 卸力中止")
     SC.passive_stop(d, (leg,), 800, STOP_KD)
 
-    # 數值佐證：不要只靠人眼。指令的 MJCF 方向 vs 實測 SHM 方向，換算後是否一致。
+    # ⚠️ 這裡【不能】拿「指令 SHM 方向 vs 實測 SHM 方向」當驗號證據。
+    #    兩邊都在 SHM 空間，馬達跟著指令走，所以不管 sign 對錯都會「一致」——
+    #    那是套套邏輯。舊版就是這樣印「✓ 一致」，而當時 calib_map 有 11 項是錯的
+    #    （2026-08-12 實機發現）。
+    #
+    #    sign 描述的是「編碼器座標 ↔ 物理現實」的關係，讀編碼器讀不出來。
+    #    唯一的一手證據是【人眼看腿往哪動】，或用 L8_sign_probe.py 手扳量測。
+    #    這段只報告伺服追得好不好，那是它真正能證明的事。
     if log["p"]:
         p_series = np.asarray(log["p"])[:, leg, ji]
-        i_peak = int(np.argmax(mjcf_delta[:len(p_series)]))
+        i_peak = int(np.argmax(np.abs(mjcf_delta[:len(p_series)])))
         shm_delta = float(p_series[i_peak] - start_shm[ji])
-        expect_dir = "+" if sign > 0 else "-"
-        actual_dir = ("+" if shm_delta > 1e-4 else
-                      "-" if shm_delta < -1e-4 else "0（未量到位移）")
-        print("\n[*] 驗號數值佐證（不要只靠人眼）：")
-        print(f"    指令 MJCF 位移方向：+（三角波峰值 mjcf={mjcf0 + mjcf_delta[i_peak]:+.4f}）")
-        print(f"    實測 SHM 位移（d.state.p，同一時刻）：{shm_delta:+.4f} rad"
-              f"（方向 {actual_dir}）")
-        print(f"    calib_map sign={sign:+d} → 預期 SHM 方向 {expect_dir}："
-              f"{'✓ 一致' if actual_dir == expect_dir else '⚠ 不一致，回頭核對 calib_map'}")
+        cmd_delta = float(sign * mjcf_delta[i_peak])
+        ratio = shm_delta / cmd_delta if abs(cmd_delta) > 1e-9 else 0.0
+        print("\n[*] 伺服追蹤（這【不是】驗號證據，見下）：")
+        print(f"    指令位移 {cmd_delta:+.4f} rad → 實測 {shm_delta:+.4f} rad"
+              f"（追到 {ratio * 100:.0f}%）")
+        if ratio < 0.5:
+            print("    ⚠️ 追蹤量偏低，馬達可能沒出力或卡住——先確認再往下走。")
+        print(f"\n[*] 驗號只能靠眼睛：剛才那條腿有沒有【{move_desc}】？")
+        print("    有 → 這一軸的 calib_map 正確。沒有／反方向 → 停下來，")
+        print(f"    跑 sudo python3 L8_sign_probe.py --leg {leg} --stops 重新量測。")
+        print("    （不要用上面那個追蹤百分比判斷方向——指令與實測同在 SHM 空間，")
+        print("      馬達跟著指令走，號對號錯都會「一致」。）")
 
     if log_path is not None:
         out_path = log_path if ok else _aborted_path(log_path)

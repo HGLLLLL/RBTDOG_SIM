@@ -73,7 +73,23 @@ def expected_calib_hash():
 
 
 def load_trajectory(npz_path):
-    """讀 npz。回傳 (q_shm (N,4,3), meta)。校正雜湊不符就拒跑。"""
+    """讀 npz。回傳 (q_shm (N,4,3), meta)。校正雜湊不符就拒跑。
+
+    ⚠️ 自己做 expanduser 並在檔案不存在時給明確訊息：操作者是在 3 分鐘的
+       開機窗口裡打指令，讓他去讀 numpy 的 FileNotFoundError traceback、
+       自己想是不是 cwd 不對，是在浪費那個窗口。
+    """
+    p = Path(npz_path).expanduser()
+    if not p.is_file():
+        print(f"✗ 找不到軌跡檔：{npz_path}")
+        if str(p) != str(npz_path):
+            print(f"  （展開後：{p}）")
+        if not p.is_absolute():
+            print(f"  目前工作目錄是 {Path.cwd()}——相對路徑是相對於這裡。")
+        print("  狗上的預設位置是 ~/gait_walk_stable.npz；")
+        print("  沒有的話在開發機跑 bash task6/realbot/deploy_to_dog.sh 傳過去。")
+        sys.exit(1)
+    npz_path = p
     z = np.load(npz_path, allow_pickle=False)
     meta = json.loads(str(z["meta_json"]))
     here = expected_calib_hash()

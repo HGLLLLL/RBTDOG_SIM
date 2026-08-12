@@ -462,10 +462,11 @@ def test_jog_commands_in_mjcf_space_so_the_manual_criterion_holds(
     monkeypatch.setattr(L7, "_stream", spy)
     L7.run_jog(fake_shm, leg, joint, 20.0, 0.7, log_path=None)
 
-    # SHM 指令方向 = sign × 該關節 jog 的 MJCF 方向。
-    # abad 是逐腿指定「外張」（右腿 MJCF -、左腿 +），hip/knee 統一 +。
-    jd = L7.JOG_DIR[joint]
-    d_mjcf = jd if isinstance(jd, int) else jd[leg]
+    # SHM 指令方向 = sign × jog 實際選用的 MJCF 方向。
+    # 方向由 pick_jog_dir 自動選（行程較充裕的一邊），所以這裡也用同一支函式
+    # 算出預期值——不要另外寫死，否則測的是「兩份寫死值一不一樣」而非行為。
+    mjcf0 = (start_shm - calib_map.CALIB[leg][joint][1]) / s
+    d_mjcf, _room = L7.pick_jog_dir(leg, joint, mjcf0, 0.10)
     expect = s * d_mjcf
     sent = np.asarray(sent)
     if expect < 0:

@@ -47,19 +47,45 @@ HOME3 = np.array([0.0, 1.05, -2.00])
 PHASE_WALK = np.array([0.0, np.pi, 1.5 * np.pi, 0.5 * np.pi])
 
 # --- jog 驗號的動作方向 ---
-# abad 逐腿指定「外張」是 MJCF 的哪一向：MJCF +abad 是四條腿都往【左】，
-# 所以右腿(FR=0, RR=2)的外側是 -、左腿(FL=1, RL=3)的外側是 +。
-# 統一往外張有兩個好處：判準不必分左右講，而且吊掛時腿常內收頂在限位上，
-# 往外動是離開限位而不是往裡壓。
-JOG_DIR = {"abad": {0: -1, 1: +1, 2: -1, 3: +1},
-           "hip": +1,        # MJCF +hip = 後擺，四條腿一致
-           "knee": +1}       # MJCF +knee = 伸直，四條腿一致
-JOG_DESC = {"abad": "外張", "hip": "後擺", "knee": "伸直"}
+# 每個關節【兩個方向】的物理描述。方向不寫死——腿吊著停在哪裡是隨機的，
+# 寫死就會遇到「那一邊已經頂到限位、推不動」而要一直改程式（實機當天發生三次）。
+# 改成執行時自動選行程比較充裕的那一邊，並把該看到什麼印出來。
+#
+# abad 逐腿不同：MJCF +abad 是四條腿都往【左】，所以右腿(FR=0,RR=2)的 + 是內收、
+# 左腿(FL=1,RL=3)的 + 是外張。hip/knee 四條腿一致。
+_AB_R = {+1: "內收", -1: "外張"}
+_AB_L = {+1: "外張", -1: "內收"}
+JOG_PHRASE = {
+    "abad": {0: _AB_R, 1: _AB_L, 2: _AB_R, 3: _AB_L},
+    "hip":  {+1: "後擺", -1: "前擺"},
+    "knee": {+1: "伸直", -1: "內彎"},
+}
 
 # MJCF 機構範圍，用來算 jog 的行程餘裕（joint range，不是 ctrlrange）
 JOINT_RANGE_MJCF = {"abad": (-0.4887, +0.4887),
                     "hip": (-1.1520, +2.9670),
                     "knee": (-2.7230, -0.6020)}
+
+
+def jog_phrase(leg, joint, direction):
+    """該關節往 MJCF direction 動時，操作者physically 會看到什麼。"""
+    tbl = JOG_PHRASE[joint]
+    if joint == "abad":
+        tbl = tbl[leg]
+    return tbl[direction]
+
+
+def pick_jog_dir(leg, joint, mjcf0, amp, forced=None):
+    """選 jog 的方向。回傳 (direction, 兩向的行程 dict)。
+
+    預設選行程比較充裕的一邊——腿停在限位附近時才不會往裡壓。
+    forced 給 +1/-1 可以指定方向（--jog-dir），但仍受行程檢查約束。
+    """
+    lo, hi = JOINT_RANGE_MJCF[joint]
+    room = {+1: hi - mjcf0, -1: mjcf0 - lo}
+    if forced is not None:
+        return forced, room
+    return (+1 if room[+1] >= room[-1] else -1), room
 
 LEG_KP, LEG_KD = 20.0, 0.7     # 原廠站立實測值
 STOP_KD = 3.0
@@ -470,7 +496,7 @@ def run_gait(d, traj, meta, active_legs, time_scale, kp, kd, dry, log_path,
     return True
 
 
-def run_jog(d, leg, joint_name, kp, kd, log_path=None):
+def run_jog(d, leg, joint_name, kp, kd, log_path=None, jog_dir=None):
     """單關節微動驗號。只驅動一條腿的一個關節。
 
     ⚠️ 這是本檔最重要的安全關卡：唯一能抓到 calib_map 正負號錯誤的地方
@@ -508,24 +534,25 @@ def run_jog(d, leg, joint_name, kp, kd, log_path=None):
     sign, offset = calib_map.CALIB[leg][joint_name]
     mjcf0 = (start_shm[ji] - offset) / sign
 
-    # 要往 MJCF 的哪一向動。abad 用【每條腿各自的外側】而不是統一 +（=往左）：
-    #   MJCF +abad 是四條腿都往左，所以對右腿(FR/RR)來說 + 是【內收】。
-    #   吊掛時腿常常已經內收頂在限位上，往內再推就是往機構限位裡壓。
-    #   一律往外張既安全、判準也統一（四條腿都是「外張」，不必分左右講）。
-    d_mjcf = JOG_DIR[joint_name] if isinstance(JOG_DIR[joint_name], int) \
-        else JOG_DIR[joint_name][leg]
-    move_desc = JOG_DESC[joint_name]
-
     amp, secs = 0.10, 8.0
-    # 行程餘裕檢查：往指令方向若不足 amp，就是要往限位裡壓 → 拒跑。
-    # （2026-08-12：量完兩端限位之後四條腿都停在內收限位上，這時跑 abad 會撞）
+    # 方向自動選行程比較充裕的一邊。腿吊著停在哪裡是隨機的，寫死方向就會
+    # 遇到「那一邊已經頂到限位」而推不動（實機當天連續遇到三次：abad 內收
+    # 頂底、hip 停在上限 0.011 rad 處、knee 伸直頂底）。
+    d_mjcf, room = pick_jog_dir(leg, joint_name, mjcf0, amp, forced=jog_dir)
+    move_desc = jog_phrase(leg, joint_name, d_mjcf)
+    other_desc = jog_phrase(leg, joint_name, -d_mjcf)
+    headroom = room[d_mjcf]
     lo_mjcf, hi_mjcf = JOINT_RANGE_MJCF[joint_name]
-    headroom = (hi_mjcf - mjcf0) if d_mjcf > 0 else (mjcf0 - lo_mjcf)
+
     if headroom < amp + 0.02:
         print(f"\n✗ 拒跑：leg{leg}({SC.LEGNAME[leg]}).{joint_name} 目前在 "
-              f"MJCF {mjcf0:+.4f}，往「{move_desc}」方向只剩 {headroom:.4f} rad 行程，"
+              f"MJCF {mjcf0:+.4f}，往「{move_desc}」只剩 {headroom:.4f} rad 行程，"
               f"不足 {amp:.2f}。")
-        print("  再推下去就是往機構限位裡壓。請先用手把這一軸移離限位一點再跑。")
+        if room[-d_mjcf] >= amp + 0.02:
+            print(f"  （往「{other_desc}」還有 {room[-d_mjcf]:.3f} rad——"
+                  f"這是 --jog-dir 指定方向才會發生的情況，拿掉它就會自動選那邊）")
+        else:
+            print("  兩個方向都沒有行程。請先用手把這一軸移到中間位置再跑。")
         print(f"  （該軸 MJCF 機構範圍 [{lo_mjcf:+.4f}, {hi_mjcf:+.4f}]）")
         return False
 
@@ -537,11 +564,14 @@ def run_jog(d, leg, joint_name, kp, kd, log_path=None):
     shm_dir = "正" if sign * d_mjcf > 0 else "負"
     print(f"\n[*] jog：leg{leg}({SC.LEGNAME[leg]}).{joint_name} "
           f"SHM 起點 {start_shm[ji]:+.4f} rad（換算 MJCF {mjcf0:+.4f} rad）")
-    print(f"    動作：{move_desc}，幅度 {amp:.2f} rad 一個來回"
-          f"（MJCF {d_mjcf:+d} 向，行程餘裕 {headroom:.3f} rad）")
-    print(f"    ⚠️ 盯著腿看，應該看到【{move_desc}】。")
-    print(f"    calib_map sign={sign:+d} → 校正正確時 SHM 指令應往{shm_dir}方向偏離起點。")
-    print("    方向不符就停下來，用 L8_sign_probe.py --stops 重量，不要直接改 calib_map。")
+    print(f"    行程餘裕：{move_desc} {room[d_mjcf]:.3f} rad / "
+          f"{other_desc} {room[-d_mjcf]:.3f} rad"
+          + ("（--jog-dir 指定）" if jog_dir is not None else "（自動選較充裕的一邊）"))
+    print(f"\n    ★★ 這次應該看到：【{move_desc}】，幅度約 {amp:.2f} rad 一個來回 ★★\n")
+    print(f"    calib_map sign={sign:+d} → SHM 指令會往{shm_dir}方向偏離起點。")
+    print("    看到相反方向就停下來，跑 "
+          f"sudo python3 L8_sign_probe.py --leg {leg} --stops 重量，")
+    print("    不要直接改 calib_map。")
 
     full = np.tile(start_shm, (n, 4, 1))
     full[:, leg, ji] = sign * (mjcf0 + mjcf_delta) + offset
@@ -622,6 +652,9 @@ def main():
                     help="leg 模式：只驅動這一條（SHM 腿序）")
     ap.add_argument("--jog-leg", type=int, default=0)
     ap.add_argument("--jog-joint", choices=("abad", "hip", "knee"), default="hip")
+    ap.add_argument("--jog-dir", choices=("auto", "+", "-"), default="auto",
+                    help="jog 往 MJCF 的哪一向動。預設 auto＝選行程比較充裕的一邊"
+                         "（腿停在限位附近時才不會往裡壓）")
     ap.add_argument("--log", default=None,
                     help="log 檔路徑。預設依 mode/source/time_scale/時間戳自動命名"
                          "（避免多次執行互相覆蓋，見 G3-live 的比對需求）")
@@ -727,7 +760,9 @@ def main():
                      args.kp, args.kd, dry=False, log_path=args.log,
                      mode=args.mode, source=args.source)
         else:
-            run_jog(d, active[0], args.jog_joint, args.kp, args.kd, args.log)
+            run_jog(d, active[0], args.jog_joint, args.kp, args.kd, args.log,
+                    jog_dir=None if args.jog_dir == 'auto' else
+                    (+1 if args.jog_dir == '+' else -1))
     except KeyboardInterrupt:
         print("\n[*] 收到 Ctrl+C → 卸力收尾")
         SC.passive_stop(d, active, 800, STOP_KD)

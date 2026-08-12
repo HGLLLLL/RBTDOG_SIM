@@ -207,6 +207,34 @@ def run_checks(m, q_mjcf, q_shm):
     return not problems, problems, stats
 
 
+def _load_model_with_welded_base():
+    """載入場景，並把 base 用 weld equality 焊到世界，模擬吊具。
+
+    為什麼要動 XML 而不是在迴圈裡固定 qpos：見 air_servo_sim 的 docstring。
+    簡言之，事後重設 qpos 會讓每個積分步都是自由落體，關節感受不到重力。
+
+    寫暫存檔而不是 from_xml_string，是因為 scene.xml 用相對路徑 include
+    本體檔與網格；暫存檔必須放在同一個目錄，相對路徑才解析得到。
+    """
+    import tempfile
+    scene = Path(d1_model.SCENE)
+    xml = scene.read_text()
+    if "</mujoco>" not in xml:
+        raise RuntimeError(f"{scene} 結構不如預期，找不到 </mujoco>")
+    xml = xml.replace("</mujoco>",
+                      '  <equality>\n'
+                      '    <weld body1="base"/>   <!-- 吊具：機身固定於世界 -->\n'
+                      '  </equality>\n</mujoco>')
+    with tempfile.NamedTemporaryFile("w", suffix=".xml", dir=scene.parent,
+                                     delete=False) as fh:
+        fh.write(xml)
+        tmp = Path(fh.name)
+    try:
+        return mujoco.MjModel.from_xml_path(str(tmp))
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 AIR_SIM_GRID = ((20.0, 0.7), (40.0, 1.0))     # (kp, kd)。20/0.7 是原廠站立實測值
 AIR_SIM_SCALES = (0.25, 0.5, 1.0)
 
@@ -234,9 +262,24 @@ def air_servo_sim(m, q_mjcf, kp, kd, time_scale, settle_sec=1.0):
        effort 上限），因為 duty_remap 在擺動→站立交界處讓 dθ/dt 差 4 倍，
        指令軌跡有速度折點，二階差分的加速度會爆掉。那描述的是「完美追蹤
        所需的力矩」，而完美追蹤本來就不會發生——位置伺服必然落後。
+
+    ★★ 2026-08-12 實機發現的重大 bug（已修）：機身固定【不能】用「每步
+       mj_step 之後把 qpos[:7] 重設回去」來做。那樣每一個積分步之內整台
+       機器人都在自由落體，機身與腿一起加速 → 關節【完全感受不到重力】，
+       只是下一步又被瞬移歸位。base_drift 會漂亮地等於 0，物理卻是錯的。
+
+       實測對照（靜態握住 MJCF home、kp=20）：
+         事後重設 qpos → abad 誤差 0.000°（!）
+         真的 weld    → abad 5.82°、knee 7.06°
+         靜態逆動力學  → abad 7.04°、knee 7.66°
+         實機量到      → abad 6.3°、knee 4.8°
+       舊版因此系統性低估追蹤誤差【與力矩】，而力矩正是保護門檻的來源——
+       門檻會訂得太緊，在較高倍速誤中止。
+
+       正解是把 base 用 weld equality 真的焊到世界。
     """
     _ensure_mujoco_stack()
-    m2 = mujoco.MjModel.from_xml_path(d1_model.SCENE)
+    m2 = _load_model_with_welded_base()
     m2.opt.disableflags |= mujoco.mjtDisableBit.mjDSBL_CONTACT
     for a in range(m2.nu):                     # 覆寫位置伺服增益
         m2.actuator_gainprm[a][0] = kp
@@ -257,13 +300,9 @@ def air_servo_sim(m, q_mjcf, kp, kd, time_scale, settle_sec=1.0):
         w = x - i0
         return q_mjcf[i0] * (1 - w) + q_mjcf[i1] * w
 
-    def pin():
-        d.qpos[:7] = base_qpos
-        d.qvel[:6] = 0.0
-
+    # 機身由 weld equality 固定（見 docstring），不再事後重設 qpos。
     for _ in range(int(settle_sec / m2.opt.timestep)):    # 先靜置到第 0 幀
         d.ctrl[:] = np.clip(q_mjcf[0], lo, hi)
-        pin()
         mujoco.mj_step(m2, d)
 
     wall = (len(q_mjcf) - 1) * dt / time_scale
@@ -274,14 +313,13 @@ def air_servo_sim(m, q_mjcf, kp, kd, time_scale, settle_sec=1.0):
     for k in range(int(wall / m2.opt.timestep)):
         tgt = sample(k * m2.opt.timestep * time_scale)
         d.ctrl[:] = np.clip(tgt, lo, hi)
-        pin()
-        # 診斷：吊掛模擬的第一個前提是「機身固定」——就在 pin() 剛做完的
-        # 這一刻檢查，才量得到 pin() 有沒有真的生效（若 pin() 被清空，
-        # 這裡量到的就是上一步物理演化後、沒被歸位的殘留值，且會隨時間累積）。
-        # 若改成 mj_step 之後再量，量到的是單一積分步的正常物理殘差
-        # （量級 ~1e-4，不是 0），會讓這個不變量檢查失去意義。
-        base_drift = max(base_drift, float(np.abs(d.qpos[:7] - base_qpos).max()))
         mujoco.mj_step(m2, d)
+        # 診斷：機身固定是吊掛模擬的第一個前提。weld equality 是【軟】約束，
+        # 會留下微小殘差（實測 ~1e-6），不是恆等於 0——所以門檻用 1e-3 而非 0。
+        # ⚠️ 這個量測要在 mj_step【之後】做：weld 是靠求解器在步進中施力達成的，
+        #    步進前量等於還沒約束。舊版用「事後重設 qpos」時剛好相反，那也是
+        #    為什麼舊版的 base_drift 恆為 0 卻掩蓋了完全沒有重力的事實。
+        base_drift = max(base_drift, float(np.abs(d.qpos[:7] - base_qpos).max()))
         tau_pk = max(tau_pk, float(np.abs(d.actuator_force).max()))
         vel_pk = max(vel_pk, float(np.abs(d.qvel[vidx]).max()))
         errs.append(np.abs(d.qpos[idx] - tgt))

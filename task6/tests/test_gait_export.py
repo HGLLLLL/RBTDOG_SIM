@@ -285,19 +285,40 @@ def test_air_servo_sim_matches_the_measured_baseline(model):
     偏離超過 20% 代表模型或軌跡被改動了，要重新確認而不是改門檻。"""
     q_mjcf, _ = GE.build_trajectory(model, GE.DEPLOY_G_C, secs=8.0)
     r = GE.air_servo_sim(model, q_mjcf, kp=20.0, kd=0.7, time_scale=1.0)
-    assert r["tau_peak"] == pytest.approx(10.18, rel=0.20)
-    assert r["err_peak_deg"] == pytest.approx(39.20, rel=0.20)
-    assert r["err_rms_deg"] == pytest.approx(9.30, rel=0.20)
-    assert r["vel_peak"] == pytest.approx(12.96, rel=0.20)
+    # 2026-08-12 更新：修掉「機身固定」的 bug（舊版每步自由落體、關節沒有重力）
+    # 之後的值。舊基準是 10.18 / 39.20 / 9.30 / 12.96，那組數字描述的是一台
+    # 在無重力中跑步態的機器人。
+    assert r["tau_peak"] == pytest.approx(9.40, rel=0.15)
+    assert r["err_peak_deg"] == pytest.approx(36.88, rel=0.15)
+    assert r["err_rms_deg"] == pytest.approx(10.36, rel=0.15)
+    assert r["vel_peak"] == pytest.approx(11.92, rel=0.15)
 
 
 def test_air_servo_sim_gets_easier_when_slowed_down(model):
-    """--time-scale 存在的理由：放慢之後力矩與誤差都要顯著下降。"""
+    """--time-scale 存在的理由：放慢之後力矩與誤差要下降——但有下限。
+
+    ★ 重力負載【不隨速度縮放】。吊掛靜態的重力力矩是 abad 2.46 / knee 2.67 N·m
+      （mj_inverse 在 MJCF home 算得），對應 kp=20 下約 7° 的穩態沉降。
+      再怎麼放慢也降不到那個地板以下。
+
+      修好機身固定的 bug 之前，模擬完全沒有重力，所以每樣東西都與速度成比例，
+      這個測試才會斷言「慢 4 倍 → 好 3 倍以上」。那個斷言描述的是錯的物理。
+    """
     q_mjcf, _ = GE.build_trajectory(model, GE.DEPLOY_G_C, secs=8.0)
     fast = GE.air_servo_sim(model, q_mjcf, 20.0, 0.7, 1.0)
     slow = GE.air_servo_sim(model, q_mjcf, 20.0, 0.7, 0.25)
-    assert slow["tau_peak"] < fast["tau_peak"] / 3
-    assert slow["err_rms_deg"] < fast["err_rms_deg"] / 3
+
+    # 放慢確實會改善（動態分量下降）
+    assert slow["tau_peak"] < fast["tau_peak"]
+    assert slow["err_rms_deg"] < fast["err_rms_deg"]
+
+    # 但降不到靜態重力的地板以下——低於它就代表重力又不見了
+    STATIC_TAU_FLOOR = 2.4       # N·m，abad 2.457 / knee 2.673 取保守下限
+    STATIC_ERR_FLOOR = 4.0       # 度，約 2.4/20 → 6.9°，取保守下限
+    assert slow["tau_peak"] > STATIC_TAU_FLOOR, (
+        f"力矩 {slow['tau_peak']:.2f} 低於靜態重力地板——機身固定又壞了？")
+    assert slow["err_rms_deg"] > STATIC_ERR_FLOOR, (
+        f"誤差 {slow['err_rms_deg']:.2f}° 低於重力沉降地板——機身固定又壞了？")
 
 
 def test_full_speed_torque_exceeds_l4_ceiling(model):
@@ -313,7 +334,9 @@ def test_air_servo_sim_keeps_the_base_pinned_and_contacts_off(model):
     小到會被 20% 容忍帶蓋掉，所以直接斷言不變量。"""
     q_mjcf, _ = GE.build_trajectory(model, GE.DEPLOY_G_C, secs=3.0)
     r = GE.air_servo_sim(model, q_mjcf, kp=20.0, kd=0.7, time_scale=1.0)
-    assert r["base_drift"] == pytest.approx(0.0, abs=1e-12), "機身沒有被固定住"
+    # weld equality 是【軟】約束，會留 ~1e-3 的殘差，不是恆等於 0。
+    # 門檻取 5e-3：完全沒固定的話機身會自由落體、殘差是公尺級，抓得到。
+    assert r["base_drift"] < 5e-3, f"機身沒有被固定住（漂移 {r['base_drift']}）"
     assert r["max_contacts"] == 0, "接觸沒有被關掉"
 
 

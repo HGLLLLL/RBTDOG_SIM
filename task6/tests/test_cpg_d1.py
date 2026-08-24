@@ -228,3 +228,135 @@ def test_cpg_init_uses_phase_offset_directly():
     assert c["theta"] == pytest.approx(np.asarray(d1_model.PHASE_OFFSET), abs=1e-12)
     c["theta"][0] += 1.0
     assert d1_model.PHASE_OFFSET[0] == pytest.approx(0.0), "cpg_init 回傳的相位不得是常數本體的別名"
+
+
+# =====================================================================
+# 開迴路「可用走路步態」的回歸測試（cpg_walk_d1.py）
+#
+# 與上面 test_openloop_walks_forward_without_falling 的分工：
+#   那支驗的是 cpg_openloop_d1 —— 關卡 3 的驗收腳本，只確認 MJCF/IK/伺服接得起來，
+#   它的步態其實不能看（後腳實測只抬 6.3~16.9 mm，指令是 80 mm）。
+#   這支驗的是 cpg_walk_d1 —— 調過參數、四條腿都真的抬起來的走路步態。
+# 兩支都要留：前者是模型正確性的回歸，後者是步態品質的回歸。
+# =====================================================================
+
+
+def test_cpg_walk_all_four_legs_actually_clear_the_ground():
+    """四條腿都要真的離地，而且左右對稱。
+
+    判準依 2026-08-11 實測（8 秒、名目摩擦 0.6、kp=80）：
+    FL 79.9 / FR 80.9 / RL 95.8 / RR 98.3 mm。下限取 40 mm——
+    這個門檻刻意設在「舊 openloop 的最差腿 6.3 mm」與「本步態最差腿 79.9 mm」
+    之間很寬的位置，只擋真正的退化（例如有人改了 X_OFF 或 MU_Y 卻沒發現後腳又趴回去）。
+    """
+    import cpg_walk_d1
+
+    res = cpg_walk_d1.rollout(secs=8.0, video=False, quiet=True)
+
+    assert res["fell"] is None, f"步態跌倒於 {res['fell']} s"
+
+    lifts_mm = [v * 1000 for v in res["peak_lift"]]
+    assert res["min_lift"] * 1000 >= 40.0, (
+        f"最弱的腿只離地 {res['min_lift'] * 1000:.1f} mm（四腿 {lifts_mm}）。"
+        "四條腿都要抬起來才算走路——這正是舊 openloop 步態的病（最差腿 6.3 mm）。"
+    )
+
+    # 左右對稱：同一端的左右腿離地量不應差超過 1.5 倍。
+    # MU_Y 若被改回 1.8（橫向擺動打開），左右會立刻失衡，這條就是用來擋那件事的。
+    front = sorted(lifts_mm[0:2])
+    rear = sorted(lifts_mm[2:4])
+    assert front[1] / front[0] < 1.5, f"前腳左右不對稱：FL/FR = {lifts_mm[0:2]}"
+    assert rear[1] / rear[0] < 1.5, f"後腳左右不對稱：RL/RR = {lifts_mm[2:4]}"
+
+
+def test_cpg_walk_goes_forward_and_roughly_straight():
+    """要往前走，而且不能畫弧。
+
+    實測 8 秒：前進 +6.04 m、側偏 +0.73 m。側偏上限取前進量的 40%，
+    足以擋住 MU_Y 被改回 1.8 的情況（那時側偏會到 −2.45 m / 10 秒）。
+    """
+    import cpg_walk_d1
+
+    res = cpg_walk_d1.rollout(secs=8.0, video=False, quiet=True)
+    assert res["dist"] > 3.0, f"8 秒只前進 {res['dist']:.2f} m"
+    assert abs(res["lateral"]) < 0.4 * res["dist"], (
+        f"側偏 {res['lateral']:+.2f} m 相對前進 {res['dist']:.2f} m 太大，步態在畫弧"
+    )
+
+
+def test_cpg_walk_does_not_saturate_actuator_ctrlrange():
+    """指令不得撞到 ctrlrange。
+
+    撞到就代表 IK 解出來的角度超出致動器行程，指令會被靜默 clip、步態走樣而不報錯。
+    實測本步態全程 0%。
+    """
+    import cpg_walk_d1
+
+    res = cpg_walk_d1.rollout(secs=8.0, video=False, quiet=True)
+    assert res["clip_pct"] < 1.0, f"{res['clip_pct']:.1f}% 的關節指令被 ctrlrange clip 掉"
+
+
+def test_cpg_walk_does_not_mutate_shared_d1_model_constants():
+    """cpg_walk_d1 的步態參數必須是本檔私有，不得汙染 d1_model。
+
+    d1_model.G_C / MU_* / D_STEP 是 RL 訓練與推論的共用契約——
+    本檔用的是 G_C=0.12（RL 是 0.08），若哪天有人圖方便直接改 d1_model，
+    既有權重會全部靜默作廢。
+    """
+    import cpg_walk_d1
+
+    assert cpg_walk_d1.GAIT_G_C != d1_model.G_C, "步態的 G_C 應與 d1_model 分離"
+    assert d1_model.G_C == pytest.approx(0.08), "d1_model.G_C 被改動了"
+    cpg_walk_d1.rollout(secs=1.0, video=False, quiet=True)
+    assert d1_model.G_C == pytest.approx(0.08), "跑完之後 d1_model.G_C 被就地改寫"
+    assert d1_model.MU_MAX == pytest.approx(2.0)
+
+
+def test_cpg_walk_four_beat_gait_keeps_three_legs_on_the_ground():
+    """四拍 walk 的核心價值就是佔空比 0.75 → 任一時刻約三腳著地。
+
+    這是它在低步頻能贏過 trot 的唯一原因：trot 永遠只有兩腳著地，
+    兩腳支撐的空檔身體會下沉，步頻越低下沉越久（實測彈跳 ω=2.0 的 15.7 mm
+    → ω=1.2 的 39.4 mm）。walk 沒有那個空檔。
+    若哪天 duty 被改回 0.5 或相位被改成 trot，這條會響。
+    """
+    import cpg_walk_d1
+
+    res = cpg_walk_d1.rollout(gait="walk", secs=10.0, video=False, quiet=True)
+    assert res["support"] > 2.5, (
+        f"平均支撐腳只有 {res['support']:.2f}，四拍 walk 應接近 3。"
+        "檢查 GAITS['walk'] 的 duty 與 PHASE_WALK 有沒有被改動。"
+    )
+    assert res["fell"] is None
+
+
+def test_cpg_walk_trot_mode_duty_remap_is_identity():
+    """duty=0.5 時 `duty_remap` 必須恆等——否則 trot 模式會與改版前的實測值脫鉤。
+
+    數學上：ph<0.5 → pi*ph/0.5 = 2pi*ph = theta；
+            ph>=0.5 → pi + pi*(ph-0.5)/0.5 = 2pi*ph = theta。
+    """
+    import cpg_walk_d1
+
+    th = np.linspace(0.0, 2 * np.pi, 401)
+    assert cpg_walk_d1.duty_remap(th, 0.5) == pytest.approx(th % (2 * np.pi), abs=1e-9)
+    # duty > 0.5 時擺動相要被壓縮：相位走到一圈的 25% 時就該完成整個擺動（theta'≈pi）
+    assert cpg_walk_d1.duty_remap(np.array([0.25 * 2 * np.pi]), 0.75)[0] == pytest.approx(
+        np.pi, abs=1e-9)
+
+
+def test_cpg_walk_does_not_touch_d1_model_phase_offset():
+    """walk 需要非 trot 的相位，但只能自帶，不得改動 d1_model.PHASE_OFFSET。
+
+    那份是 RL 訓練與推論的共用契約，而且 test_phase_offset_is_trot_not_any_other_gait
+    釘死它是 trot。本檔的耦合矩陣必須來自自己的 PHASE_WALK。
+    """
+    import cpg_walk_d1
+
+    assert not np.allclose(cpg_walk_d1.PHASE_WALK, d1_model.PHASE_OFFSET), \
+        "PHASE_WALK 不應等於 trot"
+    assert np.allclose(cpg_walk_d1.PHASE_TROT, d1_model.PHASE_OFFSET), \
+        "PHASE_TROT 應與 d1_model 的 trot 相位一致"
+    cpg_walk_d1.rollout(gait="walk", secs=2.0, video=False, quiet=True)
+    assert np.allclose(d1_model.PHASE_OFFSET, [0.0, np.pi, np.pi, 0.0]), \
+        "跑完 walk 之後 d1_model.PHASE_OFFSET 被就地改寫了"

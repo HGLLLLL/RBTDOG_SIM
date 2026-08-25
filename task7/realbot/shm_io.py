@@ -136,6 +136,16 @@ class Shm:
             if v is not None:
                 _F8.pack_into(self.mm, self._cmd_field_off(idx, f), float(v))
 
+    def states(self) -> list[dict]:
+        """讀 joint_state 的 16 筆，回傳具名欄位。
+
+        給高頻迴圈用 —— 模組層的 read_joint_state() 每次呼叫都會 open/mmap/close，
+        在 200 Hz 迴圈裡是每秒 200 次系統呼叫，會增加抖動。持有一個 handle 重複讀比較好。
+        """
+        recs = self.read_records(STATE_STRIDE, 5)
+        keys = ("position", "velocity", "effort", "temp_C", "voltage_V")
+        return [{"name": r["name"], **{k: r[i] for i, k in enumerate(keys)}} for r in recs]
+
     def read_tick(self, stride: int) -> int:
         """讀整幀共用的時戳（16 筆都一樣，取第 0 筆）。"""
         return _U8.unpack_from(self.mm, BASE + TICK_OFF)[0]
@@ -161,11 +171,12 @@ class Shm:
 
 
 def read_joint_state() -> list[dict]:
-    """回傳 16 筆 {name, position, velocity, effort, temp, voltage}。唯讀，不需 root。"""
+    """回傳 16 筆 {name, position, velocity, effort, temp, voltage}。唯讀，不需 root。
+
+    一次性讀取用。高頻迴圈請自己持有 Shm("joint_state") 並呼叫 .states()。
+    """
     with Shm("joint_state") as s:
-        recs = s.read_records(STATE_STRIDE, 5)
-    keys = ("position", "velocity", "effort", "temp_C", "voltage_V")
-    return [{"name": r["name"], **{k: r[i] for i, k in enumerate(keys)}} for r in recs]
+        return s.states()
 
 
 def read_joint_cmd() -> list[dict]:

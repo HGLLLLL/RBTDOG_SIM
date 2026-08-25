@@ -107,6 +107,7 @@ def main() -> int:
     period = 1.0 / a.hz
     frozen = False
     shm = shm_io.Shm("joint_cmd", write=True)
+    state_ro = shm_io.Shm("joint_state")      # 常駐 handle，避免 200 Hz 迴圈裡重複 open/close
     trace: list[tuple[float, float, float]] = []
     abort = ""
 
@@ -114,10 +115,17 @@ def main() -> int:
         try:
             for i in range(len(shm_io.JOINTS)):
                 shm.zero_gains(i)        # 先增益歸零 → 立即停止出力
+            # ★ 歸零後補一次心跳：讓「零增益」這一幀立刻生效，
+            #   而不是等 joint_cmd_timeout(500ms) 逾時才被 controller 清掉。
+            shm.write_tick(state_ro.read_tick(shm_io.STATE_STRIDE))
         except Exception as e:
             print(f"⚠️ 歸零失敗：{e}")
         try:
             shm.close()
+        except Exception:
+            pass
+        try:
+            state_ro.close()
         except Exception:
             pass
         if frozen:
@@ -131,20 +139,22 @@ def main() -> int:
         time.sleep(0.2)
         print(f"✅ 已凍結 mc_ctrl（狀態={proc_state(pid)}）\n")
 
-        st0 = shm_io.read_joint_state()
+        st0 = state_ro.states()
         p_start = st0[idx]["position"]
-        print(f"起始角度 {p_start:.4f} rad\n")
+        tick_start = state_ro.read_tick(shm_io.STATE_STRIDE)
+        print(f"起始角度 {p_start:.4f} rad")
+        print("每輪 payload 寫完後同步心跳時戳（缺心跳會被 controller 判定過期而清零）\n")
         print(f"{'t(s)':>6s} {'角度':>9s} {'速度':>9s} {'力矩':>9s}")
 
         t0 = time.monotonic()
         nxt = t0
-        last_print = 0.0
+        last_print = -1.0
         while True:
             t = time.monotonic() - t0
             if t >= a.secs:
                 break
 
-            st = shm_io.read_joint_state()
+            st = state_ro.states()
             v, tau = st[idx]["velocity"], st[idx]["effort"]
             trace.append((t, v, tau))
             if abs(v) > a.vmax:
@@ -162,6 +172,8 @@ def main() -> int:
             # 目標關節：先目標值、後增益（見 shm_io.write_cmd）
             shm.write_cmd(idx, position=st[idx]["position"], velocity=a.vel,
                           effort=a.tff, kp=0.0, kd=a.kd)
+            # ★ 整幀 payload 都寫完了才寫心跳 —— 它是「這幀備妥了」的旗標
+            shm.write_tick(state_ro.read_tick(shm_io.STATE_STRIDE))
 
             if t - last_print >= 0.2:
                 print(f"{t:6.2f} {st[idx]['position']:9.4f} {v:9.4f} {tau:9.4f}")
@@ -178,11 +190,15 @@ def main() -> int:
         restore()
 
     # ---------------------------------------------------------------- 結果
-    st1 = shm_io.read_joint_state()
+    st1 = shm_io.read_joint_state()      # state_ro 已在 restore() 關閉，這裡另開一次
     print("\n" + "=" * 56)
     if abort:
         print(f"⛔ 提前中止：{abort}")
     if trace:
+        with shm_io.Shm("joint_state") as _s:
+            tick_end = _s.read_tick(shm_io.STATE_STRIDE)
+        print(f"心跳時戳 {tick_start} → {tick_end}"
+              f"（+{tick_end - tick_start}，約 {(tick_end - tick_start) / max(trace[-1][0], 1e-9):.0f}/s）")
         vmax = max(abs(v) for _, v, _ in trace)
         tmax = max(abs(x) for _, _, x in trace)
         dp = st1[idx]["position"] - p_start
@@ -196,7 +212,9 @@ def main() -> int:
             print(f"   sudo python3 M2_wheel_spin.py --joint {a.joint} --confirm "
                   f"--tff 0.5 --kd {a.kd} --vel {a.vel}")
         else:
-            print("\n⚠️ 力矩幾乎為零 → 指令可能沒被接受。回頭確認 M1 的結果。")
+            print("\n⚠️ 力矩幾乎為零 → 指令可能沒被接受。")
+            print("   先確認 joint_cmd 的增益有沒有被清成 0（心跳沒跟上就會這樣），")
+            print("   再回頭看 M1 是否仍是 16/16。")
     else:
         print("沒有取到任何取樣。")
     print(f"\n📄 完整輸出已存到 {logp}")

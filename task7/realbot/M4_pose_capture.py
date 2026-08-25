@@ -114,8 +114,10 @@ def out_dir() -> str:
 
 
 # ---------------------------------------------------------------- 擷取
-def capture(label: str, secs: float, hz: float) -> dict:
+def capture(label: str, secs: float, hz: float, note: str = "") -> dict:
     print(f"擷取姿勢「{label}」—— {secs:.1f} 秒 @ {hz:.0f} Hz")
+    if note:
+        print(f"備註：{note}")
     print("⚠️ 這段期間請不要碰狗，也不要動遙控器。\n")
 
     with shm_io.Shm("joint_state") as s:
@@ -137,7 +139,7 @@ def capture(label: str, secs: float, hz: float) -> dict:
     std = {k: (sum((x - mean[k]) ** 2 for x in v) / len(v)) ** 0.5 for k, v in acc.items()}
     imu = [sum(c) / n for c in zip(*imu_acc)]
 
-    rec = {"label": label, "n": n, "secs": secs,
+    rec = {"label": label, "note": note, "n": n, "secs": secs,
            "mean": mean, "std": std, "imu": imu,
            "time": time.strftime("%Y-%m-%d %H:%M:%S")}
     p = os.path.join(out_dir(), f"pose_{label}.json")
@@ -226,7 +228,11 @@ def analyze() -> None:
     for f in files:
         with open(f, encoding="utf-8") as fh:
             recs.append(json.load(fh))
-    print(f"找到 {len(recs)} 個姿勢：{', '.join(r['label'] for r in recs)}\n")
+    print(f"找到 {len(recs)} 個姿勢：\n")
+    for r in recs:
+        print(f"  {r['label']:22s} {r.get('time','')}"
+              + (f"　備註：{r['note']}" if r.get("note") else ""))
+    print()
     print("=" * 70)
     print("不靠假說，直接由兩個姿勢解每個關節的 sign 與 offset")
     print("=" * 70)
@@ -252,7 +258,13 @@ def analyze() -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("label", nargs="?", help="姿勢名稱，例如 stand / lie")
+    ap.add_argument("label", nargs="?",
+                    help="姿勢名稱。建議用「動作_膝模式」的形式，例如 "
+                         "stand_knee_front / stand_knee_back / lie_knee_front")
+    ap.add_argument("--note", default="",
+                    help="自由文字備註，會一起存進 json。"
+                         "寫遙控器按了什麼、目視高度、任何當下觀察 —— "
+                         "事後離線判讀時這些比檔名有用得多")
     ap.add_argument("--secs", type=float, default=2.0)
     ap.add_argument("--hz", type=float, default=50.0)
     ap.add_argument("--analyze", action="store_true", help="用已擷取的多個姿勢直接解 sign/offset")
@@ -264,7 +276,7 @@ def main() -> int:
     if a.analyze:
         analyze()
     elif a.label:
-        rec = capture(a.label, a.secs, a.hz)
+        rec = capture(a.label, a.secs, a.hz, a.note)
         show_capture(rec)
         compare(rec)
     else:

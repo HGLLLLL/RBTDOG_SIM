@@ -60,25 +60,40 @@ OFFSET = {
     "4_foot":       _by_leg([0., 0., 0., 0.]),
 }
 
-# 候選姿勢（控制器座標系）。⚠️ 只有 rl_default 存在於**實機**設定檔；
-#    stand / liedown 那兩組只出現在 MATRiX 模擬版那份，實機檔案裡被刪掉了。
-POSES = {
-    "rl_default（實機檔有）": {
-        "1_hip_roll": _by_leg([0., 0., 0., 0.]),
-        "2_hip_pitch": _by_leg([0.8, 0.8, -0.8, -0.8]),
-        "3_knee_pitch": _by_leg([-1.5, -1.5, 1.5, 1.5]),
-    },
-    "stand（僅模擬版有）": {
-        "1_hip_roll": _by_leg([0., 0., 0., 0.]),
-        "2_hip_pitch": _by_leg([0.6, 0.6, -0.6, -0.6]),
-        "3_knee_pitch": _by_leg([-1.2, -1.2, 1.2, 1.2]),
-    },
-    "liedown（僅模擬版有）": {
-        "1_hip_roll": _by_leg([0., 0., 0., 0.]),
-        "2_hip_pitch": _by_leg([1.4, 1.4, -1.4, -1.4]),
-        "3_knee_pitch": _by_leg([-2.4, -2.4, 2.4, 2.4]),
-    },
+# ---------------------------------------------------------------- 候選姿勢
+# 設定檔記載的姿勢（控制器座標系，**設定檔腿序 FR, FL, RR, RL**）。
+# ⚠️ 只有 rl_default 存在於**實機**設定檔；stand / liedown 那兩組只出現在
+#    MATRiX 模擬版那份，實機檔案裡被刪掉了。
+_BASE = {
+    "rl_default（實機檔有）": ([0., 0., 0., 0.], [0.8, 0.8, -0.8, -0.8], [-1.5, -1.5, 1.5, 1.5]),
+    "stand（僅模擬版有）":    ([0., 0., 0., 0.], [0.6, 0.6, -0.6, -0.6], [-1.2, -1.2, 1.2, 1.2]),
+    "liedown（僅模擬版有）":  ([0., 0., 0., 0.], [1.4, 1.4, -1.4, -1.4], [-2.4, -2.4, 2.4, 2.4]),
 }
+
+# ★★ 這台狗有**兩種站姿**：後腿往前彎（預設）／後腿往後彎（一般機器狗的樣子）。
+#    官方規格書運動性能欄明載「支持膝關節姿態變換」，機上也有 `/robot_remote/knee_mode` topic。
+#
+#    設定檔記載的姿勢（hip 前後反號）對應的是**後腿往前彎**——這點有兩個佐證：
+#      1. hip_default_pos = [0.8, 0.8, −0.8, −0.8] 本身就是前後反號
+#      2. 官方 MJCF 正向運動學：前後反號那組四輪 x = ±0.3398 對稱；
+#         四腿同號那組後腿整條往後翹（膝 −0.475 vs 輪 −0.317），不對稱
+#
+#    另一種模式（後腿往後彎）等於把後兩腿翻成與前腿同號，所以這裡自動生出對應版本。
+#    ⚠️ 這是推論 —— 實機切到另一模式時到底是不是這組值，**沒驗過**。
+
+
+def _flip_rear(vals):
+    """把設定檔腿序 [FR, FL, RR, RL] 的後兩腿翻成與前腿同號。"""
+    return [vals[0], vals[1], -vals[2], -vals[3]]
+
+
+POSES = {}
+for _nm, (_ab, _hp, _kn) in _BASE.items():
+    POSES[f"{_nm}｜後腿往前彎(預設)"] = {
+        "1_hip_roll": _by_leg(_ab), "2_hip_pitch": _by_leg(_hp), "3_knee_pitch": _by_leg(_kn)}
+    POSES[f"{_nm}｜後腿往後彎"] = {
+        "1_hip_roll": _by_leg(_ab), "2_hip_pitch": _by_leg(_flip_rear(_hp)),
+        "3_knee_pitch": _by_leg(_flip_rear(_kn))}
 
 # 四種可能的換算式：由馬達角反推控制器角
 VARIANTS = {
@@ -178,10 +193,10 @@ def compare(rec: dict) -> None:
             best.append((rms, vname, pname, ctrl))
     best.sort(key=lambda x: x[0])
 
-    print(f"\n{'換算式':28s} {'候選姿勢':22s} {'RMS 殘差(rad)':>13s}")
-    for rms, v, p, _ in best[:6]:
+    print(f"\n{'換算式':28s} {'候選姿勢':32s} {'RMS 殘差(rad)':>13s}")
+    for rms, v, p, _ in best[:8]:
         mark = "  ★" if rms < 0.15 else ""
-        print(f"{v:28s} {p:22s} {rms:13.4f}{mark}")
+        print(f"{v:28s} {p:32s} {rms:13.4f}{mark}")
 
     rms, vname, pname, ctrl = best[0]
     print(f"\n最接近：{vname}　＋　{pname}　RMS {rms:.4f} rad（{math.degrees(rms):.2f}°）")

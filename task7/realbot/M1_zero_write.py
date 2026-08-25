@@ -124,7 +124,10 @@ def main() -> int:
         st = shm_io.read_joint_state()
         print(f"\n以 {a.hz:.0f} Hz 寫入零增益指令 {a.secs:.1f} 秒 "
               f"（p_des = 實測角度、v=0、tau_ff=0、kp=0、kd=0）…")
+        print("   每輪同時把 joint_state 的時戳抄進 joint_cmd，維持心跳。")
 
+        state_ro = shm_io.Shm("joint_state")
+        tick0 = state_ro.read_tick(shm_io.STATE_STRIDE)
         t0 = time.monotonic()
         nxt = t0
         while time.monotonic() - t0 < a.secs:
@@ -132,11 +135,17 @@ def main() -> int:
                 # 先目標、後增益（見 shm_io.write_cmd 的說明）
                 shm.write_cmd(i, position=st[i]["position"], velocity=0.0,
                               effort=0.0, kp=0.0, kd=0.0)
+            # ★ payload 寫完才寫時戳 —— 它是「這幀備妥了」的旗標
+            shm.write_tick(state_ro.read_tick(shm_io.STATE_STRIDE))
             n_written += 1
             nxt += period
             d = nxt - time.monotonic()
             if d > 0:
                 time.sleep(d)
+        tick1 = state_ro.read_tick(shm_io.STATE_STRIDE)
+        state_ro.close()
+        print(f"   joint_state 時戳 {tick0} → {tick1}"
+              f"（+{tick1-tick0}，約 {(tick1-tick0)/a.secs:.0f}/s）")
 
         # ---------------------------------------------------------------- 驗證
         after = shm_io.read_joint_cmd()

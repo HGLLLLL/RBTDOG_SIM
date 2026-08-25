@@ -31,6 +31,7 @@ import numpy as np
 #   joint_state 名稱在 760, 880, 1000, ...  → 間隔 120，基底 = 760 − 8 = 752
 #   joint_cmd   名稱在 760, 872, 984, ...   → 間隔 112，基底同上
 BASE = 752
+TICK_OFF = 0        # ★ 整幀共用的時戳／心跳（16 筆值相同，~1.2 kHz 遞增），2026-08-25 第三趟才確認
 NAME_OFF, NAME_LEN = 8, 64
 DATA_OFF = 72
 
@@ -179,13 +180,23 @@ if __name__ == "__main__":
 #   - `temp_C` / `voltage_V` 只是「25.0 / 53~54」看起來像溫度與電壓的合理推測，
 #     雖然 /joint_shm_controller/joint_sensor 的 msg 定義確實有 temp 與 voltage
 #   - `error` 欄位所有關節都是 1，意義不明（1 = OK 還是 1 = 某個 flag？）
+#     2026-08-25 補：故障排除時讀 /joint_shm_controller/joint_sensor，健康狀態下
+#     16 顆同樣是 error=1 且 error_msg 全空 → **1 = 正常**，這點已確認。
 #   - 「馬達角 = side_sign × 控制器角 + offset」這個換算式仍未實證。
 #     取樣當下馬達是洩力的（joint_cmd 的 kp/kd/effort 全 0），四肢應該是靠在機構限位上，
 #     用該式反推得到 abad 0.571 / hip 1.146 / knee −2.738 rad，接近但不等於任何一組
 #     文件姿態 → 與「洩力癱在限位上」自洽，但**不足以當作證明**。
 #     要確認：讓狗站好（已知姿態）再取一次快照比對。
 #   - 更新頻率沒量（只知道兩次取樣之間有變）
-#   - **寫入完全沒試過。** joint_cmd 是 root:root -rw-r--r--，非 root 寫不進去。
+#   - `TICK_OFF`（base+0）的單位與語意未定。已知：16 筆值相同、~1.2 kHz 單調遞增、
+#     joint_cmd 與 joint_state 用同一個時鐘。夠用來維持心跳，但不知道它是 tick 還是別的。
+#
+# 2026-08-25 第三趟（M1 寫入測試）的更正：
+#   - base+0 **不是**容器內部欄位，是時戳。凍結 mc_ctrl 後它停住 →
+#     joint_shm_controller 依 joint_cmd_timeout=500ms 判定過期 → 把指令區清成 0。
+#     這就是第一次 M1 讀回全 0（0/16 相符）的原因。
+#   - **寫入路徑本身是通的**：非 root 寫不進去，但 sudo 下寫入不會被拒絕；
+#     問題只在於少了心跳。
 #
 # 資料流（由 ros2_control 與啟動腳本推得）：
 #     mc_ctrl ──寫──▶ /dev/shm/joint_cmd ──讀──▶ joint_shm_controller

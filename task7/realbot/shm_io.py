@@ -22,8 +22,27 @@ SHM_DIR = "/dev/shm"
 SIZE = 1024 * 1024
 
 BASE = 752
+TICK_OFF = 0        # ★ 記錄開頭的 u64 是「這一幀的時戳／心跳」，見下
 NAME_OFF, NAME_LEN = 8, 64
 DATA_OFF = 72
+
+# ★★ TICK 是 2026-08-25 M1 第一次寫入失敗後才搞清楚的欄位。
+#
+# 證據（recon2 的兩份快照，間隔 2 秒）：
+#     joint_cmd   base+0: 1184236 → 1186664   (+2428, ≈1.2 kHz)
+#     joint_state base+0: 1186768 → 1188865   (+2097，同一時鐘、晚約 2 秒取樣)
+#   且 **16 筆記錄的值完全相同** → 是整幀共用的時戳，不是每關節的欄位。
+#   值 0x1211EC 大於 1 MiB 的區段大小，所以不是段內指標。
+#
+# 為什麼重要：`joint_shm_controller` 用 `joint_cmd_timeout: 500 ms` 判斷指令新不新。
+# 我們 SIGSTOP 凍結 mc_ctrl 之後這個心跳就停了 → controller 判定過期 →
+# **把整個指令區清成 0**。第一次 M1 讀回全 0（0/16 相符）就是這個原因，
+# 不是我們的 5 個浮點數沒寫進去。
+#
+# 作法：每一輪把 joint_state 當下的 tick 抄進 joint_cmd（同一個時鐘，保證是新的），
+# 而且**先寫 payload、最後寫 tick** —— tick 等同「這幀備妥了」的旗標。
+
+_U8 = struct.Struct("<Q")
 
 CMD_STRIDE = 112
 STATE_STRIDE = 120
@@ -112,6 +131,20 @@ class Shm:
                      ("effort", effort), ("kp", kp), ("kd", kd)):
             if v is not None:
                 _F8.pack_into(self.mm, self._cmd_field_off(idx, f), float(v))
+
+    def read_tick(self, stride: int) -> int:
+        """讀整幀共用的時戳（16 筆都一樣，取第 0 筆）。"""
+        return _U8.unpack_from(self.mm, BASE + TICK_OFF)[0]
+
+    def write_tick(self, value: int) -> None:
+        """把時戳寫進全部 16 筆記錄（joint_cmd 專用）。
+
+        ⚠️ 一定要在 payload 都寫完之後才呼叫 —— 它是「這幀備妥了」的旗標。
+        """
+        if not self.writable:
+            raise RuntimeError("這塊 shm 是唯讀開啟的")
+        for i in range(len(JOINTS)):
+            _U8.pack_into(self.mm, BASE + i * CMD_STRIDE + TICK_OFF, int(value))
 
     def zero_gains(self, idx: int) -> None:
         """把單一關節壓成完全不出力：kp = kd = effort = 0。

@@ -5,6 +5,10 @@ mujoco_mpc/
 # 示範影片（體積大，日後可用 git-lfs 或另存）
 *.mp4
 
+# D1 Max 官方 MJCF 的網格（54 MB，BASE_LINK.STL 單檔 10 MB）
+# 用 task7/model/zgws/fetch_assets.sh 從官方 MATRiX 發布包取回
+task7/model/zgws/assets/
+
 # Python 快取
 __pycache__/
 *.pyc

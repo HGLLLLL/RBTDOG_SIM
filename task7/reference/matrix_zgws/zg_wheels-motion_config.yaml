@@ -1,0 +1,231 @@
+ZGWS_defaultStand:
+  meta:
+    motionClass: no-interruptible
+  sequence:
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [-0.0, -0.0, 0.0]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.4
+
+ZGWS_shakehand:
+  meta:
+    motionClass: no-interruptible
+  sequence:
+    - motionType: transition
+      heightCmd: 0.2
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 1.2
+
+    - motionType: transition
+      heightCmd: 0.48
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.8
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [-0.0, -0.33, 0.0]
+      xyzCmd: [-0.05, 0.03, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.4
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [0.0, 0.02, 0.15]
+      FLfootCmd: [0.02, -0.02, -0.0]
+      RRfootCmd: [0.06, -0.04, 0.12]
+      RLfootCmd: [-0.03, 0.06, 0.2]
+      duration: 1.0
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [0.3, 0.02, 0.2]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.6
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, -0.2]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.6
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.2]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.6
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, -0.2]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.6
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.2]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.6
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [-0.3, -0.0, -0.28]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.4
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, -0.02]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.4
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.2
+      
+ZGWS_wiggle:
+  meta:
+    motionClass: no-interruptible
+  sequence:
+    - motionType: transition
+      heightCmd: 0.44
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 1.0
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 1.0
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [-0.2, 0.0, -0.2]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 1.0
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [0.2, 0.0, 0.2]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.8
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [-0.2, 0.0, -0.2]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.8
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [0.2, 0.0, 0.2]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.8
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [-0.2, 0.0, -0.2]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.8
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [0.2, 0.0, 0.2]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.8
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 1.2

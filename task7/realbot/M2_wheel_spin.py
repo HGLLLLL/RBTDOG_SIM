@@ -66,6 +66,7 @@ def main() -> int:
     ap.add_argument("--tmax", type=float, default=5.0, help="力矩保護")
     a = ap.parse_args()
 
+    logp = shm_io.start_log("M2")
     if os.geteuid() != 0:
         print("❌ 需要 root：sudo python3 M2_wheel_spin.py --confirm")
         return 1
@@ -198,6 +199,7 @@ def main() -> int:
             print("\n⚠️ 力矩幾乎為零 → 指令可能沒被接受。回頭確認 M1 的結果。")
     else:
         print("沒有取到任何取樣。")
+    print(f"\n📄 完整輸出已存到 {logp}")
     return 0
 
 

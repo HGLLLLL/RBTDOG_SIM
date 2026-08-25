@@ -142,3 +142,60 @@ def idx_of(joint: str) -> int:
     if joint not in JOINTS:
         raise SystemExit(f"❌ 不認得的關節名 {joint!r}\n   可用：{', '.join(JOINTS)}")
     return JOINTS.index(joint)
+
+
+# ---------------------------------------------------------------- 自動存檔
+class _Tee:
+    """同時寫到終端機與檔案。每行都 flush —— 程式若中途死掉，已印出的仍在檔案裡。"""
+
+    def __init__(self, stream, fh):
+        self._s, self._f = stream, fh
+
+    def write(self, data):
+        self._s.write(data)
+        self._s.flush()
+        self._f.write(data)
+        self._f.flush()
+
+    def flush(self):
+        self._s.flush()
+        self._f.flush()
+
+    def isatty(self):
+        return self._s.isatty()
+
+
+def start_log(prefix: str, dirname: str = "~/m_logs") -> str:
+    """把 stdout/stderr 同時導向 <dirname>/<prefix>_<時間戳>.log，回傳檔案路徑。
+
+    M0/M1/M2 的結果一定要能帶回去複核，光印在螢幕上不夠 ——
+    現場沒有網路，事後要靠這些檔案判讀。
+    """
+    import datetime
+    import sys
+
+    # ⚠️ M1/M2 是用 sudo 跑的，直接 expanduser("~") 會變成 /root/m_logs，
+    #    之後用 robot 帳號 scp 拿不到。改成解析「原本呼叫 sudo 的那個使用者」的家目錄，
+    #    並把檔案 chown 回去，log 才帶得走。
+    if dirname.startswith("~") and os.geteuid() == 0 and os.getenv("SUDO_USER"):
+        import pwd
+        pw = pwd.getpwnam(os.environ["SUDO_USER"])
+        d = os.path.join(pw.pw_dir, dirname.lstrip("~/"))
+        owner = (pw.pw_uid, pw.pw_gid)
+    else:
+        d = os.path.expanduser(dirname)
+        owner = None
+
+    os.makedirs(d, exist_ok=True)
+    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    path = os.path.join(d, f"{prefix}_{ts}.log")
+    fh = open(path, "w", encoding="utf-8")
+    if owner:
+        for p in (d, path):
+            try:
+                os.chown(p, *owner)
+            except OSError:
+                pass
+    sys.stdout = _Tee(sys.__stdout__, fh)
+    sys.stderr = _Tee(sys.__stderr__, fh)
+    return path

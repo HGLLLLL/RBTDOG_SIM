@@ -58,6 +58,8 @@ def main() -> int:
     ap.add_argument("--hz", type=float, default=200.0, help="寫入頻率")
     a = ap.parse_args()
 
+    logp = shm_io.start_log("M1")
+    print("M1 —— 零出力寫入測試")
     if os.geteuid() != 0:
         print("❌ 需要 root：sudo python3 M1_zero_write.py --confirm")
         return 1
@@ -174,6 +176,7 @@ def main() -> int:
         raise
     finally:
         restore()
+        print(f"\n📄 完整輸出已存到 {logp}")
     return 0
 
 

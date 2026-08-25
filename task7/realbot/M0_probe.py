@@ -50,6 +50,7 @@ def sample_rate(name: str, stride: int, secs: float = 2.0) -> tuple[int, float]:
 
 
 def main() -> int:
+    logp = shm_io.start_log("M0")
     print("M0 —— D1 Max 寫入前唯讀前提檢查")
     print(f"時間 {time.strftime('%Y-%m-%d %H:%M:%S')}   使用者 {os.getenv('USER', '?')}   uid={os.geteuid()}")
 
@@ -131,6 +132,7 @@ def main() -> int:
     hr("結論")
     print("   全部 ✅ 才進 M1_zero_write.py。任何一項 ❌ 先停下來回報。")
     print("   M0 全程唯讀，沒有對狗做任何改動。")
+    print(f"\n📄 完整輸出已存到 {logp}")
     return 0
 
 

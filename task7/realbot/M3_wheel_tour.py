@@ -161,21 +161,44 @@ def main() -> int:
             print(f"\n✅ 已 SIGCONT 解凍 mc_ctrl，狀態={proc_state(pid)}")
 
     def spin(idx: int, name: str) -> dict:
-        """驅動單一顆輪 a.secs 秒，回傳量測結果。"""
+        """驅動單一顆輪 a.secs 秒，回傳量測結果。
+
+        ★ 角度必須逐筆解纏累加：輪關節讀數包裹在 [−π, π]，
+          直接 end−start 在轉超過半圈時會給出錯誤的量值甚至反向。
+        """
         st = state_ro.states()
-        p0 = st[idx]["position"]
+        p_prev = st[idx]["position"]
+        total = 0.0                      # 解纏後的累積轉角
+        hist: list[tuple[float, float]] = [(0.0, 0.0)]   # (t, total)，供保護用
         taus, t0 = [], time.monotonic()
         nxt, last_print = t0, -1.0
         stop = ""
+        raw_hot = 0                      # velocity 欄位連續超標次數
         while True:
             t = time.monotonic() - t0
             if t >= a.secs:
                 break
             st = state_ro.states()
-            v, tau = st[idx]["velocity"], st[idx]["effort"]
+            p_raw, v_raw, tau = st[idx]["position"], st[idx]["velocity"], st[idx]["effort"]
+            total += shm_io.wrap_pi(p_raw - p_prev)
+            p_prev = p_raw
+            hist.append((t, total))
             taus.append(tau)
-            if abs(v) > a.vmax:
-                stop = f"速度 {v:.3f} 超過 {a.vmax}"
+
+            # 保護①：由解纏角度算的速度（wrap-safe，取 ~50 ms 視窗降雜訊）
+            # ⚠️ 視窗太短時 v = Δθ/Δt 會爆掉（迴圈剛啟動時 Δt 可能趨近 0）→ 誤中止。
+            #    要求視窗至少橫跨 20 ms 才採信。
+            w = [h for h in hist if t - h[0] <= 0.05]
+            if len(w) >= 3 and (t - w[0][0]) >= 0.02:
+                v_ang = (total - w[0][1]) / (t - w[0][0])
+                if abs(v_ang) > a.vmax:
+                    stop = f"速度 {v_ang:.3f} rad/s（角度差分）超過 {a.vmax}"
+                    break
+            # 保護②：velocity 欄位。它雜訊大又會在 wrap 時噴尖峰，
+            #         所以要求**連續 5 筆**超標才中止，避免單一尖峰誤殺。
+            raw_hot = raw_hot + 1 if abs(v_raw) > a.vmax else 0
+            if raw_hot >= 5:
+                stop = f"velocity 欄位連續 5 筆超過 {a.vmax}（最後 {v_raw:.3f}）"
                 break
             if abs(tau) > a.tmax:
                 stop = f"力矩 {tau:.3f} 超過 {a.tmax}"
@@ -187,7 +210,7 @@ def main() -> int:
                           effort=a.tff, kp=0.0, kd=a.kd)
             shm.write_tick(state_ro.read_tick(shm_io.STATE_STRIDE))
             if t - last_print >= 1.0:
-                print(f"     t={t:5.1f}s  角度 {st[idx]['position']:8.4f}  "
+                print(f"     t={t:5.1f}s  累積轉角 {total:+8.4f} rad  "
                       f"力矩 {tau:7.4f}")
                 last_print = t
             nxt += period
@@ -200,7 +223,8 @@ def main() -> int:
             shm.zero_gains(i)
         shm.write_tick(state_ro.read_tick(shm_io.STATE_STRIDE))
         time.sleep(0.15)                       # 等它停下來再量最終角度
-        dp = state_ro.states()[idx]["position"] - p0
+        total += shm_io.wrap_pi(state_ro.states()[idx]["position"] - p_prev)
+        dp = total                             # ★ 解纏後的累積轉角
         # ★ 平均速度用角度差分，不用 joint_state 的 velocity 欄位 ——
         #   2026-08-25 實測後者變異 47% vs 前者 9%（無偏但雜訊高 5 倍）
         v_mean = dp / el if el else 0.0

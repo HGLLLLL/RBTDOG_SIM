@@ -143,10 +143,14 @@ def main() -> int:
 
         st0 = state_ro.states()
         p_start = st0[idx]["position"]
+        p_prev = p_start
+        total = 0.0                  # ★ 解纏後的累積轉角（輪角讀數包裹在 [−π,π]）
+        hist: list[tuple[float, float]] = [(0.0, 0.0)]
+        raw_hot = 0
         tick_start = state_ro.read_tick(shm_io.STATE_STRIDE)
         print(f"起始角度 {p_start:.4f} rad")
         print("每輪 payload 寫完後同步心跳時戳（缺心跳會被 controller 判定過期而清零）\n")
-        print(f"{'t(s)':>6s} {'角度':>9s} {'速度':>9s} {'力矩':>9s}")
+        print(f"{'t(s)':>6s} {'累積轉角':>9s} {'速度欄位':>9s} {'力矩':>9s}")
 
         t0 = time.monotonic()
         nxt = t0
@@ -157,10 +161,27 @@ def main() -> int:
                 break
 
             st = state_ro.states()
-            v, tau = st[idx]["velocity"], st[idx]["effort"]
-            trace.append((t, v, tau))
-            if abs(v) > a.vmax:
-                abort = f"速度 {v:.3f} 超過 {a.vmax}"
+            p_raw, v_raw, tau = st[idx]["position"], st[idx]["velocity"], st[idx]["effort"]
+            total += shm_io.wrap_pi(p_raw - p_prev)     # ★ 逐筆解纏累加
+            p_prev = p_raw
+            hist.append((t, total))
+            trace.append((t, v_raw, tau))
+
+            # 保護①：由解纏角度算的速度（wrap-safe，取 ~50 ms 視窗降雜訊）
+            # ⚠️ 視窗太短時 v = Δθ/Δt 會爆掉（迴圈剛啟動時 Δt 可能趨近 0）→ 誤中止。
+            #    要求視窗至少橫跨 20 ms 才採信。
+            w = [h for h in hist if t - h[0] <= 0.05]
+            if len(w) >= 3 and (t - w[0][0]) >= 0.02:
+                v_ang = (total - w[0][1]) / (t - w[0][0])
+                if abs(v_ang) > a.vmax:
+                    abort = f"速度 {v_ang:.3f} rad/s（角度差分）超過 {a.vmax}"
+                    break
+            # 保護②：velocity 欄位雜訊大、且會在 wrap 時噴尖峰
+            #         → 要求連續 5 筆超標才中止，避免單一尖峰誤殺
+            #         （2026-08-25 M3 run3 就是被一次尖峰 4.282 誤中斷）
+            raw_hot = raw_hot + 1 if abs(v_raw) > a.vmax else 0
+            if raw_hot >= 5:
+                abort = f"velocity 欄位連續 5 筆超過 {a.vmax}（最後 {v_raw:.3f}）"
                 break
             if abs(tau) > a.tmax:
                 abort = f"力矩 {tau:.3f} 超過 {a.tmax}"
@@ -178,7 +199,7 @@ def main() -> int:
             shm.write_tick(state_ro.read_tick(shm_io.STATE_STRIDE))
 
             if t - last_print >= 0.2:
-                print(f"{t:6.2f} {st[idx]['position']:9.4f} {v:9.4f} {tau:9.4f}")
+                print(f"{t:6.2f} {total:9.4f} {v_raw:9.4f} {tau:9.4f}")
                 last_print = t
 
             nxt += period
@@ -188,6 +209,7 @@ def main() -> int:
 
         tick_end = state_ro.read_tick(shm_io.STATE_STRIDE)
         loop_elapsed = time.monotonic() - t0
+        total += shm_io.wrap_pi(state_ro.states()[idx]["position"] - p_prev)
     except KeyboardInterrupt:
         abort = "使用者 Ctrl-C"
     finally:
@@ -210,15 +232,16 @@ def main() -> int:
         #   2026-08-25 實測：同一段資料，角度差分的變異 9.4%，velocity 欄位 47.2%，
         #   但兩者平均幾乎相同（0.1867 vs 0.1895）→ velocity 無偏但雜訊高。
         if len(trace) > 1:
-            v_mean = (st1[idx]["position"] - p_start) / loop_elapsed if loop_elapsed else 0.0
+            v_mean = total / loop_elapsed if loop_elapsed else 0.0
             print(f"平均角速度（由角度差分）{v_mean:.4f} rad/s"
                   f"　追蹤率 {100 * v_mean / a.vel if a.vel else 0:.0f}%（目標 {a.vel}）")
             if a.kd > 0:
                 print(f"穩態摩擦力矩推估 τ_f = kd·(v_des − v) = "
                       f"{a.kd * (a.vel - v_mean):.4f} N·m")
         tmax = max(abs(x) for _, _, x in trace)
-        dp = st1[idx]["position"] - p_start
-        print(f"最大速度 {vmax:.4f} rad/s   最大力矩 {tmax:.4f} N·m")
+        dp = total                                     # ★ 解纏後的累積轉角
+        print(f"最大速度 {vmax:.4f} rad/s（velocity 欄位，僅供參考）"
+              f"   最大力矩 {tmax:.4f} N·m")
         print(f"角度變化 {dp:+.4f} rad（{dp * 57.2958:+.2f}°）")
         if abs(dp) > 0.05:
             print("\n★★★ 輪子轉了 —— D1 Max 的底層單顆馬達控制實機驗證成功。")

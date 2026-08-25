@@ -14,9 +14,12 @@
 """
 from __future__ import annotations
 
+import math
 import mmap
 import os
 import struct
+
+_PI = math.pi
 
 SHM_DIR = "/dev/shm"
 SIZE = 1024 * 1024
@@ -184,6 +187,23 @@ def read_joint_cmd() -> list[dict]:
     with Shm("joint_cmd") as s:
         recs = s.read_records(CMD_STRIDE, 5)
     return [{"name": r["name"], **{k: r[i] for i, k in enumerate(CMD_FIELDS)}} for r in recs]
+
+
+def wrap_pi(d: float) -> float:
+    """把角度差折回 (−π, π]。
+
+    ★ 2026-08-25 M3 才發現：**輪關節的角度讀數是包裹在 [−π, π] 的**。
+    輪子轉超過半圈時，`pos_end − pos_start` 會給出完全錯誤的值 ——
+    當時 run3 的右前輪實際正轉 7.66 rad，天真相減卻算出 −4.90 rad（方向都反了）。
+
+    在 200 Hz 取樣下，相鄰兩筆之間要 |v| > π/0.005 ≈ 628 rad/s 才會誤判，
+    所以「逐筆解纏再累加」是安全的。
+    """
+    while d > _PI:
+        d -= 2 * _PI
+    while d < -_PI:
+        d += 2 * _PI
+    return d
 
 
 def idx_of(joint: str) -> int:

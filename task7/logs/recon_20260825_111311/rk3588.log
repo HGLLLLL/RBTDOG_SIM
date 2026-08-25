@@ -1,0 +1,314 @@
+
+======== 身分 ========
+robot
+Linux robot 5.10.160-rt78-preempt #15 SMP PREEMPT_RT Mon Mar 23 14:56:00 CST 2026 aarch64 aarch64 aarch64 GNU/Linux
+NAME="Ubuntu"
+VERSION="22.04.5 LTS (Jammy Jellyfish)"
+
+======== ★ 韌體版本 /opt/release/version.yaml ========
+version: "0.1.7"
+release_date: "2026-02-06"
+description: "A2503 RK3588 Release Image with all modules"
+
+modules:
+  kernel:
+    name: "Linux Kernel"
+    tag: "v0.1.3"
+    repo: "http://gitlab.jszr.com/jszr/embedded_software/zg/rk3588/rk3588_rt_sdk.git"
+
+  rootfs:
+    name: "Root Filesystem"
+    tag: "v0.0.1"
+    repo: "http://gitlab.jszr.com/jszr/embedded_software/zg/rk3588/rootfs.git"
+
+  packages:
+    - name: "robot-runtime"
+      tag: "v0.1.2"
+      repo: "http://gitlab.jszr.com/jszr/embedded_software/zg/rk3588/rootfs_overlay.git"
+      
+    - name: "zsibot_common"
+      tag: "v0.5.8"
+      repo: "http://gitlab.jszr.com/jszr/zsibot/zsibot_common.git"
+      
+    - name: "robot-launch"
+      tag: "v0.1.5-r2"
+      repo: "http://gitlab.jszr.com/jszr/jszr_launch.git"
+
+    - name: "robot-ws"
+      tag: "v0.1.4"
+      repo: "http://gitlab.jszr.com/jszr/zsibot/robot_ws.git"
+
+    - name: "motion-control"
+      tag: "v0.4.6"
+      repo: "http://gitlab.jszr.com/jszr/jszr_mc.git"
+
+mcu_firmware:
+  - name: "uart2canfd"
+    tag: "v1.0.2"
+    repo: "http://gitlab.jszr.com/jszr/embedded_software/zg/rk3588/mcu_firmware.git"
+
+  - name: "power_board"
+    tag: "v1.0.3"
+    repo: "http://gitlab.jszr.com/jszr/embedded_software/zg/mcu/power_board.git"
+
+  - name: "hot_swap_board"
+    tag: "v0.1.4"
+    repo: "http://gitlab.jszr.com/jszr/embedded_software/zg/mcu/hot_swap_board.git"
+
+  # - name: "imu"
+  #   tag: "v0.1.5"
+  #   repo: "http://gitlab.jszr.com/jszr/embedded_software/xg01/mcu/imu_board.git"
+
+ota_tools:
+  name: "OTA Tools"
+  tag: "v0.0.1"
+  repo: "http://gitlab.jszr.com/jszr/embedded_software/zg/rk3588/ota_tools.git"
+
+build_info:
+  build_date: "2026-02-06 16:12:00"
+  build_host: "rk3588-build-server"
+  maintainer: "maintainer@zsibot.com"
+
+======== ★★ /dev/shm 內容（找 spline_shm / imu_shm） ========
+total 3196
+-rw-rw-rw- 1 root root    4184 Aug 25 11:14 ecal_1f58b089
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_1f58b089_mtx
+-rw-rw-rw- 1 root root    4184 Aug 25 11:14 ecal_20355628
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_20355628_mtx
+-rw-rw-rw- 1 root root    4184 Aug 25 11:14 ecal_47dfe96c
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_47dfe96c_2422_ack_evt
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_47dfe96c_2422_evt
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_47dfe96c_mtx
+-rw-rw-rw- 1 root root    4184 Aug 25 11:14 ecal_55686f11
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_55686f11_2422_ack_evt
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_55686f11_2422_evt
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_55686f11_mtx
+-rw-rw-rw- 1 root root    4184 Aug 25 11:14 ecal_73773504
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_73773504_mtx
+-rw-rw-rw- 1 root root    4184 Aug 25 11:14 ecal_9386ea05
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_9386ea05_2184_ack_evt
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_9386ea05_2184_evt
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_9386ea05_2291_ack_evt
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_9386ea05_2291_evt
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_9386ea05_mtx
+-rw-rw-rw- 1 root root    4184 Aug 25 11:14 ecal_ea04622
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_ea04622_mtx
+-rw-rw-rw- 1 root root    4184 Aug 25 11:14 ecal_fcf46a7d
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_fcf46a7d_2422_ack_evt
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_fcf46a7d_2422_evt
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_fcf46a7d_mtx
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_shutdown_process_2184_evt
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_shutdown_process_2200_evt
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_shutdown_process_2291_evt
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_shutdown_process_2422_evt
+-rw-r--r-- 1 root root 1048576 Aug 25 11:14 imu_central
+-rw-r--r-- 1 root root 1048576 Aug 25 11:14 joint_cmd
+-rw-r--r-- 1 root root 1048576 Aug 25 11:14 joint_state
+
+======== 行程（運控相關關鍵字） ========
+    778       1 NetworkManager  /usr/sbin/NetworkManager --no-daemon
+   1594    1222 Thunar          Thunar --daemon
+    719       1 accounts-daemon /usr/libexec/accounts-daemon
+   2202    2101 aggregator_node /opt/ros/humble/lib/diagnostic_aggregator/aggregator_node --ros-args -r __node:=robot_diagnostic_analyzer --params-file /opt/robot/install/robot_diagnostic_analyzer/share/robot_diagnostic_analyzer/config/zsm/robot_analyzers.yaml
+    749       1 avahi-daemon    avahi-daemon: running [robot.local]
+    763     749 avahi-daemon    avahi-daemon: chroot helper
+   1768    1204 bamfdaemon      /usr/lib/aarch64-linux-gnu/bamf/bamfdaemon
+   1986    1977 bash            bash /opt/runtime/bin/start_motion_control.sh
+    777       1 dbus-daemon     @dbus-daemon --system --address=systemd: --nofork --nopidfile --systemd-activation --syslog-only
+   1236    1204 dbus-daemon     /usr/bin/dbus-daemon --session --address=systemd: --nofork --nopidfile --systemd-activation --syslog-only
+   1444    1438 dbus-daemon     /usr/bin/dbus-daemon --config-file=/usr/share/defaults/at-spi2/accessibility.conf --nofork --print-address 11 --address=unix:path=/run/user/1000/at-spi/bus_0
+   2131    2082 domain_bridge   /opt/ros/humble/lib/domain_bridge/domain_bridge /opt/runtime/bin/bridge_config.yaml
+   1460       1 gnome-keyring-d gnome-keyring-daemon --start
+   2422    1986 mc_ctrl         ./mc_ctrl r
+   1220    1204 pulseaudio      /usr/bin/pulseaudio --daemonize=no --log-target=journal
+   1982    1975 rmw_zenohd      /opt/ros/humble/lib/rmw_zenoh_cpp/rmw_zenohd
+   1977    1915 robot-launch    robot-launch server
+   2276    2207 robot_camera_no /opt/robot/install/robot_camera/lib/robot_camera/robot_camera_node --ros-args --params-file /opt/robot/install/robot_camera/share/robot_camera/config/zsm.yaml
+   2200    2132 robot_hal_node  /opt/robot/install/robot_hal/lib/robot_hal/robot_hal_node --ros-args --params-file /opt/robot/install/robot_hal/share/robot_hal/config/zsm/robot_hal.yaml --params-file /opt/robot/install/robot_hal/share/robot_hal/config/zsm/controller_manager.yaml --params-file /tmp/launch_params_c8ku0q06
+   2172    2094 robot_monitor_n /opt/robot/install/robot_monitor/lib/robot_monitor/robot_monitor_node --ros-args --params-file /opt/robot/install/robot_monitor/share/robot_monitor/config/zsm/robot_monitor.yaml
+   2184    2119 robot_remote    /opt/robot/install/robot_remote/lib/robot_remote/robot_remote --ros-args -r __node:=robot_remote -r __ns:=/ --params-file /opt/robot/install/robot_remote/share/robot_remote/config/remote_config.yaml
+   2291    2133 robot_roamerx_n /opt/robot/install/robot_roamerx/lib/robot_roamerx/robot_roamerx_node --ros-args -r __node:=robot_roamerx --params-file /opt/robot/install/robot_roamerx/share/robot_roamerx/config/zsm/robot_roamerx.yaml --params-file /tmp/launch_params_upp3s6ih
+   1975    1957 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 run rmw_zenoh_cpp rmw_zenohd
+   2082    1983 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 run domain_bridge domain_bridge /opt/runtime/bin/bridge_config.yaml
+   2094    1991 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch robot_monitor zsm.launch.py
+   2101    2001 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch robot_diagnostic_analyzer zsm.launch.py
+   2119    2003 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch robot_remote zsm.launch.py
+   2132    1985 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch robot_hal zsm.launch.py
+   2133    1990 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch robot_roamerx zsm.launch.py
+   2207    1984 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch robot_camera zsm.launch.py
+   2258    1987 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 run robot_manager robot_manager
+   1957    1915 start_zenoh_rou /bin/bash /opt/runtime/bin/start_zenoh_router.sh
+
+======== 行程總數與前 20 名 CPU ========
+%CPU     PID COMMAND
+69.0    2276 robot_camera_no
+33.7    2200 robot_hal_node
+16.4    2291 robot_roamerx_n
+ 7.2    2184 robot_remote
+ 6.6    2422 mc_ctrl
+ 4.7    1060 _Xorg
+ 3.7     894 irq/114-ttyS3
+ 3.7     897 irq/116-ttyS5
+ 3.5     895 irq/118-ttyS9
+ 3.1     896 irq/117-ttyS7
+ 3.0    3133 sshd
+ 2.3     654 rkaiq_3A_server
+ 2.0    2131 domain_bridge
+ 1.8     241 dmabuf-deferred
+ 1.7     309 kworker/u16:3-uart2canfd_rx
+ 1.7     898 kworker/u16:6-uart2canfd_rx
+ 1.7    2271 irq/113-ttyS1
+ 1.5     643 kworker/u16:4-uart2canfd_rx
+ 1.5    2716 kworker/u16:8-events_unbound
+ 1.4      21 ksoftirqd/1
+
+======== 監聽中的埠 ========
+Netid State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess
+udp   UNCONN 0      0          127.0.0.1:323        0.0.0.0:*          
+udp   UNCONN 0      0            0.0.0.0:49828      0.0.0.0:*          
+udp   UNCONN 0      0            0.0.0.0:46084      0.0.0.0:*          
+udp   UNCONN 768    0            0.0.0.0:33840      0.0.0.0:*          
+udp   UNCONN 0      0            0.0.0.0:33841      0.0.0.0:*          
+udp   UNCONN 0      0            0.0.0.0:5353       0.0.0.0:*          
+udp   UNCONN 0      0            0.0.0.0:34099      0.0.0.0:*          
+udp   UNCONN 0      0            0.0.0.0:14000      0.0.0.0:*          
+udp   UNCONN 0      0            0.0.0.0:14000      0.0.0.0:*          
+udp   UNCONN 0      0            0.0.0.0:14000      0.0.0.0:*          
+udp   UNCONN 0      0            0.0.0.0:14000      0.0.0.0:*          
+udp   UNCONN 0      0            0.0.0.0:14001      0.0.0.0:*          
+udp   UNCONN 0      0            0.0.0.0:14001      0.0.0.0:*          
+udp   UNCONN 0      0            0.0.0.0:14001      0.0.0.0:*          
+udp   UNCONN 0      0            0.0.0.0:14001      0.0.0.0:*          
+udp   UNCONN 0      0            0.0.0.0:14002      0.0.0.0:*          
+udp   UNCONN 0      0            0.0.0.0:14002      0.0.0.0:*          
+udp   UNCONN 0      0            0.0.0.0:14002      0.0.0.0:*          
+udp   UNCONN 0      0            0.0.0.0:43061      0.0.0.0:*          
+udp   UNCONN 0      0            0.0.0.0:51319      0.0.0.0:*          
+udp   UNCONN 0      0      192.168.234.1:43900      0.0.0.0:*          
+udp   UNCONN 0      0      192.168.234.1:43997      0.0.0.0:*          
+udp   UNCONN 768    0            0.0.0.0:60830      0.0.0.0:*          
+udp   UNCONN 0      0            0.0.0.0:60831      0.0.0.0:*          
+udp   UNCONN 0      0      239.255.76.67:7667       0.0.0.0:*          
+udp   UNCONN 0      0            0.0.0.0:40736      0.0.0.0:*          
+udp   UNCONN 0      0            0.0.0.0:53100      0.0.0.0:*          
+udp   UNCONN 0      0            0.0.0.0:8082       0.0.0.0:*          
+udp   UNCONN 0      0         127.0.0.53:53         0.0.0.0:*          
+udp   UNCONN 0      0            0.0.0.0:67         0.0.0.0:*          
+udp   UNCONN 0      0            0.0.0.0:123        0.0.0.0:*          
+udp   UNCONN 0      0              [::1]:323              *:*          
+udp   UNCONN 0      0                  *:8890             *:*          
+udp   UNCONN 0      0                  *:5353             *:*          
+udp   UNCONN 0      0                  *:50973            *:*          
+udp   UNCONN 0      0                  *:8000             *:*          
+udp   UNCONN 0      0                  *:8001             *:*          
+udp   UNCONN 0      0                  *:8189             *:*          
+tcp   LISTEN 0      0         127.0.0.53:53         0.0.0.0:*          
+tcp   LISTEN 0      0            0.0.0.0:22         0.0.0.0:*          
+tcp   LISTEN 0      0          127.0.0.1:35383      0.0.0.0:*          
+tcp   LISTEN 0      0          127.0.0.1:44887      0.0.0.0:*          
+tcp   LISTEN 0      0          127.0.0.1:36573      0.0.0.0:*          
+tcp   LISTEN 0      0          127.0.0.1:34301      0.0.0.0:*          
+tcp   LISTEN 0      0          127.0.0.1:43935      0.0.0.0:*          
+tcp   LISTEN 0      0          127.0.0.1:34051      0.0.0.0:*          
+tcp   LISTEN 0      0          127.0.0.1:58787      0.0.0.0:*          
+tcp   LISTEN 0      0          127.0.0.1:2947       0.0.0.0:*          
+tcp   LISTEN 0      0          127.0.0.1:46375      0.0.0.0:*          
+
+======== 本機網路設定（了解狗自己的網段） ========
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+dummy0           DOWN           
+eth0             UP             192.168.168.168/24 192.168.144.144/24 fe80::8658:eda1:65b5:27f9/64 
+can3             UP             
+can1             UP             
+can2             UP             
+can0             UP             
+wlan0            DOWN           
+p2p0             UP             192.168.234.1/24 fe80::fc23:cdff:fe9a:25e3/64 
+--
+192.168.144.0/24 dev eth0 proto kernel scope link src 192.168.144.144 metric 100 
+192.168.168.0/24 dev eth0 proto kernel scope link src 192.168.168.168 metric 100 
+192.168.234.0/24 dev p2p0 proto kernel scope link src 192.168.234.1 
+224.0.0.0/4 dev lo scope link 
+
+======== robot-launch 節點 ========
+机器人相关程序启动期管理器
+
+Usage: robot-launch [OPTIONS] [COMMAND]
+
+Commands:
+  server           以服务器形式启动
+  list             显示当前所有的 egg
+  egg              显示指定 egg 的快照信息
+  stop             停止多个正在运行中的 egg
+  start            启动多个停止了的 egg
+  restart          重启一个运行中的 egg
+  remove           移除多个 egg
+  collect          收集|启动一个 egg
+  collects         收集|启动多个 egg
+  add-service      收集|启动一个 service
+  start-service    启动一个 service
+  stop-service     关闭一个 service
+  restart-service  重启一个 service
+  service          显示一个 service 的详细信息
+  remove-service   移除一个 service
+  example-egg      展示 demo
+  example-service  展示 service demo
+  stdout-log       out log tail
+  stderr-log       error log tail
+  auto-complete    生成自动补全脚本
+  help             Print this message or the help of the given subcommand(s)
+
+Options:
+  -i, --ip <IP>      Target IP address
+  -p, --port <PORT>  Target port
+  -h, --help         Print help
+  -V, --version      Print version
+
+======== /opt 目錄結構（深度 2） ========
+total 40
+drwxr-xr-x 1 root  root  4096 Jan 28  2026 .
+drwxr-xr-x 1 root  root  4096 Mar 11 14:49 ..
+drwxr-xr-x 5 root  root  4096 Jan 28  2026 export
+drwxrwxrwx 2 root  root  4096 Feb  7  2026 release
+drwxr-xr-x 1 root  root  4096 Feb  7  2026 robot
+drwxr-xr-x 3 root  root  4096 Feb 17  2025 ros
+drwxrwxr-x 1 robot robot 4096 Jan 28  2026 runtime
+/opt
+/opt/runtime
+/opt/runtime/lib
+/opt/runtime/bin
+/opt/robot
+/opt/robot/install
+/opt/robot/robot_version_manager
+/opt/release
+/opt/export
+/opt/export/rknn_model_crypto
+/opt/export/config
+/opt/export/mc
+/opt/ros
+/opt/ros/humble
+
+======== 檔案系統裡有沒有 lowlevel / spline 的痕跡 ========
+(以上為搜尋結果，空白表示沒找到)
+
+======== ROS2 環境 ========
+-- /opt/runtime/env.bash --
+export PATH=$PATH:/opt/runtime/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/runtime/lib
+
+source /opt/ros/humble/setup.bash
+source /opt/robot/install/setup.bash
+source /usr/share/colcon_cd/function/colcon_cd.sh
+source /usr/share/colcon_argcomplete/hook/colcon-argcomplete.bash
+export ROS_DOMAIN_ID=66
+export ROS_LOCALHOST_ONLY=0
+export LC_NUMERIC="en_US.UTF-8"
+export _colcon_cd_root=/opt/ros/humble/
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp #rmw_fastrtps_cpp
+export RCUTILS_COLORIZED_OUTPUT=1
+export RCUTILS_LOGGING_USE_STDOUT=1
+export RCUTILS_LOGGING_BUFFERED_STREAM=1
+export RCUTILS_CONSOLE_OUTPUT_FORMAT="[{date_time_with_ms}] [{severity}] [{name}]: {message}"
+export ROBOT_LOG_DIR=/home/robot
+export MILE_PATH=/userdata/robot
+# export ROBOT_API_HOST=0.0.0.0

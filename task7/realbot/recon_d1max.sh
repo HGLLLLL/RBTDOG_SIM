@@ -87,8 +87,13 @@ preflight() {
 
 # ---------------------------------------------------------------- 遠端偵察腳本
 # 全部塞在一個 here-doc 裡，讓每台板子只要輸入一次密碼。
+#
+# ⚠️ 這裡故意「不用 set -u」。2026-08-25 第一次上機就是栽在這：
+#    set -u 碰上 /opt/runtime/env.bash 的
+#        export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/runtime/lib
+#    非互動 SSH 下 LD_LIBRARY_PATH 未設 → unbound variable → shell 當場結束，
+#    ROS2 整段完全沒跑到，而且 2>/dev/null 把錯誤也吞了，看起來像正常結束。
 read -r -d '' PROBE <<'EOS'
-set -u
 sec() { echo; echo "======== $* ========"; }
 
 sec "身分"
@@ -98,7 +103,9 @@ grep -E "^(NAME|VERSION)=" /etc/os-release 2>/dev/null
 sec "★ 韌體版本 /opt/release/version.yaml"
 cat /opt/release/version.yaml 2>/dev/null || echo "(讀不到)"
 
-sec "★★ /dev/shm 內容（找 spline_shm / imu_shm）"
+sec "SHM 內容"
+# 2026-08-25 實測：D1 Max 是 joint_cmd / joint_state / imu_central，
+# 不是 D1 EDU 的 spline_shm。關鍵字別寫死成單一名稱。
 ls -l /dev/shm/ 2>/dev/null || echo "(讀不到)"
 
 sec "行程（運控相關關鍵字）"
@@ -139,22 +146,36 @@ if [ -f /opt/runtime/env.bash ]; then
 else
   echo "(無 /opt/runtime/env.bash)"
 fi
-# shellcheck disable=SC1091
-[ -f /opt/runtime/env.bash ]      && . /opt/runtime/env.bash      2>/dev/null
-[ -f /opt/ros/humble/setup.bash ] && . /opt/ros/humble/setup.bash 2>/dev/null
-echo "ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-未設}  RMW=${RMW_IMPLEMENTATION:-未設}"
+# ★ source 一定要包在 set +u 的 subshell 裡，且不要吞掉 stderr（見檔頭的說明）
+(
+  set +u
+  [ -f /opt/runtime/env.bash ]      && . /opt/runtime/env.bash
+  [ -f /opt/ros/humble/setup.bash ] && . /opt/ros/humble/setup.bash
+  echo "ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-未設}  RMW=${RMW_IMPLEMENTATION:-未設}"
+  echo "ros2 路徑: $(command -v ros2 || echo 找不到)"
+) 2>&1
 
-if command -v ros2 >/dev/null 2>&1; then
+# 之後每個 ros2 指令都自己重新 source（subshell 的環境不會帶出來）
+ros2run() {
+  (
+    set +u
+    [ -f /opt/runtime/env.bash ]      && . /opt/runtime/env.bash      >/dev/null 2>&1
+    [ -f /opt/ros/humble/setup.bash ] && . /opt/ros/humble/setup.bash >/dev/null 2>&1
+    timeout 30 "$@"
+  ) 2>&1
+}
+
+if [ -x /opt/ros/humble/bin/ros2 ] || command -v ros2 >/dev/null 2>&1; then
   sec "★★★ ROS2 topic 全表"
-  TOPICS=$(timeout 30 ros2 topic list 2>/dev/null | sort)
+  TOPICS=$(ros2run ros2 topic list | sort)
   if [ -z "$TOPICS" ]; then
-    echo "(topic list 是空的 —— 不代表沒有 topic，可能是 DOMAIN_ID 或 RMW 不對，見下方 env)"
+    echo "(topic list 是空的 —— 不代表沒有 topic，可能是 DOMAIN_ID 或 RMW 不對，見上方 env)"
   else
     echo "$TOPICS"
   fi
 
   sec "ROS2 node 全表"
-  timeout 30 ros2 node list 2>/dev/null | sort || echo "(取不到)"
+  ros2run ros2 node list | sort
 
   sec "★★★ 底層相關 topic 的型別與 msg 定義"
   HITS=$(echo "$TOPICS" | grep -iE "low|motor|joint|cmd|state" || true)
@@ -163,20 +184,24 @@ if command -v ros2 >/dev/null 2>&1; then
   else
     for t in $HITS; do
       echo "---- $t ----"
-      TYPE=$(timeout 15 ros2 topic type "$t" 2>/dev/null | head -1)
+      TYPE=$(ros2run ros2 topic type "$t" | head -1)
       echo "型別: ${TYPE:-(取不到)}"
       if [ -n "$TYPE" ]; then
         echo "-- msg 定義 --"
-        timeout 15 ros2 interface show "$TYPE" 2>/dev/null || echo "(取不到定義)"
+        ros2run ros2 interface show "$TYPE"
       fi
       echo
     done
   fi
 
+  sec "★★★ ros2_control 硬體介面"
+  ros2run ros2 control list_hardware_interfaces
+  ros2run ros2 control list_controllers
+
   sec "所有自訂 msg 介面（找廠商私有型別）"
-  timeout 30 ros2 interface list 2>/dev/null \
-    | grep -viE "^ *(std_msgs|sensor_msgs|geometry_msgs|nav_msgs|builtin_interfaces|std_srvs|action_msgs|rcl_interfaces|lifecycle_msgs|tf2_msgs|diagnostic_msgs|shape_msgs|trajectory_msgs|visualization_msgs|unique_identifier_msgs|statistics_msgs|composition_interfaces|test_msgs|rosgraph_msgs|example_interfaces|actionlib_msgs|stereo_msgs|map_msgs|pcl_msgs)" \
-    | head -60 || echo "(取不到)"
+  ros2run ros2 interface list \
+    | grep -viE "^ *(std_msgs|sensor_msgs|geometry_msgs|nav_msgs|builtin_interfaces|std_srvs|action_msgs|rcl_interfaces|lifecycle_msgs|tf2_msgs|diagnostic_msgs|shape_msgs|trajectory_msgs|visualization_msgs|unique_identifier_msgs|statistics_msgs|composition_interfaces|test_msgs|rosgraph_msgs|example_interfaces|actionlib_msgs|stereo_msgs|map_msgs|pcl_msgs|nav2_msgs|control_msgs|controller_manager_msgs)" \
+    | head -60
 else
   sec "ROS2"
   echo "(這塊板沒有 ros2 指令)"
@@ -216,16 +241,20 @@ done
 # 否則下面印出的提示文字會被自己的 grep 命中而誤報。
 {
   hdr "自動判讀"
+  # ⚠️ 一定要排除區段標題行（開頭 ========），否則會被腳本自己印的關鍵字命中而誤報。
+  #    2026-08-25 第一趟就中過：標題「找 spline_shm」讓判讀誤報「路線 C 命中」。
+  BODY=$(grep -hv "^======== " "$OUT_DIR"/rk3588.log "$OUT_DIR"/orinnx.log 2>/dev/null)
   FOUND=0
   echo "-- 路線 B：ROS2 底層指令介面 --"
-  if grep -inE "lowcmd|lowstate" "$OUT_DIR"/rk3588.log "$OUT_DIR"/orinnx.log 2>/dev/null; then
+  if echo "$BODY" | grep -inE "lowcmd|lowstate"; then
     echo "  ★ 命中 → 底層可寫，照 D1 MaxPro 的 rt/lowcmd 結構走"; FOUND=1
   else
     echo "  (沒有命中)"
   fi
   echo
-  echo "-- 路線 C：共享記憶體介面 --"
-  if grep -inE "spline_shm|spline" "$OUT_DIR"/rk3588.log "$OUT_DIR"/orinnx.log 2>/dev/null; then
+  echo "-- 路線 C：共享記憶體馬達介面 --"
+  # 名稱依機型而異：D1 EDU 是 spline_shm，D1 Max 是 joint_cmd / joint_state
+  if echo "$BODY" | grep -inE "spline_shm|joint_cmd|joint_state|motor_cmd"; then
     echo "  ★ 命中 → 可沿用 task6 的 shm_common.py 骨架（仍須先做唯讀驗證）"; FOUND=1
   else
     echo "  (沒有命中)"

@@ -1,0 +1,308 @@
+
+======== 身分 ========
+orin-nx
+Linux orin-nx 5.15.148-tegra #2 SMP PREEMPT Mon Mar 2 17:33:07 CST 2026 aarch64 aarch64 aarch64 GNU/Linux
+NAME="Ubuntu"
+VERSION="22.04.5 LTS (Jammy Jellyfish)"
+
+======== ★ 韌體版本 /opt/release/version.yaml ========
+version: "0.3.6"
+release_date: "2026-02-28"
+description: "A2503 Orin NX Release Image with all modules"
+
+
+======== ★★ /dev/shm 內容（找 spline_shm / imu_shm） ========
+total 84
+-rw-rw-rw- 1 root root 197055  1月  1  1970 ipc_test_0
+-rw-rw-rw- 1 root root 197055  1月  1  1970 ipc_test_a_0
+-rw-rw-rw- 1 root root 197055  1月  1  1970 ipc_test_b_0
+-rw-rw-rw- 1 root root 197055  1月  1  1970 ipc_test_c_0
+-rw-rw-rw- 1 root root 197055  1月  1  1970 itc_test_0
+-rw-rw-rw- 1 root root 786879  1月  1  1970 nvmap_sciipc_1
+-rw-rw-rw- 1 root root 786879  1月  1  1970 nvmap_sciipc_3
+-rw-rw-rw- 1 root root 786879  1月  1  1970 nvscibuf_ipc_A_B
+-rw-rw-rw- 1 root root 786879  1月  1  1970 nvscibuf_ipc_A_D
+-rw-rw-rw- 1 root root 786879  1月  1  1970 nvscibuf_ipc_B_C
+-rw-rw-rw- 1 root root 786879  1月  1  1970 nvscibuf_ipc_B_E
+-rw-rw-rw- 1 root root 197055  1月  1  1970 nvscibuf_itc_0
+-rw-r----- 1 root root      0  1月  1  1970 nvsciipc_init
+-rw-rw-rw- 1 root root 786879  1月  1  1970 nvscistream_0
+-rw-rw-rw- 1 root root 786879  1月  1  1970 nvscistream_2
+-rw-rw-rw- 1 root root 786879  1月  1  1970 nvscistream_4
+-rw-rw-rw- 1 root root 786879  1月  1  1970 nvscistream_6
+-rw-rw-rw- 1 root root 197055  1月  1  1970 nvscistream_itc_0
+-rw-rw-rw- 1 root root 786879  1月  1  1970 nvscisync_a_0
+-rw-rw-rw- 1 root root 786879  1月  1  1970 nvscisync_b_0
+-rw-rw-rw- 1 root root 786879  1月  1  1970 nvscisync_c_0
+-rw-rw-rw- 1 root root 786879  1月  1  1970 nvscisync_d_0
+-rw-rw-rw- 1 root root     32  1月  1  1970 sem.ipc_test_0
+-rw-rw-rw- 1 root root     32  1月  1  1970 sem.ipc_test_a_0
+-rw-rw-rw- 1 root root     32  1月  1  1970 sem.ipc_test_b_0
+-rw-rw-rw- 1 root root     32  1月  1  1970 sem.ipc_test_c_0
+-rw-rw-rw- 1 root root     32  1月  1  1970 sem.itc_test_0
+-rw-rw-rw- 1 root root     32  1月  1  1970 sem.nvmap_sciipc_1
+-rw-rw-rw- 1 root root     32  1月  1  1970 sem.nvmap_sciipc_3
+-rw-rw-rw- 1 root root     32  1月  1  1970 sem.nvscibuf_ipc_A_B
+-rw-rw-rw- 1 root root     32  1月  1  1970 sem.nvscibuf_ipc_A_D
+-rw-rw-rw- 1 root root     32  1月  1  1970 sem.nvscibuf_ipc_B_C
+-rw-rw-rw- 1 root root     32  1月  1  1970 sem.nvscibuf_ipc_B_E
+-rw-rw-rw- 1 root root     32  1月  1  1970 sem.nvscibuf_itc_0
+-rw-rw-rw- 1 root root     32  1月  1  1970 sem.nvscistream_0
+-rw-rw-rw- 1 root root     32  1月  1  1970 sem.nvscistream_2
+-rw-rw-rw- 1 root root     32  1月  1  1970 sem.nvscistream_4
+-rw-rw-rw- 1 root root     32  1月  1  1970 sem.nvscistream_6
+-rw-rw-rw- 1 root root     32  1月  1  1970 sem.nvscistream_itc_0
+-rw-rw-rw- 1 root root     32  1月  1  1970 sem.nvscisync_a_0
+-rw-rw-rw- 1 root root     32  1月  1  1970 sem.nvscisync_b_0
+-rw-rw-rw- 1 root root     32  1月  1  1970 sem.nvscisync_c_0
+-rw-rw-rw- 1 root root     32  1月  1  1970 sem.nvscisync_d_0
+
+======== 行程（運控相關關鍵字） ========
+    528       1 NetworkManager  /usr/sbin/NetworkManager --no-daemon
+    582       1 accounts-daemon /usr/libexec/accounts-daemon
+   2677    2448 arc_lvio        /opt/robot/robot_arc/install/arc_lvio/lib/arc_lvio/arc_lvio --ros-args -r __node:=arc_lvio_node
+   2768    2485 arc_mapping     /opt/robot/robot_arc/install/arc_mapping/lib/arc_mapping/arc_mapping --ros-args -r __node:=arc_mapping_node
+   2727    2500 arc_state_machi /opt/robot/robot_arc/install/arc_state_machine/lib/arc_state_machine/arc_state_machine_node --ros-args --log-level info --ros-args -r __node:=arc_state_machine_node --params-file /opt/robot/robot_arc/install/arc_state_machine/share/arc_state_machine/config/ZGW/arc_state_machine_params.yaml --params-file /tmp/launch_params_yo1tkyfu
+    526       1 avahi-daemon    avahi-daemon: running [orin-nx.local]
+    633     526 avahi-daemon    avahi-daemon: chroot helper
+   2694    2469 charging_alignm /opt/robot/robot_arc/install/navigo_charging_alignment/lib/navigo_charging_alignment/charging_alignment_server --ros-args --log-level info --ros-args -r __node:=charging_alignment_server --params-file /opt/robot/robot_arc/install/navigo_charging_alignment/share/navigo_charging_alignment/config/ZGW/charging_alignment_params.yaml --params-file /tmp/launch_params_7t02r922
+   3222    2479 component_conta /opt/ros/humble/lib/rclcpp_components/component_container_isolated --use_multi_threaded_executor --ros-args --log-level info --ros-args -r __node:=nav2_container --params-file /tmp/tmpdqm68624 --params-file /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/robot_geometry/zg.yaml --params-file /tmp/launch_params_s1r3fick -r /tf:=tf -r /tf_static:=tf_static
+    527       1 dbus-daemon     @dbus-daemon --system --address=systemd: --nofork --nopidfile --systemd-activation --syslog-only
+   1703    1386 dbus-daemon     /usr/bin/dbus-daemon --session --address=systemd: --nofork --nopidfile --systemd-activation --syslog-only
+   1868    1862 dbus-daemon     dbus-daemon --nofork --print-address 4 --session
+   1913    1908 dbus-daemon     /usr/bin/dbus-daemon --config-file=/usr/share/defaults/at-spi2/accessibility.conf --nofork --print-address 11 --address=unix:path=/run/user/128/at-spi/bus_0
+   3717    3698 dbus-daemon     /usr/bin/dbus-daemon --session --address=systemd: --nofork --nopidfile --systemd-activation --syslog-only
+   3011    2724 imu_driver      /opt/robot/robot-driver/install/imu_driver/lib/imu_driver/imu_driver --ros-args -r __node:=imu_driver --params-file /opt/robot/robot-driver/install/imu_driver/share/imu_driver/config/imu_params.yaml
+   2698    2493 localization    /opt/robot/robot_localization/install/localization/lib/localization/localization --ros-args --log-level localization:=DEBUG --ros-args --params-file /opt/robot/robot_localization/install/localization/share/localization/config/ros_params_loc_zg.yaml
+   2628    2466 meb_node        /opt/robot/robot_meb/install/robot_meb/lib/robot_meb/meb_node --ros-args --log-level info --ros-args -r __node:=MEB --params-file /opt/robot/robot_meb/install/robot_meb/share/robot_meb/config/meb.yaml
+   3224    2479 navigo_error_ag /opt/robot/robot_nav/install/navigo_error_aggregator/lib/navigo_error_aggregator/navigo_error_aggregator_node --ros-args -r __node:=error_aggregator --params-file /opt/robot/robot_nav/install/navigo_error_aggregator/share/navigo_error_aggregator/config/config.yaml --params-file /tmp/launch_params__e9bhjbw
+    981       1 nvargus-daemon  /usr/sbin/nvargus-daemon
+    551       1 power-profiles- /usr/libexec/power-profiles-daemon
+   3707    3698 pulseaudio      /usr/bin/pulseaudio --daemonize=no --log-target=journal
+   2398    2339 rmw_zenohd      /opt/ros/humble/lib/rmw_zenoh_cpp/rmw_zenohd
+   2341    2077 robot-launch    robot-launch server
+   2339    2318 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 run rmw_zenoh_cpp rmw_zenohd
+   2448    2423 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch arc_lvio arc_lvio.launch.py
+   2466    2348 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch robot_meb meb_node.launch.py log_dir:=/tmp/log/alg_data log_level:=info
+   2469    2423 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch navigo_charging_alignment charging_alignment.launch.py robot_type:=zgw
+   2479    2423 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch robot_nav2 navigation_bringup.launch.py platform:=REAL robot_type:=zg
+   2485    2423 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch arc_mapping arc_mapping.launch.py
+   2493    2423 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch localization localization_zg.launch.py
+   2500    2423 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch arc_state_machine arc_state_machine.launch.py robot_type:=zgw
+   2627    2352 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch uwb_driver uwb_driver.launch.py
+   2666    2349 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch uss_driver zsm_v4.launch.py
+   2691    2376 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch rslidar_sdk start.py
+   2724    2350 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch imu_driver imu_driver.launch.py
+   2726    2359 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch sixents_gps_driver sixents_gps_driver.launch.py
+   2923    2691 rslidar_sdk_nod /opt/robot/robot-driver/install/rslidar_sdk/lib/rslidar_sdk/rslidar_sdk_node --ros-args -r __ns:=/rslidar_sdk --params-file /tmp/launch_params_o7h688it
+   1665       1 rtkit-daemon    /usr/libexec/rtkit-daemon
+   3081    2726 sixents_gps_dri /opt/robot/robot-driver/install/sixents_gps_driver/lib/sixents_gps_driver/sixents_gps_driver --ros-args -r __node:=sixents_gps_driver --params-file /tmp/launch_params_fflpze27 --params-file /tmp/launch_params_b2wablhz --params-file /tmp/launch_params_g3oagrmh --params-file /tmp/launch_params_q_6hms0l --params-file /tmp/launch_params_gx6n2gdv --params-file /tmp/launch_params__egdnroh --params-file /tmp/launch_params_0jy5bv_x --params-file /tmp/launch_params_c_napwk7 --params-file /tmp/launch_params__bfkqy8l --params-file /tmp/launch_params_9csjdmkc --params-file /tmp/launch_params_u0fl94l9 --params-file /tmp/launch_params_mcodfplo --params-file /tmp/launch_params_jyrjff4g --params-file /tmp/launch_params_5dkhair5 --params-file /tmp/launch_params_k6n6jqio --params-file /tmp/launch_params_p322ceo6 --params-file /tmp/launch_params__n6jr1uh
+   2318    2077 start_zenoh_rou /bin/bash /opt/runtime/bin/start_zenoh_router.sh
+   2780    2666 uss_node        /opt/robot/robot-driver/install/uss_driver/lib/uss_driver/uss_node --ros-args --params-file /opt/robot/robot-driver/install/uss_driver/share/uss_driver/config/zsm_v4.yaml
+   2756    2627 uwb_driver_node /opt/robot/robot-driver/install/uwb_driver/lib/uwb_driver/uwb_driver_node --ros-args -r __node:=uwb_driver --params-file /opt/robot/robot-driver/install/uwb_driver/share/uwb_driver/config/uwb_params.yaml
+
+======== 行程總數與前 20 名 CPU ========
+%CPU     PID COMMAND
+64.7    2698 localization
+54.2    2548 perception_jobs
+44.3    2677 arc_lvio
+43.8    2923 rslidar_sdk_nod
+41.2    3222 component_conta
+31.9    2500 ros2
+28.6    2727 arc_state_machi
+27.3    2520 robot_slam
+25.0    2513 apriltag_locali
+21.6    2423 robot_alg_manag
+19.0    3698 systemd
+18.6    2768 arc_mapping
+13.6    2469 ros2
+10.0     592 sugov:4
+ 9.9     586 sugov:0
+ 8.8    3011 imu_driver
+ 6.2    2694 charging_alignm
+ 4.0    2668 robot_forward
+ 3.5    3224 navigo_error_ag
+ 3.3    2485 ros2
+
+======== 監聽中的埠 ========
+Netid State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess
+udp   UNCONN 0      0            0.0.0.0:60751      0.0.0.0:*          
+udp   UNCONN 0      0            0.0.0.0:5353       0.0.0.0:*          
+udp   UNCONN 0      0      192.168.2.102:6688       0.0.0.0:*          
+udp   UNCONN 0      0      192.168.1.102:6688       0.0.0.0:*          
+udp   UNCONN 0      0      192.168.2.102:6699       0.0.0.0:*          
+udp   UNCONN 0      0      192.168.1.102:6699       0.0.0.0:*          
+udp   UNCONN 0      0      192.168.2.102:7788       0.0.0.0:*          
+udp   UNCONN 0      0      192.168.1.102:7788       0.0.0.0:*          
+udp   UNCONN 0      0         127.0.0.53:53         0.0.0.0:*          
+udp   UNCONN 0      0            0.0.0.0:111        0.0.0.0:*          
+udp   UNCONN 0      0          127.0.0.1:323        0.0.0.0:*          
+udp   UNCONN 0      0                  *:5353             *:*          
+udp   UNCONN 0      0                  *:111              *:*          
+udp   UNCONN 0      0              [::1]:323              *:*          
+udp   UNCONN 0      0                  *:41926            *:*          
+tcp   LISTEN 0      1024       127.0.0.1:36607      0.0.0.0:*          
+tcp   LISTEN 0      1024         0.0.0.0:10012      0.0.0.0:*          
+tcp   LISTEN 0      1024         0.0.0.0:10010      0.0.0.0:*          
+tcp   LISTEN 0      1024       127.0.0.1:43945      0.0.0.0:*          
+tcp   LISTEN 0      4096       127.0.0.1:2947       0.0.0.0:*          
+tcp   LISTEN 0      1024       127.0.0.1:35591      0.0.0.0:*          
+tcp   LISTEN 0      1024       127.0.0.1:35039      0.0.0.0:*          
+tcp   LISTEN 0      1024       127.0.0.1:34889      0.0.0.0:*          
+tcp   LISTEN 0      4096         0.0.0.0:111        0.0.0.0:*          
+tcp   LISTEN 0      128          0.0.0.0:22         0.0.0.0:*          
+tcp   LISTEN 0      1024       127.0.0.1:34705      0.0.0.0:*          
+tcp   LISTEN 0      100        127.0.0.1:1883       0.0.0.0:*          
+tcp   LISTEN 0      1024       127.0.0.1:42023      0.0.0.0:*          
+tcp   LISTEN 0      128        127.0.0.1:58787      0.0.0.0:*          
+tcp   LISTEN 0      1024       127.0.0.1:32933      0.0.0.0:*          
+tcp   LISTEN 0      1024       127.0.0.1:32909      0.0.0.0:*          
+tcp   LISTEN 0      1024       127.0.0.1:40969      0.0.0.0:*          
+tcp   LISTEN 0      1024       127.0.0.1:40797      0.0.0.0:*          
+tcp   LISTEN 0      1024       127.0.0.1:39955      0.0.0.0:*          
+tcp   LISTEN 0      1024       127.0.0.1:39697      0.0.0.0:*          
+tcp   LISTEN 0      1024       127.0.0.1:39143      0.0.0.0:*          
+tcp   LISTEN 0      1024       127.0.0.1:39003      0.0.0.0:*          
+tcp   LISTEN 0      1024       127.0.0.1:38937      0.0.0.0:*          
+tcp   LISTEN 0      4096   127.0.0.53%lo:53         0.0.0.0:*          
+tcp   LISTEN 0      1024       127.0.0.1:46743      0.0.0.0:*          
+tcp   LISTEN 0      1024       127.0.0.1:37977      0.0.0.0:*          
+tcp   LISTEN 0      1024       127.0.0.1:37325      0.0.0.0:*          
+tcp   LISTEN 0      4096            [::]:111           [::]:*          
+tcp   LISTEN 0      128             [::]:22            [::]:*          
+tcp   LISTEN 0      32                 *:21               *:*          
+tcp   LISTEN 0      4096           [::1]:2947          [::]:*          
+tcp   LISTEN 0      1024               *:7447             *:*          
+tcp   LISTEN 0      100            [::1]:1883          [::]:*          
+
+======== 本機網路設定（了解狗自己的網段） ========
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+can0             DOWN           
+enxc817f52c3f92  UNKNOWN        192.168.1.102/24 fe80::1900:5161:8bee:ce70/64 
+enxc817f52c3f2c  UNKNOWN        192.168.2.102/24 fe80::9c32:2ac0:a20a:594d/64 
+enP8p1s0         UP             192.168.144.100/24 192.168.168.100/24 fe80::74f2:1f58:1693:a1ba/64 
+l4tbr0           DOWN           
+usb0             DOWN           
+usb1             DOWN           
+docker0          DOWN           172.17.0.1/16 
+--
+default via 192.168.144.144 dev enP8p1s0 proto static metric 20102 
+169.254.0.0/16 dev enxc817f52c3f2c scope link metric 1000 
+172.17.0.0/16 dev docker0 proto kernel scope link src 172.17.0.1 linkdown 
+192.168.1.0/24 dev enxc817f52c3f92 proto kernel scope link src 192.168.1.102 metric 101 
+192.168.2.0/24 dev enxc817f52c3f2c proto kernel scope link src 192.168.2.102 metric 100 
+192.168.144.0/24 dev enP8p1s0 proto kernel scope link src 192.168.144.100 metric 102 
+192.168.168.0/24 dev enP8p1s0 proto kernel scope link src 192.168.168.100 metric 102 
+
+======== robot-launch 節點 ========
+机器人相关程序启动期管理器
+
+Usage: robot-launch [OPTIONS] [COMMAND]
+
+Commands:
+  server           以服务器形式启动
+  list             显示当前所有的 egg
+  egg              显示指定 egg 的快照信息
+  stop             停止多个正在运行中的 egg
+  start            启动多个停止了的 egg
+  restart          重启一个运行中的 egg
+  remove           移除多个 egg
+  collect          收集|启动一个 egg
+  collects         收集|启动多个 egg
+  add-service      收集|启动一个 service
+  start-service    启动一个 service
+  stop-service     关闭一个 service
+  restart-service  重启一个 service
+  service          显示一个 service 的详细信息
+  remove-service   移除一个 service
+  example-egg      展示 demo
+  example-service  展示 service demo
+  stdout-log       out log tail
+  stderr-log       error log tail
+  auto-complete    生成自动补全脚本
+  help             Print this message or the help of the given subcommand(s)
+
+Options:
+  -i, --ip <IP>      Target IP address
+  -p, --port <PORT>  Target port
+  -h, --help         Print help
+  -V, --version      Print version
+
+======== /opt 目錄結構（深度 2） ========
+total 40
+drwxr-xr-x 10 root root 4096  3月  2 20:27 .
+drwxr-xr-x 21 root root 4096  3月 11 15:41 ..
+drwx--x--x  4 root root 4096 12月  2  2025 containerd
+drwxr-xr-x 14 root root 4096 12月  2  2025 nvidia
+drwxr-xr-x  3 root root 4096 12月  2  2025 ota_package
+drwxr-xr-x  2 root root 4096  2月 27 11:36 release
+drwxr-xr-x 13 root root 4096  3月  5 22:23 robot
+drwxr-xr-x  3 root root 4096  7月 22  2025 ros
+drwxrwxr-x  6 1000 1000 4096  3月  5 22:23 runtime
+lrwxrwxrwx  1 root root   19  8月 14  2025 TensorRT -> TensorRT-10.6.0.26/
+drwxr-xr-x  8 root root 4096 10月 26  2024 TensorRT-10.6.0.26
+/opt
+/opt/release
+/opt/runtime
+/opt/runtime/modules
+/opt/runtime/tools
+/opt/runtime/bin
+/opt/runtime/config
+/opt/TensorRT-10.6.0.26
+/opt/TensorRT-10.6.0.26/include
+/opt/TensorRT-10.6.0.26/samples
+/opt/TensorRT-10.6.0.26/python
+/opt/TensorRT-10.6.0.26/data
+/opt/TensorRT-10.6.0.26/doc
+/opt/TensorRT-10.6.0.26/targets
+/opt/ota_package
+/opt/ota_package/t23x
+/opt/containerd
+/opt/robot
+/opt/robot/zsibot
+/opt/robot/robot-forward
+/opt/robot/robot_meb
+/opt/robot/robot_version_manager
+/opt/robot/perception
+/opt/robot/test
+/opt/robot/robot_localization
+/opt/robot/robot_slam
+/opt/robot/robot_nav
+/opt/robot/robot_arc
+/opt/robot/robot-driver
+/opt/nvidia
+/opt/nvidia/deepstream
+/opt/nvidia/nsight-compute
+/opt/nvidia/pva-allow-2
+/opt/nvidia/l4t-rootfs-validation-config
+/opt/nvidia/camera
+/opt/nvidia/nsight-graphics-for-embeddedlinux
+/opt/nvidia/l4t-bootloader-config
+/opt/nvidia/vpi3
+/opt/nvidia/jetson-io
+/opt/nvidia/l4t-usb-device-mode
+
+======== 檔案系統裡有沒有 lowlevel / spline 的痕跡 ========
+(以上為搜尋結果，空白表示沒找到)
+
+======== ROS2 環境 ========
+-- /opt/runtime/env.bash --
+export PATH=$PATH:/opt/runtime/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/runtime/lib
+
+source /opt/ros/humble/setup.bash
+source /opt/robot/robot-driver/install/setup.bash
+source /usr/share/colcon_cd/function/colcon_cd.sh
+source /usr/share/colcon_argcomplete/hook/colcon-argcomplete.bash
+export ROS_DOMAIN_ID=24
+export ROS_LOCALHOST_ONLY=0
+export LC_NUMERIC="en_US.UTF-8"
+export _colcon_cd_root=/opt/ros/humble/
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp #rmw_fastrtps_cpp
+export ZENOH_ROUTER_CONFIG_URI=/opt/runtime/config/zenoh_router_config.json5
+export RCUTILS_COLORIZED_OUTPUT=1
+export RCUTILS_LOGGING_USE_STDOUT=1
+export RCUTILS_LOGGING_BUFFERED_STREAM=1
+export RCUTILS_CONSOLE_OUTPUT_FORMAT="[{date}] [{severity}] [{name}]: {message}"
+export ROBOT_LOG_DIR=/home/robot
+# export ROBOT_API_HOST=0.0.0.0

@@ -1,0 +1,33 @@
+------------------------------------------------------------
+### 自動判讀
+------------------------------------------------------------
+-- 路線 B：ROS2 底層指令介面 --
+  (沒有命中)
+
+-- 路線 C：共享記憶體介面 --
+./recon_20260825_111311/rk3588.log:72:======== ★★ /dev/shm 內容（找 spline_shm / imu_shm） ========
+./recon_20260825_111311/rk3588.log:291:======== 檔案系統裡有沒有 lowlevel / spline 的痕跡 ========
+./recon_20260825_111311/orinnx.log:14:======== ★★ /dev/shm 內容（找 spline_shm / imu_shm） ========
+./recon_20260825_111311/orinnx.log:285:======== 檔案系統裡有沒有 lowlevel / spline 的痕跡 ========
+  ★ 命中 → 可沿用 task6 的 shm_common.py 骨架（仍須先做唯讀驗證）
+
+
+-- 韌體版本（拿去對照 SDK README 的相容表）--
+./recon_20260825_111311/rk3588.log:======== ★ 韌體版本 /opt/release/version.yaml ========
+./recon_20260825_111311/rk3588.log-version: "0.1.7"
+./recon_20260825_111311/rk3588.log-release_date: "2026-02-06"
+./recon_20260825_111311/rk3588.log-description: "A2503 RK3588 Release Image with all modules"
+./recon_20260825_111311/rk3588.log-
+./recon_20260825_111311/rk3588.log-modules:
+./recon_20260825_111311/rk3588.log-  kernel:
+--
+./recon_20260825_111311/orinnx.log:======== ★ 韌體版本 /opt/release/version.yaml ========
+./recon_20260825_111311/orinnx.log-version: "0.3.6"
+./recon_20260825_111311/orinnx.log-release_date: "2026-02-28"
+./recon_20260825_111311/orinnx.log-description: "A2503 Orin NX Release Image with all modules"
+./recon_20260825_111311/orinnx.log-
+./recon_20260825_111311/orinnx.log-
+./recon_20260825_111311/orinnx.log-======== ★★ /dev/shm 內容（找 spline_shm / imu_shm） ========
+
+⚠️ ROS2 topic list 是空的，不代表沒有 topic —— 可能是 ROS_DOMAIN_ID 或 RMW 不對。
+   回報時請連 env.bash 那一段一起帶回來判讀。

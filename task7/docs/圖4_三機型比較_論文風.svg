@@ -98,7 +98,7 @@
 <text x="1256" y="802" font-family="Noto Serif CJK TC" font-size="14" font-weight="normal" text-anchor="start" fill="#6b6b6b">讀取　12 軸狀態・IMU・里程計・點雲</text>
 <text x="188" y="838" font-family="Noto Sans Mono CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#6b6b6b">mc_sdk::zsl_1w::HighLevel　UDP 50 Hz</text>
 <text x="722" y="838" font-family="Noto Sans Mono CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#6b6b6b">robot_sdk::SDKClient　UDP :8082</text>
-<text x="1256" y="838" font-family="Noto Sans Mono CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#6b6b6b">高層 TCP ＋ 底層 ROS 1 話題</text>
+<text x="1256" y="838" font-family="Noto Sans Mono CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#6b6b6b">高層 TCP ＋ 底層 ROS 1 topic</text>
 <line x1="46" y1="844" x2="1794" y2="844" stroke="#2b2b2b" stroke-width="1.4"/>
 <text x="46" y="876" font-family="Noto Serif CJK TC" font-size="16.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">（丙）</text>
 <text x="46" y="902" font-family="Noto Serif CJK TC" font-size="17.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">單顆馬達</text>
@@ -114,7 +114,7 @@
 <rect x="1242" y="854" width="508" height="118" rx="3" fill="#f2f1ee" stroke="#2b2b2b" stroke-width="1.6"/>
 <text x="1258" y="882" font-family="Noto Serif CJK TC" font-size="15.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">★ 官方提供</text>
 <text x="1258" y="914" font-family="Noto Serif CJK TC" font-size="21" font-weight="bold" text-anchor="start" fill="#1a1a1a">做得到</text>
-<text x="1258" y="942" font-family="Noto Sans Mono CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">ROS 1 話題　rt/lowcmd</text>
+<text x="1258" y="942" font-family="Noto Sans Mono CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">ROS 1 topic　rt/lowcmd</text>
 <text x="1734" y="882" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="end" fill="#6b6b6b">底層 SDK 須安裝 ROS 1</text>
 <line x1="46" y1="998" x2="1794" y2="998" stroke="#2b2b2b" stroke-width="1.4"/>
 <text x="46" y="1018" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">圖 4 · 三款機型比較。</text>

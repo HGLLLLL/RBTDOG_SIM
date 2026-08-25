@@ -189,7 +189,7 @@ for i in range(3):
 
 sdkname = ["mc_sdk::zsl_1w::HighLevel　UDP 50 Hz",
            "robot_sdk::SDKClient　UDP :8082",
-           "高層 TCP ＋ 底層 ROS 1 話題"]
+           "高層 TCP ＋ 底層 ROS 1 topic"]
 for i in range(3):
     text(CX[i] + 14, ry + 58, sdkname[i], 13, font=MONO, fill=GREY)
 
@@ -204,7 +204,7 @@ cards = [
     # (官方態度, 判定, 路徑, 補充)
     ("官方不提供", "做得到", "/spline_shm　共享記憶體", ""),
     ("官方不提供", "極可能做得到", "/dev/shm/joint_cmd　16 軸 × 5 欄位", ""),
-    ("★ 官方提供", "做得到", "ROS 1 話題　rt/lowcmd", "底層 SDK 須安裝 ROS 1"),
+    ("★ 官方提供", "做得到", "ROS 1 topic　rt/lowcmd", "底層 SDK 須安裝 ROS 1"),
 ]
 CH = 118
 for i, (off, verd, path, note) in enumerate(cards):

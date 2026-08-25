@@ -242,6 +242,20 @@ out[0] = (f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" '
           f'viewBox="0 0 {W} {H}">\n'
           f'<rect width="{W}" height="{H}" fill="{WHITE}"/>')
 svg = "\n".join(out)
-p = Path(__file__).with_name("fig_dogs.svg")
-p.write_text(svg, encoding="utf-8")
-print("wrote", p, len(svg), "bytes")
+
+BASE = "圖4_三機型比較_論文風"
+d = Path(__file__).resolve().parent
+svg_p = d / f"{BASE}.svg"
+svg_p.write_text(svg, encoding="utf-8")
+print("SVG ", svg_p, f"{len(svg)} bytes")
+
+# 轉 PNG / PDF（需要 rsvg-convert；沒有就只留 SVG）
+import shutil
+import subprocess
+if shutil.which("rsvg-convert"):
+    for args, ext in (( ["-w", "3680"], "png"), (["-f", "pdf"], "pdf")):
+        outp = d / f"{BASE}.{ext}"
+        subprocess.run(["rsvg-convert", *args, str(svg_p), "-o", str(outp)], check=True)
+        print(f"{ext.upper():4s}", outp, f"{outp.stat().st_size} bytes")
+else:
+    print("⚠️ 找不到 rsvg-convert，只產生 SVG")

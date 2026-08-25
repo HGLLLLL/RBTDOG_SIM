@@ -226,8 +226,14 @@ ssh -O exit -o ControlPath="/tmp/.recon2-%r@%h:%p" "robot@$RK_IP" 2>/dev/null ||
   BODY=$(grep -v "^======== " "$OUT_DIR/rk3588.log" 2>/dev/null)
 
   echo "-- ROS2 有沒有跑起來 --"
-  echo "$BODY" | grep -q "載入成功" && echo "  ✅ 環境載入成功（第一趟的 bug 已修）" \
-                                   || echo "  ❌ 還是沒載入，看 rk3588.log 開頭"
+  # ⚠️ 用 herestring 不要用 `echo "$BODY" | grep -q`：
+  #    grep -q 命中後立刻結束 → echo 收到 SIGPIPE(141) → set -o pipefail 把整條管線
+  #    判成失敗 → 明明命中卻回報「沒命中」。2026-08-25 第二趟就中過這個。
+  if grep -q "載入成功" <<< "$BODY"; then
+    echo "  ✅ 環境載入成功（第一趟的 bug 已修）"
+  else
+    echo "  ❌ 還是沒載入，看 rk3588.log 開頭"
+  fi
   echo
   echo "-- 路線 B：rt/lowcmd / rt/lowstate --"
   if echo "$BODY" | grep -inE "lowcmd|lowstate"; then

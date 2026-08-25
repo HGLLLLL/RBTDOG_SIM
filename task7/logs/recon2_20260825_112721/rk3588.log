@@ -1,0 +1,2808 @@
+
+======== ROS2 環境載入（第一趟就是死在這裡） ========
+ROS_DOMAIN_ID=66
+RMW=rmw_zenoh_cpp
+ros2 路徑: /opt/ros/humble/bin/ros2
+載入成功 ✅
+
+======== ★★★ ROS2 topic 全表 ========
+/arc/charging_dock_info
+/battery_controller/battery1
+/battery_controller/battery2
+/battery_controller/battery_all
+/battery_controller/transition_event
+/cmd_vel
+/control_right/test
+/diagnostics
+/diagnostics_agg
+/diagnostics_toplevel_state
+/estop_controller/hw_estop/state
+/estop_controller/sw_estop/state
+/fill_light_controller/auto_work
+/fill_light_controller/auto_work_state
+/fill_light_controller/back_light/cmd
+/fill_light_controller/back_light/state
+/fill_light_controller/front_light/cmd
+/fill_light_controller/front_light/state
+/fill_light_controller/lux
+/fill_light_controller/transition_event
+/front_camera/image_compressed
+/imu_shm_publisher/imu_central
+/imu_shm_publisher/transition_event
+/joint_shm_controller/joint_cmd_echo
+/joint_shm_controller/joint_sensor
+/joint_shm_controller/joint_states
+/joint_shm_controller/transition_event
+/led_controller/auto_work
+/led_controller/auto_work_state
+/led_controller/led_cmd
+/led_controller/transition_event
+/parameter_events
+/rear_camera/image_compressed
+/robot_camera/record_mp4
+/robot_camera/record_mp4_ack
+/robot_camera/record_mp4_status
+/robot_camera/take_photo
+/robot_camera/take_photo_ack
+/robot_hal/transition_event
+/robot_manager/robot_status
+/robot_monitor/diagnostic_status
+/robot_monitor/power_on_status
+/robot_remote/knee_mode
+/robot_remote/locked_state
+/robot_remote/obstacle_avoidance
+/robot_remote/reverse_head_tail
+/robot_remote/transition_event
+/robot_roamerx/alg_dtc
+/robot_roamerx/alg_status
+/robot_roamerx/is_in_nav_control
+/robot_roamerx/transition_event
+/rosout
+/switch_controller/hw_estop/state
+/switch_controller/transition_event
+/tf/tf_ack
+/tf/tf_req
+
+======== ROS2 node 全表 ========
+/battery_controller
+/bridge_image_topics_66
+/ComponentManager
+/controller_manager
+/fill_light_controller
+/imu_shm_publisher
+/joint_shm_controller
+/launch_ros_2119
+/led_controller
+/robot_camera
+/robot_diagnostic_analyzer
+/robot_diagnostic_manager
+/robot_hal
+/robot_manager
+/robot_monitor
+/robot_remote
+/robot_roamerx
+/robot_self_test_manager
+/switch_controller
+/zsi_actuator_driver
+/zsi_imu_driver
+
+======== ★★★ 底層相關 topic 的型別與 msg 定義 ========
+---- /cmd_vel ----
+型別: geometry_msgs/msg/Twist
+# This expresses velocity in free space broken into its linear and angular parts.
+
+Vector3  linear
+	float64 x
+	float64 y
+	float64 z
+Vector3  angular
+	float64 x
+	float64 y
+	float64 z
+
+---- /diagnostics_toplevel_state ----
+型別: diagnostic_msgs/msg/DiagnosticStatus
+# This message holds the status of an individual component of the robot.
+
+# Possible levels of operations.
+byte OK=0
+byte WARN=1
+byte ERROR=2
+byte STALE=3
+
+# Level of operation enumerated above.
+byte level
+# A description of the test/component reporting.
+string name
+# A description of the status.
+string message
+# A hardware unique string.
+string hardware_id
+# An array of values associated with the status.
+KeyValue[] values
+	string key
+	string value
+
+
+---- /estop_controller/hw_estop/state ----
+型別: std_msgs/msg/Bool
+# This was originally provided as an example message.
+# It is deprecated as of Foxy
+# It is recommended to create your own semantically meaningful message.
+# However if you would like to continue using this please use the equivalent in example_msgs.
+
+bool data
+
+---- /estop_controller/sw_estop/state ----
+型別: std_msgs/msg/Bool
+# This was originally provided as an example message.
+# It is deprecated as of Foxy
+# It is recommended to create your own semantically meaningful message.
+# However if you would like to continue using this please use the equivalent in example_msgs.
+
+bool data
+
+---- /fill_light_controller/auto_work_state ----
+型別: std_msgs/msg/Bool
+# This was originally provided as an example message.
+# It is deprecated as of Foxy
+# It is recommended to create your own semantically meaningful message.
+# However if you would like to continue using this please use the equivalent in example_msgs.
+
+bool data
+
+---- /fill_light_controller/back_light/cmd ----
+型別: std_msgs/msg/Bool
+# This was originally provided as an example message.
+# It is deprecated as of Foxy
+# It is recommended to create your own semantically meaningful message.
+# However if you would like to continue using this please use the equivalent in example_msgs.
+
+bool data
+
+---- /fill_light_controller/back_light/state ----
+型別: std_msgs/msg/Bool
+# This was originally provided as an example message.
+# It is deprecated as of Foxy
+# It is recommended to create your own semantically meaningful message.
+# However if you would like to continue using this please use the equivalent in example_msgs.
+
+bool data
+
+---- /fill_light_controller/front_light/cmd ----
+型別: std_msgs/msg/Bool
+# This was originally provided as an example message.
+# It is deprecated as of Foxy
+# It is recommended to create your own semantically meaningful message.
+# However if you would like to continue using this please use the equivalent in example_msgs.
+
+bool data
+
+---- /fill_light_controller/front_light/state ----
+型別: std_msgs/msg/Bool
+# This was originally provided as an example message.
+# It is deprecated as of Foxy
+# It is recommended to create your own semantically meaningful message.
+# However if you would like to continue using this please use the equivalent in example_msgs.
+
+bool data
+
+---- /imu_shm_publisher/imu_central ----
+型別: sensor_msgs/msg/Imu
+# This is a message to hold data from an IMU (Inertial Measurement Unit)
+#
+# Accelerations should be in m/s^2 (not in g's), and rotational velocity should be in rad/sec
+#
+# If the covariance of the measurement is known, it should be filled in (if all you know is the
+# variance of each measurement, e.g. from the datasheet, just put those along the diagonal)
+# A covariance matrix of all zeros will be interpreted as "covariance unknown", and to use the
+# data a covariance will have to be assumed or gotten from some other source
+#
+# If you have no estimate for one of the data elements (e.g. your IMU doesn't produce an
+# orientation estimate), please set element 0 of the associated covariance matrix to -1
+# If you are interpreting this message, please check for a value of -1 in the first element of each
+# covariance matrix, and disregard the associated estimate.
+
+std_msgs/Header header
+	builtin_interfaces/Time stamp
+		int32 sec
+		uint32 nanosec
+	string frame_id
+
+geometry_msgs/Quaternion orientation
+	float64 x 0
+	float64 y 0
+	float64 z 0
+	float64 w 1
+float64[9] orientation_covariance # Row major about x, y, z axes
+
+geometry_msgs/Vector3 angular_velocity
+	float64 x
+	float64 y
+	float64 z
+float64[9] angular_velocity_covariance # Row major about x, y, z axes
+
+geometry_msgs/Vector3 linear_acceleration
+	float64 x
+	float64 y
+	float64 z
+float64[9] linear_acceleration_covariance # Row major x, y z
+
+---- /imu_shm_publisher/transition_event ----
+型別: lifecycle_msgs/msg/TransitionEvent
+# The time point at which this event occurred.
+uint64 timestamp
+
+# The id and label of this transition event.
+Transition transition
+	uint8 TRANSITION_CREATE = 0
+	uint8 TRANSITION_CONFIGURE = 1
+	uint8 TRANSITION_CLEANUP = 2
+	uint8 TRANSITION_ACTIVATE = 3
+	uint8 TRANSITION_DEACTIVATE = 4
+	uint8 TRANSITION_UNCONFIGURED_SHUTDOWN  = 5
+	uint8 TRANSITION_INACTIVE_SHUTDOWN = 6
+	uint8 TRANSITION_ACTIVE_SHUTDOWN = 7
+	uint8 TRANSITION_DESTROY = 8
+	uint8 TRANSITION_ON_CONFIGURE_SUCCESS = 10
+	uint8 TRANSITION_ON_CONFIGURE_FAILURE = 11
+	uint8 TRANSITION_ON_CONFIGURE_ERROR = 12
+	uint8 TRANSITION_ON_CLEANUP_SUCCESS = 20
+	uint8 TRANSITION_ON_CLEANUP_FAILURE = 21
+	uint8 TRANSITION_ON_CLEANUP_ERROR = 22
+	uint8 TRANSITION_ON_ACTIVATE_SUCCESS = 30
+	uint8 TRANSITION_ON_ACTIVATE_FAILURE = 31
+	uint8 TRANSITION_ON_ACTIVATE_ERROR = 32
+	uint8 TRANSITION_ON_DEACTIVATE_SUCCESS = 40
+	uint8 TRANSITION_ON_DEACTIVATE_FAILURE = 41
+	uint8 TRANSITION_ON_DEACTIVATE_ERROR = 42
+	uint8 TRANSITION_ON_SHUTDOWN_SUCCESS = 50
+	uint8 TRANSITION_ON_SHUTDOWN_FAILURE = 51
+	uint8 TRANSITION_ON_SHUTDOWN_ERROR = 52
+	uint8 TRANSITION_ON_ERROR_SUCCESS = 60
+	uint8 TRANSITION_ON_ERROR_FAILURE = 61
+	uint8 TRANSITION_ON_ERROR_ERROR = 62
+	uint8 TRANSITION_CALLBACK_SUCCESS = 97
+	uint8 TRANSITION_CALLBACK_FAILURE = 98
+	uint8 TRANSITION_CALLBACK_ERROR = 99
+	##
+	##
+	uint8 id
+	string label
+
+# The starting state from which this event transitioned.
+State start_state
+	uint8 PRIMARY_STATE_UNKNOWN = 0
+	uint8 PRIMARY_STATE_UNCONFIGURED = 1
+	uint8 PRIMARY_STATE_INACTIVE = 2
+	uint8 PRIMARY_STATE_ACTIVE = 3
+	uint8 PRIMARY_STATE_FINALIZED = 4
+	uint8 TRANSITION_STATE_CONFIGURING = 10
+	uint8 TRANSITION_STATE_CLEANINGUP = 11
+	uint8 TRANSITION_STATE_SHUTTINGDOWN = 12
+	uint8 TRANSITION_STATE_ACTIVATING = 13
+	uint8 TRANSITION_STATE_DEACTIVATING = 14
+	uint8 TRANSITION_STATE_ERRORPROCESSING = 15
+	uint8 id
+	string label
+
+# The end state of this transition event.
+State goal_state
+	uint8 PRIMARY_STATE_UNKNOWN = 0
+	uint8 PRIMARY_STATE_UNCONFIGURED = 1
+	uint8 PRIMARY_STATE_INACTIVE = 2
+	uint8 PRIMARY_STATE_ACTIVE = 3
+	uint8 PRIMARY_STATE_FINALIZED = 4
+	uint8 TRANSITION_STATE_CONFIGURING = 10
+	uint8 TRANSITION_STATE_CLEANINGUP = 11
+	uint8 TRANSITION_STATE_SHUTTINGDOWN = 12
+	uint8 TRANSITION_STATE_ACTIVATING = 13
+	uint8 TRANSITION_STATE_DEACTIVATING = 14
+	uint8 TRANSITION_STATE_ERRORPROCESSING = 15
+	uint8 id
+	string label
+
+---- /joint_shm_controller/joint_cmd_echo ----
+型別: sensor_msgs/msg/JointState
+# This is a message that holds data to describe the state of a set of torque controlled joints.
+#
+# The state of each joint (revolute or prismatic) is defined by:
+#  * the position of the joint (rad or m),
+#  * the velocity of the joint (rad/s or m/s) and
+#  * the effort that is applied in the joint (Nm or N).
+#
+# Each joint is uniquely identified by its name
+# The header specifies the time at which the joint states were recorded. All the joint states
+# in one message have to be recorded at the same time.
+#
+# This message consists of a multiple arrays, one for each part of the joint state.
+# The goal is to make each of the fields optional. When e.g. your joints have no
+# effort associated with them, you can leave the effort array empty.
+#
+# All arrays in this message should have the same size, or be empty.
+# This is the only way to uniquely associate the joint name with the correct
+# states.
+
+std_msgs/Header header
+	builtin_interfaces/Time stamp
+		int32 sec
+		uint32 nanosec
+	string frame_id
+
+string[] name
+float64[] position
+float64[] velocity
+float64[] effort
+
+---- /joint_shm_controller/joint_sensor ----
+型別: robot_common_interface/msg/JointSensor
+std_msgs/Header header
+	builtin_interfaces/Time stamp
+		int32 sec
+		uint32 nanosec
+	string frame_id
+
+string[] name
+uint8[] error
+string[] error_msg
+float64[] temp
+float64[] voltage
+
+---- /joint_shm_controller/joint_states ----
+型別: sensor_msgs/msg/JointState
+# This is a message that holds data to describe the state of a set of torque controlled joints.
+#
+# The state of each joint (revolute or prismatic) is defined by:
+#  * the position of the joint (rad or m),
+#  * the velocity of the joint (rad/s or m/s) and
+#  * the effort that is applied in the joint (Nm or N).
+#
+# Each joint is uniquely identified by its name
+# The header specifies the time at which the joint states were recorded. All the joint states
+# in one message have to be recorded at the same time.
+#
+# This message consists of a multiple arrays, one for each part of the joint state.
+# The goal is to make each of the fields optional. When e.g. your joints have no
+# effort associated with them, you can leave the effort array empty.
+#
+# All arrays in this message should have the same size, or be empty.
+# This is the only way to uniquely associate the joint name with the correct
+# states.
+
+std_msgs/Header header
+	builtin_interfaces/Time stamp
+		int32 sec
+		uint32 nanosec
+	string frame_id
+
+string[] name
+float64[] position
+float64[] velocity
+float64[] effort
+
+---- /joint_shm_controller/transition_event ----
+型別: lifecycle_msgs/msg/TransitionEvent
+# The time point at which this event occurred.
+uint64 timestamp
+
+# The id and label of this transition event.
+Transition transition
+	uint8 TRANSITION_CREATE = 0
+	uint8 TRANSITION_CONFIGURE = 1
+	uint8 TRANSITION_CLEANUP = 2
+	uint8 TRANSITION_ACTIVATE = 3
+	uint8 TRANSITION_DEACTIVATE = 4
+	uint8 TRANSITION_UNCONFIGURED_SHUTDOWN  = 5
+	uint8 TRANSITION_INACTIVE_SHUTDOWN = 6
+	uint8 TRANSITION_ACTIVE_SHUTDOWN = 7
+	uint8 TRANSITION_DESTROY = 8
+	uint8 TRANSITION_ON_CONFIGURE_SUCCESS = 10
+	uint8 TRANSITION_ON_CONFIGURE_FAILURE = 11
+	uint8 TRANSITION_ON_CONFIGURE_ERROR = 12
+	uint8 TRANSITION_ON_CLEANUP_SUCCESS = 20
+	uint8 TRANSITION_ON_CLEANUP_FAILURE = 21
+	uint8 TRANSITION_ON_CLEANUP_ERROR = 22
+	uint8 TRANSITION_ON_ACTIVATE_SUCCESS = 30
+	uint8 TRANSITION_ON_ACTIVATE_FAILURE = 31
+	uint8 TRANSITION_ON_ACTIVATE_ERROR = 32
+	uint8 TRANSITION_ON_DEACTIVATE_SUCCESS = 40
+	uint8 TRANSITION_ON_DEACTIVATE_FAILURE = 41
+	uint8 TRANSITION_ON_DEACTIVATE_ERROR = 42
+	uint8 TRANSITION_ON_SHUTDOWN_SUCCESS = 50
+	uint8 TRANSITION_ON_SHUTDOWN_FAILURE = 51
+	uint8 TRANSITION_ON_SHUTDOWN_ERROR = 52
+	uint8 TRANSITION_ON_ERROR_SUCCESS = 60
+	uint8 TRANSITION_ON_ERROR_FAILURE = 61
+	uint8 TRANSITION_ON_ERROR_ERROR = 62
+	uint8 TRANSITION_CALLBACK_SUCCESS = 97
+	uint8 TRANSITION_CALLBACK_FAILURE = 98
+	uint8 TRANSITION_CALLBACK_ERROR = 99
+	##
+	##
+	uint8 id
+	string label
+
+# The starting state from which this event transitioned.
+State start_state
+	uint8 PRIMARY_STATE_UNKNOWN = 0
+	uint8 PRIMARY_STATE_UNCONFIGURED = 1
+	uint8 PRIMARY_STATE_INACTIVE = 2
+	uint8 PRIMARY_STATE_ACTIVE = 3
+	uint8 PRIMARY_STATE_FINALIZED = 4
+	uint8 TRANSITION_STATE_CONFIGURING = 10
+	uint8 TRANSITION_STATE_CLEANINGUP = 11
+	uint8 TRANSITION_STATE_SHUTTINGDOWN = 12
+	uint8 TRANSITION_STATE_ACTIVATING = 13
+	uint8 TRANSITION_STATE_DEACTIVATING = 14
+	uint8 TRANSITION_STATE_ERRORPROCESSING = 15
+	uint8 id
+	string label
+
+# The end state of this transition event.
+State goal_state
+	uint8 PRIMARY_STATE_UNKNOWN = 0
+	uint8 PRIMARY_STATE_UNCONFIGURED = 1
+	uint8 PRIMARY_STATE_INACTIVE = 2
+	uint8 PRIMARY_STATE_ACTIVE = 3
+	uint8 PRIMARY_STATE_FINALIZED = 4
+	uint8 TRANSITION_STATE_CONFIGURING = 10
+	uint8 TRANSITION_STATE_CLEANINGUP = 11
+	uint8 TRANSITION_STATE_SHUTTINGDOWN = 12
+	uint8 TRANSITION_STATE_ACTIVATING = 13
+	uint8 TRANSITION_STATE_DEACTIVATING = 14
+	uint8 TRANSITION_STATE_ERRORPROCESSING = 15
+	uint8 id
+	string label
+
+---- /led_controller/auto_work_state ----
+型別: std_msgs/msg/Bool
+# This was originally provided as an example message.
+# It is deprecated as of Foxy
+# It is recommended to create your own semantically meaningful message.
+# However if you would like to continue using this please use the equivalent in example_msgs.
+
+bool data
+
+---- /led_controller/led_cmd ----
+型別: robot_common_interface/msg/LedCommand
+std_msgs/Header header
+	builtin_interfaces/Time stamp
+		int32 sec
+		uint32 nanosec
+	string frame_id
+
+# ID
+uint8 ID_ALL = 0
+uint8 ID_FRONT = 1
+uint8 ID_BACK = 2
+
+# RGB color presets
+uint32 RGB_RED = 0x00FF0000
+uint32 RGB_GREEN = 0x0000FF00
+uint32 RGB_BLUE = 0x000000FF
+uint32 RGB_WHITE = 0x00FFFFFF
+uint32 RGB_YELLOW = 0x00FFFF00
+
+# LED modes
+uint8 MODE_OFF = 0
+uint8 MODE_ON = 1
+uint8 MODE_BREATH = 2
+uint8 MODE_BLINK = 3
+uint8 MODE_BLINK_TRANSIENT = 4   # blink for 3 times with a transient effect
+
+# LED msg
+uint8 id            # LED id
+uint32 rgb          # RGB value, 0x00RRGGBB
+uint8 mode          # see above
+uint32 period       # period in ms
+
+---- /robot_remote/locked_state ----
+型別: std_msgs/msg/Bool
+# This was originally provided as an example message.
+# It is deprecated as of Foxy
+# It is recommended to create your own semantically meaningful message.
+# However if you would like to continue using this please use the equivalent in example_msgs.
+
+bool data
+
+---- /switch_controller/hw_estop/state ----
+型別: std_msgs/msg/Bool
+# This was originally provided as an example message.
+# It is deprecated as of Foxy
+# It is recommended to create your own semantically meaningful message.
+# However if you would like to continue using this please use the equivalent in example_msgs.
+
+bool data
+
+
+======== 廠商自訂 msg 介面 ========
+Messages:
+    ackermann_msgs/msg/AckermannDrive
+    ackermann_msgs/msg/AckermannDriveStamped
+    bond/msg/Constants
+    bond/msg/Status
+    domain_bridge/msg/CompressedMsg
+    dwb_msgs/msg/CriticScore
+    dwb_msgs/msg/LocalPlanEvaluation
+    dwb_msgs/msg/Trajectory2D
+    dwb_msgs/msg/TrajectoryScore
+    mocap4r2_control_msgs/msg/Control
+    mocap4r2_control_msgs/msg/MocapInfo
+    nav_2d_msgs/msg/Path2D
+    nav_2d_msgs/msg/Pose2D32
+    nav_2d_msgs/msg/Pose2DStamped
+    nav_2d_msgs/msg/Twist2D
+    nav_2d_msgs/msg/Twist2D32
+    nav_2d_msgs/msg/Twist2DStamped
+    pendulum_msgs/msg/JointCommand
+    pendulum_msgs/msg/JointState
+    pendulum_msgs/msg/RttestResults
+    rmw_dds_common/msg/Gid
+    rmw_dds_common/msg/NodeEntitiesInfo
+    rmw_dds_common/msg/ParticipantEntitiesInfo
+    robot_common_interface/msg/ChargingDockInfo
+    robot_common_interface/msg/ControlServerCurrentRequesterInfo
+    robot_common_interface/msg/ControlServerInPlacePose
+    robot_common_interface/msg/ControlServerMcState
+    robot_common_interface/msg/ControlServerMove
+    robot_common_interface/msg/ControlServerNavPose
+    robot_common_interface/msg/JointCommand
+    robot_common_interface/msg/JointSensor
+    robot_common_interface/msg/LedCommand
+    robot_common_interface/msg/PowerOnStatus
+    robot_common_interface/msg/RecordMp4Ack
+    robot_common_interface/msg/RecordMp4Request
+    robot_common_interface/msg/RecordMp4Status
+    robot_common_interface/msg/RecordPhotoAck
+    robot_common_interface/msg/RecordPhotoRequest
+    robot_common_interface/msg/RemoteCommand
+    robot_common_interface/msg/RoamerxAlgDtc
+    robot_common_interface/msg/RoamerxAlgStatus
+    robot_common_interface/msg/RobotDiagnosticError
+    robot_common_interface/msg/RobotDiagnosticStatus
+    robot_common_interface/msg/RobotStatus
+    robot_common_interface/msg/TFCardAck
+    robot_common_interface/msg/TFCardRequest
+    rosbag2_interfaces/msg/ReadSplitEvent
+    rosbag2_interfaces/msg/WriteSplitEvent
+    theora_image_transport/msg/Packet
+    turtlesim/msg/Color
+    turtlesim/msg/Pose
+    vision_msgs/msg/BoundingBox2D
+    vision_msgs/msg/BoundingBox2DArray
+    vision_msgs/msg/BoundingBox3D
+    vision_msgs/msg/BoundingBox3DArray
+    vision_msgs/msg/Classification
+    vision_msgs/msg/Detection2D
+    vision_msgs/msg/Detection2DArray
+    vision_msgs/msg/Detection3D
+    vision_msgs/msg/Detection3DArray
+    vision_msgs/msg/LabelInfo
+    vision_msgs/msg/ObjectHypothesis
+    vision_msgs/msg/ObjectHypothesisWithPose
+    vision_msgs/msg/Point2D
+    vision_msgs/msg/Pose2D
+    vision_msgs/msg/VisionClass
+    vision_msgs/msg/VisionInfo
+Services:
+    dwb_msgs/srv/DebugLocalPlan
+    dwb_msgs/srv/GenerateTrajectory
+    dwb_msgs/srv/GenerateTwists
+    dwb_msgs/srv/GetCriticScore
+    dwb_msgs/srv/ScoreTrajectory
+    logging_demo/srv/ConfigLogger
+    robot_common_interface/srv/ControlServerMotionControl
+    robot_common_interface/srv/SelfTestOverallResult
+    robot_common_interface/srv/SetCameraBps
+    robot_common_interface/srv/SwitchActiveJointShm
+    robot_common_interface/srv/SwitchGroupMode
+
+======== ★★★ ros2_control 硬體介面（robot_hal 用 controller_manager） ========
+-- list_hardware_interfaces --
+command interfaces
+	[94mback_light/switch_cmd [available] [claimed][0m
+	[94mbl1_hip_roll/effort [available] [claimed][0m
+	[94mbl1_hip_roll/kd [available] [claimed][0m
+	[94mbl1_hip_roll/kp [available] [claimed][0m
+	[94mbl1_hip_roll/position [available] [claimed][0m
+	[94mbl1_hip_roll/velocity [available] [claimed][0m
+	[94mbl2_hip_pitch/effort [available] [claimed][0m
+	[94mbl2_hip_pitch/kd [available] [claimed][0m
+	[94mbl2_hip_pitch/kp [available] [claimed][0m
+	[94mbl2_hip_pitch/position [available] [claimed][0m
+	[94mbl2_hip_pitch/velocity [available] [claimed][0m
+	[94mbl3_knee_pitch/effort [available] [claimed][0m
+	[94mbl3_knee_pitch/kd [available] [claimed][0m
+	[94mbl3_knee_pitch/kp [available] [claimed][0m
+	[94mbl3_knee_pitch/position [available] [claimed][0m
+	[94mbl3_knee_pitch/velocity [available] [claimed][0m
+	[94mbl4_foot/effort [available] [claimed][0m
+	[94mbl4_foot/kd [available] [claimed][0m
+	[94mbl4_foot/kp [available] [claimed][0m
+	[94mbl4_foot/position [available] [claimed][0m
+	[94mbl4_foot/velocity [available] [claimed][0m
+	[94mbr1_hip_roll/effort [available] [claimed][0m
+	[94mbr1_hip_roll/kd [available] [claimed][0m
+	[94mbr1_hip_roll/kp [available] [claimed][0m
+	[94mbr1_hip_roll/position [available] [claimed][0m
+	[94mbr1_hip_roll/velocity [available] [claimed][0m
+	[94mbr2_hip_pitch/effort [available] [claimed][0m
+	[94mbr2_hip_pitch/kd [available] [claimed][0m
+	[94mbr2_hip_pitch/kp [available] [claimed][0m
+	[94mbr2_hip_pitch/position [available] [claimed][0m
+	[94mbr2_hip_pitch/velocity [available] [claimed][0m
+	[94mbr3_knee_pitch/effort [available] [claimed][0m
+	[94mbr3_knee_pitch/kd [available] [claimed][0m
+	[94mbr3_knee_pitch/kp [available] [claimed][0m
+	[94mbr3_knee_pitch/position [available] [claimed][0m
+	[94mbr3_knee_pitch/velocity [available] [claimed][0m
+	[94mbr4_foot/effort [available] [claimed][0m
+	[94mbr4_foot/kd [available] [claimed][0m
+	[94mbr4_foot/kp [available] [claimed][0m
+	[94mbr4_foot/position [available] [claimed][0m
+	[94mbr4_foot/velocity [available] [claimed][0m
+	[94mfl1_hip_roll/effort [available] [claimed][0m
+	[94mfl1_hip_roll/kd [available] [claimed][0m
+	[94mfl1_hip_roll/kp [available] [claimed][0m
+	[94mfl1_hip_roll/position [available] [claimed][0m
+	[94mfl1_hip_roll/velocity [available] [claimed][0m
+	[94mfl2_hip_pitch/effort [available] [claimed][0m
+	[94mfl2_hip_pitch/kd [available] [claimed][0m
+	[94mfl2_hip_pitch/kp [available] [claimed][0m
+	[94mfl2_hip_pitch/position [available] [claimed][0m
+	[94mfl2_hip_pitch/velocity [available] [claimed][0m
+	[94mfl3_knee_pitch/effort [available] [claimed][0m
+	[94mfl3_knee_pitch/kd [available] [claimed][0m
+	[94mfl3_knee_pitch/kp [available] [claimed][0m
+	[94mfl3_knee_pitch/position [available] [claimed][0m
+	[94mfl3_knee_pitch/velocity [available] [claimed][0m
+	[94mfl4_foot/effort [available] [claimed][0m
+	[94mfl4_foot/kd [available] [claimed][0m
+	[94mfl4_foot/kp [available] [claimed][0m
+	[94mfl4_foot/position [available] [claimed][0m
+	[94mfl4_foot/velocity [available] [claimed][0m
+	[94mfr1_hip_roll/effort [available] [claimed][0m
+	[94mfr1_hip_roll/kd [available] [claimed][0m
+	[94mfr1_hip_roll/kp [available] [claimed][0m
+	[94mfr1_hip_roll/position [available] [claimed][0m
+	[94mfr1_hip_roll/velocity [available] [claimed][0m
+	[94mfr2_hip_pitch/effort [available] [claimed][0m
+	[94mfr2_hip_pitch/kd [available] [claimed][0m
+	[94mfr2_hip_pitch/kp [available] [claimed][0m
+	[94mfr2_hip_pitch/position [available] [claimed][0m
+	[94mfr2_hip_pitch/velocity [available] [claimed][0m
+	[94mfr3_knee_pitch/effort [available] [claimed][0m
+	[94mfr3_knee_pitch/kd [available] [claimed][0m
+	[94mfr3_knee_pitch/kp [available] [claimed][0m
+	[94mfr3_knee_pitch/position [available] [claimed][0m
+	[94mfr3_knee_pitch/velocity [available] [claimed][0m
+	[94mfr4_foot/effort [available] [claimed][0m
+	[94mfr4_foot/kd [available] [claimed][0m
+	[94mfr4_foot/kp [available] [claimed][0m
+	[94mfr4_foot/position [available] [claimed][0m
+	[94mfr4_foot/velocity [available] [claimed][0m
+	[94mfront_light/switch_cmd [available] [claimed][0m
+	[94mled_back/cmd [available] [claimed][0m
+	[94mled_front/cmd [available] [claimed][0m
+	[96mpower_24v_in/switch_cmd [available] [unclaimed][0m
+	[96mpower_bat_fan/switch_cmd [available] [unclaimed][0m
+	[96mpower_battery/switch_cmd [available] [unclaimed][0m
+	[96mpower_can/switch_cmd [available] [unclaimed][0m
+	[96mpower_ext_24v/switch_cmd [available] [unclaimed][0m
+	[96mpower_leg/switch_cmd [available] [unclaimed][0m
+	[96mpower_orin/switch_cmd [available] [unclaimed][0m
+	[96mpower_rk/switch_cmd [available] [unclaimed][0m
+state interfaces
+	battery1/state
+	battery2/state
+	bl1_hip_roll/effort
+	bl1_hip_roll/enable
+	bl1_hip_roll/error
+	bl1_hip_roll/position
+	bl1_hip_roll/temp
+	bl1_hip_roll/velocity
+	bl1_hip_roll/voltage
+	bl2_hip_pitch/effort
+	bl2_hip_pitch/enable
+	bl2_hip_pitch/error
+	bl2_hip_pitch/position
+	bl2_hip_pitch/temp
+	bl2_hip_pitch/velocity
+	bl2_hip_pitch/voltage
+	bl3_knee_pitch/effort
+	bl3_knee_pitch/enable
+	bl3_knee_pitch/error
+	bl3_knee_pitch/position
+	bl3_knee_pitch/temp
+	bl3_knee_pitch/velocity
+	bl3_knee_pitch/voltage
+	bl4_foot/effort
+	bl4_foot/enable
+	bl4_foot/error
+	bl4_foot/position
+	bl4_foot/temp
+	bl4_foot/velocity
+	bl4_foot/voltage
+	br1_hip_roll/effort
+	br1_hip_roll/enable
+	br1_hip_roll/error
+	br1_hip_roll/position
+	br1_hip_roll/temp
+	br1_hip_roll/velocity
+	br1_hip_roll/voltage
+	br2_hip_pitch/effort
+	br2_hip_pitch/enable
+	br2_hip_pitch/error
+	br2_hip_pitch/position
+	br2_hip_pitch/temp
+	br2_hip_pitch/velocity
+	br2_hip_pitch/voltage
+	br3_knee_pitch/effort
+	br3_knee_pitch/enable
+	br3_knee_pitch/error
+	br3_knee_pitch/position
+	br3_knee_pitch/temp
+	br3_knee_pitch/velocity
+	br3_knee_pitch/voltage
+	br4_foot/effort
+	br4_foot/enable
+	br4_foot/error
+	br4_foot/position
+	br4_foot/temp
+	br4_foot/velocity
+	br4_foot/voltage
+	fl1_hip_roll/effort
+	fl1_hip_roll/enable
+	fl1_hip_roll/error
+	fl1_hip_roll/position
+	fl1_hip_roll/temp
+	fl1_hip_roll/velocity
+	fl1_hip_roll/voltage
+	fl2_hip_pitch/effort
+	fl2_hip_pitch/enable
+	fl2_hip_pitch/error
+	fl2_hip_pitch/position
+	fl2_hip_pitch/temp
+	fl2_hip_pitch/velocity
+	fl2_hip_pitch/voltage
+	fl3_knee_pitch/effort
+	fl3_knee_pitch/enable
+	fl3_knee_pitch/error
+	fl3_knee_pitch/position
+	fl3_knee_pitch/temp
+	fl3_knee_pitch/velocity
+	fl3_knee_pitch/voltage
+	fl4_foot/effort
+	fl4_foot/enable
+	fl4_foot/error
+	fl4_foot/position
+	fl4_foot/temp
+	fl4_foot/velocity
+	fl4_foot/voltage
+	fr1_hip_roll/effort
+	fr1_hip_roll/enable
+	fr1_hip_roll/error
+	fr1_hip_roll/position
+	fr1_hip_roll/temp
+	fr1_hip_roll/velocity
+	fr1_hip_roll/voltage
+	fr2_hip_pitch/effort
+	fr2_hip_pitch/enable
+	fr2_hip_pitch/error
+	fr2_hip_pitch/position
+	fr2_hip_pitch/temp
+	fr2_hip_pitch/velocity
+	fr2_hip_pitch/voltage
+	fr3_knee_pitch/effort
+	fr3_knee_pitch/enable
+	fr3_knee_pitch/error
+	fr3_knee_pitch/position
+	fr3_knee_pitch/temp
+	fr3_knee_pitch/velocity
+	fr3_knee_pitch/voltage
+	fr4_foot/effort
+	fr4_foot/enable
+	fr4_foot/error
+	fr4_foot/position
+	fr4_foot/temp
+	fr4_foot/velocity
+	fr4_foot/voltage
+	hw_estop/switch_state
+	imu_central/angular_velocity.x
+	imu_central/angular_velocity.y
+	imu_central/angular_velocity.z
+	imu_central/linear_acceleration.x
+	imu_central/linear_acceleration.y
+	imu_central/linear_acceleration.z
+	imu_central/orientation.w
+	imu_central/orientation.x
+	imu_central/orientation.y
+	imu_central/orientation.z
+	imu_central/state
+	light_sensor/lux
+	sbus/state
+
+-- list_controllers --
+[92mswitch_controller    [0m switch_controller/SwitchController         [92mactive[0m
+[92mbattery_controller   [0m battery_controller/BatteryController       [92mactive[0m
+[92mimu_shm_publisher    [0m imu_publisher/ImuShmPublisher              [92mactive[0m
+[92mfill_light_controller[0m fill_light_controller/FillLightController  [92mactive[0m
+[92mled_controller       [0m led_controller/LedController               [92mactive[0m
+[92mjoint_shm_controller [0m joint_controller/JointShmController        [92mactive[0m
+
+-- list_hardware_components --
+Hardware Component 1
+	name: [92mzsi_actuator_driver[0m
+	type: system
+	plugin name: zsi_actuator_driver/ActuatorInterface
+	state: id=3 label=[92mactive[0m
+	command interfaces
+		bl4_foot/effort [94m[available][0m [94m[claimed][0m
+		bl4_foot/velocity [94m[available][0m [94m[claimed][0m
+		bl4_foot/position [94m[available][0m [94m[claimed][0m
+		bl4_foot/kp [94m[available][0m [94m[claimed][0m
+		bl4_foot/kd [94m[available][0m [94m[claimed][0m
+		bl3_knee_pitch/effort [94m[available][0m [94m[claimed][0m
+		bl3_knee_pitch/velocity [94m[available][0m [94m[claimed][0m
+		bl3_knee_pitch/position [94m[available][0m [94m[claimed][0m
+		bl3_knee_pitch/kp [94m[available][0m [94m[claimed][0m
+		bl3_knee_pitch/kd [94m[available][0m [94m[claimed][0m
+		bl2_hip_pitch/effort [94m[available][0m [94m[claimed][0m
+		bl2_hip_pitch/velocity [94m[available][0m [94m[claimed][0m
+		bl2_hip_pitch/position [94m[available][0m [94m[claimed][0m
+		bl2_hip_pitch/kp [94m[available][0m [94m[claimed][0m
+		bl2_hip_pitch/kd [94m[available][0m [94m[claimed][0m
+		bl1_hip_roll/effort [94m[available][0m [94m[claimed][0m
+		bl1_hip_roll/velocity [94m[available][0m [94m[claimed][0m
+		bl1_hip_roll/position [94m[available][0m [94m[claimed][0m
+		bl1_hip_roll/kp [94m[available][0m [94m[claimed][0m
+		bl1_hip_roll/kd [94m[available][0m [94m[claimed][0m
+		br4_foot/effort [94m[available][0m [94m[claimed][0m
+		br4_foot/velocity [94m[available][0m [94m[claimed][0m
+		br4_foot/position [94m[available][0m [94m[claimed][0m
+		br4_foot/kp [94m[available][0m [94m[claimed][0m
+		br4_foot/kd [94m[available][0m [94m[claimed][0m
+		br3_knee_pitch/effort [94m[available][0m [94m[claimed][0m
+		br3_knee_pitch/velocity [94m[available][0m [94m[claimed][0m
+		br3_knee_pitch/position [94m[available][0m [94m[claimed][0m
+		br3_knee_pitch/kp [94m[available][0m [94m[claimed][0m
+		br3_knee_pitch/kd [94m[available][0m [94m[claimed][0m
+		br2_hip_pitch/effort [94m[available][0m [94m[claimed][0m
+		br2_hip_pitch/velocity [94m[available][0m [94m[claimed][0m
+		br2_hip_pitch/position [94m[available][0m [94m[claimed][0m
+		br2_hip_pitch/kp [94m[available][0m [94m[claimed][0m
+		br2_hip_pitch/kd [94m[available][0m [94m[claimed][0m
+		br1_hip_roll/effort [94m[available][0m [94m[claimed][0m
+		br1_hip_roll/velocity [94m[available][0m [94m[claimed][0m
+		br1_hip_roll/position [94m[available][0m [94m[claimed][0m
+		br1_hip_roll/kp [94m[available][0m [94m[claimed][0m
+		br1_hip_roll/kd [94m[available][0m [94m[claimed][0m
+		fl4_foot/effort [94m[available][0m [94m[claimed][0m
+		fl4_foot/velocity [94m[available][0m [94m[claimed][0m
+		fl4_foot/position [94m[available][0m [94m[claimed][0m
+		fl4_foot/kp [94m[available][0m [94m[claimed][0m
+		fl4_foot/kd [94m[available][0m [94m[claimed][0m
+		fl3_knee_pitch/effort [94m[available][0m [94m[claimed][0m
+		fl3_knee_pitch/velocity [94m[available][0m [94m[claimed][0m
+		fl3_knee_pitch/position [94m[available][0m [94m[claimed][0m
+		fl3_knee_pitch/kp [94m[available][0m [94m[claimed][0m
+		fl3_knee_pitch/kd [94m[available][0m [94m[claimed][0m
+		fl2_hip_pitch/effort [94m[available][0m [94m[claimed][0m
+		fl2_hip_pitch/velocity [94m[available][0m [94m[claimed][0m
+		fl2_hip_pitch/position [94m[available][0m [94m[claimed][0m
+		fl2_hip_pitch/kp [94m[available][0m [94m[claimed][0m
+		fl2_hip_pitch/kd [94m[available][0m [94m[claimed][0m
+		fl1_hip_roll/effort [94m[available][0m [94m[claimed][0m
+		fl1_hip_roll/velocity [94m[available][0m [94m[claimed][0m
+		fl1_hip_roll/position [94m[available][0m [94m[claimed][0m
+		fl1_hip_roll/kp [94m[available][0m [94m[claimed][0m
+		fl1_hip_roll/kd [94m[available][0m [94m[claimed][0m
+		fr4_foot/effort [94m[available][0m [94m[claimed][0m
+		fr4_foot/velocity [94m[available][0m [94m[claimed][0m
+		fr4_foot/position [94m[available][0m [94m[claimed][0m
+		fr4_foot/kp [94m[available][0m [94m[claimed][0m
+		fr4_foot/kd [94m[available][0m [94m[claimed][0m
+		fr3_knee_pitch/effort [94m[available][0m [94m[claimed][0m
+		fr3_knee_pitch/velocity [94m[available][0m [94m[claimed][0m
+		fr3_knee_pitch/position [94m[available][0m [94m[claimed][0m
+		fr3_knee_pitch/kp [94m[available][0m [94m[claimed][0m
+		fr3_knee_pitch/kd [94m[available][0m [94m[claimed][0m
+		fr2_hip_pitch/effort [94m[available][0m [94m[claimed][0m
+		fr2_hip_pitch/velocity [94m[available][0m [94m[claimed][0m
+		fr2_hip_pitch/position [94m[available][0m [94m[claimed][0m
+		fr2_hip_pitch/kp [94m[available][0m [94m[claimed][0m
+		fr2_hip_pitch/kd [94m[available][0m [94m[claimed][0m
+		fr1_hip_roll/effort [94m[available][0m [94m[claimed][0m
+		fr1_hip_roll/velocity [94m[available][0m [94m[claimed][0m
+		fr1_hip_roll/position [94m[available][0m [94m[claimed][0m
+		fr1_hip_roll/kp [94m[available][0m [94m[claimed][0m
+		fr1_hip_roll/kd [94m[available][0m [94m[claimed][0m
+Hardware Component 2
+	name: [92mzsi_imu_driver[0m
+	type: sensor
+	plugin name: zsi_imu_driver/ImuInterface
+	state: id=3 label=[92mactive[0m
+	command interfaces
+Hardware Component 3
+	name: [92mpower_control_driver[0m
+	type: system
+	plugin name: power_control_driver/PowerControlInterface
+	state: id=3 label=[92mactive[0m
+	command interfaces
+		led_front/cmd [94m[available][0m [94m[claimed][0m
+		led_back/cmd [94m[available][0m [94m[claimed][0m
+		front_light/switch_cmd [94m[available][0m [94m[claimed][0m
+		back_light/switch_cmd [94m[available][0m [94m[claimed][0m
+		power_orin/switch_cmd [94m[available][0m [unclaimed]
+		power_bat_fan/switch_cmd [94m[available][0m [unclaimed]
+		power_rk/switch_cmd [94m[available][0m [unclaimed]
+		power_can/switch_cmd [94m[available][0m [unclaimed]
+		power_24v_in/switch_cmd [94m[available][0m [unclaimed]
+		power_ext_24v/switch_cmd [94m[available][0m [unclaimed]
+		power_leg/switch_cmd [94m[available][0m [unclaimed]
+		power_battery/switch_cmd [94m[available][0m [unclaimed]
+
+======== ★★★ /opt/export 完整結構 ========
+/opt/export:
+total 28
+drwxr-xr-x 5 root root 4096 Jan 28  2026 .
+drwxr-xr-x 1 root root 4096 Jan 28  2026 ..
+drwxr-xr-x 2 root root 4096 Jan 28  2026 config
+drwxr-xr-x 3 root root 4096 Jan 28  2026 mc
+drwxr-xr-x 4 root root 4096 Jan 28  2026 rknn_model_crypto
+-rwxrwxr-x 1 root root  177 Jan 28  2026 run.sh
+
+/opt/export/config:
+total 56
+drwxr-xr-x 2 root root 4096 Jan 28  2026 .
+drwxr-xr-x 5 root root 4096 Jan 28  2026 ..
+-rw-r--r-- 1 root root 1153 Jan 28  2026 dance_config.yaml
+-rw-r--r-- 1 root root  334 Jan 28  2026 default-motion_config.yaml
+-rwxr-xr-x 1 root root 3319 Jan 28  2026 default-user-parameters.yaml
+-rw-r--r-- 1 root root 6906 Jan 28  2026 rl_rknn_config.yaml
+-rwxr-xr-x 1 root root  506 Jan 28  2026 robot-defaults.yaml
+-rw-r--r-- 1 root root   46 Jan 28  2026 sdk_config.yaml
+-rw-r--r-- 1 root root 3529 Jan 28  2026 zg-motion_config.yaml
+-rwxr-xr-x 1 root root 3437 Jan 28  2026 zg-user-parameters.yaml
+-rw-r--r-- 1 root root 8034 Jan 28  2026 zg_wheels-motion_config.yaml
+-rwxr-xr-x 1 root root 3431 Jan 28  2026 zg_wheels-user-parameters.yaml
+
+/opt/export/mc:
+total 12
+drwxr-xr-x 3 root root 4096 Jan 28  2026 .
+drwxr-xr-x 5 root root 4096 Jan 28  2026 ..
+drwxr-xr-x 2 root root 4096 Jan 28  2026 bin
+
+/opt/export/mc/bin:
+total 4400
+drwxr-xr-x 2 root root    4096 Jan 28  2026 .
+drwxr-xr-x 3 root root    4096 Jan 28  2026 ..
+-rwxr-xr-x 1 root root   14616 Jan 28  2026 file_crypto_cli
+-rwxr-xr-x 1 root root 1700824 Jan 28  2026 libbiomimetics.so
+-rwxr-xr-x 1 root root   47640 Jan 28  2026 libdynacore_param_handler.so
+-rwxr-xr-x 1 root root  365800 Jan 28  2026 libdynacore_yaml-cpp.so
+-rwxr-xr-x 1 root root   27080 Jan 28  2026 libfilecrypto_shared.so
+-rwxr-xr-x 1 root root   31032 Jan 28  2026 libGoldfarb_Optimizer.so
+-rwxr-xr-x 1 root root   30936 Jan 28  2026 libinih.so
+-rwxr-xr-x 1 root root   68584 Jan 28  2026 libP2.so
+-rwxr-xr-x 1 root root  421592 Jan 28  2026 libqpOASES.so
+-rwxr-xr-x 1 root root  103080 Jan 28  2026 librknn_model.so
+-rwxr-xr-x 1 root root  656736 Jan 28  2026 librobot.so
+-rwxr-xr-x 1 root root  928960 Jan 28  2026 mc_ctrl
+-rwxr-xr-x 1 root root   35352 Jan 28  2026 pose_calib_test
+-rwxr-xr-x 1 root root   39416 Jan 28  2026 ptp_ctrl
+
+/opt/export/rknn_model_crypto:
+total 16
+drwxr-xr-x 4 root root 4096 Jan 28  2026 .
+drwxr-xr-x 5 root root 4096 Jan 28  2026 ..
+drwxr-xr-x 2 root root 4096 Jan 28  2026 zg
+drwxr-xr-x 2 root root 4096 Jan 28  2026 zg_wheels
+
+/opt/export/rknn_model_crypto/zg:
+total 50272
+drwxr-xr-x 2 root root    4096 Jan 28  2026 .
+drwxr-xr-x 4 root root    4096 Jan 28  2026 ..
+-rw-r--r-- 1 root root 3379328 Jan 28  2026 odom
+-rw-r--r-- 1 root root 3379328 Jan 28  2026 odom_flipover
+-rw-r--r-- 1 root root 3379328 Jan 28  2026 odom_gait_walk
+-rw-r--r-- 1 root root 3379328 Jan 28  2026 odom_gait_walk_su
+-rw-r--r-- 1 root root 3379328 Jan 28  2026 odom_o2
+-rw-r--r-- 1 root root 3379328 Jan 28  2026 odom_rpy8
+-rw-r--r-- 1 root root 3379328 Jan 28  2026 odom_stair
+-rw-r--r-- 1 root root 3447552 Jan 28  2026 policy
+-rw-r--r-- 1 root root 3447552 Jan 28  2026 policy_flipover
+-rw-r--r-- 1 root root 3513088 Jan 28  2026 policy_gait_walk
+-rw-r--r-- 1 root root 3513088 Jan 28  2026 policy_gait_walk_su
+-rw-r--r-- 1 root root 3447552 Jan 28  2026 policy_o2
+-rw-r--r-- 1 root root 3513088 Jan 28  2026 policy_rpy8
+-rw-r--r-- 1 root root 3513088 Jan 28  2026 policy_stair
+-rw-r--r-- 1 root root 3379328 Jan 28  2026 zg_2ms_odom
+
+/opt/export/rknn_model_crypto/zg_wheels:
+total 88344
+drwxr-xr-x 2 root root    4096 Jan 28  2026 .
+drwxr-xr-x 4 root root    4096 Jan 28  2026 ..
+-rw-r--r-- 1 root root 3434944 Jan 28  2026 odom
+-rw-r--r-- 1 root root 3412160 Jan 28  2026 odom_climb
+-rw-r--r-- 1 root root 3412160 Jan 28  2026 odom_dsb
+-rw-r--r-- 1 root root 3434944 Jan 28  2026 odom_gait_walk
+-rw-r--r-- 1 root root 3434944 Jan 28  2026 odom_handstand
+-rw-r--r-- 1 root root 3434944 Jan 28  2026 odom_mix_flipover
+-rw-r--r-- 1 root root 3434944 Jan 28  2026 odom_skwalk
+-rw-r--r-- 1 root root 3434944 Jan 28  2026 odom_slim
+-rw-r--r-- 1 root root 3434944 Jan 28  2026 odom_snow
+-rw-r--r-- 1 root root 3434944 Jan 28  2026 odom_stair
+-rw-r--r-- 1 root root 3412160 Jan 28  2026 odom_zgws_jump
+-rw-r--r-- 1 root root 3412160 Jan 28  2026 odom_zgws_rpy
+-rw-r--r-- 1 root root 3412160 Jan 28  2026 odom_zgwt_crawl_1029
+-rw-r--r-- 1 root root 3536960 Jan 28  2026 policy
+-rw-r--r-- 1 root root 3514240 Jan 28  2026 policy_climb
+-rw-r--r-- 1 root root 3514240 Jan 28  2026 policy_dsb
+-rw-r--r-- 1 root root 3537024 Jan 28  2026 policy_gait_walk
+-rw-r--r-- 1 root root 3537024 Jan 28  2026 policy_handstand
+-rw-r--r-- 1 root root 3536960 Jan 28  2026 policy_mix_flipover
+-rw-r--r-- 1 root root 3536960 Jan 28  2026 policy_skwalk
+-rw-r--r-- 1 root root 3536960 Jan 28  2026 policy_slim
+-rw-r--r-- 1 root root 3536960 Jan 28  2026 policy_snow
+-rw-r--r-- 1 root root 3536960 Jan 28  2026 policy_stair
+-rw-r--r-- 1 root root 3514240 Jan 28  2026 policy_zgws_jump
+-rw-r--r-- 1 root root 3514240 Jan 28  2026 policy_zgws_rpy
+-rw-r--r-- 1 root root 3514240 Jan 28  2026 policy_zgwt_crawl_1029
+
+======== ★★★★ /opt/export/config/*.yaml —— 這台機器真實在用的運控參數 ========
+
+-------- /opt/export/config/dance_config.yaml --------
+ZGWS_dance_1:
+  - name: stand
+    type: consecutive
+    control_mode: 1
+    motion_mode: 10
+    duration: 0.0
+    vel_cmd: [0.0, 0.0, 0.0]
+    angular_cmd: [0.0, 0.0, 0.0]
+
+  - name: twist
+    type: continuous
+    control_mode: 21
+    motion_mode: 100
+    duration: 1.0
+    vel_cmd: [0.0, 0.0, 0.0]
+    angular_cmd: [0.0, 0.0, 0.5]
+
+  - name: twist
+    type: continuous
+    control_mode: 21
+    motion_mode: 100
+    duration: 1.0
+    vel_cmd: [0.0, 0.0, 0.0]
+    angular_cmd: [0.0, 0.0, -0.5]
+
+  - name: twist
+    type: continuous
+    control_mode: 21
+    motion_mode: 100
+    duration: 1.0
+    vel_cmd: [0.0, 0.0, 0.0]
+    angular_cmd: [0.0, 0.0, 0.5]
+
+  - name: twist
+    type: continuous
+    control_mode: 21
+    motion_mode: 100
+    duration: 1.0
+    vel_cmd: [0.0, 0.0, 0.0]
+    angular_cmd: [0.0, 0.0, -0.5]
+
+  - name: twist
+    type: continuous
+    control_mode: 21
+    motion_mode: 100
+    duration: 1.0
+    vel_cmd: [0.0, 0.0, 0.0]
+    angular_cmd: [0.0, 0.0, 0.0]
+
+  - name: end
+    type: consecutive
+    control_mode: 18
+    motion_mode: 1
+    duration: 0.0
+    vel_cmd: [0.0, 0.0, 0.0]
+    angular_cmd: [0.0, 0.0, 0.0]
+    
+dance_2:
+dance_3:
+-------- /opt/export/config/default-motion_config.yaml --------
+robot_defaultStand:
+  meta:
+    motionClass: no-interruptible
+  sequence:
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [-0.0, -0.0, 0.0]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.4
+
+
+-------- /opt/export/config/default-user-parameters.yaml --------
+
+__collection-name__: user-parameters
+# Joint kp kd
+Kd_joint          : [1, 0.8, 0.8]
+Kp_joint          : [3, 4.4, 2]
+
+Kd_joint_swing          : [1, 0.8, 0.8]
+Kp_joint_swing          : [3, 3, 3]
+
+# WBC kp kd
+Kp_body           : [100, 100, 100]
+Kd_body           : [10, 10, 10]
+
+Kp_foot           : [500, 500, 500]
+Kd_foot           : [10, 10, 10]
+
+Kp_ori            : [100, 100, 100]
+Kd_ori            : [10, 10, 10]
+
+#FSM kp kd
+FSM_jointPD_Kp    : 80
+FSM_jointPD_Kd    : 1
+FSM_passive_Kd    : 3
+FSM_passive_Wheel_Kd    : 0.0
+FSM_RL_ABAD_Kp    : 20.0
+FSM_RL_HIP_Kp     : 20.0
+FSM_RL_KNEE_Kp    : 20.0
+FSM_RL_Kd         : 0.7
+FSM_RL_Wheel_Kp   : 0.0
+FSM_RL_Wheel_Kd   : 0.0
+Montion_Joint_Kp  : 40
+Montion_Joint_Kd  : 2.0
+Charge_Joint_Kp   : 400.0
+Charge_Joint_Kd   : 2.0
+
+FSM_RLBalanceStand_Kp         : 20
+FSM_RLBalanceStand_Kd         : 0.7
+FSM_RLBalanceStand_Wheel_Kp   : 0.0
+FSM_RLBalanceStand_Wheel_Kd   : 0.0
+FSM_RLLowpower_Wheel_Kp       : 0.0
+FSM_RLLowpower_Wheel_Kd       : 0.0
+
+# banlance stand parameters
+FSM_balance_pitch : 0.4
+FSM_balance_roll  : 0.4
+FSM_balance_yaw   : 0.5
+FSM_balance_height: 0.06
+
+# MPC parameters
+cmpc_alpha        : 40e-06
+cmpc_Q_rpy        : [2.5, 2.5, 10]
+cmpc_Q_xyz        : [2, 2, 40]
+cmpc_Q_rpyd       : [0, 0, 0.3]
+cmpc_Q_xyzd       : [0.2, 0.2, 0.2]
+cmpc_fmax         : 120
+cmpc_com_offset   : [0, 0, 0]
+cmpc_x_drag       : 3
+
+cmpc_x_vel        : 0.4 # x方向最大速度指令m/s
+cmpc_y_vel        : 0.0 # y方向最大速度指令m/s
+cmpc_yaw_vel      : 1.0 # 最大偏航角速度指令rad/s
+body_height       : 0.29 # 身体高度m
+body_height_ratio : 1.0 # 低身行走高度比例
+leg_height        : 0.08 # 抬腿高度m
+brake_deltavel    : 0.05
+mpc_horizon_length         : 10 # MPC预测的步长
+gait_horizon_length        : 10 # 步态周期的步长
+use_wbc           : 1 # 是否使用WBC控制
+use_5stage_bezier : 0 # 是否使用5阶贝塞尔足端曲线
+cmpc_gait         : 9
+cmpc_bonus_swing  : 0
+preview_time      : 0.5
+# Joint position limit and protect
+JPos_limit_low    : [-0.5, -1.57, 1.0]
+JPos_limit_high   : [0.4, 1.0, 2.5]
+jointVelocityLimit    : 18.0
+enable_joint_pos_protect: 0
+enable_joint_pos_limit: 0
+feet_z_offset: 0.0
+imu_type: 0  #0:lordImu  1:NormalImu  2:UnitreeImu
+motor_platform_type: 0  #0:spi  1:unitree
+enable_foldleg: 0
+# Gait Scheduler parameters
+gait_type             : 4
+gait_period_time      : 0.5
+gait_switching_phase  : 0.5
+gait_override         : 4
+gait_max_leg_angle    : 15
+gait_max_stance_time  : 0.25
+gait_min_stance_time  : 0.1
+
+#Offset 
+
+abad_side_sign   : [0.0, 0.0, 0.0, 0.0]
+hip_side_sign    : [0.0, 0.0, 0.0, 0.0]
+knee_side_sign   : [0.0, 0.0, 0.0, 0.0]
+wheel_side_sign  : [0.0, 0.0, 0.0, 0.0]
+abad_offset   : [0.0, 0.0, 0.0, 0.0]
+hip_offset    : [0.0, 0.0, 0.0, 0.0]
+knee_offset   : [0.0, 0.0, 0.0, 0.0]
+wheel_offset  : [0.0, 0.0, 0.0, 0.0]
+
+hip_range        : [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+hip_range_offset : [0.0, 0.0, 0.0, 0.0]
+
+#rl_default_pos
+abad_default_pos   : [0., 0., 0., 0.]
+hip_default_pos    : [0.8, 0.8, 0.8, 0.8]
+knee_default_pos   : [-1.5, -1.5, -1.5, -1.5]
+wheel_default_pos  : [0., 0., 0., 0.]
+
+body_half_length   : 0.175
+drop_height       : 0.0
+min_crawl_x_vel   : 0.0
+max_crawl_x_vel   : 0.0
+min_crawl_y_vel   : 0.0
+max_crawl_y_vel   : 0.0
+min_crawl_ang_vel : 0.0
+max_crawl_ang_vel : 0.0
+-------- /opt/export/config/rl_rknn_config.yaml --------
+policy_path:
+  XG: 
+  XGW: rknn_model_crypto/xg_wheel/policy
+  ZGW: rknn_model_crypto/zg_wheel/policy
+  ZGWS: rknn_model_crypto/zg_wheels/policy
+odom_path:
+  XG: 
+  XGW: rknn_model_crypto/xg_wheel/odom
+  ZGW: rknn_model_crypto/zg_wheel/odom
+  ZGWS: rknn_model_crypto/zg_wheels/odom
+policy_mlp_path:
+  XG: rknn_model_crypto/xg/policy_mlp
+  XGW:
+  ZGW:
+policy_backflip_path:
+  XG: rknn_model_crypto/xg/policy_backflip
+  XGW:
+  ZGW:
+odom_backflip_path:
+  XG: rknn_model_crypto/xg/odom_backflip
+  XGW:
+  ZGW:
+policy_jump_path:
+  XG: rknn_model_crypto/xg/policy_jump
+  XGW:
+  ZGW:
+odom_jump_path:
+  XG: rknn_model_crypto/xg/odom_jump
+  XGW:
+  ZGW:
+policy_upright_path:
+  XG: rknn_model_crypto/xg/policy_upright
+  XGW:
+  ZGW:
+odom_upright_path:
+  XG: rknn_model_crypto/xg/odom_upright
+  XGW:
+  ZGW:
+policy_gait_path:
+  XG: rknn_model_crypto/xg/policy_slow_walk_gait
+  XGW:
+  ZGW:
+odom_gait_path:
+  XG: rknn_model_crypto/xg/odom_slow_walk_gait
+  XGW:
+  ZGW:
+policy_mix_walk_path:
+  XG: rknn_model_crypto/xg/policy_mix_walk
+  XXG: rknn_model_crypto/xxg/policy_0105
+  ZG: rknn_model_crypto/zg/policy_gait_walk_su
+  XGW:
+  ZGW:
+odom_mix_walk_path:
+  XG: rknn_model_crypto/xg/odom_mix_walk
+  XXG: rknn_model_crypto/xxg/odom_0105
+  ZG: rknn_model_crypto/zg/odom_gait_walk_su
+  XGW:
+  ZGW:
+
+policy_gait_walk_path:
+  XG: rknn_model_crypto/xg/policy_gait_walk
+  ZG: rknn_model_crypto/zg/policy_gait_walk
+  XGW: rknn_model_crypto/xg_wheel/policy_gait_walk
+  ZGWS: rknn_model_crypto/zg_wheels/policy_gait_walk
+odom_gait_walk_path:
+  XG: rknn_model_crypto/xg/odom_gait_walk
+  ZG: rknn_model_crypto/zg/odom_gait_walk
+  XGW: rknn_model_crypto/xg_wheel/odom_gait_walk
+  ZGWS: rknn_model_crypto/zg_wheels/odom_gait_walk
+policy_mix_flipover_path:
+  XG: rknn_model_crypto/xg/policy_mix_flipover
+  ZG: rknn_model_crypto/zg/policy_flipover
+  XGW: rknn_model_crypto/xg_wheel/policy_mix_flipover
+  ZGW:
+odom_mix_flipover_path:
+  XG: rknn_model_crypto/xg/odom_mix_flipover
+  ZG: rknn_model_crypto/zg/odom_flipover
+  XGW: rknn_model_crypto/xg_wheel/odom_mix_flipover
+  ZGW:
+
+policy_mix_backflip_path:
+  XG: rknn_model_crypto/xg/policy_mix_backflip
+  XGW: rknn_model_crypto/xg_wheel/policy_xgw_backflip
+  ZGW:
+  ZGWS: rknn_model_crypto/zg_wheels/policy_zgws_backflip
+odom_mix_backflip_path:
+  XG: rknn_model_crypto/xg/odom_mix_backflip
+  XGW: rknn_model_crypto/xg_wheel/odom_xgw_backflip
+  ZGW:
+  ZGWS: rknn_model_crypto/zg_wheels/odom_zgws_backflip
+policy_mix_frontflip_path:
+  XG: rknn_model_crypto/xg/policy_mix_frontflip
+  XGW:
+  ZGW:
+odom_mix_frontflip_path:
+  XG: rknn_model_crypto/xg/odom_mix_frontflip
+  XGW:
+  ZGW:
+policy_mix_jump_path:
+  XG: rknn_model_crypto/xg/policy_jump_fix2_step3
+  XGW: rknn_model_crypto/xg_wheel/policy_xgw_jump
+  ZGW:
+  ZGWS: rknn_model_crypto/zg_wheels/policy_zgws_jump
+odom_mix_jump_path:
+  XG: rknn_model_crypto/xg/odom_jump_fix2_step3
+  XGW: rknn_model_crypto/xg_wheel/odom_xgw_jump
+  ZGW:
+  ZGWS: rknn_model_crypto/zg_wheels/odom_zgws_jump
+policy_mix_sideflip_path:
+  XG: rknn_model_crypto/xg/policy_mix_sideflip
+  XGW:
+  ZGW:
+odom_mix_sideflip_path:
+  XG: rknn_model_crypto/xg/odom_mix_sideflip
+  XGW:
+  ZGW:
+policy_balancestand_path:
+  XG: rknn_model_crypto/xg/policy_balancestand_withyaw_0423
+  ZG: rknn_model_crypto/zg/policy_rpy8
+  XGW: rknn_model_crypto/xg_wheel/policy_xgw_rpy_2
+  ZGW:
+  ZGWS: rknn_model_crypto/zg_wheels/policy_zgws_rpy
+odom_balancestand_path:
+  XG: rknn_model_crypto/xg/odom_balancestand_withyaw_0423
+  ZG: rknn_model_crypto/zg/odom_rpy8
+  XGW: rknn_model_crypto/xg_wheel/odom_xgw_rpy_2
+  ZGW:
+  ZGWS: rknn_model_crypto/zg_wheels/odom_zgws_rpy
+policy_tracking_path:
+  XG: rknn_model_crypto/xg/policy_tracking
+  XGW:
+  ZGW:
+odom_tracking_path:
+  XG: rknn_model_crypto/xg/odom_tracking
+  XGW:
+  ZGW:
+policy_walkpos_path:
+  XG: rknn_model_crypto/xg/policy_walkpos
+  XGW:
+  ZGW:
+odom_walkpos_path:
+  XG: rknn_model_crypto/xg/odom_walkpos
+  XGW:
+  ZGW:
+policy_mix_climb_path:
+  XG:
+  ZG: rknn_model_crypto/zg/policy_o2
+  XGW: rknn_model_crypto/xg_wheel/policy_climb
+  ZGWS: rknn_model_crypto/zg_wheels/policy_climb
+odom_mix_climb_path:
+  XG:
+  ZG: rknn_model_crypto/zg/odom_o2
+  XGW: rknn_model_crypto/xg_wheel/odom_climb
+  ZGWS:  rknn_model_crypto/zg_wheels/odom_climb
+policy_mix_dsb_path:
+  XG:
+  XGW: 
+  ZGWS: rknn_model_crypto/zg_wheels/policy_dsb
+odom_mix_dsb_path:
+  XG:
+  XGW: 
+  ZGWS:  rknn_model_crypto/zg_wheels/odom_dsb
+policy_mix_handstand_path:
+  XG:
+  XGW: rknn_model_crypto/xg_wheel/policy_handstand
+  ZGW: rknn_model_crypto/zg_wheel/policy_handstand
+  ZGWS: rknn_model_crypto/zg_wheels/policy_handstand
+odom_mix_handstand_path:
+  XG:
+  XGW: rknn_model_crypto/xg_wheel/odom_handstand
+  ZGW: rknn_model_crypto/zg_wheel/odom_handstand
+  ZGWS: rknn_model_crypto/zg_wheels/odom_handstand
+policy_ik_path:
+  XG: rknn_model_crypto/xg/policy_ik
+  XGW:
+  ZGW:
+odom_ik_path:
+  XG: rknn_model_crypto/xg/odom_ik
+  XGW:
+  ZGW:
+policy_mix_crawl_path:
+  XG: rknn_model_crypto/xg/policy_mix_crawl_260127
+  XGW: rknn_model_crypto/xg_wheel/policy_xgw_su_crawl_1222
+  ZGW:
+  ZGWS: rknn_model_crypto/zg_wheels/policy_zgwt_crawl_1029
+odom_mix_crawl_path:
+  XG: rknn_model_crypto/xg/policy_mix_crawl_260127
+  XGW: rknn_model_crypto/xg_wheel/odom_xgw_su_crawl_1222
+  ZGW:
+  ZGWS: rknn_model_crypto/zg_wheels/odom_zgwt_crawl_1029
+
+policy_skwalk_path:
+  XG:
+  XGW: rknn_model_crypto/xg_wheel/policy_skwalk
+  ZGW:
+  ZGWS: rknn_model_crypto/zg_wheels/policy_skwalk
+odom_skwalk_path:
+  XG:
+  XGW:  rknn_model_crypto/xg_wheel/odom_skwalk
+  ZGW:
+  ZGWS: rknn_model_crypto/zg_wheels/odom_skwalk
+
+policy_snow_path:
+  XG:
+  XGW: 
+  ZGWS: rknn_model_crypto/zg_wheels/policy_snow
+odom_snow_path:
+  XG:
+  XGW: 
+  ZGWS: rknn_model_crypto/zg_wheels/odom_snow
+
+policy_stair_path:
+  XG:
+  ZG: rknn_model_crypto/zg/policy_stair
+  XGW: rknn_model_crypto/xg_wheel/policy_stair
+  ZGW:
+  ZGWS: rknn_model_crypto/zg_wheels/policy_stair
+odom_stair_path:
+  XG:
+  ZG: rknn_model_crypto/zg/odom_stair
+  XGW: rknn_model_crypto/xg_wheel/odom_stair
+  ZGW:
+  ZGWS: rknn_model_crypto/zg_wheels/odom_stair
+
+policy_slim_path:
+  XG:
+  ZG: rknn_model_crypto/zg/policy_gait_walk
+  XGW:
+  ZGW:
+  ZGWS: rknn_model_crypto/zg_wheels/policy_slim
+odom_slim_path:
+  XG:
+  ZG: rknn_model_crypto/zg/odom_gait_walk
+  XGW:
+  ZGW:
+  ZGWS: rknn_model_crypto/zg_wheels/odom_slim
+
+rl_odom_path:
+  XG: rknn_model_crypto/xg/odom_2ms_notau
+  ZG: rknn_model_crypto/zg/zg_2ms_odom
+  XGW:
+  ZGW:
+
+policy_mix_measured_path:
+  XG: rknn_model_crypto/xg/policy_measured_0918
+  ZG:
+  XGW:
+  ZGW:
+odom_mix_measured_path:
+  XG: rknn_model_crypto/xg/odom_measured_0918
+  ZG:
+  XGW:
+  ZGW:
+
+policy_moon_walk_path:
+  XG: rknn_model_crypto/xg/policy_moonwalk
+  ZG:      
+
+odom_moon_walk_path:         
+  XG: rknn_model_crypto/xg/odom_moonwalk
+  ZG:
+
+policy_mix_lowpower_path:
+  XG: 
+  ZG:
+  XGW: rknn_model_crypto/xg_wheel/policy_lowpower
+  ZGW:
+  ZGWS:
+odom_mix_lowpower_path:
+  XG: 
+  ZG:
+  XGW: rknn_model_crypto/xg_wheel/odom_lowpower
+  ZGW:
+  ZGWS:
+-------- /opt/export/config/robot-defaults.yaml --------
+
+__collection-name__: robot-parameters
+
+controller_dt     : 0.002
+control_mode      : 0
+motion_mode       : 0
+cur_control_mode      : 0
+cur_motion_mode       : 0
+debugMode : 0 #0 release #1 debug
+foot_height_sensor_noise      :  0.001
+foot_process_noise_position   :  0.002
+foot_sensor_noise_position    :  0.001
+foot_sensor_noise_velocity    :  0.1
+imu_process_noise_position    :  0.02
+imu_process_noise_velocity    :  0.02
+controller_type : 0
+use_gamepad: 0
+enable_stunts: 1
+enable_position_tracking: 0
+
+-------- /opt/export/config/sdk_config.yaml --------
+target_ip: "192.168.234.1"
+target_port: 43988
+
+-------- /opt/export/config/zg-motion_config.yaml --------
+ZG_defaultStand:
+  meta:
+    motionClass: no-interruptible
+  sequence:
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [-0.0, -0.0, 0.0]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.4
+
+ZG_shakehand:
+  meta:
+    motionClass: no-interruptible
+  sequence:
+    - motionType: transition
+      heightCmd: 0.2
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 1.2
+
+    - motionType: transition
+      heightCmd: 0.5
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.8
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [-0.0, -0.35, 0.0]
+      xyzCmd: [-0.02, -0.0, -0.1]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.4
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [0.0, 0.02, 0.15]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.4
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [0.3, 0.02, 0.2]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.6
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, -0.2]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.6
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.2]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.6
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, -0.2]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.6
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.2]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.6
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [-0.3, -0.0, -0.28]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.4
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, -0.02]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.4
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.2
+-------- /opt/export/config/zg-user-parameters.yaml --------
+
+__collection-name__: user-parameters
+# Joint kp kd
+Kd_joint          : [1.0, 1.0, 1.0]
+Kp_joint          : [3, 4, 3]
+
+Kd_joint_swing          : [1.0, 1.0, 1.0]
+Kp_joint_swing          : [3, 4, 3]
+
+# WBC kp kd
+Kp_body           : [100, 100, 200]
+Kd_body           : [10, 10, 10]
+
+Kp_foot           : [800, 100, 100]
+Kd_foot           : [10, 10, 10]
+
+Kp_ori            : [500, 500, 500]
+Kd_ori            : [50, 50, 50]
+
+#FSM kp kd
+FSM_jointPD_Kp    : 200.0
+FSM_jointPD_Kd    : 5.0
+FSM_passive_Kd    : 8.0
+FSM_passive_Wheel_Kd    : 0.0
+FSM_RL_ABAD_Kp    : 60.0
+FSM_RL_HIP_Kp     : 120.0
+FSM_RL_KNEE_Kp    : 120.0
+FSM_RL_Kd         : 1.0
+FSM_RL_Wheel_Kp   : 0.0
+FSM_RL_Wheel_Kd   : 0.0
+Montion_Joint_Kp  : 160.0
+Montion_Joint_Kd  : 5.0
+Charge_Joint_Kp   : 400.0
+Charge_Joint_Kd   : 5.0
+
+FSM_RLBalanceStand_Kp         : 60.0
+FSM_RLBalanceStand_Kd         : 1.0
+FSM_RLBalanceStand_Wheel_Kp   : 0.0
+FSM_RLBalanceStand_Wheel_Kd   : 0.0
+FSM_RLLowpower_Wheel_Kp       : 0.0
+FSM_RLLowpower_Wheel_Kd       : 0.0
+
+# banlance stand
+FSM_balance_pitch : 1.0
+FSM_balance_roll  : 1.0
+FSM_balance_yaw   : 1.0
+FSM_balance_height: 1.0
+
+# MPC parameters
+cmpc_alpha        : 4e-05
+cmpc_Q_rpy        : [5, 5, 10]
+cmpc_Q_xyz        : [10, 10, 100]
+cmpc_Q_rpyd       : [0, 0, 0.5]
+cmpc_Q_xyzd       : [0.2, 0.2, 0.8]
+cmpc_fmax         : 120
+cmpc_com_offset   : [0, 0, 0]
+cmpc_x_drag       : 0
+
+cmpc_x_vel        : 3.0 # x方向最大速度指令m/s
+cmpc_y_vel        : 1.0 # y方向最大速度指令m/s
+cmpc_yaw_vel      : 3.0 # 最大偏航角速度指令rad/s
+body_height       : 0.52 # 身体高度m
+body_height_ratio : 1.0 # 低身行走高度比例
+leg_height_ratio : 1.0 # 足端抬腿高度比例
+leg_height        : 0.1 # 抬腿高度m
+brake_deltavel    : 0.05
+mpc_horizon_length         : 14 # MPC预测的步长
+gait_horizon_length        : 14 # 步态周期的步长
+use_wbc           : 1
+cmpc_gait         : 8
+cmpc_bonus_swing  : 0
+preview_time      : 0.5
+# Joint position limit and protect
+JPos_limit_low    : [-0.697, -2.443, -2.801]
+JPos_limit_high   : [0.697, 2.443, 2.801]
+#P2P
+#JPos_limit_low    : [-13.5, -13.5, -13.5]
+#JPos_limit_high   : [14, 12.0, 15.0]
+
+jointVelocityLimit    : 24.0
+enable_joint_pos_protect: 1
+enable_joint_pos_limit: 1
+feet_z_offset: 0.03
+imu_type: 0
+motor_platform_type: 7 # 5 mujoco # 6 shm 7 shmContainer
+enable_foldleg: 0
+# Gait Scheduler parameters
+gait_type             : 4
+gait_period_time      : 0.3
+gait_switching_phase  : 0.5
+gait_override         : 4
+gait_max_leg_angle    : 15
+gait_max_stance_time  : 0.25
+gait_min_stance_time  : 0.1
+
+#Offset 
+
+abad_side_sign   : [-1., -1., 1., 1.]
+hip_side_sign    : [1., -1., 1., -1.]
+knee_side_sign   : [-1., 1., -1., 1.]
+wheel_side_sign  : [1., -1., 1., -1.]
+
+abad_offset   : [0.523, -0.523, -0.523, 0.523]
+hip_offset    : [-2.443, 2.443, 2.443, -2.443]
+knee_offset   : [-2.803, 2.803, 2.803, -2.803]
+wheel_offset  : [0., 0., 0., 0.]
+
+hip_range        : [-6.28, 0.1, -0.1, 6.28, -6.28, 0.1, -0.1, 6.28]
+hip_range_offset : [-6.283185, 6.283185, -6.283185, 6.283185]
+
+#rl_default_pos
+#rl_default_pos
+abad_default_pos   : [0.0, -0.0, 0.0, -0.0]
+hip_default_pos    : [0.6, 0.6, -0.6, -0.6]
+knee_default_pos   : [-1.2, -1.2, 1.2, 1.2]
+wheel_default_pos  : [0., 0., 0., 0.]
+
+body_half_length   : 0.27
+drop_height        : -0.22
+min_crawl_x_vel   : -2.0
+max_crawl_x_vel   : 2.0
+min_crawl_y_vel   : -0.5
+max_crawl_y_vel   : 0.5
+min_crawl_ang_vel : -2.0
+max_crawl_ang_vel : 2.0
+
+-------- /opt/export/config/zg_wheels-motion_config.yaml --------
+ZGWS_defaultStand:
+  meta:
+    motionClass: no-interruptible
+  sequence:
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [-0.0, -0.0, 0.0]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.4
+
+ZGWS_shakehand:
+  meta:
+    motionClass: no-interruptible
+  sequence:
+    - motionType: transition
+      heightCmd: 0.2
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 1.2
+
+    - motionType: transition
+      heightCmd: 0.48
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.8
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [-0.0, -0.33, 0.0]
+      xyzCmd: [-0.05, 0.03, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.4
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [0.0, 0.02, 0.15]
+      FLfootCmd: [0.02, -0.02, -0.0]
+      RRfootCmd: [0.06, -0.04, 0.12]
+      RLfootCmd: [-0.03, 0.06, 0.2]
+      duration: 1.0
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [0.3, 0.02, 0.2]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.6
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, -0.2]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.6
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.2]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.6
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, -0.2]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.6
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.2]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.6
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [-0.3, -0.0, -0.28]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.4
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, -0.02]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.4
+
+    - motionType: foot
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, -0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.2
+      
+ZGWS_wiggle:
+  meta:
+    motionClass: no-interruptible
+  sequence:
+    - motionType: transition
+      heightCmd: 0.44
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 1.0
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [-0.0, 0.4, 0.0]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.6
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [-0.0, -0.35, 0.0]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 1.2
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [-0.0, -0.0, 0.3]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 1.2
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [-0.0, -0.0, -0.3]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 1.2
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [-0.0, 0.3, 0.25]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 1.8
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [-0.0, 0.1, 0.35]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 1.0
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [-0.0, 0.3, -0.35]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 1.8
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [-0.0, 0.1, -0.35]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 1.0
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 1.0
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [-0.2, 0.0, -0.2]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 1.0
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [0.2, 0.0, 0.2]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.8
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [-0.2, 0.0, -0.2]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.8
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [0.2, 0.0, 0.2]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.8
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [-0.2, 0.0, -0.2]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.8
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [0.2, 0.0, 0.2]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 0.8
+
+    - motionType: pose
+      heightCmd: 0.0
+      rpyCmd: [0.0, 0.0, 0.0]
+      xyzCmd: [-0.0, 0.0, 0.0]
+      FRfootCmd: [0.0, 0.0, 0.0]
+      FLfootCmd: [0.0, 0.0, 0.0]
+      RRfootCmd: [0.0, 0.0, 0.0]
+      RLfootCmd: [0.0, 0.0, 0.0]
+      duration: 1.2
+-------- /opt/export/config/zg_wheels-user-parameters.yaml --------
+
+__collection-name__: user-parameters
+# Joint kp kd
+Kd_joint          : [1.0, 1.0, 1.0]
+Kp_joint          : [3, 4, 3]
+
+Kd_joint_swing          : [1.0, 1.0, 1.0]
+Kp_joint_swing          : [3, 4, 3]
+
+# WBC kp kd
+Kp_body           : [100, 100, 200]
+Kd_body           : [10, 10, 10]
+
+Kp_foot           : [800, 100, 100]
+Kd_foot           : [10, 10, 10]
+
+Kp_ori            : [500, 500, 500]
+Kd_ori            : [50, 50, 50]
+
+#FSM kp kd
+FSM_jointPD_Kp    : 250
+FSM_jointPD_Kd    : 5.0
+FSM_passive_Kd    : 16.0
+FSM_passive_Wheel_Kd    : 0.1
+FSM_RL_ABAD_Kp    : 60.0
+FSM_RL_HIP_Kp     : 120.0
+FSM_RL_KNEE_Kp    : 120.0
+FSM_RL_Kd         : 1.0
+FSM_RL_Wheel_Kp   : 60.0
+FSM_RL_Wheel_Kd   : 0.5
+Montion_Joint_Kp  : 160
+Montion_Joint_Kd  : 5.0
+Charge_Joint_Kp   : 400.0
+Charge_Joint_Kd   : 5.0
+
+FSM_RLBalanceStand_Kp         : 60.0
+FSM_RLBalanceStand_Kd         : 1.0
+FSM_RLBalanceStand_Wheel_Kp   : 20.0
+FSM_RLBalanceStand_Wheel_Kd   : 0.5
+FSM_RLLowpower_Wheel_Kp       : 0.0
+FSM_RLLowpower_Wheel_Kd       : 0.0
+
+# banlance stand
+FSM_balance_pitch : 1.0
+FSM_balance_roll  : 1.0
+FSM_balance_yaw   : 1.0
+FSM_balance_height: 1.0
+
+# MPC parameters
+cmpc_alpha        : 4e-05
+cmpc_Q_rpy        : [5, 5, 10]
+cmpc_Q_xyz        : [10, 10, 100]
+cmpc_Q_rpyd       : [0, 0, 0.5]
+cmpc_Q_xyzd       : [0.2, 0.2, 0.8]
+cmpc_fmax         : 120
+cmpc_com_offset   : [0, 0, 0]
+cmpc_x_drag       : 0
+
+cmpc_x_vel        : 2.0 # x方向最大速度指令m/s
+cmpc_y_vel        : 0.5 # y方向最大速度指令m/s
+cmpc_yaw_vel      : 2.0 # 最大偏航角速度指令rad/s
+body_height       : 0.48 # 身体高度m
+body_height_ratio : 1.0 # 低身行走高度比例
+leg_height_ratio : 1.0 # 足端抬腿高度比例
+leg_height        : 0.1 # 抬腿高度m
+brake_deltavel    : 0.05
+mpc_horizon_length         : 14 # MPC预测的步长
+gait_horizon_length        : 14 # 步态周期的步长
+use_wbc           : 1
+cmpc_gait         : 8
+cmpc_bonus_swing  : 0
+preview_time      : 0.5
+# Joint position limit and protect
+JPos_limit_low    : [-0.873, -2.80, -2.775]
+JPos_limit_high   : [0.873, 2.80, 2.775]
+#P2P
+#JPos_limit_low    : [-13.5, -13.5, -13.5]
+#JPos_limit_high   : [14, 12.0, 15.0]
+
+jointVelocityLimit    : 24.0
+enable_joint_pos_protect: 1
+enable_joint_pos_limit: 1
+feet_z_offset: 0.095
+imu_type: 0
+motor_platform_type: 7 # 5 mujoco # 6 shm 7 shmContainer
+enable_foldleg: 0
+# Gait Scheduler parameters
+gait_type             : 4
+gait_period_time      : 0.2
+gait_switching_phase  : 0.5
+gait_override         : 4
+gait_max_leg_angle    : 15
+gait_max_stance_time  : 0.25
+gait_min_stance_time  : 0.1
+
+#Offset 
+
+abad_side_sign   : [-1., -1., 1., 1.]
+hip_side_sign    : [1., -1., 1., -1.]
+knee_side_sign   : [-1., 1., -1., 1.]
+wheel_side_sign  : [1., -1., 1., -1.]
+
+abad_offset   : [0.523, -0.523, -0.523, 0.523]
+hip_offset    : [-2.443, 2.443, 2.443, -2.443]
+knee_offset   : [-2.803, 2.803, 2.803, -2.803]
+wheel_offset  : [0., 0., 0., 0.]
+
+hip_range        : [-6.28, 0.1, -0.1, 6.28, -6.28, 0.1, -0.1, 6.28]
+hip_range_offset : [-6.283185, 6.283185, -6.283185, 6.283185]
+
+#rl_default_pos
+#rl_default_pos
+abad_default_pos   : [0., -0., 0., -0.]
+hip_default_pos    : [0.8, 0.8, -0.8, -0.8]
+knee_default_pos   : [-1.5, -1.5, 1.5, 1.5]
+wheel_default_pos  : [0., 0., 0., 0.]
+
+body_half_length   : 0.27
+drop_height        : -0.22
+min_crawl_x_vel   : -2.0
+max_crawl_x_vel   : 2.0
+min_crawl_y_vel   : -0.5
+max_crawl_y_vel   : 0.5
+min_crawl_ang_vel : -2.0
+max_crawl_ang_vel : 2.0
+
+======== /opt/export/mc/bin 內容 ========
+total 4392
+-rwxr-xr-x 1 root root   14616 Jan 28  2026 file_crypto_cli
+-rwxr-xr-x 1 root root 1700824 Jan 28  2026 libbiomimetics.so
+-rwxr-xr-x 1 root root   47640 Jan 28  2026 libdynacore_param_handler.so
+-rwxr-xr-x 1 root root  365800 Jan 28  2026 libdynacore_yaml-cpp.so
+-rwxr-xr-x 1 root root   27080 Jan 28  2026 libfilecrypto_shared.so
+-rwxr-xr-x 1 root root   31032 Jan 28  2026 libGoldfarb_Optimizer.so
+-rwxr-xr-x 1 root root   30936 Jan 28  2026 libinih.so
+-rwxr-xr-x 1 root root   68584 Jan 28  2026 libP2.so
+-rwxr-xr-x 1 root root  421592 Jan 28  2026 libqpOASES.so
+-rwxr-xr-x 1 root root  103080 Jan 28  2026 librknn_model.so
+-rwxr-xr-x 1 root root  656736 Jan 28  2026 librobot.so
+-rwxr-xr-x 1 root root  928960 Jan 28  2026 mc_ctrl
+-rwxr-xr-x 1 root root   35352 Jan 28  2026 pose_calib_test
+-rwxr-xr-x 1 root root   39416 Jan 28  2026 ptp_ctrl
+
+======== 啟動腳本 /opt/runtime/bin ========
+total 43716
+-rwxrwxr-x 1 robot robot   540328 Jan  7  2026 actuator_tool
+-rw-rw-r-- 1 robot robot      298 Jan 28  2026 bridge_config.yaml
+-rwxrwxr-x 1 robot robot    39656 Nov 24  2025 canfd_upgrade
+-rwxrwxr-x 1 robot robot   196640 Nov 24  2025 clockpps_upgrade
+-rwxrwxr-x 1 robot robot     2194 Nov 24  2025 ip_nat.sh
+-rwxrwxr-x 1 robot robot   196208 Nov 24  2025 mcu_upgrade
+-rwxrwxr-x 1 robot robot 41463211 Nov 24  2025 mediamtx
+-rw-rw-r-- 1 robot robot    28186 Nov 24  2025 mediamtx.yml
+-rwxrwxr-x 1 robot robot  2155840 Nov 24  2025 pose_calib_test
+-rwxrwxr-x 1 robot robot    16846 Nov 24  2025 recording_csv.py
+-rwxrwxr-x 1 robot robot     1217 Nov 24  2025 robot_ap.sh
+-rwxrwxr-x 1 robot robot     1302 Nov 24  2025 robot_start_app.sh
+-rwxrwxr-x 1 robot robot     2333 Jan 28  2026 robot_start.sh
+-rwxrwxr-x 1 robot robot     5653 Nov 24  2025 robot_sta.sh
+-rwxrwxr-x 1 robot robot      701 Nov 24  2025 robot_wait_time_sync.sh
+-rwxrwxr-x 1 robot robot     5214 Nov 24  2025 robot_wifi_init.sh
+-rwxrwxr-x 1 robot robot     4158 Nov 24  2025 robot_wifi_wdg.sh
+-rwxrwxr-x 1 robot robot     1189 Jan  7  2026 sd-mount.sh
+-rwxrwxr-x 1 robot robot      105 Jan  7  2026 start_domain_bridge.sh
+-rwxrwxr-x 1 robot robot      854 Nov 24  2025 start_gst_video_back.sh
+-rwxrwxr-x 1 robot robot      856 Nov 24  2025 start_gst_video_front.sh
+-rwxrwxr-x 1 robot robot      675 Nov 24  2025 start_motion_control.sh
+-rwxrwxr-x 1 robot robot      643 Mar 11 15:21 start_pose_calibration.sh
+-rwxrwxr-x 1 robot robot      201 Nov 24  2025 start_recording_csv.sh
+-rwxrwxr-x 1 robot robot     3559 Nov 24  2025 start_recording_topic.sh
+-rwxrwxr-x 1 robot robot     1292 Jan  9  2026 start_robot_camera.sh
+-rwxrwxr-x 1 robot robot      221 Nov 24  2025 start_robot_diagnostic_analyzer.sh
+-rwxrwxr-x 1 robot robot      205 Nov 24  2025 start_robot_hal.sh
+-rwxrwxr-x 1 robot robot      206 Nov 24  2025 start_robot_manager.sh
+-rwxrwxr-x 1 robot robot      209 Nov 24  2025 start_robot_monitor.sh
+-rwxrwxr-x 1 robot robot      208 Dec 22  2025 start_robot_remote.sh
+-rwxrwxr-x 1 robot robot       69 Nov 24  2025 start_robot_roamerx.sh
+-rwxrwxr-x 1 robot robot      203 Nov 24  2025 start_zenoh_router.sh
+
+-------- /opt/runtime/bin/start_motion_control.sh --------
+#!/bin/bash
+###
+ # @Author: richie.li
+ # @Date: 2025-10-25 21:53:12
+ # @LastEditors: richie.li
+ # @LastEditTime: 2025-11-04 15:42:16
+### 
+
+echo "start motion control"
+
+DEVICE="/dev/shm/joint_cmd"
+
+# 循环检查设备是否存在
+while true; do
+    if [ -e "$DEVICE" ]; then
+        echo "设备 $DEVICE 已存在。"
+        break
+    else
+        echo "设备 $DEVICE 不存在，等待 1 秒后重试..."
+        sleep 1
+    fi
+done
+
+sudo ifconfig lo multicast
+sudo route add -net 224.0.0.0 netmask 240.0.0.0 dev lo
+
+export LD_LIBRARY_PATH=/opt/export/mc/bin
+export ROBOT_TYPE=ZGWS
+
+cd /opt/export/mc/bin && ./mc_ctrl r
+# cd /opt/export/mc/bin && taskset -c 7 ./mc_ctrl r
+
+-------- /opt/runtime/bin/bridge_config.yaml --------
+name: bridge_image_topics
+from_domain: 66
+to_domain: 24
+
+topics:
+  /front_camera/image_compressed:
+    type: sensor_msgs/msg/CompressedImage
+    qos:
+      reliability: best_effort
+
+  /rear_camera/image_compressed:
+    type: sensor_msgs/msg/CompressedImage
+    qos: 
+      reliability: best_effort
+
+-------- /opt/runtime/bin/start_zenoh_router.sh --------
+#!/bin/bash
+###
+ # @Author: richie.li
+ # @Date: 2025-10-15 22:54:58
+ # @LastEditors: richie.li
+ # @LastEditTime: 2025-10-25 21:56:05
+### 
+
+source /opt/runtime/env.bash
+
+ros2 run rmw_zenoh_cpp rmw_zenohd
+
+======== robot_hal 設定（ros2_control 的關節定義應該在這） ========
+/opt/robot/install/robot_hal/share/robot_hal/config/zsm/controller_manager.yaml
+/opt/robot/install/robot_hal/share/robot_hal/config/zsm/robot_hal.yaml
+
+-------- /opt/robot/install/robot_hal/share/robot_hal/config/zsm/controller_manager.yaml --------
+controller_manager:
+  ros__parameters:
+    update_rate: 1000  # Hz
+
+    joint_shm_controller:
+      type: joint_controller/JointShmController
+
+    imu_shm_publisher:
+      type: imu_publisher/ImuShmPublisher
+    
+    switch_controller:
+      type: switch_controller/SwitchController
+
+    battery_controller:
+      type: battery_controller/BatteryController
+
+    sbus_controller:
+      type: sbus_controller/SbusController
+
+    fill_light_controller:
+      type: fill_light_controller/FillLightController
+
+    led_controller:
+      type: led_controller/LedController
+      
+joint_shm_controller:
+  ros__parameters:
+    state_pub_rate: 200.0  # Hz, 0.0 to disable
+    sensor_pub_rate: 1.0
+    enable_pub_cmd: true
+    enable_shm_control: true
+    enable_topic_control: false
+    joint_cmd_timeout: 500 # ms
+
+    estop_kd: 35.0
+    hw_estop_interface: hw_estop/switch_state
+    estop_exclude_joints:
+      - fl4_foot
+      - fr4_foot
+      - bl4_foot
+      - br4_foot
+
+    joint_cmd_shm_name: joint_cmd
+    joint_state_shm_name: joint_state
+    joints:
+      - fl1_hip_roll
+      - fl2_hip_pitch
+      - fl3_knee_pitch
+      - fl4_foot
+
+      - fr1_hip_roll
+      - fr2_hip_pitch
+      - fr3_knee_pitch
+      - fr4_foot
+
+      - bl1_hip_roll
+      - bl2_hip_pitch
+      - bl3_knee_pitch
+      - bl4_foot
+
+      - br1_hip_roll
+      - br2_hip_pitch
+      - br3_knee_pitch
+      - br4_foot
+
+imu_shm_publisher:
+  ros__parameters:
+    pub_rate: 200.
+    imu_names:
+      - imu_central
+    
+    imu_central:
+      frame_id: imu_sensor_frame
+      enable_shm: true
+      enable_topic: true
+      interface_name: imu_central/state
+
+switch_controller:
+  ros__parameters:
+    pub_rate: 10.
+    # cmd_switches:    # switch list, controller will find switch_name/switch_cmd interface from resouces manager
+      # - power_leg
+      # - power_rk
+      # - power_24v_in
+      # - power_bat_fan
+      # - power_ext_24v
+      # - power_battery
+      # - power_orin
+      # - power_can
+      # - front_light
+      # - back_light
+    
+    state_switches:
+      - hw_estop
+
+battery_controller:
+  ros__parameters:
+    pub_rate: 1.
+    batterys: 
+      - battery1
+      - battery2
+
+sbus_controller:
+  ros__parameters:
+    state_interface_name: sbus/state
+    min_channel_val: 42
+    mid_channel_val: 1002
+    max_channel_val: 1962
+    dead_zone: 0.0
+    min_vel_x: 1.0
+    min_vel_y: 0.5
+    min_yaw_rate: 1.0
+    mid_vel_x: 2.0
+    mid_vel_y: 0.8
+    mid_yaw_rate: 2.0
+    max_vel_x: 3.0
+    max_vel_y: 1.0
+    max_yaw_rate: 3.0
+    vel_x_reverse: false
+    vel_y_reverse: true
+    yaw_reverse: true
+    enable_ecal_topic_publish: true
+    enable_ros_topic_publish: true
+    publish_interval_ms: 10
+    timeout_ms: 500
+
+fill_light_controller:
+  ros__parameters:
+    auto_mode: false
+    ambient_lux_threshold: 100.0
+    ambient_light_lux_interface: light_sensor/lux
+    light_names:
+      - front_light
+      - back_light
+
+led_controller:
+  ros__parameters:
+    log_level: info
+    lookup_rate: 10.
+    led_front_cmd_ifs_name: led_front/cmd
+    led_back_cmd_ifs_name: led_back/cmd
+    estop_ifs_name: hw_estop/switch_state
+  
+-------- /opt/robot/install/robot_hal/share/robot_hal/config/zsm/robot_hal.yaml --------
+robot_hal:
+  ros__parameters:
+    spinners: 4
+    use_sim_time: false
+    cpu_affinity: 7
+    thread_priority: 90
+    logger_enable: false
+    logger_pool_size: 8192
+    logger_thread_count: 4
+    
+    default_controllers:
+      - switch_controller
+      - battery_controller
+      - imu_shm_publisher
+      # - sbus_controller
+      - fill_light_controller
+      - led_controller
+      - joint_shm_controller
+
+power_control_driver:
+  ros__parameters:
+    Offline_time: 3000  # ms
+    # dev: /dev/ttyUSB0
+    dev: /dev/ttyCH9344USB6
+    baudrate: 460800
+    led_error_blink_count: 3
+    # self test parameter
+    min_power_fw_ver: 0x00000000
+    min_power_bl_ver: 0x00000000
+    min_hotswap_fw_ver: 0x00000000
+    min_hotswap_bl_ver: 0x00000000
+    # diagnoitcs
+    power_low: 20
+    power_min: 10
+
+    battery_log_enable: true
+    battery_log_size: 50  # MB
+    battery_log_file_num: 10
+    battery_log_dir: /home/robot/debug_log
+
+gpio_driver:
+  ros__parameters:
+    gpio_names:
+      - demo_gpio_input
+    
+    demo_gpio_input:
+      direction: input
+      chip: gpiochip0
+      number: 10
+      invert: false
+
+zsi_imu_driver:
+  ros__parameters:
+    dev: /dev/ttyS1
+    baudrate: 921600
+    imu_name: imu_central
+    filter_dt: 0.001
+    filter_type: 0 # 0: null, 1: digital_lp_filter
+    recv_timeout: 500  #ms
+    cpu_affinity: -1
+    thread_priority: 90
+    pose_param_path: /userdata/bak/calibration/pose_calibrate_param.yaml
+    crc_error_threshold: 8  # 一定时间内允许的 CRC 错误总数
+    crc_consecutive_error_threshold: 5  # 连续CRC错误次数超过该值则报警
+
+ltr_light_sensor_driver:
+  ros__parameters:
+    light_sensor_name: light_sensor
+    dev: /dev/i2c-2
+    address: 0x23
+    fetch_rate: 1.0
+    window_factor: 1.0
+    gain: 1
+    integration_time: 100
+    measurement_rate: 400
+
+zsi_actuator_driver:
+  ros__parameters:
+    recv_cpu_affinity: -1
+    recv_thread_priority: 90
+    limit_enable: true
+    limit_tolerance: 0.1
+    temp_max: 215.
+    temp_min: -40.
+    temp_warn: 100.
+    temp_protect: 110.
+    temp_protect_recover: 90.
+    Offline_time: 500 #ms
+
+    debug_log_enable: true
+    debug_log_size: 50  # MB
+    debug_log_file_num: 10
+    debug_log_dir: /home/robot/debug_log
+
+    actuator_groups:
+      - front_left_leg
+      - front_right_leg
+      - back_left_leg
+      - back_right_leg
+    
+    front_left_leg:
+      can_port: 0
+      name_list:
+        - fl1_hip_roll
+        - fl2_hip_pitch
+        - fl3_knee_pitch
+        - fl4_foot
+      id_list: [1, 2, 3, 4]
+      sw_ver_min: [0, 0, 0, 0]
+      hw_ver_min: [0, 0, 0, 0]
+      pos_limit_min: [-1.22, 0., 0., 0.]
+      pos_limit_max: [0., 4.886, 5.602, 0.]
+  
+    front_right_leg:
+      can_port: 1
+      name_list:
+        - fr1_hip_roll
+        - fr2_hip_pitch
+        - fr3_knee_pitch
+        - fr4_foot
+      id_list: [1, 2, 3, 4]
+      sw_ver_min: [0, 0, 0, 0]
+      hw_ver_min: [0, 0, 0, 0]
+      pos_limit_min: [0., -4.886, -5.602, 0.]
+      pos_limit_max: [1.22, 0., 0., 0.]
+    
+    back_left_leg:
+      can_port: 2
+      name_list:
+        - bl1_hip_roll
+        - bl2_hip_pitch
+        - bl3_knee_pitch
+        - bl4_foot
+      id_list: [1, 2, 3, 4]
+      sw_ver_min: [0, 0, 0, 0]
+      hw_ver_min: [0, 0, 0, 0]
+      pos_limit_min: [0., -4.886, -5.602, 0.]
+      pos_limit_max: [1.22, 0., 0., 0.]
+
+    back_right_leg:
+      can_port: 3
+      name_list:
+        - br1_hip_roll
+        - br2_hip_pitch
+        - br3_knee_pitch
+        - br4_foot
+      id_list: [1, 2, 3, 4]
+      sw_ver_min: [0, 0, 0, 0]
+      hw_ver_min: [0, 0, 0, 0]
+      pos_limit_min: [-1.22, 0., 0., 0.]
+      pos_limit_max: [0., 4.886, 5.602, 0.]
+======== robot_hal 的 URDF / xacro（若有） ========
+/opt/robot/install/robot_hal/share/robot_hal/config/zsm/hw_description.xacro
+
+======== /opt/robot/install 的套件清單 ========
+battery_controller
+COLCON_IGNORE
+controller_interface
+fill_light_controller
+hardware_interface
+imu_publisher
+joint_controller
+led_controller
+local_setup.bash
+local_setup.ps1
+local_setup.sh
+_local_setup_util_ps1.py
+_local_setup_util_sh.py
+local_setup.zsh
+power_control_driver
+robot_camera
+robot_common_interface
+robot_common_utils
+robot_control_server
+robot_diagnostic_analyzer
+robot_hal
+robot_manager
+robot_monitor
+robot_remote
+robot_roamerx
+sbus_controller
+setup.bash
+setup.ps1
+setup.sh
+setup.zsh
+switch_controller
+version
+zsi_actuator_driver
+zsi_imu_driver
+
+======== ★★ /dev/shm 詳細（含 stat） ========
+total 3196
+-rw-rw-rw- 1 root root    4184 Aug 25 11:14 ecal_1f58b089
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_1f58b089_mtx
+-rw-rw-rw- 1 root root    4184 Aug 25 11:14 ecal_20355628
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_20355628_mtx
+-rw-rw-rw- 1 root root    4184 Aug 25 11:14 ecal_47dfe96c
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_47dfe96c_2422_ack_evt
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_47dfe96c_2422_evt
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_47dfe96c_mtx
+-rw-rw-rw- 1 root root    4184 Aug 25 11:14 ecal_55686f11
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_55686f11_2422_ack_evt
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_55686f11_2422_evt
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_55686f11_mtx
+-rw-rw-rw- 1 root root    4184 Aug 25 11:14 ecal_73773504
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_73773504_mtx
+-rw-rw-rw- 1 root root    4184 Aug 25 11:14 ecal_9386ea05
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_9386ea05_2184_ack_evt
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_9386ea05_2184_evt
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_9386ea05_2291_ack_evt
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_9386ea05_2291_evt
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_9386ea05_mtx
+-rw-rw-rw- 1 root root    4184 Aug 25 11:14 ecal_ea04622
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_ea04622_mtx
+-rw-rw-rw- 1 root root    4184 Aug 25 11:14 ecal_fcf46a7d
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_fcf46a7d_2422_ack_evt
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_fcf46a7d_2422_evt
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_fcf46a7d_mtx
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_shutdown_process_2184_evt
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_shutdown_process_2200_evt
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_shutdown_process_2291_evt
+-rw-rw-rw- 1 root root     104 Aug 25 11:14 ecal_shutdown_process_2422_evt
+-rw-r--r-- 1 root root 1048576 Aug 25 11:14 imu_central
+-rw-r--r-- 1 root root 1048576 Aug 25 11:14 joint_cmd
+-rw-r--r-- 1 root root 1048576 Aug 25 11:14 joint_state
+
+-- /dev/shm/joint_cmd --
+大小=1048576  權限=-rw-r--r--  擁有者=root:root  修改時間=2026-08-25 11:14:23.801775069 +0800
+
+-- /dev/shm/joint_state --
+大小=1048576  權限=-rw-r--r--  擁有者=root:root  修改時間=2026-08-25 11:14:23.802775069 +0800
+
+-- /dev/shm/imu_central --
+大小=1048576  權限=-rw-r--r--  擁有者=root:root  修改時間=2026-08-25 11:14:23.521775054 +0800
+
+======== ★★ SHM 是不是活的（同一檔案間隔 1 秒取兩次 md5） ========
+joint_cmd: 兩次 md5 不同 → ★ 活的串流
+joint_state: 兩次 md5 不同 → ★ 活的串流
+imu_central: 兩次 md5 不同 → ★ 活的串流
+
+======== ★★ SHM 開頭 256 bytes 當 float32 看（joint_state） ========
+0000000           3e-45               0               0               0
+0000016               0               0               0               0
+0000032         1.8e-43               0               0               0
+0000048               0               0               0               0
+0000064           1e-45               0       3.666e-42               0
+0000080       3.655e-42               0       3.643e-42               0
+0000096        1.57e-43               0       3.408e-42               0
+0000112    1.469346e-39               0               0               0
+0000128               0               0        1.81e-43               0
+0000144               0               0               0               0
+0000160               0               0           6e-45               0
+0000176        3.59e-43               0        5.04e-43               0
+0000192           9e-44               0               0               0
+0000208           1e-45               0            -nan            -nan
+0000224            -nan            -nan               0               0
+0000240      9.1813e-41               0         1.5e-44              -2
+0000256
+
+======== ★★ SHM 開頭 256 bytes 當 float32 看（joint_cmd） ========
+0000000           3e-45               0               0               0
+0000016               0               0               0               0
+0000032         1.8e-43               0               0               0
+0000048               0               0               0               0
+0000064           1e-45               0       3.486e-42               0
+0000080       3.475e-42               0       3.464e-42               0
+0000096        1.57e-43               0       3.229e-42               0
+0000112    1.469346e-39               0               0               0
+0000128               0               0        1.81e-43               0
+0000144               0               0               0               0
+0000160               0               0           6e-45               0
+0000176        3.59e-43               0        5.04e-43               0
+0000192           9e-44               0               0               0
+0000208           1e-45               0            -nan            -nan
+0000224            -nan            -nan               0               0
+0000240      9.1813e-41               0         1.5e-44              -2
+0000256
+
+======== ★★ SHM 開頭 128 bytes 當 uint64 看（找時戳，joint_state） ========
+0000000                    2                    0
+0000016                    0                    0
+0000032                  128                    0
+0000048                    0                    0
+0000064                    1                 2616
+0000080                 2608                 2600
+0000096                  112                 2432
+0000112              1048560                    0
+0000128
+
+======== 偵察結束 ========

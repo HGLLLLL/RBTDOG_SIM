@@ -60,7 +60,8 @@ preflight() {
   echo
   if [ "$MODE" = "wifi" ]; then
     echo "-- 有線網段的路由（官方文件 5.7）--"
-    if ip route | grep -q "192.168.168.0/24"; then
+    # herestring 而非管線：`cmd | grep -q` 在 set -o pipefail 下會因 SIGPIPE 誤判為失敗
+    if grep -q "192.168.168.0/24" <<< "$(ip route)"; then
       echo "✅ 已有 192.168.168.0/24 的路由，Orin NX 應該連得到"
     else
       echo "⚠️ 沒有 192.168.168.0/24 的路由 → 連得到 RK 但連不到 Orin NX"

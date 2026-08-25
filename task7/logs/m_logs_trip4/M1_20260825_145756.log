@@ -1,0 +1,2 @@
+M1 —— 零出力寫入測試
+❌ 需要 root：sudo python3 M1_zero_write.py --confirm

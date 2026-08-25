@@ -110,6 +110,8 @@ def main() -> int:
     state_ro = shm_io.Shm("joint_state")      # 常駐 handle，避免 200 Hz 迴圈裡重複 open/close
     trace: list[tuple[float, float, float]] = []
     abort = ""
+    tick_end = None          # ⚠️ 必須在 restore() 之前取，否則會把解凍的 0.3s 等待算進去
+    loop_elapsed = 0.0
 
     def restore():
         try:
@@ -184,6 +186,8 @@ def main() -> int:
             if d > 0:
                 time.sleep(d)
 
+        tick_end = state_ro.read_tick(shm_io.STATE_STRIDE)
+        loop_elapsed = time.monotonic() - t0
     except KeyboardInterrupt:
         abort = "使用者 Ctrl-C"
     finally:
@@ -195,11 +199,23 @@ def main() -> int:
     if abort:
         print(f"⛔ 提前中止：{abort}")
     if trace:
-        with shm_io.Shm("joint_state") as _s:
-            tick_end = _s.read_tick(shm_io.STATE_STRIDE)
-        print(f"心跳時戳 {tick_start} → {tick_end}"
-              f"（+{tick_end - tick_start}，約 {(tick_end - tick_start) / max(trace[-1][0], 1e-9):.0f}/s）")
+        if tick_end is not None and loop_elapsed > 0:
+            print(f"心跳時戳 {tick_start} → {tick_end}"
+                  f"（+{tick_end - tick_start} / {loop_elapsed:.3f}s"
+                  f" = 約 {(tick_end - tick_start) / loop_elapsed:.0f}/s，實機應接近 1000/s）")
+        else:
+            print("心跳時戳：提前中止，未取到結束值")
         vmax = max(abs(v) for _, v, _ in trace)
+        # ★ 速度用「角度差分」而非 joint_state 的 velocity 欄位 —— 後者雜訊很大。
+        #   2026-08-25 實測：同一段資料，角度差分的變異 9.4%，velocity 欄位 47.2%，
+        #   但兩者平均幾乎相同（0.1867 vs 0.1895）→ velocity 無偏但雜訊高。
+        if len(trace) > 1:
+            v_mean = (st1[idx]["position"] - p_start) / loop_elapsed if loop_elapsed else 0.0
+            print(f"平均角速度（由角度差分）{v_mean:.4f} rad/s"
+                  f"　追蹤率 {100 * v_mean / a.vel if a.vel else 0:.0f}%（目標 {a.vel}）")
+            if a.kd > 0:
+                print(f"穩態摩擦力矩推估 τ_f = kd·(v_des − v) = "
+                      f"{a.kd * (a.vel - v_mean):.4f} N·m")
         tmax = max(abs(x) for _, _, x in trace)
         dp = st1[idx]["position"] - p_start
         print(f"最大速度 {vmax:.4f} rad/s   最大力矩 {tmax:.4f} N·m")

@@ -1,134 +1,125 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1760" height="1042" viewBox="0 0 1760 1042">
-<rect width="1760" height="1042" fill="#ffffff"/>
-<text x="46" y="40" font-family="Noto Serif CJK TC" font-size="20" font-weight="bold" text-anchor="start" fill="#1a1a1a">智元三款四足機器狗：運算平台、SDK 能力與單顆馬達控制可行性</text>
-<text x="46" y="64" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">硬體規格為實機實測（cat /proc/device-tree/model、lscpu、free -h、dmesg）；SDK 與控制介面為官方文件＋二進位符號分析＋實機偵察</text>
-<rect x="174" y="84" width="480" height="66" rx="3" fill="#dcdad5" stroke="#2b2b2b" stroke-width="1.4"/>
-<text x="190" y="111" font-family="Noto Serif CJK TC" font-size="19" font-weight="bold" text-anchor="start" fill="#1a1a1a">D1 EDU</text>
-<text x="278" y="111" font-family="Noto Serif CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">輪足・小狗</text>
-<text x="190" y="134" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#1a1a1a">16 軸（12 腿＋4 輪）　20.6 kg</text>
-<rect x="680" y="84" width="480" height="66" rx="3" fill="#dcdad5" stroke="#2b2b2b" stroke-width="1.4"/>
-<text x="696" y="111" font-family="Noto Serif CJK TC" font-size="19" font-weight="bold" text-anchor="start" fill="#1a1a1a">D1 Max</text>
-<text x="784" y="111" font-family="Noto Serif CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">輪足・中狗</text>
-<text x="696" y="134" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#1a1a1a">16 軸（12 腿＋4 輪）　41 kg</text>
-<rect x="1186" y="84" width="480" height="66" rx="3" fill="#dcdad5" stroke="#2b2b2b" stroke-width="1.4"/>
-<text x="1202" y="111" font-family="Noto Serif CJK TC" font-size="19" font-weight="bold" text-anchor="start" fill="#1a1a1a">D1 MaxPro</text>
-<text x="1323" y="111" font-family="Noto Serif CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">點足・大狗</text>
-<text x="1202" y="134" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#1a1a1a">12 軸　68 kg</text>
-<text x="46" y="192" font-family="Noto Serif CJK TC" font-size="15" font-weight="bold" text-anchor="start" fill="#1a1a1a">（甲）</text>
-<text x="46" y="216" font-family="Noto Serif CJK TC" font-size="16" font-weight="bold" text-anchor="start" fill="#1a1a1a">運算平台</text>
-<text x="46" y="238" font-family="Noto Serif CJK TC" font-size="11.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">實機實測</text>
-<line x1="46" y1="164" x2="1714" y2="164" stroke="#2b2b2b" stroke-width="1.4"/>
-<rect x="174" y="178" width="480" height="160" rx="3" fill="#f2f1ee" stroke="#2b2b2b" stroke-width="1.4"/>
-<text x="188" y="202" font-family="Noto Sans Mono CJK TC" font-size="14.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">Firefly AIO-3588SJD4</text>
-<text x="188" y="221" font-family="Noto Serif CJK TC" font-size="12" font-weight="normal" text-anchor="start" fill="#6b6b6b">Rockchip RK3588・單板</text>
-<text x="188" y="242" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">CPU　4×A76 ＋ 4×A55</text>
-<text x="188" y="262" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">RAM　7.7 GiB（無 swap）</text>
-<text x="188" y="282" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">GPU　Mali-G610 MP4</text>
-<text x="188" y="302" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">NPU　RKNPU driver 0.9.2</text>
-<text x="188" y="322" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">OS　Ubuntu 22.04.4・eMMC 64 GB</text>
-<text x="188" y="510" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#6b6b6b">單一算力平台</text>
-<rect x="680" y="178" width="480" height="140" rx="3" fill="#f2f1ee" stroke="#2b2b2b" stroke-width="1.4"/>
-<text x="694" y="202" font-family="Noto Sans Mono CJK TC" font-size="14.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">Firefly AIO-3588SJD4</text>
-<text x="694" y="221" font-family="Noto Serif CJK TC" font-size="12" font-weight="normal" text-anchor="start" fill="#6b6b6b">Rockchip RK3588・運控</text>
-<text x="694" y="242" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">CPU　4×A76 ＋ 4×A55</text>
-<text x="694" y="262" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">RAM　7.7 GiB</text>
-<text x="694" y="282" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">GPU　Mali-G610 MP4</text>
-<text x="694" y="302" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">NPU　RKNPU 0.9.2</text>
-<rect x="680" y="328" width="480" height="140" rx="3" fill="#f2f1ee" stroke="#2b2b2b" stroke-width="1.4"/>
-<text x="694" y="352" font-family="Noto Sans Mono CJK TC" font-size="14.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">NVIDIA Jetson Orin NX 16GB</text>
-<text x="694" y="371" font-family="Noto Serif CJK TC" font-size="12" font-weight="normal" text-anchor="start" fill="#6b6b6b">應用・建圖／定位／導航</text>
-<text x="694" y="392" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">CPU　8×Cortex-A78AE　1.984 GHz</text>
-<text x="694" y="412" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">RAM　15 GiB</text>
-<text x="694" y="432" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">GPU　NVIDIA ga10b</text>
-<text x="694" y="452" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">DLA　NVDLA0／NVDLA1</text>
-<text x="694" y="510" font-family="Noto Serif CJK TC" font-size="13" font-weight="bold" text-anchor="start" fill="#1a1a1a">★ 兩塊獨立高算力板</text>
-<rect x="1186" y="178" width="480" height="160" rx="3" fill="#f2f1ee" stroke="#2b2b2b" stroke-width="1.4"/>
-<text x="1200" y="202" font-family="Noto Sans Mono CJK TC" font-size="14.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">Firefly AIO-3588SJD4</text>
-<text x="1200" y="221" font-family="Noto Serif CJK TC" font-size="12" font-weight="normal" text-anchor="start" fill="#6b6b6b">Rockchip RK3588・主控板</text>
-<text x="1200" y="242" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">CPU　4×A76 ＋ 4×A55</text>
-<text x="1200" y="262" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">RAM　7.7 GiB（Swap 0）</text>
-<text x="1200" y="282" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">GPU　Mali-G610 MP4</text>
-<text x="1200" y="302" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">NPU　RKNPU 0.9.2・librknnrt／librga</text>
-<text x="1200" y="322" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">OS　Ubuntu 22.04.5・kernel 5.10-rt</text>
-<rect x="1186" y="348" width="480" height="80" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="1.0" stroke-dasharray="5 4"/>
-<text x="1200" y="372" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">轉發板</text>
-<text x="1200" y="391" font-family="Noto Serif CJK TC" font-size="12" font-weight="normal" text-anchor="start" fill="#6b6b6b">CAN／關節訊號轉發</text>
-<text x="1200" y="412" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">非第二塊高算力板</text>
-<text x="1200" y="510" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#6b6b6b">主控板＋轉發板（非第二算力板）</text>
-<line x1="46" y1="526" x2="1714" y2="526" stroke="#2b2b2b" stroke-width="1.4"/>
-<text x="46" y="556" font-family="Noto Serif CJK TC" font-size="15" font-weight="bold" text-anchor="start" fill="#1a1a1a">（乙）</text>
-<text x="46" y="580" font-family="Noto Serif CJK TC" font-size="16" font-weight="bold" text-anchor="start" fill="#1a1a1a">SDK</text>
-<text x="46" y="602" font-family="Noto Serif CJK TC" font-size="16" font-weight="bold" text-anchor="start" fill="#1a1a1a">可寫深度</text>
-<text x="46" y="624" font-family="Noto Serif CJK TC" font-size="11.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">官方介面</text>
-<rect x="174" y="542" width="480" height="28" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="0.9" stroke-dasharray="4 4"/>
-<text x="186" y="561" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">L4　單顆馬達　角度・角速度・力矩・Kp・Kd</text>
-<rect x="174" y="576" width="480" height="28" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="0.9" stroke-dasharray="4 4"/>
-<text x="186" y="595" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">L3　關節層　位置／速度</text>
-<rect x="174" y="610" width="480" height="28" rx="3" fill="#bcb9b1" stroke="#2b2b2b" stroke-width="1.2"/>
-<text x="186" y="629" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">L2　姿態動作　站立・趴下・匍匐・爬階</text>
-<rect x="174" y="644" width="480" height="28" rx="3" fill="#bcb9b1" stroke="#2b2b2b" stroke-width="1.2"/>
-<text x="186" y="663" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">L1　整機速度　move(vx, vy, yaw)</text>
-<line x1="174" y1="610" x2="654" y2="610" stroke="#2b2b2b" stroke-width="2.6"/>
-<rect x="515" y="588" width="131" height="18" rx="0" fill="#ffffff" stroke="#ffffff" stroke-width="0"/>
-<text x="642" y="602" font-family="Noto Serif CJK TC" font-size="11.5" font-weight="bold" text-anchor="end" fill="#1a1a1a">官方 SDK 止步於此</text>
-<rect x="680" y="542" width="480" height="28" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="0.9" stroke-dasharray="4 4"/>
-<text x="692" y="561" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">L4　單顆馬達　角度・角速度・力矩・Kp・Kd</text>
-<rect x="680" y="576" width="480" height="28" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="0.9" stroke-dasharray="4 4"/>
-<text x="692" y="595" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">L3　關節層　位置／速度</text>
-<rect x="680" y="610" width="480" height="28" rx="3" fill="#bcb9b1" stroke="#2b2b2b" stroke-width="1.2"/>
-<text x="692" y="629" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">L2　姿態動作　站立・趴下・匍匐・爬階</text>
-<rect x="680" y="644" width="480" height="28" rx="3" fill="#bcb9b1" stroke="#2b2b2b" stroke-width="1.2"/>
-<text x="692" y="663" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">L1　整機速度　move(vx, vy, yaw)</text>
-<line x1="680" y1="610" x2="1160" y2="610" stroke="#2b2b2b" stroke-width="2.6"/>
-<rect x="1021" y="588" width="131" height="18" rx="0" fill="#ffffff" stroke="#ffffff" stroke-width="0"/>
-<text x="1148" y="602" font-family="Noto Serif CJK TC" font-size="11.5" font-weight="bold" text-anchor="end" fill="#1a1a1a">官方 SDK 止步於此</text>
-<rect x="1186" y="542" width="480" height="28" rx="3" fill="#bcb9b1" stroke="#2b2b2b" stroke-width="1.2"/>
-<text x="1198" y="561" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">L4　單顆馬達　角度・角速度・力矩・Kp・Kd</text>
-<rect x="1186" y="576" width="480" height="28" rx="3" fill="#bcb9b1" stroke="#2b2b2b" stroke-width="1.2"/>
-<text x="1198" y="595" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">L3　關節層　位置／速度</text>
-<rect x="1186" y="610" width="480" height="28" rx="3" fill="#bcb9b1" stroke="#2b2b2b" stroke-width="1.2"/>
-<text x="1198" y="629" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">L2　姿態動作　站立・趴下・匍匐・爬階</text>
-<rect x="1186" y="644" width="480" height="28" rx="3" fill="#bcb9b1" stroke="#2b2b2b" stroke-width="1.2"/>
-<text x="1198" y="663" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">L1　整機速度　move(vx, vy, yaw)</text>
-<rect x="174" y="686" width="480" height="28" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="0.9"/>
-<text x="186" y="705" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">讀取　16 軸狀態・IMU</text>
-<rect x="680" y="686" width="480" height="28" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="0.9"/>
-<text x="692" y="705" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">讀取　16 軸狀態＋關節溫度・IMU・光達・導航</text>
-<rect x="1186" y="686" width="480" height="28" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="0.9"/>
-<text x="1198" y="705" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">讀取　12 軸狀態・IMU・里程計・點雲</text>
-<text x="186" y="738" font-family="Noto Sans Mono CJK TC" font-size="12" font-weight="normal" text-anchor="start" fill="#6b6b6b">mc_sdk::zsl_1w::HighLevel　UDP 50 Hz</text>
-<text x="692" y="738" font-family="Noto Sans Mono CJK TC" font-size="12" font-weight="normal" text-anchor="start" fill="#6b6b6b">robot_sdk::SDKClient　UDP :8082</text>
-<text x="1198" y="738" font-family="Noto Sans Mono CJK TC" font-size="12" font-weight="normal" text-anchor="start" fill="#6b6b6b">高層 TCP ＋ 底層 ROS 1 話題</text>
-<line x1="46" y1="750" x2="1714" y2="750" stroke="#2b2b2b" stroke-width="1.4"/>
-<text x="46" y="780" font-family="Noto Serif CJK TC" font-size="15" font-weight="bold" text-anchor="start" fill="#1a1a1a">（丙）</text>
-<text x="46" y="804" font-family="Noto Serif CJK TC" font-size="16" font-weight="bold" text-anchor="start" fill="#1a1a1a">單顆馬達</text>
-<text x="46" y="826" font-family="Noto Serif CJK TC" font-size="16" font-weight="bold" text-anchor="start" fill="#1a1a1a">控制</text>
-<rect x="174" y="760" width="480" height="146" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="1.2"/>
-<text x="188" y="784" font-family="Noto Serif CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">官方不提供</text>
-<text x="188" y="808" font-family="Noto Serif CJK TC" font-size="17" font-weight="bold" text-anchor="start" fill="#1a1a1a">做得到</text>
-<text x="188" y="830" font-family="Noto Sans Mono CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">/spline_shm　共享記憶體</text>
-<text x="188" y="852" font-family="Noto Serif CJK TC" font-size="11.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">實機端到端驗證：位置／速度／力矩</text>
-<text x="188" y="869" font-family="Noto Serif CJK TC" font-size="11.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">三種控制模式皆成功驅動單顆馬達</text>
-<text x="640" y="784" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="end" fill="#1a1a1a">●●●</text>
-<rect x="680" y="760" width="480" height="146" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="1.2"/>
-<text x="694" y="784" font-family="Noto Serif CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">官方不提供</text>
-<text x="694" y="808" font-family="Noto Serif CJK TC" font-size="17" font-weight="bold" text-anchor="start" fill="#1a1a1a">極可能做得到</text>
-<text x="694" y="830" font-family="Noto Sans Mono CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">/dev/shm/joint_cmd　16 軸 × 5 欄位</text>
-<text x="694" y="852" font-family="Noto Serif CJK TC" font-size="11.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">介面已定位、結構已完整解出；</text>
-<text x="694" y="869" font-family="Noto Serif CJK TC" font-size="11.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">寫入尚未測試（需 root 權限）</text>
-<text x="1146" y="784" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="end" fill="#1a1a1a">●●○</text>
-<rect x="1186" y="760" width="480" height="146" rx="3" fill="#f2f1ee" stroke="#2b2b2b" stroke-width="1.6"/>
-<text x="1200" y="784" font-family="Noto Serif CJK TC" font-size="13.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">★ 官方提供</text>
-<text x="1200" y="808" font-family="Noto Serif CJK TC" font-size="17" font-weight="bold" text-anchor="start" fill="#1a1a1a">做得到</text>
-<text x="1200" y="830" font-family="Noto Sans Mono CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">ROS 1 話題　rt/lowcmd</text>
-<text x="1200" y="852" font-family="Noto Serif CJK TC" font-size="11.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">官方文件所載；本團隊尚未實測。</text>
-<text x="1200" y="869" font-family="Noto Serif CJK TC" font-size="11.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">底層 SDK 必須安裝 ROS 1</text>
-<text x="1652" y="784" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="end" fill="#1a1a1a">●○○</text>
-<text x="188" y="926" font-family="Noto Serif CJK TC" font-size="12" font-weight="normal" text-anchor="start" fill="#6b6b6b">● ● ●  實機驗證　　● ●  介面已解、待驗證　　●  文件記載、未實測</text>
-<line x1="46" y1="938" x2="1714" y2="938" stroke="#2b2b2b" stroke-width="1.4"/>
-<text x="46" y="958" font-family="Noto Serif CJK TC" font-size="13" font-weight="bold" text-anchor="start" fill="#1a1a1a">圖 4 · 三款機型比較。</text>
-<text x="164" y="958" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#1a1a1a">（甲）運算平台：D1 Max 是三台中唯一的雙高算力板；D1 MaxPro 雖是大狗，算力平台與小狗 D1 EDU 同為單顆 RK3588。</text>
-<text x="46" y="978" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#1a1a1a">（乙）三台的「讀」幾乎全開，差別在「寫」——D1 EDU 與 D1 Max 的官方 SDK 只到姿態動作層，送不了關節角度或力矩；只有 D1 MaxPro 開放到單顆馬達。</text>
-<text x="46" y="998" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#1a1a1a">（丙）D1 EDU 與 D1 Max 官方雖不提供，但機上存在共享記憶體介面可繞過 SDK：D1 EDU 已實機驗證三種控制模式，D1 Max 結構已解出、僅差寫入未測。</text>
-<text x="46" y="1020" font-family="Noto Serif CJK TC" font-size="11.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">註：D1 MaxPro 官方文件的 SSH 帳號為 jetson，但實測主控板為 Firefly RK3588，兩者不一致，機型批次差異待向原廠確認。</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1840" height="1114" viewBox="0 0 1840 1114">
+<rect width="1840" height="1114" fill="#ffffff"/>
+<text x="46" y="42" font-family="Noto Serif CJK TC" font-size="23" font-weight="bold" text-anchor="start" fill="#1a1a1a">智元三款四足機器狗：運算平台、SDK 能力與單顆馬達控制可行性</text>
+<text x="46" y="68" font-family="Noto Serif CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">硬體規格為實機實測（cat /proc/device-tree/model、lscpu、free -h、dmesg）；SDK 與控制介面為官方文件＋二進位符號分析＋實機偵察</text>
+<rect x="174" y="90" width="508" height="76" rx="3" fill="#dcdad5" stroke="#2b2b2b" stroke-width="1.4"/>
+<text x="190" y="120" font-family="Noto Serif CJK TC" font-size="21" font-weight="bold" text-anchor="start" fill="#1a1a1a">D1 EDU</text>
+<text x="289.0" y="120" font-family="Noto Serif CJK TC" font-size="15" font-weight="normal" text-anchor="start" fill="#6b6b6b">輪足・小狗</text>
+<text x="190" y="147" font-family="Noto Serif CJK TC" font-size="15" font-weight="normal" text-anchor="start" fill="#1a1a1a">16 軸（12 腿＋4 輪）　20.6 kg</text>
+<rect x="708" y="90" width="508" height="76" rx="3" fill="#dcdad5" stroke="#2b2b2b" stroke-width="1.4"/>
+<text x="724" y="120" font-family="Noto Serif CJK TC" font-size="21" font-weight="bold" text-anchor="start" fill="#1a1a1a">D1 Max</text>
+<text x="823.0" y="120" font-family="Noto Serif CJK TC" font-size="15" font-weight="normal" text-anchor="start" fill="#6b6b6b">輪足・中狗</text>
+<text x="724" y="147" font-family="Noto Serif CJK TC" font-size="15" font-weight="normal" text-anchor="start" fill="#1a1a1a">16 軸（12 腿＋4 輪）　41 kg</text>
+<rect x="1242" y="90" width="508" height="76" rx="3" fill="#dcdad5" stroke="#2b2b2b" stroke-width="1.4"/>
+<text x="1258" y="120" font-family="Noto Serif CJK TC" font-size="21" font-weight="bold" text-anchor="start" fill="#1a1a1a">D1 MaxPro</text>
+<text x="1394.5" y="120" font-family="Noto Serif CJK TC" font-size="15" font-weight="normal" text-anchor="start" fill="#6b6b6b">點足・大狗</text>
+<text x="1258" y="147" font-family="Noto Serif CJK TC" font-size="15" font-weight="normal" text-anchor="start" fill="#1a1a1a">12 軸　68 kg</text>
+<text x="46" y="210" font-family="Noto Serif CJK TC" font-size="16.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">（甲）</text>
+<text x="46" y="236" font-family="Noto Serif CJK TC" font-size="17.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">運算平台</text>
+<text x="46" y="260" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">實機實測</text>
+<line x1="46" y1="180" x2="1794" y2="180" stroke="#2b2b2b" stroke-width="1.4"/>
+<rect x="174" y="194" width="508" height="188" rx="3" fill="#f2f1ee" stroke="#2b2b2b" stroke-width="1.4"/>
+<text x="190" y="222" font-family="Noto Sans Mono CJK TC" font-size="16.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">Firefly AIO-3588SJD4</text>
+<text x="190" y="244" font-family="Noto Serif CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">Rockchip RK3588・單板</text>
+<text x="190" y="270" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">CPU　4×A76 ＋ 4×A55</text>
+<text x="190" y="294" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">RAM　7.7 GiB（無 swap）</text>
+<text x="190" y="318" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">GPU　Mali-G610 MP4</text>
+<text x="190" y="342" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">NPU　RKNPU driver 0.9.2</text>
+<text x="190" y="366" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">OS　Ubuntu 22.04.4・eMMC 64 GB</text>
+<text x="190" y="580" font-family="Noto Serif CJK TC" font-size="15" font-weight="normal" text-anchor="start" fill="#6b6b6b">單一算力平台</text>
+<rect x="708" y="194" width="508" height="164" rx="3" fill="#f2f1ee" stroke="#2b2b2b" stroke-width="1.4"/>
+<text x="724" y="222" font-family="Noto Sans Mono CJK TC" font-size="16.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">Firefly AIO-3588SJD4</text>
+<text x="724" y="244" font-family="Noto Serif CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">Rockchip RK3588・運控</text>
+<text x="724" y="270" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">CPU　4×A76 ＋ 4×A55</text>
+<text x="724" y="294" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">RAM　7.7 GiB</text>
+<text x="724" y="318" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">GPU　Mali-G610 MP4</text>
+<text x="724" y="342" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">NPU　RKNPU 0.9.2</text>
+<rect x="708" y="368" width="508" height="164" rx="3" fill="#f2f1ee" stroke="#2b2b2b" stroke-width="1.4"/>
+<text x="724" y="396" font-family="Noto Sans Mono CJK TC" font-size="16.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">NVIDIA Jetson Orin NX 16GB</text>
+<text x="724" y="418" font-family="Noto Serif CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">應用・建圖／定位／導航</text>
+<text x="724" y="444" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">CPU　8×Cortex-A78AE　1.984 GHz</text>
+<text x="724" y="468" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">RAM　15 GiB</text>
+<text x="724" y="492" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">GPU　NVIDIA ga10b</text>
+<text x="724" y="516" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">DLA　NVDLA0／NVDLA1</text>
+<text x="724" y="580" font-family="Noto Serif CJK TC" font-size="15" font-weight="bold" text-anchor="start" fill="#1a1a1a">★ 兩塊獨立高算力板</text>
+<rect x="1242" y="194" width="508" height="188" rx="3" fill="#f2f1ee" stroke="#2b2b2b" stroke-width="1.4"/>
+<text x="1258" y="222" font-family="Noto Sans Mono CJK TC" font-size="16.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">Firefly AIO-3588SJD4</text>
+<text x="1258" y="244" font-family="Noto Serif CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">Rockchip RK3588・主控板</text>
+<text x="1258" y="270" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">CPU　4×A76 ＋ 4×A55</text>
+<text x="1258" y="294" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">RAM　7.7 GiB（Swap 0）</text>
+<text x="1258" y="318" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">GPU　Mali-G610 MP4</text>
+<text x="1258" y="342" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">NPU　RKNPU 0.9.2・librknnrt／librga</text>
+<text x="1258" y="366" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">OS　Ubuntu 22.04.5・kernel 5.10-rt</text>
+<rect x="1242" y="392" width="508" height="92" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="1.0" stroke-dasharray="5 4"/>
+<text x="1258" y="420" font-family="Noto Serif CJK TC" font-size="16.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">轉發板</text>
+<text x="1258" y="442" font-family="Noto Serif CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">CAN／關節訊號轉發</text>
+<text x="1258" y="468" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">非第二塊高算力板</text>
+<text x="1258" y="580" font-family="Noto Serif CJK TC" font-size="15" font-weight="normal" text-anchor="start" fill="#6b6b6b">主控板＋轉發板（非第二算力板）</text>
+<line x1="46" y1="594" x2="1794" y2="594" stroke="#2b2b2b" stroke-width="1.4"/>
+<text x="46" y="626" font-family="Noto Serif CJK TC" font-size="16.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">（乙）</text>
+<text x="46" y="652" font-family="Noto Serif CJK TC" font-size="17.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">SDK</text>
+<text x="46" y="676" font-family="Noto Serif CJK TC" font-size="17.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">可寫深度</text>
+<text x="46" y="700" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">官方介面</text>
+<rect x="174" y="610" width="508" height="33" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="0.9" stroke-dasharray="4 4"/>
+<text x="188" y="632" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">L4　單顆馬達　角度・角速度・力矩・Kp・Kd</text>
+<rect x="174" y="650" width="508" height="33" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="0.9" stroke-dasharray="4 4"/>
+<text x="188" y="672" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">L3　關節層　位置／速度</text>
+<rect x="174" y="690" width="508" height="33" rx="3" fill="#bcb9b1" stroke="#2b2b2b" stroke-width="1.2"/>
+<text x="188" y="712" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">L2　姿態動作　站立・趴下・匍匐・爬階</text>
+<rect x="174" y="730" width="508" height="33" rx="3" fill="#bcb9b1" stroke="#2b2b2b" stroke-width="1.2"/>
+<text x="188" y="752" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">L1　整機速度　move(vx, vy, yaw)</text>
+<line x1="174" y1="690" x2="682" y2="690" stroke="#2b2b2b" stroke-width="2.6"/>
+<rect x="519" y="665" width="155" height="21" rx="0" fill="#ffffff" stroke="#ffffff" stroke-width="0"/>
+<text x="670" y="681" font-family="Noto Serif CJK TC" font-size="13.5" font-weight="bold" text-anchor="end" fill="#1a1a1a">官方 SDK 止步於此</text>
+<rect x="708" y="610" width="508" height="33" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="0.9" stroke-dasharray="4 4"/>
+<text x="722" y="632" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">L4　單顆馬達　角度・角速度・力矩・Kp・Kd</text>
+<rect x="708" y="650" width="508" height="33" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="0.9" stroke-dasharray="4 4"/>
+<text x="722" y="672" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">L3　關節層　位置／速度</text>
+<rect x="708" y="690" width="508" height="33" rx="3" fill="#bcb9b1" stroke="#2b2b2b" stroke-width="1.2"/>
+<text x="722" y="712" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">L2　姿態動作　站立・趴下・匍匐・爬階</text>
+<rect x="708" y="730" width="508" height="33" rx="3" fill="#bcb9b1" stroke="#2b2b2b" stroke-width="1.2"/>
+<text x="722" y="752" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">L1　整機速度　move(vx, vy, yaw)</text>
+<line x1="708" y1="690" x2="1216" y2="690" stroke="#2b2b2b" stroke-width="2.6"/>
+<rect x="1053" y="665" width="155" height="21" rx="0" fill="#ffffff" stroke="#ffffff" stroke-width="0"/>
+<text x="1204" y="681" font-family="Noto Serif CJK TC" font-size="13.5" font-weight="bold" text-anchor="end" fill="#1a1a1a">官方 SDK 止步於此</text>
+<rect x="1242" y="610" width="508" height="33" rx="3" fill="#bcb9b1" stroke="#2b2b2b" stroke-width="1.2"/>
+<text x="1256" y="632" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">L4　單顆馬達　角度・角速度・力矩・Kp・Kd</text>
+<rect x="1242" y="650" width="508" height="33" rx="3" fill="#bcb9b1" stroke="#2b2b2b" stroke-width="1.2"/>
+<text x="1256" y="672" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">L3　關節層　位置／速度</text>
+<rect x="1242" y="690" width="508" height="33" rx="3" fill="#bcb9b1" stroke="#2b2b2b" stroke-width="1.2"/>
+<text x="1256" y="712" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">L2　姿態動作　站立・趴下・匍匐・爬階</text>
+<rect x="1242" y="730" width="508" height="33" rx="3" fill="#bcb9b1" stroke="#2b2b2b" stroke-width="1.2"/>
+<text x="1256" y="752" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">L1　整機速度　move(vx, vy, yaw)</text>
+<rect x="174" y="780" width="508" height="32" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="0.9"/>
+<text x="188" y="802" font-family="Noto Serif CJK TC" font-size="14" font-weight="normal" text-anchor="start" fill="#6b6b6b">讀取　16 軸狀態・IMU</text>
+<rect x="708" y="780" width="508" height="32" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="0.9"/>
+<text x="722" y="802" font-family="Noto Serif CJK TC" font-size="14" font-weight="normal" text-anchor="start" fill="#6b6b6b">讀取　16 軸狀態＋關節溫度・IMU・光達・導航</text>
+<rect x="1242" y="780" width="508" height="32" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="0.9"/>
+<text x="1256" y="802" font-family="Noto Serif CJK TC" font-size="14" font-weight="normal" text-anchor="start" fill="#6b6b6b">讀取　12 軸狀態・IMU・里程計・點雲</text>
+<text x="188" y="838" font-family="Noto Sans Mono CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#6b6b6b">mc_sdk::zsl_1w::HighLevel　UDP 50 Hz</text>
+<text x="722" y="838" font-family="Noto Sans Mono CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#6b6b6b">robot_sdk::SDKClient　UDP :8082</text>
+<text x="1256" y="838" font-family="Noto Sans Mono CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#6b6b6b">高層 TCP ＋ 底層 ROS 1 話題</text>
+<line x1="46" y1="844" x2="1794" y2="844" stroke="#2b2b2b" stroke-width="1.4"/>
+<text x="46" y="876" font-family="Noto Serif CJK TC" font-size="16.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">（丙）</text>
+<text x="46" y="902" font-family="Noto Serif CJK TC" font-size="17.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">單顆馬達</text>
+<text x="46" y="926" font-family="Noto Serif CJK TC" font-size="17.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">控制</text>
+<rect x="174" y="854" width="508" height="118" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="1.2"/>
+<text x="190" y="882" font-family="Noto Serif CJK TC" font-size="15.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">官方不提供</text>
+<text x="190" y="914" font-family="Noto Serif CJK TC" font-size="21" font-weight="bold" text-anchor="start" fill="#1a1a1a">做得到</text>
+<text x="190" y="942" font-family="Noto Sans Mono CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">/spline_shm　共享記憶體</text>
+<rect x="708" y="854" width="508" height="118" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="1.2"/>
+<text x="724" y="882" font-family="Noto Serif CJK TC" font-size="15.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">官方不提供</text>
+<text x="724" y="914" font-family="Noto Serif CJK TC" font-size="21" font-weight="bold" text-anchor="start" fill="#1a1a1a">極可能做得到</text>
+<text x="724" y="942" font-family="Noto Sans Mono CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">/dev/shm/joint_cmd　16 軸 × 5 欄位</text>
+<rect x="1242" y="854" width="508" height="118" rx="3" fill="#f2f1ee" stroke="#2b2b2b" stroke-width="1.6"/>
+<text x="1258" y="882" font-family="Noto Serif CJK TC" font-size="15.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">★ 官方提供</text>
+<text x="1258" y="914" font-family="Noto Serif CJK TC" font-size="21" font-weight="bold" text-anchor="start" fill="#1a1a1a">做得到</text>
+<text x="1258" y="942" font-family="Noto Sans Mono CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">ROS 1 話題　rt/lowcmd</text>
+<text x="1734" y="882" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="end" fill="#6b6b6b">底層 SDK 須安裝 ROS 1</text>
+<line x1="46" y1="998" x2="1794" y2="998" stroke="#2b2b2b" stroke-width="1.4"/>
+<text x="46" y="1018" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">圖 4 · 三款機型比較。</text>
+<text x="198" y="1018" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">（甲）運算平台：D1 Max 是三台中唯一的雙高算力板；D1 MaxPro 雖是大狗，算力平台與小狗 D1 EDU 同為單顆 RK3588。</text>
+<text x="46" y="1041" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">（乙）三台的「讀」幾乎全開，差別在「寫」——D1 EDU 與 D1 Max 的官方 SDK 只到姿態動作層，送不了關節角度或力矩；只有 D1 MaxPro 開放到單顆馬達。</text>
+<text x="46" y="1064" font-family="Noto Serif CJK TC" font-size="14.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">（丙）D1 EDU 與 D1 Max 官方雖不提供，但機上存在共享記憶體介面可繞過 SDK：D1 EDU 已實機驗證三種控制模式，D1 Max 結構已解出、僅差寫入未測。</text>
+<text x="46" y="1090" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">註：D1 MaxPro 官方文件的 SSH 帳號為 jetson，但實測主控板為 Firefly RK3588，兩者不一致，機型批次差異待向原廠確認。</text>
 </svg>

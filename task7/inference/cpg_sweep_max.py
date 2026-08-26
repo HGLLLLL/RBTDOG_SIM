@@ -96,6 +96,8 @@ def _run(job: dict) -> dict:
     r = cw.rollout(quiet=True, **kw)
     r["_cell"] = job["cell"]
     r["_seed"] = job["seed"]
+    # 各格的 secs 可以不一樣（長時程那組），所以偏航要能換算成**每秒**才比得了
+    r["_secs"] = kw["secs"]
     return r
 
 
@@ -111,12 +113,24 @@ def _agg(rs: list[dict]) -> dict:
         v = [r[k] * s for r in rs]
         return float(max(v) - min(v))
 
+    # ⚠️ 只有全距**不足以**判斷兩格的差異是不是真的 —— 全距不告訴你分布落在哪。
+    #    兩格的中位數差 12°、全距各 13° 與 8°，可以是「完全不重疊」也可以是「疊一半」，
+    #    這兩種情況的結論完全相反。所以偏航另外把 min/max 印出來。
+    def span(k):
+        v = [r[k] for r in rs]
+        return [float(min(v)), float(max(v))]
+
     return {
         "n": len(rs),
         "n_fell": sum(1 for r in rs if r["fell"] is not None),
+        "yaw_span": span("yaw"),
+        "speed_path_span": span("speed_path"),
         "speed_path": med("speed_path"), "speed_path_rng": rng("speed_path"),
         "speed": med("speed"),
         "yaw": med("yaw"), "yaw_rng": rng("yaw"),
+        # 每秒偏航率：不同 secs 的格唯一能互比的量。慢漂是不是真的，看這個。
+        "yaw_rate": float(np.median([r["yaw"] / r.get("_secs", 20.0) for r in rs])),
+        "yaw_rate_rng": float(np.ptp([r["yaw"] / r.get("_secs", 20.0) for r in rs])),
         "bounce": med("bounce", 1000), "bounce_rng": rng("bounce", 1000),
         "min_lift": med("min_lift", 1000),
         "support": med("support"), "support_rng": rng("support"),
@@ -132,7 +146,7 @@ def _agg(rs: list[dict]) -> dict:
 
 
 HDR = (f"{'值':>10} |{'跌倒':>6}{'路徑速度m/s':>14}{'彈跳mm':>13}{'支撐腳':>12}"
-       f"{'離地mm':>8}{'平均俯仰°':>15}{'偏航°(中位/全距)':>20}{'超限%':>7}{'飽和%':>7}")
+       f"{'離地mm':>8}{'平均俯仰°':>15}{'偏航°(中位/全距)':>20}{'偏航°/s':>16}{'超限%':>7}{'飽和%':>7}")
 
 
 def _row(label: str, a: dict) -> str:
@@ -144,6 +158,7 @@ def _row(label: str, a: dict) -> str:
             f"{a['min_lift']:>8.1f}"
             f"{a['pitch_mean']:>+9.2f}±{a['pitch_mean_rng']:>4.2f}"
             f"{a['yaw']:>+13.1f}/{a['yaw_rng']:>5.1f}"
+            f"{a['yaw_rate']:>+9.3f}±{a['yaw_rate_rng']:>5.3f}"
             f"{a['lim_pct']:>7.2f}{a['tau_pct']:>7.2f}")
 
 
@@ -179,6 +194,24 @@ def build_plan(name: str, secs: float, nseed: int) -> list[dict]:
     if name in ("full", "base"):
         for g in ("walk", "walk_fast", "trot"):
             P.append(("預設值", g, dict(S, gait=g)))
+    if name == "yaw":
+        # ① 直接複驗交接文件 §2 的那組 A/B（兩邊都用舊的 x_off −30 隔離變因）。
+        #    文件量到 −12.4° → −0.1°，並且自己標注「不要據此宣布偏航解決了」。
+        #    這裡把同一組跑成分布，讓那個 12° 的差異接受全距檢驗。
+        for lf in (0.0, 1.5):
+            P.append(("§2複驗 x_off−30", f"腿摩擦{lf:.1f}",
+                      dict(S, gait="walk", x_off=-0.030, leg_friction=lf)))
+        # ② 長時程。HANDOFF 說偏航慢漂 −0.5~−0.8°/s、60 秒累積 −50°，
+        #    而那是「唯一擋住能直線走遠的東西」。★ 20 秒看不出慢漂，必須拉長。
+        for g in ("walk", "walk_fast"):
+            for t in (20.0, 60.0):
+                P.append((f"長時程/{g}", f"{t:.0f}s", dict(gait=g, secs=t)))
+        # ③ walk_fast 的慢漂能不能靠配平消掉？
+        #    它的**俯仰**配平點在 −46 mm（walk 是 −41），但預設兩組都寫 −40。
+        #    若慢漂隨 x_off 單調變號，那它是配平沒配好，不是非得上閉迴路。
+        for v in (-0.055, -0.050, -0.046, -0.040, -0.035):
+            P.append(("慢漂vs配平/walk_fast 60s", f"{v:.3f}",
+                      dict(gait="walk_fast", secs=60.0, x_off=v)))
 
     jobs = []
     for sweep, label, kw in P:
@@ -193,7 +226,7 @@ def build_plan(name: str, secs: float, nseed: int) -> list[dict]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--plan", default="full",
-                    choices=("full", "trim", "params", "abad", "base"))
+                    choices=("full", "trim", "params", "abad", "base", "yaw"))
     ap.add_argument("--secs", type=float, default=20.0)
     ap.add_argument("--seeds", type=int, default=6, help="每格的擾動數")
     ap.add_argument("--procs", type=int, default=None,

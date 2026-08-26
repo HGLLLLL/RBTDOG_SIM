@@ -13,9 +13,21 @@
 
 也就是一份完整的「我們要複製什麼」的規格 —— 而且完全不用碰它。
 
-用法（在狗上；遙控器讓狗站好、停穩再跑）：
-    python3 M6_load_probe.py stand_ground --secs 5
-    python3 M6_load_probe.py hang_free  --secs 5 --note "吊掛、洩力"
+兩種模式：
+
+  **靜態擷取**（預設）—— 狗停穩後跑，取多秒平均：
+      python3 M6_load_probe.py stand_ground --secs 5
+
+  **★ 全程錄製**（`--record`）—— 逐筆記錄時間序列，錄原廠自己做動作的全程：
+      python3 M6_load_probe.py standup --record --secs 30
+      # 開始跑之後，再用遙控器讓狗從趴下站起來
+
+★ 為什麼錄製比靜態快照有價值得多：
+  **原廠控制器已經解決了我們正要解決的問題。** 錄下它的全程等於拿到
+  它用的軌跡（p_des 隨時間）、增益排程（kp/kd 有沒有分段）、
+  有沒有重力前饋（effort 欄），以及**真正的力矩包絡**。
+  靜態站著只給你終點，而**峰值力矩發生在起身的過程中**，
+  那才是決定我們保護門檻的數字。
 
 ⚠️ 這支**只讀不寫**，可以在任何狀態下安全執行，包括狗站著、走著、故障中。
 """
@@ -92,21 +104,206 @@ def std(xs):
     return (sum((x - m) ** 2 for x in xs) / len(xs)) ** 0.5
 
 
+def record(secs: float, hz: float) -> dict:
+    """逐筆記錄時間序列。Ctrl-C 提前結束會保留已錄到的部分。
+
+    ⚠️ 與靜態擷取同樣的鐵則：兩塊 shm 在**同一輪**讀完再進下一輪。
+       分兩趟讀會讓「力矩」與「當時的指令」錯位 —— 靜態下看不出來，
+       但這個模式專門用來錄**動作中**的資料，錯位會直接毀掉因果推論。
+    """
+    with shm_io.Shm("joint_state") as s:
+        s.verify_layout(shm_io.STATE_STRIDE)
+    with shm_io.Shm("joint_cmd") as s:
+        s.verify_layout(shm_io.CMD_STRIDE)
+
+    T, IMU = [], []
+    J = {n: {"q": [], "des": [], "tau": [], "v": [], "kp": [], "kd": [], "ff": []}
+         for n in shm_io.JOINTS}
+    period = 1.0 / hz
+    interrupted = False
+    print(f"● 錄製中 —— 最長 {secs:.0f} 秒。**現在可以動遙控器了。**")
+    print("  （Ctrl-C 可提前結束並保留資料）\n")
+    with shm_io.Shm("joint_state") as ss, shm_io.Shm("joint_cmd") as sc, \
+            shm_io.Shm("imu_central") as si:
+        tick0 = ss.read_tick(shm_io.STATE_STRIDE)
+        t0 = nxt = time.monotonic()
+        last = -1.0
+        try:
+            while True:
+                t = time.monotonic() - t0
+                if t >= secs:
+                    break
+                st = ss.states()
+                cm = sc.read_records(shm_io.CMD_STRIDE, 5)
+                T.append(round(t, 4))
+                for i, nm in enumerate(shm_io.JOINTS):
+                    d = J[nm]
+                    d["q"].append(round(st[i]["position"], 5))
+                    d["v"].append(round(st[i]["velocity"], 4))
+                    d["tau"].append(round(st[i]["effort"], 4))
+                    d["des"].append(round(cm[i][0], 5))
+                    d["ff"].append(round(cm[i][2], 4))
+                    d["kp"].append(round(cm[i][3], 3))
+                    d["kd"].append(round(cm[i][4], 3))
+                IMU.append([round(shm_io._F8.unpack_from(si.mm, 824 + 8 * k)[0], 5)
+                            for k in range(10)])
+                if t - last >= 1.0:
+                    # 即時回饋：讓操作者知道在錄、而且看得到動作有沒有被記到
+                    mt = max(abs(x["effort"]) for x in st)
+                    mv = max(abs(x["velocity"]) for x in st)
+                    on = sum(1 for c in cm if abs(c[3]) + abs(c[4]) > 1e-9)
+                    print(f"  {t:5.1f}s  最大|τ| {mt:6.2f}  最大|v| {mv:5.2f}  "
+                          f"帶增益的關節 {on:2d}/16")
+                    last = t
+                nxt += period
+                dly = nxt - time.monotonic()
+                if dly > 0:
+                    time.sleep(dly)
+        except KeyboardInterrupt:
+            interrupted = True
+            print("\n  （Ctrl-C：提前結束，保留已錄到的資料）")
+        tick1 = ss.read_tick(shm_io.STATE_STRIDE)
+    dt = T[-1] if T else 0.0
+    return {"t": T, "j": J, "imu": IMU, "secs": dt, "n": len(T),
+            "interrupted": interrupted,
+            "tick_rate": (tick1 - tick0) / dt if dt > 0 else 0.0}
+
+
+def _fold(xs):
+    """整段都一樣就存成純量，否則存陣列。
+
+    ★ 這不只是為了省空間 —— **「這個欄位是常數還是有變」本身就是答案**。
+      kp 存成純量 = 原廠全程用同一組增益；存成陣列 = 它有增益排程。
+      看 JSON 就知道，不必另外分析。
+    """
+    return xs[0] if xs and all(x == xs[0] for x in xs) else xs
+
+
+def analyse_record(r: dict) -> None:
+    T, J = r["t"], r["j"]
+    if not T:
+        print("沒有錄到任何資料。")
+        return
+    print(f"\n錄到 {r['n']} 筆 / {r['secs']:.2f} 秒 @ {r['n']/max(r['secs'],1e-9):.0f} Hz"
+          f"　joint_state 心跳 {r['tick_rate']:.0f}/s"
+          + ("　（提前結束）" if r["interrupted"] else ""))
+
+    # ---- 增益有沒有變？這是「原廠有沒有增益排程」的直接答案
+    print("\n" + "=" * 78)
+    print("① 原廠的增益：全程固定，還是有排程？")
+    print("=" * 78)
+    print(f"{'關節':16s} {'kp':>22s} {'kd':>18s} {'前饋 effort':>20s}")
+    sched = []
+    for n in shm_io.JOINTS:
+        d = J[n]
+        def desc(xs, fmt="{:.1f}"):
+            lo, hi = min(xs), max(xs)
+            return fmt.format(lo) if lo == hi else f"{fmt.format(lo)} → {fmt.format(hi)} ★變"
+        if max(d["kp"]) != min(d["kp"]) or max(d["kd"]) != min(d["kd"]):
+            sched.append(n)
+        print(f"{n:16s} {desc(d['kp']):>22s} {desc(d['kd'],'{:.2f}'):>18s}"
+              f" {desc(d['ff'],'{:+.3f}'):>20s}")
+    if sched:
+        print(f"\n   ★ {len(sched)} 個關節的增益在過程中**變過** → 原廠有增益排程，")
+        print("     我們的單一 kp 複製不了它。要看時間序列才知道怎麼排。")
+    else:
+        print("\n   ✅ 增益全程固定 → 沒有排程，單一 kp/kd 就能複製。")
+    ff_on = [n for n in shm_io.JOINTS if any(abs(x) > 1e-6 for x in J[n]["ff"])]
+    if ff_on:
+        print(f"   ★★ **有前饋力矩**（{len(ff_on)} 個關節的 effort 欄非零）——")
+        print("      這解釋了為什麼實機承重時的追蹤誤差比純 PD 預測小很多。")
+    else:
+        print("   ✅ 前饋 effort 全程為 0 → 原廠是純 PD。")
+
+    # ---- 力矩包絡：這才是保護門檻的依據
+    print("\n" + "=" * 78)
+    print("② 力矩包絡（控制器座標系）—— **保護門檻要照這個訂，不是照靜態值**")
+    print("=" * 78)
+    print(f"{'關節':16s} {'峰值|τ|':>9s} {'發生於':>8s} {'結束時τ':>9s} {'峰值/結束':>10s}")
+    for n in LEG_JOINTS:
+        sgn = coord.SIGN[n[2:]][n[:2]]
+        taus = [sgn * x for x in J[n]["tau"]]
+        i = max(range(len(taus)), key=lambda k: abs(taus[k]))
+        fin = mean(taus[-max(1, len(taus) // 20):])
+        ratio = abs(taus[i]) / abs(fin) if abs(fin) > 1e-6 else float("inf")
+        print(f"{n:16s} {abs(taus[i]):9.2f} {T[i]:7.2f}s {fin:+9.2f}"
+              f" {ratio:9.1f}x")
+    allpk = max(abs(coord.SIGN[n[2:]][n[:2]] * x)
+                for n in LEG_JOINTS for x in J[n]["tau"])
+    print(f"\n   全部腿關節的峰值 |τ| = **{allpk:.2f} N·m**")
+    print(f"   → 我們自己做同樣動作時，力矩保護至少要 {allpk*1.5:.0f} N·m")
+    print("   （目前 M5 的門檻是 ABAD 10 / HIP 8 / KNEE 7，是照**吊掛**訂的）")
+
+    # ---- 粗略時間軸
+    print("\n" + "=" * 78)
+    print("③ 時間軸（每 0.5 秒一列）")
+    print("=" * 78)
+    print(f"{'t':>6s} {'機身pitch':>9s} {'最大|τ|':>8s} {'在哪顆':>16s}"
+          f" {'最大|v|':>8s} {'帶增益':>7s}")
+    step = max(1, int(len(T) / max(1, r["secs"] / 0.5)))
+    for k in range(0, len(T), step):
+        qx, qy, qz, qw = r["imu"][k][6:10]
+        pitch = math.degrees(math.asin(max(-1, min(1, 2 * (qw * qy - qz * qx)))))
+        pairs = [(abs(coord.SIGN[n[2:]][n[:2]] * J[n]["tau"][k]), n) for n in LEG_JOINTS]
+        mt, mn = max(pairs)
+        mv = max(abs(J[n]["v"][k]) for n in shm_io.JOINTS)
+        on = sum(1 for n in shm_io.JOINTS
+                 if abs(J[n]["kp"][k]) + abs(J[n]["kd"][k]) > 1e-9)
+        print(f"{T[k]:6.2f} {pitch:+9.2f} {mt:8.2f} {mn:>16s} {mv:8.2f} {on:6d}")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("label", help="這次擷取叫什麼，例如 stand_ground / hang_free")
     ap.add_argument("--secs", type=float, default=5.0)
     ap.add_argument("--hz", type=float, default=100.0)
     ap.add_argument("--note", default="", help="自由文字：狗當下的狀態、遙控器按了什麼")
+    ap.add_argument("--record", action="store_true",
+                    help="★ 逐筆記錄時間序列（錄原廠做動作的全程）。"
+                         "Ctrl-C 可提前結束並保留已錄到的資料")
     a = ap.parse_args()
 
     logp = shm_io.start_log("M6")
     print("M6 —— 承重狀態唯讀擷取（不寫入、不凍結、不需 sudo）\n")
-    print(f"標籤 {a.label}　{a.secs:.1f} 秒 @ {a.hz:.0f} Hz")
+    print(f"標籤 {a.label}　{'全程錄製' if a.record else '靜態擷取'}"
+          f"　{a.secs:.1f} 秒 @ {a.hz:.0f} Hz")
     if a.note:
         print(f"備註：{a.note}")
-    print("⚠️ 擷取期間請不要碰狗、不要動遙控器。\n")
 
+    # ---------------------------------------------------------------- 錄製模式
+    if a.record:
+        rec = record(a.secs, a.hz)
+        analyse_record(rec)
+        out = {"schema": "m6_record/1", "label": a.label, "note": a.note,
+               "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+               "n": rec["n"], "secs": rec["secs"], "hz_actual":
+                   rec["n"] / max(rec["secs"], 1e-9),
+               "tick_rate": rec["tick_rate"], "interrupted": rec["interrupted"],
+               "t": rec["t"],
+               # ★ 每個欄位若整段不變就存純量 —— 見 _fold()：
+               #   「是常數還是有變」本身就是答案，看 JSON 就知道有沒有增益排程。
+               "joints": {n2: {k: _fold(v) for k, v in d.items()}
+                          for n2, d in rec["j"].items()},
+               "imu": rec["imu"]}
+        jp = (logp[:-4] if logp.endswith(".log") else logp) + ".json"
+        try:
+            with open(jp, "w", encoding="utf-8") as f:
+                json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
+            if os.geteuid() == 0 and os.getenv("SUDO_USER"):
+                import pwd
+                pw = pwd.getpwnam(os.environ["SUDO_USER"])
+                try:
+                    os.chown(jp, pw.pw_uid, pw.pw_gid)
+                except OSError:
+                    pass
+            print(f"\n📊 時間序列已存到 {jp}"
+                  f"（{os.path.getsize(jp)/1024:.0f} KB）")
+        except Exception as e:
+            print(f"\n⚠️ 結果檔寫入失敗：{e}")
+        print(f"📄 完整輸出已存到 {logp}")
+        return 0
+
+    print("⚠️ 擷取期間請不要碰狗、不要動遙控器。\n")
     r = capture(a.secs, a.hz)
     acc = r["acc"]
     print(f"取樣 {r['n']} 筆 / {r['secs']:.2f} 秒　"

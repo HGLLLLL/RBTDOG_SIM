@@ -1,0 +1,335 @@
+{
+ "schema": "m5_run/1",
+ "time": "2026-08-26 11:15:32",
+ "log": "/home/robot/m_logs/M5_20260826_111520.log",
+ "args": {
+  "joints": "all",
+  "pose": "stand",
+  "delta": null,
+  "knee_back": false,
+  "confirm": true,
+  "kp": 40.0,
+  "kd": 1.5,
+  "abort_kd": 3.0,
+  "abort_hold": 20.0,
+  "ramp": 2.0,
+  "move": 4.0,
+  "hold": 3.0,
+  "no_return": false,
+  "hz": 200.0,
+  "tmax": null,
+  "emax": 0.4,
+  "vmax": 2.0,
+  "temp_max": 70.0,
+  "margin": 0.05,
+  "wheel_vel": 0.0,
+  "wheel_kd": 1.5,
+  "wheel_tff": 0.0
+ },
+ "joints": [
+  "fl1_hip_roll",
+  "fl2_hip_pitch",
+  "fl3_knee_pitch",
+  "fr1_hip_roll",
+  "fr2_hip_pitch",
+  "fr3_knee_pitch",
+  "bl1_hip_roll",
+  "bl2_hip_pitch",
+  "bl3_knee_pitch",
+  "br1_hip_roll",
+  "br2_hip_pitch",
+  "br3_knee_pitch"
+ ],
+ "pose_name": "stand",
+ "aborted": true,
+ "abort_reason": "bl3_knee_pitch 力矩 +9.96 超過 7.0 N·m",
+ "heartbeat_per_s": 999.975911819715,
+ "tmax_used": {
+  "fl1_hip_roll": 10.0,
+  "fl2_hip_pitch": 8.0,
+  "fl3_knee_pitch": 7.0,
+  "fr1_hip_roll": 10.0,
+  "fr2_hip_pitch": 8.0,
+  "fr3_knee_pitch": 7.0,
+  "bl1_hip_roll": 10.0,
+  "bl2_hip_pitch": 8.0,
+  "bl3_knee_pitch": 7.0,
+  "br1_hip_roll": 10.0,
+  "br2_hip_pitch": 8.0,
+  "br3_knee_pitch": 7.0
+ },
+ "start_ctrl": {
+  "fl1_hip_roll": -0.36449742126464846,
+  "fl2_hip_pitch": 0.12076679992675787,
+  "fl3_knee_pitch": -0.23166420745849603,
+  "fr1_hip_roll": 0.12721943664550783,
+  "fr2_hip_pitch": 0.05744282531738287,
+  "fr3_knee_pitch": -0.12256195831298822,
+  "bl1_hip_roll": -0.35915589141845705,
+  "bl2_hip_pitch": -0.2527581863403321,
+  "bl3_knee_pitch": 0.47962239074707025,
+  "br1_hip_roll": 0.16231560516357424,
+  "br2_hip_pitch": 0.011222679138183533,
+  "br3_knee_pitch": 0.06915524291992181
+ },
+ "target_ctrl": {
+  "fl1_hip_roll": 0.0,
+  "fl2_hip_pitch": 0.6,
+  "fl3_knee_pitch": -1.2,
+  "fr1_hip_roll": 0.0,
+  "fr2_hip_pitch": 0.6,
+  "fr3_knee_pitch": -1.2,
+  "bl1_hip_roll": 0.0,
+  "bl2_hip_pitch": -0.6,
+  "bl3_knee_pitch": 1.2,
+  "br1_hip_roll": 0.0,
+  "br2_hip_pitch": -0.6,
+  "br3_knee_pitch": 1.2
+ },
+ "hold": {
+  "fl1_hip_roll": {
+   "n": 600,
+   "q_mean": -0.12760090637207092,
+   "des_mean": 0.0,
+   "err_mean": -0.12760090637207092,
+   "tau_mean": 5.1127777099609375
+  },
+  "fl2_hip_pitch": {
+   "n": 600,
+   "q_mean": 0.5392467193603523,
+   "des_mean": 0.6000000000000036,
+   "err_mean": -0.06075328063964803,
+   "tau_mean": 2.4431355794270835
+  },
+  "fl3_knee_pitch": {
+   "n": 600,
+   "q_mean": -1.1128726272582983,
+   "des_mean": -1.2000000000000073,
+   "err_mean": 0.08712737274169821,
+   "tau_mean": -3.531530024210612
+  },
+  "fr1_hip_roll": {
+   "n": 600,
+   "q_mean": 0.12493061828613351,
+   "des_mean": 0.0,
+   "err_mean": 0.12493061828613351,
+   "tau_mean": -4.9587046305338545
+  },
+  "fr2_hip_pitch": {
+   "n": 600,
+   "q_mean": 0.5426799468994148,
+   "des_mean": 0.6000000000000036,
+   "err_mean": -0.057320053100585716,
+   "tau_mean": 2.2576904551188153
+  },
+  "fr3_knee_pitch": {
+   "n": 600,
+   "q_mean": -1.0960879592895483,
+   "des_mean": -1.2000000000000073,
+   "err_mean": 0.10391204071044813,
+   "tau_mean": -4.1173248291015625
+  },
+  "bl1_hip_roll": {
+   "n": 600,
+   "q_mean": -0.1371376495361331,
+   "des_mean": 0.0,
+   "err_mean": -0.1371376495361331,
+   "tau_mean": 5.507566426595052
+  },
+  "bl2_hip_pitch": {
+   "n": 600,
+   "q_mean": -0.5228435211181655,
+   "des_mean": -0.6000000000000036,
+   "err_mean": 0.07715647888183487,
+   "tau_mean": -3.0582427978515625
+  },
+  "bl3_knee_pitch": {
+   "n": 600,
+   "q_mean": 1.1063876419067358,
+   "des_mean": 1.2000000000000073,
+   "err_mean": -0.09361235809326068,
+   "tau_mean": 3.7096710205078125
+  },
+  "br1_hip_roll": {
+   "n": 600,
+   "q_mean": 0.11311077880859494,
+   "des_mean": 0.0,
+   "err_mean": 0.11311077880859494,
+   "tau_mean": -4.526239852905274
+  },
+  "br2_hip_pitch": {
+   "n": 600,
+   "q_mean": -0.5277311019897473,
+   "des_mean": -0.6000000000000036,
+   "err_mean": 0.07226889801025299,
+   "tau_mean": -2.8899280802408853
+  },
+  "br3_knee_pitch": {
+   "n": 600,
+   "q_mean": 1.118062522888181,
+   "des_mean": 1.2000000000000073,
+   "err_mean": -0.08193747711181544,
+   "tau_mean": 3.308680216471354
+  }
+ },
+ "peak": {
+  "fl1_hip_roll": {
+   "tau": 5.966278076171875,
+   "err": -0.14732067748995792,
+   "v": 0.26680755615234375,
+   "temp_C": 25.0
+  },
+  "fl2_hip_pitch": {
+   "tau": 2.9694061279296875,
+   "err": -0.07298688235273576,
+   "v": -0.28862762451171875,
+   "temp_C": 25.0
+  },
+  "fl3_knee_pitch": {
+   "tau": -4.3488311767578125,
+   "err": 0.10903811143240638,
+   "v": 0.45723724365234375,
+   "temp_C": 25.0
+  },
+  "fr1_hip_roll": {
+   "tau": -5.0446319580078125,
+   "err": 0.12493061828613283,
+   "v": 0.0545501708984375,
+   "temp_C": 25.0
+  },
+  "fr2_hip_pitch": {
+   "tau": 3.0243377685546875,
+   "err": -0.07576092174012694,
+   "v": -0.37789154052734375,
+   "temp_C": 25.0
+  },
+  "fr3_knee_pitch": {
+   "tau": -4.6417999267578125,
+   "err": 0.12076739695506555,
+   "v": 0.5822067260742188,
+   "temp_C": 25.0
+  },
+  "bl1_hip_roll": {
+   "tau": 5.593963623046875,
+   "err": -0.1406864565646206,
+   "v": -0.20333099365234375,
+   "temp_C": 25.0
+  },
+  "bl2_hip_pitch": {
+   "tau": -3.4149627685546875,
+   "err": 0.08709271025384391,
+   "v": 0.27870941162109375,
+   "temp_C": 25.0
+  },
+  "bl3_knee_pitch": {
+   "tau": 9.964126586914062,
+   "err": -0.10662379427839408,
+   "v": -0.40367889404296875,
+   "temp_C": 25.0
+  },
+  "br1_hip_roll": {
+   "tau": -4.8004913330078125,
+   "err": 0.11386799621582033,
+   "v": -0.25688934326171875,
+   "temp_C": 25.0
+  },
+  "br2_hip_pitch": {
+   "tau": -3.93377685546875,
+   "err": 0.09602102716252536,
+   "v": 0.36797332763671875,
+   "temp_C": 24.0
+  },
+  "br3_knee_pitch": {
+   "tau": 3.98870849609375,
+   "err": -0.1028837651391239,
+   "v": -0.5326156616210938,
+   "temp_C": 25.0
+  }
+ },
+ "ref": {
+  "fl1_hip_roll": {
+   "tau_gravity": 6.087408979330802,
+   "stiffness": 15.890356647546282,
+   "tau_at_hang": 1.8497252498480021,
+   "q_hang": -0.2743520443469086,
+   "predicted_move": null
+  },
+  "fl2_hip_pitch": {
+   "tau_gravity": 2.5628188416389577,
+   "stiffness": 14.241821172690994,
+   "tau_at_hang": 0.01371699152047512,
+   "q_hang": 0.0008403459923775538,
+   "predicted_move": null
+  },
+  "fl3_knee_pitch": {
+   "tau_gravity": -2.8968319925190817,
+   "stiffness": 4.93627075470207,
+   "tau_at_hang": 0.007148056021867966,
+   "q_hang": 0.0006317716670585251,
+   "predicted_move": null
+  },
+  "fr1_hip_roll": {
+   "tau_gravity": -6.087408979330798,
+   "stiffness": 15.901177930883614,
+   "tau_at_hang": -1.7541258176065413,
+   "q_hang": 0.2803637891057944,
+   "predicted_move": null
+  },
+  "fr2_hip_pitch": {
+   "tau_gravity": 2.5646678496320696,
+   "stiffness": 14.217463457448414,
+   "tau_at_hang": -0.014731616922379231,
+   "q_hang": -0.0008316410138382651,
+   "predicted_move": null
+  },
+  "fr3_knee_pitch": {
+   "tau_gravity": -2.896803329296402,
+   "stiffness": 4.9278263620727,
+   "tau_at_hang": -0.007870153898148935,
+   "q_hang": -0.0007466214052809105,
+   "predicted_move": null
+  },
+  "bl1_hip_roll": {
+   "tau_gravity": 6.087408979330802,
+   "stiffness": 15.901197204286115,
+   "tau_at_hang": 1.7539663941883612,
+   "q_hang": -0.2803737789743649,
+   "predicted_move": null
+  },
+  "bl2_hip_pitch": {
+   "tau_gravity": -2.5651783385325224,
+   "stiffness": 14.217424316861802,
+   "tau_at_hang": 0.014962056668871071,
+   "q_hang": 0.0008843207147731335,
+   "predicted_move": null
+  },
+  "bl3_knee_pitch": {
+   "tau_gravity": 2.896623233321151,
+   "stiffness": 4.927813978352695,
+   "tau_at_hang": 0.007995717394913449,
+   "q_hang": 0.000762226609498863,
+   "predicted_move": null
+  },
+  "br1_hip_roll": {
+   "tau_gravity": -6.084744849574198,
+   "stiffness": 15.881567663294906,
+   "tau_at_hang": -1.8495642835883648,
+   "q_hang": 0.2743434557322783,
+   "predicted_move": null
+  },
+  "br2_hip_pitch": {
+   "tau_gravity": -2.5579520160073272,
+   "stiffness": 14.233803946843171,
+   "tau_at_hang": -0.013932606798963576,
+   "q_hang": -0.000852199876983203,
+   "predicted_move": null
+  },
+  "br3_knee_pitch": {
+   "tau_gravity": 2.8969033285135586,
+   "stiffness": 4.936403573879495,
+   "tau_at_hang": -0.007259919743756171,
+   "q_hang": -0.0006426008112759727,
+   "predicted_move": null
+  }
+ }
+}

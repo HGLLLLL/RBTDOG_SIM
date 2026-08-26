@@ -1,0 +1,71 @@
+{
+ "schema": "m5_run/1",
+ "time": "2026-08-26 11:13:10",
+ "log": "/home/robot/m_logs/M5_20260826_111255.log",
+ "args": {
+  "joints": "fl2_hip_pitch",
+  "pose": null,
+  "delta": -0.05,
+  "knee_back": false,
+  "confirm": true,
+  "kp": 15.0,
+  "kd": 1.0,
+  "abort_kd": 3.0,
+  "abort_hold": 20.0,
+  "ramp": 2.0,
+  "move": 4.0,
+  "hold": 3.0,
+  "no_return": false,
+  "hz": 200.0,
+  "tmax": null,
+  "emax": 0.15,
+  "vmax": 2.0,
+  "temp_max": 70.0,
+  "margin": 0.05,
+  "wheel_vel": 0.0,
+  "wheel_kd": 1.5,
+  "wheel_tff": 0.0
+ },
+ "joints": [
+  "fl2_hip_pitch"
+ ],
+ "pose_name": "delta-0.05",
+ "aborted": false,
+ "abort_reason": null,
+ "heartbeat_per_s": 1000.06025014675,
+ "tmax_used": {
+  "fl2_hip_pitch": 8.0
+ },
+ "start_ctrl": {
+  "fl2_hip_pitch": 0.03188339996337897
+ },
+ "target_ctrl": {
+  "fl2_hip_pitch": -0.018116600036621036
+ },
+ "hold": {
+  "fl2_hip_pitch": {
+   "n": 600,
+   "q_mean": 0.03150193023681639,
+   "des_mean": -0.018116600036620942,
+   "err_mean": 0.04961853027343799,
+   "tau_mean": -0.7398493957519531
+  }
+ },
+ "peak": {
+  "fl2_hip_pitch": {
+   "tau": -0.833160400390625,
+   "err": 0.0496185302734375,
+   "v": 0.0069427490234375,
+   "temp_C": 25.0
+  }
+ },
+ "ref": {
+  "fl2_hip_pitch": {
+   "tau_gravity": null,
+   "stiffness": 14.241821172690994,
+   "tau_at_hang": 0.01371699152047512,
+   "q_hang": 0.0008403459923775538,
+   "predicted_move": -0.02611728547993831
+  }
+ }
+}

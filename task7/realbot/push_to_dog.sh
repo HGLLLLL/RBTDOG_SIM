@@ -104,3 +104,6 @@ echo
 echo "  然後從 S0 乾跑開始（不需 sudo、不寫入）："
 echo "     python3 M0_probe.py"
 echo "     python3 M5_leg_pose.py --joints fl2_hip_pitch --delta 0.05"
+echo
+echo "★ 收資料回來（**不要用 scp -r**，會在目標下多套一層 m_logs/）："
+echo "     bash task7/realbot/pull_from_dog.sh trip7"

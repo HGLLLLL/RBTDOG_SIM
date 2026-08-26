@@ -213,6 +213,21 @@ def build_plan(name: str, secs: float, nseed: int) -> list[dict]:
             P.append(("慢漂vs配平/walk_fast 60s", f"{v:.3f}",
                       dict(gait="walk_fast", secs=60.0, x_off=v)))
 
+    if name == "drift":
+        # `walk_fast` 的慢漂不隨 x_off 變（見 plan=yaw），但**隨 d_step 變號**：
+        # 20 s 掃描裡 0.08→+8.6°、0.10→+8.2°、0.13→−19.4°、0.16→−35.6°。
+        # 若真的有過零點，那就能同時要「快」與「直」，不必先上偏航閉迴路。
+        # ⚠️ 必須用 60 s —— 20 秒的偏航被起步暫態蓋過，看不出慢漂率。
+        for v in (0.100, 0.110, 0.115, 0.120, 0.130):
+            P.append(("d_step vs 慢漂 60s", f"{v:.3f}",
+                      dict(gait="walk_fast", secs=60.0, d_step=v)))
+        # 加速的**另一條路**：不加步幅，加頻率。20 s 掃描裡 ω=1.8 給到 0.335 m/s
+        # 而彈跳比 ω=1.4 還小。若慢漂是跟著 d_step 而不是跟著速度，
+        # 這條路就能同時要快與直 —— 那比先做偏航閉迴路便宜得多。
+        for v in (1.4, 1.6, 1.8, 2.0):
+            P.append(("omega vs 慢漂 60s", f"{v:.1f}",
+                      dict(gait="walk", secs=60.0, omega=v)))
+
     jobs = []
     for sweep, label, kw in P:
         for s in range(nseed):
@@ -226,7 +241,7 @@ def build_plan(name: str, secs: float, nseed: int) -> list[dict]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--plan", default="full",
-                    choices=("full", "trim", "params", "abad", "base", "yaw"))
+                    choices=("full", "trim", "params", "abad", "base", "yaw", "drift"))
     ap.add_argument("--secs", type=float, default=20.0)
     ap.add_argument("--seeds", type=int, default=6, help="每格的擾動數")
     ap.add_argument("--procs", type=int, default=None,

@@ -23,6 +23,7 @@ FILES=(
   "$HERE/M0_probe.py"
   "$HERE/M2_wheel_spin.py"   # 單顆輪的對照實驗（2026-08-25 已知good）
   "$HERE/M5_leg_pose.py"
+  "$HERE/M6_load_probe.py"   # 承重狀態唯讀擷取（零風險）
   "$HERE/M_faultwatch.py"
   "$HERE/estop_max.sh"      # ★ 急停。第二個終端機一定要備著
 )

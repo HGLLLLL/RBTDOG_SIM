@@ -122,12 +122,36 @@ D_STEP_Y = 0.12   # 橫擺尺度。ABAD 力臂約 0.41 m（D1 EDU 只有 0.22）
 SETTLE_S = 1.5    # 開走前先站穩。這台 41 kg，比 task6 的 0.8 s 需要更久
 
 
+# ---- 模型快取 ----------------------------------------------------------------
+# ⚠️ 這不是微優化，是**擋當機的**。一次 `make_model()` 要吃掉約 0.9 GB（網格），
+#    而 `Robot()` 原本每個 rollout 都重建一次。單一進程掃 30 組會讓 RSS 一路衝到
+#    1.6 GB 以上（glibc arena 不還給 OS），平行掃就直接把 16 GB 的機器 OOM 掉
+#    —— 2026-08-26 就是這樣把開發機弄當的。
+#
+# 模型本身在整場掃描裡是**不變的**，會被改寫的只有下面兩個欄位。所以快取一份，
+# 每次建 Robot 時**先還原成原始值再套用覆寫** —— 少了「還原」這步，上一次
+# `--friction 0.3` 的設定會靜默滲進下一次跑，而且四個診斷指標全是乾淨的。
+_MODEL = None
+_PRISTINE = None
+
+
+def _model():
+    """取得共用模型，並把可被改寫的欄位還原成 MJCF 的原值。"""
+    global _MODEL, _PRISTINE
+    if _MODEL is None:
+        _MODEL = mm.make_model()
+        _PRISTINE = (_MODEL.geom_friction.copy(), _MODEL.dof_frictionloss.copy())
+    _MODEL.geom_friction[:] = _PRISTINE[0]
+    _MODEL.dof_frictionloss[:] = _PRISTINE[1]
+    return _MODEL
+
+
 class Robot:
     """MuJoCo 模型 + 迴圈內 PD。所有 rollout 共用，確保控制律只有一份。"""
 
     def __init__(self, friction: float = None, wheel_friction: float = None,
-                 leg_friction: float = None):
-        self.m = mm.make_model()
+                 leg_friction: float = None, abad_friction: float = None):
+        self.m = _model()
         if friction is not None:
             self.m.geom_friction[:, 0] = friction
         # ⚠️ 守衛是 `is not None` 不是 `> 0`。MJCF 現在自帶 frictionloss=0.15（實機實測），
@@ -139,6 +163,12 @@ class Robot:
         # `--leg-friction 0` 可取回舊的無摩擦對照組。
         if leg_friction is not None:
             self.m.dof_frictionloss[mm.LEG_QVEL_IDX] = leg_friction
+        # ABAD 單獨覆寫。★ 必須排在 leg_friction 之後 —— 它是 leg_friction 的子集，
+        #   順序反過來會被整組覆蓋掉而**靜默失效**。
+        #   會需要這個是因為 ABAD 的 1.85 是**下界不是量測值**（見結果文件），
+        #   要能問「步態到底吃不吃這個數字」就得單獨掃它。
+        if abad_friction is not None:
+            self.m.dof_frictionloss[mm.LEG_QVEL_IDX[::3]] = abad_friction
         self.d = mujoco.MjData(self.m)
         self.foot_bid = mm.foot_body_ids(self.m)
         self.jnt_rng = mm.leg_joint_ranges(self.m)
@@ -282,7 +312,7 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
             g_c: float = None, d_step: float = None, d_step_y: float = D_STEP_Y,
             duty: float = None, friction: float = None, wheel_mode: str = "damp",
             wheel_friction: float = None, leg_friction: float = None,
-            z_sag: float = None, video: bool = False,
+            abad_friction: float = None, z_sag: float = None, video: bool = False,
             quiet: bool = False) -> dict:
     """開迴路步態 rollout。未指定的參數取 `GAITS[gait]` 的預設值。"""
     cfg = GAITS[gait]
@@ -296,7 +326,7 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
     z_sag = mm.STATIC_SAG if z_sag is None else z_sag
 
     r = Robot(friction=friction, wheel_friction=wheel_friction,
-              leg_friction=leg_friction)
+              leg_friction=leg_friction, abad_friction=abad_friction)
     ks = leg_kin.knee_sign_of(mm.HOME)
     f0 = leg_kin.home_foot(mm.HOME)
     step = cpg_max.make_cpg_step(phase)
@@ -459,6 +489,9 @@ if __name__ == "__main__":
     ap.add_argument("--leg-friction", type=float, default=None, dest="leg_friction",
                     help="覆寫腿關節 frictionloss；MJCF 預設已是實測的 1.5，"
                          "給 0 可拿回無摩擦對照組（2026-08-26 之前的行為）")
+    ap.add_argument("--abad-friction", type=float, default=None, dest="abad_friction",
+                    help="只覆寫四個 ABAD 的 frictionloss（套在 --leg-friction 之後）；"
+                         "MJCF 預設 1.85 是下界不是量測值，用這個掃它的敏感度")
     ap.add_argument("--z-sag", type=float, default=None, dest="z_sag")
     ap.add_argument("--video", action="store_true")
     ap.add_argument("--sweep", type=str, default=None,

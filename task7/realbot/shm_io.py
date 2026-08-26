@@ -172,6 +172,25 @@ class Shm:
         for f in ("kp", "kd", "effort", "velocity"):
             _F8.pack_into(self.mm, self._cmd_field_off(idx, f), 0.0)
 
+    def damp_only(self, idx: int, kd: float) -> None:
+        """把單一關節切成**純阻尼**：kp = effort = v_des = 0，只留 kd。
+
+        ★ 這是腿關節的中止行為，與 zero_gains() 不同。
+
+        腿關節帶著載荷時 zero_gains() 等於自由落體 —— 腿會掉下去撞機械停點。
+        純阻尼則是「鬆手但有黏滯」，腿會慢慢垂下而不是砸下去。
+
+        這也與 controller 自己的退路一致：`joint_cmd_timeout`(500 ms) 逾時後
+        它會套 `estop_kd=35`，同樣是阻尼停止而不是失力。
+
+        寫入順序：**先 kp/effort 歸零、最後寫 kd**。撕裂讀取最壞拿到
+        「舊 kd + 新的零 kp」，仍然是安全的（純阻尼或無出力），
+        不會出現「新 kd + 舊 kp」那種還在做位置控制的中間態。
+        """
+        for f in ("kp", "effort", "velocity"):
+            _F8.pack_into(self.mm, self._cmd_field_off(idx, f), 0.0)
+        _F8.pack_into(self.mm, self._cmd_field_off(idx, "kd"), float(kd))
+
 
 def read_joint_state() -> list[dict]:
     """回傳 16 筆 {name, position, velocity, effort, temp, voltage}。唯讀，不需 root。

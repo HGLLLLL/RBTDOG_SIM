@@ -1,0 +1,61 @@
+<!--
+  吊掛場景 —— 機身焊在空中、**沒有地板**。
+
+  用途：模擬「用吊帶把狗吊起來、四腿自由下垂」這個狀態。
+
+  兩個刻意的設計：
+
+  1. **沒有 <geom name="floor">。** 不是忘了加。
+     腿自然下垂時足端會落到 base 下方約 0.54 m，若沿用 scene_flat 的地板
+     （base 在 z=0.8）雖然勉強不觸地，但 CROUCH / 軌跡預演過程中很容易擦到，
+     而**一旦有接觸，`mj_inverse` 的 `qfrc_inverse` 就不再是純重力項**，
+     算出來的「重力保持力矩」會被地面反力汙染而完全看不出來。
+     這一條就是 task7 方法論裡「診斷輸出騙人」的典型長相，所以直接拿掉地板。
+
+  2. **base_link 焊到一個 mocap body 上**，而不是把 freejoint 拿掉。
+     保留 freejoint 的好處是：需要「自由基座」時只要關掉 equality 約束
+     （`model.opt.disableflags |= mjDSBL_EQUALITY`）就好，同一個模型兩用，
+     不必維護兩份 XML 而冒著兩份不同步的風險。
+     mocap body 放在 (0, 0, 0.8)，剛好等於 zgws.xml 裡 base_link 的 pos，
+     所以 `relpose` 取單位姿勢（兩個 frame 重合）在 qpos0 就是成立的。
+
+  solref/solimp 調得很硬（時間常數 0.2 ms、impedance 逼近 1），
+  目的是讓它接近理想剛性焊接。使用端**必須順便印出機身位移**當交叉檢核 ——
+  若位移不是 mm 以下，代表焊接被力矩拉開了，峰值力矩的數字就不能引用。
+-->
+<mujoco model="zgws hang scene">
+  <include file="zgws.xml"/>
+
+  <statistic center="0 0 0.5" extent="1.4"/>
+
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global azimuth="-130" elevation="-20"/>
+    <map znear="0.01" zfar="100"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0"
+             width="512" height="3072"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 0 3" dir="0 0 -1" directional="true"/>
+    <!-- 吊點。mocap body 不進 qpos，位置由 data.mocap_pos 決定，預設就是這裡。 -->
+    <body name="hang_anchor" mocap="true" pos="0 0 0.8">
+      <!-- ⚠️ mass="0" 不是裝飾。geom 預設 density=1000，這塊 60×60×20 mm 的方塊
+           會替 mocap body 生出 0.072 kg，雖然不影響動力學（mocap body 是純運動學的），
+           卻會混進 `model.body_mass.sum()`，讓「吊帶承重 vs 總重量」那條交叉檢核
+           差 0.71 N 而誤報不一致。第一版就是這樣被自己的檢核抓到的。 -->
+      <geom type="box" size="0.03 0.03 0.01" mass="0" contype="0" conaffinity="0"
+            rgba="1 0.35 0.1 0.5"/>
+    </body>
+  </worldbody>
+
+  <equality>
+    <weld name="hang_weld" body1="hang_anchor" body2="base_link"
+          relpose="0 0 0 1 0 0 0"
+          solref="0.0002 1" solimp="0.999 0.9999 0.0001 0.5 2"/>
+  </equality>
+</mujoco>

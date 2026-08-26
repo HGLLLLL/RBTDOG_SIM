@@ -227,6 +227,17 @@ def build_plan(name: str, secs: float, nseed: int) -> list[dict]:
         for v in (1.4, 1.6, 1.8, 2.0):
             P.append(("omega vs 慢漂 60s", f"{v:.1f}",
                       dict(gait="walk", secs=60.0, omega=v)))
+        # ★ 主張「walk 沒有系統性慢漂」之前，必須排除「只是漂得更慢」。
+        #    60 s 的偏航率跨零，但 60 s 也只有 15 公尺。拉到 120 s（約 30 m）再驗一次：
+        #    若真的沒漂，偏航總量不該隨時間長大。
+        #    ★ 這一格救回一個錯誤結論：60 s 的偏航率跨零，看起來像「walk 不漂」，
+        #      120 s 卻是 12 次全部 −46.9° ~ −25.4°、沒有一次靠近零。
+        #      walk 只是**前 60 秒被起步暫態抵銷**。所以偏航率一定要看**區間斜率**，
+        #      不能用「總偏航 ÷ 總秒數」—— 後者會被起步那一段永久稀釋。
+        for t in (20.0, 60.0, 120.0, 180.0):
+            P.append(("超長時程/walk", f"{t:.0f}s", dict(gait="walk", secs=t)))
+        for t in (60.0, 120.0):
+            P.append(("超長時程/walk_fast", f"{t:.0f}s", dict(gait="walk_fast", secs=t)))
 
     jobs = []
     for sweep, label, kw in P:

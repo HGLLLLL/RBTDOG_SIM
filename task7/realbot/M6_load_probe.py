@@ -208,12 +208,20 @@ def analyse_record(r: dict) -> None:
         print("     我們的單一 kp 複製不了它。要看時間序列才知道怎麼排。")
     else:
         print("\n   ✅ 增益全程固定 → 沒有排程，單一 kp/kd 就能複製。")
-    ff_on = [n for n in shm_io.JOINTS if any(abs(x) > 1e-6 for x in J[n]["ff"])]
-    if ff_on:
-        print(f"   ★★ **有前饋力矩**（{len(ff_on)} 個關節的 effort 欄非零）——")
-        print("      這解釋了為什麼實機承重時的追蹤誤差比純 PD 預測小很多。")
+    # ⚠️ **腿關節與輪關節要分開講**。2026-08-26 第一版把兩者混在一起報
+    #    「有前饋力矩 → 這解釋了追蹤誤差為何比純 PD 小」，但非零的那 4 個
+    #    全是**輪子**（前饋約 ±0.2，剛好等於實測的輪摩擦），腿關節是 0。
+    #    腿的誤差小是因為 kp 高，不是因為前饋 —— 那句話把因果講反了。
+    ff_leg = [n for n in LEG_JOINTS if any(abs(x) > 1e-6 for x in J[n]["ff"])]
+    ff_wh = [n for n in shm_io.WHEELS if any(abs(x) > 1e-6 for x in J[n]["ff"])]
+    if ff_leg:
+        print(f"   ★★ **腿關節有前饋力矩**（{len(ff_leg)} 個）——")
+        print("      那是重力補償，我們的純 PD 複製不了，要一起實作。")
     else:
-        print("   ✅ 前饋 effort 全程為 0 → 原廠是純 PD。")
+        print("   ✅ **腿關節的前饋 effort 全程為 0 → 原廠是純 PD。**")
+        print("      承重時追蹤誤差之所以小，是因為 kp 高，不是因為有前饋。")
+    if ff_wh:
+        print(f"   ℹ️ 輪子有前饋（{len(ff_wh)} 顆），量級可對照實測輪摩擦 0.15~0.20 N·m")
 
     # ---- 力矩包絡：這才是保護門檻的依據
     print("\n" + "=" * 78)

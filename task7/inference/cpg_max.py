@@ -164,4 +164,5 @@ def circ_std(angles: np.ndarray) -> float:
     a = np.asarray(angles, dtype=float)
     r = np.hypot(np.mean(np.cos(a)), np.mean(np.sin(a)))
     r = min(max(r, 1e-12), 1.0)
-    return float(np.sqrt(-2.0 * np.log(r)))
+    # r 完全等於 1 時 log 給 −0.0，sqrt(−0.0) = −0.0，會印成 "-0.0"。夾成 0。
+    return float(np.sqrt(max(0.0, -2.0 * np.log(r))))

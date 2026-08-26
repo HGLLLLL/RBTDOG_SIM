@@ -35,7 +35,7 @@ CPG 指令 50 Hz。增益取原廠 RL 那組（ABAD 60 / HIP 120 / KNEE 120、Kd
 「每個控制步都重新給輪子目標角」的 RL 策略**；開迴路 CPG 沒有那一層，
 把目標角凍結在起步當下就會愈拖愈遠、PD 愈拉愈用力。
 
-實測（walk_stable、ω=1.4、d_step=0.10、12 秒）：
+實測（duty=0.80 的 walk 相位、ω=1.4、d_step=0.10、12 秒）：
 
     模式              前進    淨滾動   輪總行程    yaw     側偏
     hold（凍結目標）   935      1.0     1052    +39.1°   +616     ← 偏航失控
@@ -52,10 +52,14 @@ PD 把它換成接觸點上的縱向力，四個力不等就成了偏航力矩�
 **證據是原地踏步（d_step=0）也照樣偏 −28°，而且把相位左右鏡像偏航不會換邊**——
 所以不是步態的左右不對稱造成的，是輪子的控制律造成的。
 
-⚠️ 輪關節在 MJCF 裡**沒有 damping / frictionloss**，Kd=0.5 是唯一的被動阻力。
-   實機輪馬達有靜摩擦，task6 是用實測掙脫門檻填的，這台**還沒量過**。
-   `--wheel-friction` 可以加，預設 0 —— 也就是目前的模擬對輪子的阻力是**樂觀的**，
-   實機的靜摩擦只會讓腿式步態更好走，不會更差。
+★ 更新（2026-08-25，commit 9141393）：**輪關節的靜摩擦已經是實機實測值了**。
+   MJCF 現在自帶 `frictionloss="0.15"`（四輪各 0.15 N·m，純庫倫、無黏滯，
+   由實機四輪驅動四組獨立量測平均而來）。上面那張表是**在加摩擦之前**量的。
+   加了之後本檔調好的參數**全部仍適用**：walk 0.19 → 0.21 m/s（+8%），
+   彈跳／俯仰／支撐腳幾乎不變，跌倒仍是 0，診斷仍全 0%。
+
+⚠️ `--wheel-friction` 現在可以**加也可以減**（守衛是 `is not None`，不是 `> 0`）。
+   要拿「無摩擦」的對照組就 `--wheel-friction 0`。
 
 ================================================================================
 §3 實測結果
@@ -81,16 +85,33 @@ import max_model as mm
 
 OUT_DIR = Path(__file__).resolve().parents[1] / "outputs"
 
-# ---- 步態預設 ----
-# 起點值的出處：G_C 取原廠 `leg_height` 0.10；x_off 取 0（靜態質心只偏 −0.6 mm）；
-# D_STEP / OMEGA / MU_X 是掃出來的，見結果文件。
+# ---- 步態預設（每組都是掃出來的實測點，見結果文件的表）----
+#
+#   walk        ★ 建議用這組。最直、彈跳最小。0.19 m/s
+#   walk_fast   同樣的相位與佔空比，加大步幅。0.29 m/s
+#   trot        ❌ **不要用。** 見下。
+#
+# ⚠️ 佔空比是這台的硬條件：實測 duty ≤ 0.70 **一定跌倒**（24 秒內）。
+#    0.75 勉強能走但彈跳 52 mm，0.80 才收斂到 28 mm。task6 的 D1 EDU 連 duty=0.50
+#    的 trot 都走得動 —— 這台重一倍，低佔空比的空檔身體就撐不住了。
+#
+# ⚠️⚠️ **trot 對擾動是混沌的。** 把 x_off 擾動 1e-12 m（一皮米）跑 6 次：
+#      walk      偏航全距   6.2°   速度 0.194–0.195  ← 穩
+#      walk_fast 偏航全距  11.2°   速度 0.294–0.297  ← 穩
+#      trot      偏航全距 128.3°   速度 0.110–0.464  ← **速度差 4 倍**
+#    所以 trot 的任何單次數字都不能引用，也不能拿來調參。它留在這裡只是為了
+#    佐證「這台不適合低佔空比」。**walk 系列的速度可以引用，偏航要當 ±3° 看。**
+# ⚠️ x_off 隨輪摩擦而變。無摩擦時「平均俯仰過零」落在 −42 mm，
+#    加上實測 frictionloss=0.15 之後移到 **−30 mm**。改摩擦就要重掃這一項。
+#    （其餘三項 —— duty、mu_y、地面摩擦門檻 —— 加摩擦後結論完全沒變，已重驗。）
 GAITS = {
-    "trot": dict(phase=cpg_max.PHASE_TROT, duty=0.50, omega=2.0, mu_x=1.80,
-                 x_off=0.000, d_step=0.15, g_c=0.10),
-    "walk": dict(phase=cpg_max.PHASE_WALK, duty=0.75, omega=1.4, mu_x=1.80,
-                 x_off=0.000, d_step=0.15, g_c=0.10),
-    "walk_stable": dict(phase=cpg_max.PHASE_WALK, duty=0.80, omega=1.4, mu_x=1.80,
-                        x_off=0.000, d_step=0.15, g_c=0.10),
+    "walk": dict(phase=cpg_max.PHASE_WALK, duty=0.80, omega=1.4, mu_x=1.80,
+                 x_off=-0.030, d_step=0.10, g_c=0.08),
+    "walk_fast": dict(phase=cpg_max.PHASE_WALK, duty=0.80, omega=1.4, mu_x=1.80,
+                      x_off=-0.030, d_step=0.13, g_c=0.08),
+    # trot 的 x_off 沒有重掃 —— 它的指標是混沌的，掃了也選不出東西。
+    "trot": dict(phase=cpg_max.PHASE_TROT, duty=0.50, omega=3.0, mu_x=1.80,
+                 x_off=-0.050, d_step=0.10, g_c=0.08),
 }
 MU_Y = 1.5        # → fy = 0，直線走路不需要橫擺（task6 §1-2；不歸零是側偏的主因）
 D_STEP_Y = 0.12   # 橫擺尺度。ABAD 力臂約 0.41 m（D1 EDU 只有 0.22），比 task6 寬鬆
@@ -100,11 +121,14 @@ SETTLE_S = 1.5    # 開走前先站穩。這台 41 kg，比 task6 的 0.8 s 需�
 class Robot:
     """MuJoCo 模型 + 迴圈內 PD。所有 rollout 共用，確保控制律只有一份。"""
 
-    def __init__(self, friction: float = None, wheel_friction: float = 0.0):
+    def __init__(self, friction: float = None, wheel_friction: float = None):
         self.m = mm.make_model()
         if friction is not None:
             self.m.geom_friction[:, 0] = friction
-        if wheel_friction > 0:
+        # ⚠️ 守衛是 `is not None` 不是 `> 0`。MJCF 現在自帶 frictionloss=0.15（實機實測），
+        #    若寫成 `if wheel_friction > 0` 就**只能加不能減**，
+        #    `--wheel-friction 0` 會被靜默忽略、拿不回無摩擦的對照組。
+        if wheel_friction is not None:
             self.m.dof_frictionloss[mm.WHEEL_QVEL_IDX] = wheel_friction
         self.d = mujoco.MjData(self.m)
         self.foot_bid = mm.foot_body_ids(self.m)
@@ -248,7 +272,7 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
             mu_x: float = None, mu_y: float = MU_Y, x_off: float = None,
             g_c: float = None, d_step: float = None, d_step_y: float = D_STEP_Y,
             duty: float = None, friction: float = None, wheel_mode: str = "damp",
-            wheel_friction: float = 0.0, z_sag: float = None, video: bool = False,
+            wheel_friction: float = None, z_sag: float = None, video: bool = False,
             quiet: bool = False) -> dict:
     """開迴路步態 rollout。未指定的參數取 `GAITS[gait]` 的預設值。"""
     cfg = GAITS[gait]
@@ -291,6 +315,11 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
     x0, y0 = float(d.qpos[0]), float(d.qpos[1])
     yaw0 = cpg_max.yaw_deg(d.qpos[3:7])
     w0 = d.qpos[mm.WHEEL_QPOS_IDX].copy()
+    # 路徑長：步態一偏航就走弧線，「x 位移 / 時間」會**嚴重低估**實際走多快
+    # （實測 trot 偏航 −70° 時，帳面 0.20 m/s、實際路徑速率 0.44 m/s，差一倍以上）。
+    # 兩個都留：speed 看「往目標方向前進多少」，speed_path 看「腿到底走多快」。
+    path_len = 0.0
+    prev_xy = np.array([float(d.qpos[0]), float(d.qpos[1])])
     fell = None
 
     for i in range(n):
@@ -299,6 +328,10 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
                                           ks, z_sag)
         n_reach += nc
         r.step(q_des, wheel_mode)
+
+        xy = np.array([float(d.qpos[0]), float(d.qpos[1])])
+        path_len += float(np.linalg.norm(xy - prev_xy))
+        prev_xy = xy
 
         grav = cpg_max.w2b(d.qpos[3:7], np.array([0.0, 0.0, -1.0]))
         if grav[2] > mm.FALL_GRAV_Z and fell is None:
@@ -318,7 +351,7 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
 
         if ren is not None and i % 2 == 0:
             cam.lookat[:] = [d.qpos[0], d.qpos[1], 0.30]
-            cam.distance, cam.elevation, cam.azimuth = 2.8, -8, 90
+            cam.distance, cam.elevation, cam.azimuth = 2.0, -10, 90
             ren.update_scene(d, cam)
             frames.append(ren.render())
 
@@ -330,7 +363,12 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
     cyc = [np.max(pit[s:s + per]) - np.min(pit[s:s + per])
            for s in range(0, len(pit) - per, per)] or [float(pit.max() - pit.min())]
 
-    # 相位鎖定：實際相位差 vs 目標相位差，用圓形統計（±180° 包裹會讓一般標準差虛胖）
+    # 相位鎖定：實際相位差 vs 目標相位差，用圓形統計（±180° 包裹會讓一般標準差虛胖）。
+    #
+    # ⚠️ 這是一個**在開迴路下必然漂亮的指標**，不要拿它當步態品質的證據。
+    #    CPG 是純前饋的，機身狀態不回授進振盪器，所以相位差恆等於設定值、σ 恆為 0，
+    #    就算機器人已經翻倒在地也一樣是 0。留著它是為了將來接上回授（RL / 觸地重置）
+    #    之後才有比較基準 —— 那時它才開始有資訊量。
     ph = np.asarray(phases)
     lock = [float(np.degrees(cpg_max.circ_std(
         ph[:, k] - ph[:, 0] - (phase[k] - phase[0])))) for k in range(4)]
@@ -349,6 +387,8 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
         "dist": float(d.qpos[0]) - x0,
         "lateral": float(d.qpos[1]) - y0,
         "speed": (float(d.qpos[0]) - x0) / secs,
+        "path_len": path_len,
+        "speed_path": path_len / secs,      # 走弧線時這個才是「腿走多快」
         "yaw": cpg_max.yaw_deg(d.qpos[3:7]) - yaw0,
         # 淨滾動距離：回答「牠是在走還是在滾」。輪軸 +y，前進對應輪角減少。
         "net_roll": float(-np.mean(d.qpos[mm.WHEEL_QPOS_IDX] - w0) * mm.WHEEL_RADIUS),
@@ -369,7 +409,8 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
         print(f"[姿態] 週期俯仰 {res['pitch_cycle']:.2f}°  平均俯仰 {res['pitch_mean']:+.2f}°  "
               f"平均側傾 {res['roll_mean']:+.2f}°  彈跳 {res['bounce'] * 1000:.1f} mm  "
               f"機身高 {res['height'] * 1000:.1f} mm  支撐腳 {res['support']:.2f}")
-        print(f"[位移] 前進 {res['dist']:+.2f} m（{res['speed']:.2f} m/s）  "
+        print(f"[位移] 前進 {res['dist']:+.2f} m（帳面 {res['speed']:.2f} m/s，"
+              f"路徑 {res['speed_path']:.2f} m/s）  "
               f"側偏 {res['lateral']:+.2f} m  偏航 {res['yaw']:+.1f}°  "
               f"淨滾動 {res['net_roll'] * 1000:+.0f} mm  "
               f"跌倒={'是 @%.1fs' % fell if fell is not None else '否'}")
@@ -402,11 +443,28 @@ if __name__ == "__main__":
     ap.add_argument("--friction", type=float, default=None)
     ap.add_argument("--wheel-mode", choices=("hold", "damp", "free"), default="damp",
                     dest="wheel_mode")
-    ap.add_argument("--wheel-friction", type=float, default=0.0, dest="wheel_friction")
+    ap.add_argument("--wheel-friction", type=float, default=None, dest="wheel_friction",
+                    help="覆寫輪關節 frictionloss；MJCF 預設已是實測的 0.15，給 0 可拿無摩擦對照")
     ap.add_argument("--z-sag", type=float, default=None, dest="z_sag")
     ap.add_argument("--video", action="store_true")
+    ap.add_argument("--sweep", type=str, default=None,
+                    help="掃描一個參數，例如 --sweep omega=1.2,1.4,1.6")
     a = vars(ap.parse_args())
-    if a.pop("stand"):
+    sweep = a.pop("sweep")
+    if sweep:
+        key, vals = sweep.split("=")
+        a.pop("stand")
+        print(f"{key:>18} | {'跌倒':>5}{'速度':>7}{'偏航°':>7}{'側偏mm':>8}{'離地mm':>8}"
+              f"{'彈跳':>7}{'週期俯仰':>9}{'支撐':>6}{'高':>7}{'超限%':>7}{'飽和%':>7}")
+        for v in vals.split(","):
+            a[key] = float(v)
+            r = rollout(**dict(a, quiet=True))
+            print(f"{v:>18} | {('是' if r['fell'] else '否'):>5}{r['speed']:>7.2f}"
+                  f"{r['yaw']:>7.1f}{r['lateral'] * 1000:>8.0f}"
+                  f"{r['min_lift'] * 1000:>8.1f}{r['bounce'] * 1000:>7.1f}"
+                  f"{r['pitch_cycle']:>9.2f}{r['support']:>6.2f}"
+                  f"{r['height'] * 1000:>7.1f}{r['lim_pct']:>7.2f}{r['tau_pct']:>7.2f}")
+    elif a.pop("stand"):
         stand(secs=min(a["secs"], 5.0), x_off=a["x_off"] or 0.0,
               friction=a["friction"], wheel_mode=a["wheel_mode"])
     else:

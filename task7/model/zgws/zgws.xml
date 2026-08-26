@@ -46,7 +46,7 @@
           <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.49804 0.5 0.49804 1" mesh="FAR_HIP_LINK"/>
           <body name="FAR_KNEE_LINK" pos="0 -0.0522 -0.26">
             <inertial pos="1.1e-05 0.004286 -0.115691" quat="0.707101 -0.000811046 0.000666189 0.707112" mass="0.86312" diaginertia="0.01053 0.01024 0.000477956"/>
-            <joint name="FAR_KNEE_JOINT" pos="0 0 0" axis="0 1 0" range="-2.791 2.791" actuatorfrcrange="-150 150" frictionloss="1.5"/>
+            <joint name="FAR_KNEE_JOINT" pos="0 0 0" axis="0 1 0" range="-2.801 2.801" actuatorfrcrange="-150 150" frictionloss="1.5"/>
             <geom size="0.015 0.015 0.11" pos="0.005 0 -0.09" quat="0.99995 0 -0.00999983 0" type="box" rgba="0.75294 0.75294 0.75294 1"/>
             <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.49804 0.5 0.49804 1" mesh="FAR_KNEE_LINK"/>
             <body name="FAR_FOOT_LINK" pos="0 -0.0088 -0.28">
@@ -70,7 +70,7 @@
           <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.49804 0.5 0.49804 1" mesh="FBL_HIP_LINK"/>
           <body name="FBL_KNEE_LINK" pos="1.113e-05 0.0522 -0.26" quat="1 0 -2.14045e-05 0">
             <inertial pos="-1.1e-05 -0.004286 -0.115691" quat="0.707101 0.000811046 -0.000666189 0.707112" mass="0.86312" diaginertia="0.01053 0.01024 0.000477956"/>
-            <joint name="FBL_KNEE_JOINT" pos="0 0 0" axis="0 1 0" range="-2.791 2.791" actuatorfrcrange="-150 150" frictionloss="1.5"/>
+            <joint name="FBL_KNEE_JOINT" pos="0 0 0" axis="0 1 0" range="-2.801 2.801" actuatorfrcrange="-150 150" frictionloss="1.5"/>
             <geom size="0.015 0.015 0.11" pos="0.005 0 -0.09" quat="0.99995 0 -0.00999983 0" type="box" rgba="0.75294 0.75294 0.75294 1"/>
             <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.49804 0.5 0.49804 1" mesh="FBL_KNEE_LINK"/>
             <body name="FBL_FOOT_LINK" pos="0 0.0088 -0.28">
@@ -94,7 +94,7 @@
           <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.49804 0.5 0.49804 1" mesh="RAR_HIP_LINK"/>
           <body name="RAR_KNEE_LINK" pos="-1.113e-05 -0.0522 -0.26" quat="1 0 2.14045e-05 0">
             <inertial pos="1.1e-05 0.004242 -0.116154" quat="0.7071 -0.000956292 0.000810754 0.707112" mass="0.85979" diaginertia="0.0104791 0.010191 0.000474937"/>
-            <joint name="RAR_KNEE_JOINT" pos="0 0 0" axis="0 1 0" range="-2.791 2.791" actuatorfrcrange="-150 150" frictionloss="1.5"/>
+            <joint name="RAR_KNEE_JOINT" pos="0 0 0" axis="0 1 0" range="-2.801 2.801" actuatorfrcrange="-150 150" frictionloss="1.5"/>
             <geom size="0.015 0.015 0.11" pos="0.005 0 -0.09" quat="0.99995 0 -0.00999983 0" type="box" rgba="0.75294 0.75294 0.75294 1"/>
             <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.49804 0.5 0.49804 1" mesh="RAR_KNEE_LINK"/>
             <body name="RAR_FOOT_LINK" pos="0 -0.0088 -0.28">
@@ -118,7 +118,7 @@
           <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.49804 0.5 0.49804 1" mesh="RBL_HIP_LINK"/>
           <body name="RBL_KNEE_LINK" pos="1.1131e-05 0.0522 -0.26" quat="1 0 -2.14055e-05 0">
             <inertial pos="-1.1e-05 -0.004286 -0.115691" quat="0.707101 0.000811046 -0.000666189 0.707112" mass="0.86312" diaginertia="0.01053 0.01024 0.000477956"/>
-            <joint name="RBL_KNEE_JOINT" pos="0 0 0" axis="0 1 0" range="-2.791 2.791" actuatorfrcrange="-150 150" frictionloss="1.5"/>
+            <joint name="RBL_KNEE_JOINT" pos="0 0 0" axis="0 1 0" range="-2.801 2.801" actuatorfrcrange="-150 150" frictionloss="1.5"/>
             <geom size="0.015 0.015 0.11" pos="0.005 0 -0.09" quat="0.99995 0 -0.00999983 0" type="box" rgba="0.752941 0.752941 0.752941 1"/>
             <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.49804 0.5 0.49804 1" mesh="RBL_KNEE_LINK"/>
             <body name="RBL_FOOT_LINK" pos="0 0.0088 -0.28">

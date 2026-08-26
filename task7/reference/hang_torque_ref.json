@@ -1,3020 +1,3021 @@
 {
-  "_readme": [
-    "D1 Max 吊掛預演對照表。由 task7/inference/hang_rehearsal.py 產生。",
-    "所有角度單位 rad、力矩 N·m。角度/力矩預設是 **控制器座標系（== MJCF）**；",
-    "帶 _motor 後綴的才是馬達座標系（馬達角 = sign × 控制器角 + offset，",
-    "力矩只套 sign）。純標準函式庫可讀，沒有 numpy 型別。",
-    "結論欄（recommended）都附了原始數字（poses / gain_table / trajectory_sweep），",
-    "數字對不上時請回頭看原始值，不要只信結論。",
-    "",
-    "★ poses 的 key：STAND / HOME / CROUCH 是**後腿往前彎**（預設膝模式）；",
-    "  stand_knee_back / home_knee_back / crouch_knee_back 是**後腿往後彎**。",
-    "  HANG_FREE 是自然下垂（含左右輪互頂），HANG_NC 是關掉碰撞的純單擺對照組。",
-    "★ 增益有三組，別拿錯：",
-    "  recommended.s1_kp_by_kind      = S1 單關節微動（從自然下垂出發，低 kp）",
-    "  recommended.loaded_kp_by_kind  = 把腿舉到承重姿勢並撐住",
-    "  recommended.traj_kp_by_kind    = HANG_FREE→STAND 的整趟軌跡"
+ "_readme": [
+  "D1 Max 吊掛預演對照表。由 task7/inference/hang_rehearsal.py 產生。",
+  "所有角度單位 rad、力矩 N·m。角度/力矩預設是 **控制器座標系（== MJCF）**；",
+  "帶 _motor 後綴的才是馬達座標系（馬達角 = sign × 控制器角 + offset，",
+  "力矩只套 sign）。純標準函式庫可讀，沒有 numpy 型別。",
+  "結論欄（recommended）都附了原始數字（poses / gain_table / trajectory_sweep），",
+  "數字對不上時請回頭看原始值，不要只信結論。",
+  "",
+  "★ poses 的 key：STAND / HOME / CROUCH 是**後腿往前彎**（預設膝模式）；",
+  "  stand_knee_back / home_knee_back / crouch_knee_back 是**後腿往後彎**。",
+  "  HANG_FREE 是自然下垂（含左右輪互頂），HANG_NC 是關掉碰撞的純單擺對照組。",
+  "★ 增益有三組，別拿錯：",
+  "  recommended.s1_kp_by_kind      = S1 單關節微動（從自然下垂出發，低 kp）",
+  "  recommended.loaded_kp_by_kind  = 把腿舉到承重姿勢並撐住",
+  "  recommended.traj_kp_by_kind    = HANG_FREE→STAND 的整趟軌跡",
+  "2026-08-26：MJCF 的四個 KNEE range 由 ±2.791 改為 ±2.801（URDF 值，實機癱平時膝頂在 ±2.80 的機械停點）。本檔的 joint_limits_rad 已同步。★ 力矩/剛度/τ₀ 不受影響 —— 那些姿勢都遠在限位內。"
+ ],
+ "meta": {
+  "generated": "2026-08-26",
+  "generator": "task7/inference/hang_rehearsal.py",
+  "scene": "/home/huang/rbtdog_sim/task7/model/zgws/scene_hang.xml",
+  "mujoco_version": "3.10.0",
+  "timestep_s": 0.002,
+  "gravity_ms2": 9.81,
+  "model_total_mass_kg": 38.82051,
+  "spec_mass_kg": 41.0,
+  "mass_gap_kg": -2.1794900000000013,
+  "leg_mass_kg": 21.787509999999997,
+  "base_mass_kg": 17.033,
+  "mass_gap_note": "官方 MJCF 的總質量比規格書的 41 kg 少 2.18 kg。少的在機身還是在腿，MJCF 看不出來：若在機身（電池/外殼，最可能）則腿關節力矩不受影響、只有吊帶承重要加約 21 N；若分布在腿上則所有力矩要 ×1.056。外加 MJCF 的腿關節摩擦是 0（沒量過）——所以實機量到的力矩比這裡高幾 % 屬正常。"
+ },
+ "leg_map": {
+  "fl": {
+   "prefix": "FBL",
+   "legs_index": 1,
+   "legs_name": "FL",
+   "abad_xy": [
+    0.2698,
+    0.065
+   ]
+  },
+  "fr": {
+   "prefix": "FAR",
+   "legs_index": 0,
+   "legs_name": "FR",
+   "abad_xy": [
+    0.2698,
+    -0.065
+   ]
+  },
+  "bl": {
+   "prefix": "RBL",
+   "legs_index": 3,
+   "legs_name": "RL",
+   "abad_xy": [
+    -0.2698,
+    0.065
+   ]
+  },
+  "br": {
+   "prefix": "RAR",
+   "legs_index": 2,
+   "legs_name": "RR",
+   "abad_xy": [
+    -0.2698,
+    -0.065
+   ]
+  }
+ },
+ "joint_order_shm": [
+  "fl1_hip_roll",
+  "fl2_hip_pitch",
+  "fl3_knee_pitch",
+  "fr1_hip_roll",
+  "fr2_hip_pitch",
+  "fr3_knee_pitch",
+  "bl1_hip_roll",
+  "bl2_hip_pitch",
+  "bl3_knee_pitch",
+  "br1_hip_roll",
+  "br2_hip_pitch",
+  "br3_knee_pitch"
+ ],
+ "coord_transform": {
+  "formula": "馬達角 = sign × 控制器角 + offset;  馬達力矩 = sign × 控制器力矩",
+  "source": "實機 zg_wheels-user-parameters.yaml，M4_pose_capture.py 實機驗證（commit 30959bb）",
+  "sign": {
+   "fl1_hip_roll": -1.0,
+   "fl2_hip_pitch": -1.0,
+   "fl3_knee_pitch": 1.0,
+   "fr1_hip_roll": -1.0,
+   "fr2_hip_pitch": 1.0,
+   "fr3_knee_pitch": -1.0,
+   "bl1_hip_roll": 1.0,
+   "bl2_hip_pitch": -1.0,
+   "bl3_knee_pitch": 1.0,
+   "br1_hip_roll": 1.0,
+   "br2_hip_pitch": 1.0,
+   "br3_knee_pitch": -1.0
+  },
+  "offset": {
+   "fl1_hip_roll": -0.523,
+   "fl2_hip_pitch": 2.443,
+   "fl3_knee_pitch": 2.803,
+   "fr1_hip_roll": 0.523,
+   "fr2_hip_pitch": -2.443,
+   "fr3_knee_pitch": -2.803,
+   "bl1_hip_roll": 0.523,
+   "bl2_hip_pitch": -2.443,
+   "bl3_knee_pitch": -2.803,
+   "br1_hip_roll": -0.523,
+   "br2_hip_pitch": 2.443,
+   "br3_knee_pitch": 2.803
+  }
+ },
+ "joint_limits_rad": {
+  "fl1_hip_roll": [
+   -0.523,
+   0.697
   ],
-  "meta": {
-    "generated": "2026-08-26",
-    "generator": "task7/inference/hang_rehearsal.py",
-    "scene": "/home/huang/rbtdog_sim/task7/model/zgws/scene_hang.xml",
-    "mujoco_version": "3.10.0",
-    "timestep_s": 0.002,
-    "gravity_ms2": 9.81,
-    "model_total_mass_kg": 38.82051,
-    "spec_mass_kg": 41.0,
-    "mass_gap_kg": -2.1794900000000013,
-    "leg_mass_kg": 21.787509999999997,
-    "base_mass_kg": 17.033,
-    "mass_gap_note": "官方 MJCF 的總質量比規格書的 41 kg 少 2.18 kg。少的在機身還是在腿，MJCF 看不出來：若在機身（電池/外殼，最可能）則腿關節力矩不受影響、只有吊帶承重要加約 21 N；若分布在腿上則所有力矩要 ×1.056。外加 MJCF 的腿關節摩擦是 0（沒量過）——所以實機量到的力矩比這裡高幾 % 屬正常。"
-  },
-  "leg_map": {
-    "fl": {
-      "prefix": "FBL",
-      "legs_index": 1,
-      "legs_name": "FL",
-      "abad_xy": [
-        0.2698,
-        0.065
-      ]
-    },
-    "fr": {
-      "prefix": "FAR",
-      "legs_index": 0,
-      "legs_name": "FR",
-      "abad_xy": [
-        0.2698,
-        -0.065
-      ]
-    },
-    "bl": {
-      "prefix": "RBL",
-      "legs_index": 3,
-      "legs_name": "RL",
-      "abad_xy": [
-        -0.2698,
-        0.065
-      ]
-    },
-    "br": {
-      "prefix": "RAR",
-      "legs_index": 2,
-      "legs_name": "RR",
-      "abad_xy": [
-        -0.2698,
-        -0.065
-      ]
-    }
-  },
-  "joint_order_shm": [
-    "fl1_hip_roll",
-    "fl2_hip_pitch",
-    "fl3_knee_pitch",
-    "fr1_hip_roll",
-    "fr2_hip_pitch",
-    "fr3_knee_pitch",
-    "bl1_hip_roll",
-    "bl2_hip_pitch",
-    "bl3_knee_pitch",
-    "br1_hip_roll",
-    "br2_hip_pitch",
-    "br3_knee_pitch"
+  "fl2_hip_pitch": [
+   -2.442,
+   2.791
   ],
-  "coord_transform": {
-    "formula": "馬達角 = sign × 控制器角 + offset;  馬達力矩 = sign × 控制器力矩",
-    "source": "實機 zg_wheels-user-parameters.yaml，M4_pose_capture.py 實機驗證（commit 30959bb）",
-    "sign": {
-      "fl1_hip_roll": -1.0,
-      "fl2_hip_pitch": -1.0,
-      "fl3_knee_pitch": 1.0,
-      "fr1_hip_roll": -1.0,
-      "fr2_hip_pitch": 1.0,
-      "fr3_knee_pitch": -1.0,
-      "bl1_hip_roll": 1.0,
-      "bl2_hip_pitch": -1.0,
-      "bl3_knee_pitch": 1.0,
-      "br1_hip_roll": 1.0,
-      "br2_hip_pitch": 1.0,
-      "br3_knee_pitch": -1.0
+  "fl3_knee_pitch": [
+   -2.801,
+   2.801
+  ],
+  "fr1_hip_roll": [
+   -0.697,
+   0.523
+  ],
+  "fr2_hip_pitch": [
+   -2.442,
+   2.791
+  ],
+  "fr3_knee_pitch": [
+   -2.801,
+   2.801
+  ],
+  "bl1_hip_roll": [
+   -0.523,
+   0.697
+  ],
+  "bl2_hip_pitch": [
+   -2.791,
+   2.442
+  ],
+  "bl3_knee_pitch": [
+   -2.801,
+   2.801
+  ],
+  "br1_hip_roll": [
+   -0.697,
+   0.523
+  ],
+  "br2_hip_pitch": [
+   -2.791,
+   2.442
+  ],
+  "br3_knee_pitch": [
+   -2.801,
+   2.801
+  ]
+ },
+ "hang_free": {
+  "_note": "機身焊在空中、腿只受重力與人為黏滯阻尼，收斂到的靜止姿勢 ——凍結 mc_ctrl 之後腿真正會停的地方。★ 含自碰撞：左右輪會在機身正下方互相頂住，所以 abad 停在 ±0.28 rad 而不是 0，且該處的純重力力矩不為 0（由接觸力承擔）。",
+  "q_ctrl": {
+   "fl1_hip_roll": -0.2743520443469086,
+   "fl2_hip_pitch": 0.0008403459923775538,
+   "fl3_knee_pitch": 0.0006317716670585251,
+   "fr1_hip_roll": 0.2803637891057944,
+   "fr2_hip_pitch": -0.0008316410138382651,
+   "fr3_knee_pitch": -0.0007466214052809105,
+   "bl1_hip_roll": -0.2803737789743649,
+   "bl2_hip_pitch": 0.0008843207147731335,
+   "bl3_knee_pitch": 0.000762226609498863,
+   "br1_hip_roll": 0.2743434557322783,
+   "br2_hip_pitch": -0.000852199876983203,
+   "br3_knee_pitch": -0.0006426008112759727
+  },
+  "q_ctrl_mjcf": {
+   "FBL_ABAD_JOINT": -0.2743520443469086,
+   "FBL_HIP_JOINT": 0.0008403459923775538,
+   "FBL_KNEE_JOINT": 0.0006317716670585251,
+   "FAR_ABAD_JOINT": 0.2803637891057944,
+   "FAR_HIP_JOINT": -0.0008316410138382651,
+   "FAR_KNEE_JOINT": -0.0007466214052809105,
+   "RBL_ABAD_JOINT": -0.2803737789743649,
+   "RBL_HIP_JOINT": 0.0008843207147731335,
+   "RBL_KNEE_JOINT": 0.000762226609498863,
+   "RAR_ABAD_JOINT": 0.2743434557322783,
+   "RAR_HIP_JOINT": -0.000852199876983203,
+   "RAR_KNEE_JOINT": -0.0006426008112759727
+  },
+  "q_motor": {
+   "fl1_hip_roll": -0.24864795565309145,
+   "fl2_hip_pitch": 2.4421596540076225,
+   "fl3_knee_pitch": 2.8036317716670585,
+   "fr1_hip_roll": 0.24263621089420562,
+   "fr2_hip_pitch": -2.4438316410138383,
+   "fr3_knee_pitch": -2.802253378594719,
+   "bl1_hip_roll": 0.24262622102563514,
+   "bl2_hip_pitch": -2.443884320714773,
+   "bl3_knee_pitch": -2.8022377733905013,
+   "br1_hip_roll": -0.2486565442677217,
+   "br2_hip_pitch": 2.442147800123017,
+   "br3_knee_pitch": 2.803642600811276
+  },
+  "q_deg": {
+   "fl1_hip_roll": -15.719214241863858,
+   "fl2_hip_pitch": 0.04814827869396668,
+   "fl3_knee_pitch": 0.03619785013839771,
+   "fr1_hip_roll": 16.063661844057908,
+   "fr2_hip_pitch": -0.04764952016291348,
+   "fr3_knee_pitch": -0.04277825541672273,
+   "bl1_hip_roll": -16.064234221364888,
+   "bl2_hip_pitch": 0.050667844692492824,
+   "bl3_knee_pitch": 0.043672367756851155,
+   "br1_hip_roll": 15.71872215049368,
+   "br2_hip_pitch": -0.04882745625270547,
+   "br3_knee_pitch": -0.03681831439779596
+  },
+  "tau_at_hang": {
+   "fl1_hip_roll": 1.8497252498480021,
+   "fl2_hip_pitch": 0.01371699152047512,
+   "fl3_knee_pitch": 0.007148056021867966,
+   "fr1_hip_roll": -1.7541258176065413,
+   "fr2_hip_pitch": -0.014731616922379231,
+   "fr3_knee_pitch": -0.007870153898148935,
+   "bl1_hip_roll": 1.7539663941883612,
+   "bl2_hip_pitch": 0.014962056668871071,
+   "bl3_knee_pitch": 0.007995717394913449,
+   "br1_hip_roll": -1.8495642835883648,
+   "br2_hip_pitch": -0.013932606798963576,
+   "br3_knee_pitch": -0.007259919743756171
+  },
+  "tau_at_hang_note": "hang_free 這個姿勢下的**純重力**力矩（關掉碰撞算的）。hip/knee ≈ 0 → 收斂良好；abad ≠ 0 是因為被輪對輪的接觸力頂住，不是求解沒收斂。",
+  "stiffness_at_hang": {
+   "fl1_hip_roll": 15.890356647546282,
+   "fl2_hip_pitch": 14.241821172690994,
+   "fl3_knee_pitch": 4.93627075470207,
+   "fr1_hip_roll": 15.901177930883614,
+   "fr2_hip_pitch": 14.217463457448414,
+   "fr3_knee_pitch": 4.9278263620727,
+   "bl1_hip_roll": 15.901197204286115,
+   "bl2_hip_pitch": 14.217424316861802,
+   "bl3_knee_pitch": 4.927813978352695,
+   "br1_hip_roll": 15.881567663294906,
+   "br2_hip_pitch": 14.233803946843171,
+   "br3_knee_pitch": 4.936403573879495
+  },
+  "stiffness_at_hang_note": "局部重力剛度 k = dτ/dq（N·m/rad），中央差分 δ = 0.05。正值 = 回復力（像單擺）。用途：低 kp 微動的平衡點 q_eq − q_hang = (kp·Δ − τ0) / (kp + k)。",
+  "stiffness_delta_check": {
+   "delta_0.02": {
+    "fl1_hip_roll": 15.895919783670031,
+    "fl2_hip_pitch": 14.246807164610065,
+    "fl3_knee_pitch": 4.9379989189441975,
+    "fr1_hip_roll": 15.906744855485744,
+    "fr2_hip_pitch": 14.22244092185041,
+    "fr3_knee_pitch": 4.929551569974278,
+    "bl1_hip_roll": 15.90676413563572,
+    "bl2_hip_pitch": 14.222401767561044,
+    "bl3_knee_pitch": 4.929539181918741,
+    "br1_hip_roll": 15.88712772243831,
+    "br2_hip_pitch": 14.238787131970598,
+    "br3_knee_pitch": 4.938131784620947
+   },
+   "delta_0.05": {
+    "fl1_hip_roll": 15.890356647546282,
+    "fl2_hip_pitch": 14.241821172690994,
+    "fl3_knee_pitch": 4.93627075470207,
+    "fr1_hip_roll": 15.901177930883614,
+    "fr2_hip_pitch": 14.217463457448414,
+    "fr3_knee_pitch": 4.9278263620727,
+    "bl1_hip_roll": 15.901197204286115,
+    "bl2_hip_pitch": 14.217424316861802,
+    "bl3_knee_pitch": 4.927813978352695,
+    "br1_hip_roll": 15.881567663294906,
+    "br2_hip_pitch": 14.233803946843171,
+    "br3_knee_pitch": 4.936403573879495
+   },
+   "max_rel_diff": 0.00034997258413796607,
+   "all_positive": true,
+   "negative_joints": []
+  },
+  "self_contact": {
+   "ncon": 3,
+   "pairs": [
+    {
+     "body1": "FAR_FOOT_LINK",
+     "body2": "FBL_FOOT_LINK",
+     "dist_m": -5.00746099666787e-05,
+     "pos": [
+      0.32021783230994416,
+      0.0016306422651804825,
+      0.24440208014113685
+     ],
+     "normal_force_N": 3.1229245740582545
     },
-    "offset": {
-      "fl1_hip_roll": -0.523,
-      "fl2_hip_pitch": 2.443,
-      "fl3_knee_pitch": 2.803,
-      "fr1_hip_roll": 0.523,
-      "fr2_hip_pitch": -2.443,
-      "fr3_knee_pitch": -2.803,
-      "bl1_hip_roll": 0.523,
-      "bl2_hip_pitch": -2.443,
-      "bl3_knee_pitch": -2.803,
-      "br1_hip_roll": -0.523,
-      "br2_hip_pitch": 2.443,
-      "br3_knee_pitch": 2.803
+    {
+     "body1": "RAR_FOOT_LINK",
+     "body2": "RBL_FOOT_LINK",
+     "dist_m": -5.0664607571829634e-05,
+     "pos": [
+      -0.3368655863298291,
+      -0.001629197902781261,
+      0.24437837085817682
+     ],
+     "normal_force_N": 1.6576309961621187
+    },
+    {
+     "body1": "RAR_FOOT_LINK",
+     "body2": "RBL_FOOT_LINK",
+     "dist_m": -5.0664607571829634e-05,
+     "pos": [
+      -0.3202279333105339,
+      -0.00163574488740347,
+      0.24440162441432633
+     ],
+     "normal_force_N": 1.6551135745909538
     }
+   ],
+   "qacc_leg_max": 0.2050841531831587
   },
-  "joint_limits_rad": {
-    "fl1_hip_roll": [
-      -0.523,
-      0.697
-    ],
-    "fl2_hip_pitch": [
-      -2.442,
-      2.791
-    ],
-    "fl3_knee_pitch": [
-      -2.791,
-      2.791
-    ],
-    "fr1_hip_roll": [
-      -0.697,
-      0.523
-    ],
-    "fr2_hip_pitch": [
-      -2.442,
-      2.791
-    ],
-    "fr3_knee_pitch": [
-      -2.791,
-      2.791
-    ],
-    "bl1_hip_roll": [
-      -0.523,
-      0.697
-    ],
-    "bl2_hip_pitch": [
-      -2.791,
-      2.442
-    ],
-    "bl3_knee_pitch": [
-      -2.791,
-      2.791
-    ],
-    "br1_hip_roll": [
-      -0.697,
-      0.523
-    ],
-    "br2_hip_pitch": [
-      -2.791,
-      2.442
-    ],
-    "br3_knee_pitch": [
-      -2.791,
-      2.791
-    ]
-  },
-  "hang_free": {
-    "_note": "機身焊在空中、腿只受重力與人為黏滯阻尼，收斂到的靜止姿勢 ——凍結 mc_ctrl 之後腿真正會停的地方。★ 含自碰撞：左右輪會在機身正下方互相頂住，所以 abad 停在 ±0.28 rad 而不是 0，且該處的純重力力矩不為 0（由接觸力承擔）。",
-    "q_ctrl": {
-      "fl1_hip_roll": -0.2743520443469086,
-      "fl2_hip_pitch": 0.0008403459923775538,
-      "fl3_knee_pitch": 0.0006317716670585251,
-      "fr1_hip_roll": 0.2803637891057944,
-      "fr2_hip_pitch": -0.0008316410138382651,
-      "fr3_knee_pitch": -0.0007466214052809105,
-      "bl1_hip_roll": -0.2803737789743649,
-      "bl2_hip_pitch": 0.0008843207147731335,
-      "bl3_knee_pitch": 0.000762226609498863,
-      "br1_hip_roll": 0.2743434557322783,
-      "br2_hip_pitch": -0.000852199876983203,
-      "br3_knee_pitch": -0.0006426008112759727
-    },
-    "q_ctrl_mjcf": {
-      "FBL_ABAD_JOINT": -0.2743520443469086,
-      "FBL_HIP_JOINT": 0.0008403459923775538,
-      "FBL_KNEE_JOINT": 0.0006317716670585251,
-      "FAR_ABAD_JOINT": 0.2803637891057944,
-      "FAR_HIP_JOINT": -0.0008316410138382651,
-      "FAR_KNEE_JOINT": -0.0007466214052809105,
-      "RBL_ABAD_JOINT": -0.2803737789743649,
-      "RBL_HIP_JOINT": 0.0008843207147731335,
-      "RBL_KNEE_JOINT": 0.000762226609498863,
-      "RAR_ABAD_JOINT": 0.2743434557322783,
-      "RAR_HIP_JOINT": -0.000852199876983203,
-      "RAR_KNEE_JOINT": -0.0006426008112759727
-    },
-    "q_motor": {
-      "fl1_hip_roll": -0.24864795565309145,
-      "fl2_hip_pitch": 2.4421596540076225,
-      "fl3_knee_pitch": 2.8036317716670585,
-      "fr1_hip_roll": 0.24263621089420562,
-      "fr2_hip_pitch": -2.4438316410138383,
-      "fr3_knee_pitch": -2.802253378594719,
-      "bl1_hip_roll": 0.24262622102563514,
-      "bl2_hip_pitch": -2.443884320714773,
-      "bl3_knee_pitch": -2.8022377733905013,
-      "br1_hip_roll": -0.2486565442677217,
-      "br2_hip_pitch": 2.442147800123017,
-      "br3_knee_pitch": 2.803642600811276
-    },
-    "q_deg": {
-      "fl1_hip_roll": -15.719214241863858,
-      "fl2_hip_pitch": 0.04814827869396668,
-      "fl3_knee_pitch": 0.03619785013839771,
-      "fr1_hip_roll": 16.063661844057908,
-      "fr2_hip_pitch": -0.04764952016291348,
-      "fr3_knee_pitch": -0.04277825541672273,
-      "bl1_hip_roll": -16.064234221364888,
-      "bl2_hip_pitch": 0.050667844692492824,
-      "bl3_knee_pitch": 0.043672367756851155,
-      "br1_hip_roll": 15.71872215049368,
-      "br2_hip_pitch": -0.04882745625270547,
-      "br3_knee_pitch": -0.03681831439779596
-    },
-    "tau_at_hang": {
-      "fl1_hip_roll": 1.8497252498480021,
-      "fl2_hip_pitch": 0.01371699152047512,
-      "fl3_knee_pitch": 0.007148056021867966,
-      "fr1_hip_roll": -1.7541258176065413,
-      "fr2_hip_pitch": -0.014731616922379231,
-      "fr3_knee_pitch": -0.007870153898148935,
-      "bl1_hip_roll": 1.7539663941883612,
-      "bl2_hip_pitch": 0.014962056668871071,
-      "bl3_knee_pitch": 0.007995717394913449,
-      "br1_hip_roll": -1.8495642835883648,
-      "br2_hip_pitch": -0.013932606798963576,
-      "br3_knee_pitch": -0.007259919743756171
-    },
-    "tau_at_hang_note": "hang_free 這個姿勢下的**純重力**力矩（關掉碰撞算的）。hip/knee ≈ 0 → 收斂良好；abad ≠ 0 是因為被輪對輪的接觸力頂住，不是求解沒收斂。",
-    "stiffness_at_hang": {
-      "fl1_hip_roll": 15.890356647546282,
-      "fl2_hip_pitch": 14.241821172690994,
-      "fl3_knee_pitch": 4.93627075470207,
-      "fr1_hip_roll": 15.901177930883614,
-      "fr2_hip_pitch": 14.217463457448414,
-      "fr3_knee_pitch": 4.9278263620727,
-      "bl1_hip_roll": 15.901197204286115,
-      "bl2_hip_pitch": 14.217424316861802,
-      "bl3_knee_pitch": 4.927813978352695,
-      "br1_hip_roll": 15.881567663294906,
-      "br2_hip_pitch": 14.233803946843171,
-      "br3_knee_pitch": 4.936403573879495
-    },
-    "stiffness_at_hang_note": "局部重力剛度 k = dτ/dq（N·m/rad），中央差分 δ = 0.05。正值 = 回復力（像單擺）。用途：低 kp 微動的平衡點 q_eq − q_hang = (kp·Δ − τ0) / (kp + k)。",
-    "stiffness_delta_check": {
-      "delta_0.02": {
-        "fl1_hip_roll": 15.895919783670031,
-        "fl2_hip_pitch": 14.246807164610065,
-        "fl3_knee_pitch": 4.9379989189441975,
-        "fr1_hip_roll": 15.906744855485744,
-        "fr2_hip_pitch": 14.22244092185041,
-        "fr3_knee_pitch": 4.929551569974278,
-        "bl1_hip_roll": 15.90676413563572,
-        "bl2_hip_pitch": 14.222401767561044,
-        "bl3_knee_pitch": 4.929539181918741,
-        "br1_hip_roll": 15.88712772243831,
-        "br2_hip_pitch": 14.238787131970598,
-        "br3_knee_pitch": 4.938131784620947
-      },
-      "delta_0.05": {
-        "fl1_hip_roll": 15.890356647546282,
-        "fl2_hip_pitch": 14.241821172690994,
-        "fl3_knee_pitch": 4.93627075470207,
-        "fr1_hip_roll": 15.901177930883614,
-        "fr2_hip_pitch": 14.217463457448414,
-        "fr3_knee_pitch": 4.9278263620727,
-        "bl1_hip_roll": 15.901197204286115,
-        "bl2_hip_pitch": 14.217424316861802,
-        "bl3_knee_pitch": 4.927813978352695,
-        "br1_hip_roll": 15.881567663294906,
-        "br2_hip_pitch": 14.233803946843171,
-        "br3_knee_pitch": 4.936403573879495
-      },
-      "max_rel_diff": 0.00034997258413796607,
-      "all_positive": true,
-      "negative_joints": []
-    },
-    "self_contact": {
-      "ncon": 3,
-      "pairs": [
-        {
-          "body1": "FAR_FOOT_LINK",
-          "body2": "FBL_FOOT_LINK",
-          "dist_m": -5.00746099666787e-05,
-          "pos": [
-            0.32021783230994416,
-            0.0016306422651804825,
-            0.24440208014113685
-          ],
-          "normal_force_N": 3.1229245740582545
-        },
-        {
-          "body1": "RAR_FOOT_LINK",
-          "body2": "RBL_FOOT_LINK",
-          "dist_m": -5.0664607571829634e-05,
-          "pos": [
-            -0.3368655863298291,
-            -0.001629197902781261,
-            0.24437837085817682
-          ],
-          "normal_force_N": 1.6576309961621187
-        },
-        {
-          "body1": "RAR_FOOT_LINK",
-          "body2": "RBL_FOOT_LINK",
-          "dist_m": -5.0664607571829634e-05,
-          "pos": [
-            -0.3202279333105339,
-            -0.00163574488740347,
-            0.24440162441432633
-          ],
-          "normal_force_N": 1.6551135745909538
-        }
-      ],
-      "qacc_leg_max": 0.2050841531831587
-    },
-    "settle": {
-      "t_s": 18.0,
-      "converged": true,
-      "qvel_max": 9.609228821977749e-05,
-      "start_sensitivity_rad": {
-        "HOME": {
-          "abad": 6.578769758180947e-06,
-          "hipknee": 9.509802730895995e-05
-        },
-        "全零": {
-          "abad": 0.006042013269295321,
-          "hipknee": 0.000881687148065318
-        },
-        "CROUCH": {
-          "abad": 1.0277644922285223e-05,
-          "hipknee": 8.445547745431652e-05
-        }
-      }
-    }
-  },
-  "hang_free_no_contact": {
-    "_note": "關掉碰撞算出來的**純單擺**平衡點，即幾何上的『完全自由下垂』。殘餘純重力力矩 ≈ 0，是「這是真的力學平衡點」的獨立證據。實機不會停在這裡（輪子會先撞上），列出來當對照組。",
-    "q_ctrl": {
-      "fl1_hip_roll": -0.39018791018873694,
-      "fl2_hip_pitch": 0.0001752592805966734,
-      "fl3_knee_pitch": -0.00020388298166963472,
-      "fr1_hip_roll": 0.3901882129023643,
-      "fr2_hip_pitch": -5.278941876069025e-05,
-      "fr3_knee_pitch": 1.7653973793429738e-05,
-      "bl1_hip_roll": -0.3901879985853795,
-      "bl2_hip_pitch": 9.425034483098113e-05,
-      "bl3_knee_pitch": -1.6234809157911607e-05,
-      "br1_hip_roll": 0.3902330159829879,
-      "br2_hip_pitch": -0.00017547650330839205,
-      "br3_knee_pitch": 0.00020431140670400464
-    },
-    "q_motor": {
-      "fl1_hip_roll": -0.13281208981126308,
-      "fl2_hip_pitch": 2.4428247407194035,
-      "fl3_knee_pitch": 2.8027961170183304,
-      "fr1_hip_roll": 0.13281178709763575,
-      "fr2_hip_pitch": -2.443052789418761,
-      "fr3_knee_pitch": -2.8030176539737934,
-      "bl1_hip_roll": 0.13281200141462052,
-      "bl2_hip_pitch": -2.443094250344831,
-      "bl3_knee_pitch": -2.803016234809158,
-      "br1_hip_roll": -0.13276698401701215,
-      "br2_hip_pitch": 2.4428245234966917,
-      "br3_knee_pitch": 2.802795688593296
-    },
-    "residual_tau": {
-      "fl1_hip_roll": 1.3120491137996737e-06,
-      "fl2_hip_pitch": 0.00010977227730357697,
-      "fl3_knee_pitch": -0.00025278087732250043,
-      "fr1_hip_roll": 1.3110967653773287e-06,
-      "fr2_hip_pitch": 0.0001097982516125029,
-      "fr3_knee_pitch": -0.0002528422381251616,
-      "bl1_hip_roll": 1.3118594517358417e-06,
-      "bl2_hip_pitch": -0.0001088597614273823,
-      "bl3_knee_pitch": 0.00025317013563341817,
-      "br1_hip_roll": 1.3102694857991537e-06,
-      "br2_hip_pitch": -0.00010932827087373198,
-      "br3_knee_pitch": 0.0002541189005125233
-    },
-    "max_diff_vs_hang_free_rad": 0.11588956025070957
-  },
-  "poses": {
-    "HANG_FREE": {
-      "q_ctrl": {
-        "fl1_hip_roll": -0.2743520443469086,
-        "fl2_hip_pitch": 0.0008403459923775538,
-        "fl3_knee_pitch": 0.0006317716670585251,
-        "fr1_hip_roll": 0.2803637891057944,
-        "fr2_hip_pitch": -0.0008316410138382651,
-        "fr3_knee_pitch": -0.0007466214052809105,
-        "bl1_hip_roll": -0.2803737789743649,
-        "bl2_hip_pitch": 0.0008843207147731335,
-        "bl3_knee_pitch": 0.000762226609498863,
-        "br1_hip_roll": 0.2743434557322783,
-        "br2_hip_pitch": -0.000852199876983203,
-        "br3_knee_pitch": -0.0006426008112759727
-      },
-      "q_motor": {
-        "fl1_hip_roll": -0.24864795565309145,
-        "fl2_hip_pitch": 2.4421596540076225,
-        "fl3_knee_pitch": 2.8036317716670585,
-        "fr1_hip_roll": 0.24263621089420562,
-        "fr2_hip_pitch": -2.4438316410138383,
-        "fr3_knee_pitch": -2.802253378594719,
-        "bl1_hip_roll": 0.24262622102563514,
-        "bl2_hip_pitch": -2.443884320714773,
-        "bl3_knee_pitch": -2.8022377733905013,
-        "br1_hip_roll": -0.2486565442677217,
-        "br2_hip_pitch": 2.442147800123017,
-        "br3_knee_pitch": 2.803642600811276
-      },
-      "tau_gravity": {
-        "fl1_hip_roll": 1.8497252498480021,
-        "fl2_hip_pitch": 0.01371699152047512,
-        "fl3_knee_pitch": 0.007148056021867966,
-        "fr1_hip_roll": -1.7541258176065413,
-        "fr2_hip_pitch": -0.014731616922379231,
-        "fr3_knee_pitch": -0.007870153898148935,
-        "bl1_hip_roll": 1.7539663941883612,
-        "bl2_hip_pitch": 0.014962056668871071,
-        "bl3_knee_pitch": 0.007995717394913449,
-        "br1_hip_roll": -1.8495642835883648,
-        "br2_hip_pitch": -0.013932606798963576,
-        "br3_knee_pitch": -0.007259919743756171
-      },
-      "tau_gravity_mjcf": {
-        "FBL_ABAD_JOINT": 1.8497252498480021,
-        "FBL_HIP_JOINT": 0.01371699152047512,
-        "FBL_KNEE_JOINT": 0.007148056021867966,
-        "FAR_ABAD_JOINT": -1.7541258176065413,
-        "FAR_HIP_JOINT": -0.014731616922379231,
-        "FAR_KNEE_JOINT": -0.007870153898148935,
-        "RBL_ABAD_JOINT": 1.7539663941883612,
-        "RBL_HIP_JOINT": 0.014962056668871071,
-        "RBL_KNEE_JOINT": 0.007995717394913449,
-        "RAR_ABAD_JOINT": -1.8495642835883648,
-        "RAR_HIP_JOINT": -0.013932606798963576,
-        "RAR_KNEE_JOINT": -0.007259919743756171
-      },
-      "tau_gravity_motor": {
-        "fl1_hip_roll": -1.8497252498480021,
-        "fl2_hip_pitch": -0.01371699152047512,
-        "fl3_knee_pitch": 0.007148056021867966,
-        "fr1_hip_roll": 1.7541258176065413,
-        "fr2_hip_pitch": -0.014731616922379231,
-        "fr3_knee_pitch": 0.007870153898148935,
-        "bl1_hip_roll": 1.7539663941883612,
-        "bl2_hip_pitch": -0.014962056668871071,
-        "bl3_knee_pitch": 0.007995717394913449,
-        "br1_hip_roll": -1.8495642835883648,
-        "br2_hip_pitch": -0.013932606798963576,
-        "br3_knee_pitch": 0.007259919743756171
-      },
-      "tau_abs_max": 1.8497252498480021,
-      "sling_wrench": {
-        "force_N": [
-          0.0,
-          0.0,
-          380.82920310000003
-        ],
-        "torque_Nm": [
-          0.578598285841458,
-          0.22421846661266376,
-          0.0
-        ],
-        "com_offset_x_mm": 0.5887638468570577,
-        "_note": "com_offset_x = My / 重量，＝質心離吊點正下方的水平距離。knee_back 模式四腿同向，會前移到 27~55 mm，吊帶上的機身會明顯前傾。"
-      },
-      "knee_mode": "front",
-      "limits": {
-        "min_margin_rad": 0.24262622102563514,
-        "tightest": "bl1_hip_roll",
-        "range": [
-          -0.523,
-          0.697
-        ],
-        "ok": true
-      },
-      "self_contact_ncon": 3,
-      "checks": {
-        "bias_gap": 0.0,
-        "ncon_in_gravity_calc": 0,
-        "Fz_over_mg": 1.0
-      }
-    },
-    "HANG_NC": {
-      "q_ctrl": {
-        "fl1_hip_roll": -0.39018791018873694,
-        "fl2_hip_pitch": 0.0001752592805966734,
-        "fl3_knee_pitch": -0.00020388298166963472,
-        "fr1_hip_roll": 0.3901882129023643,
-        "fr2_hip_pitch": -5.278941876069025e-05,
-        "fr3_knee_pitch": 1.7653973793429738e-05,
-        "bl1_hip_roll": -0.3901879985853795,
-        "bl2_hip_pitch": 9.425034483098113e-05,
-        "bl3_knee_pitch": -1.6234809157911607e-05,
-        "br1_hip_roll": 0.3902330159829879,
-        "br2_hip_pitch": -0.00017547650330839205,
-        "br3_knee_pitch": 0.00020431140670400464
-      },
-      "q_motor": {
-        "fl1_hip_roll": -0.13281208981126308,
-        "fl2_hip_pitch": 2.4428247407194035,
-        "fl3_knee_pitch": 2.8027961170183304,
-        "fr1_hip_roll": 0.13281178709763575,
-        "fr2_hip_pitch": -2.443052789418761,
-        "fr3_knee_pitch": -2.8030176539737934,
-        "bl1_hip_roll": 0.13281200141462052,
-        "bl2_hip_pitch": -2.443094250344831,
-        "bl3_knee_pitch": -2.803016234809158,
-        "br1_hip_roll": -0.13276698401701215,
-        "br2_hip_pitch": 2.4428245234966917,
-        "br3_knee_pitch": 2.802795688593296
-      },
-      "tau_gravity": {
-        "fl1_hip_roll": 1.3120491137996737e-06,
-        "fl2_hip_pitch": 0.00010977227730357697,
-        "fl3_knee_pitch": -0.00025278087732250043,
-        "fr1_hip_roll": 1.3110967653773287e-06,
-        "fr2_hip_pitch": 0.0001097982516125029,
-        "fr3_knee_pitch": -0.0002528422381251616,
-        "bl1_hip_roll": 1.3118594517358417e-06,
-        "bl2_hip_pitch": -0.0001088597614273823,
-        "bl3_knee_pitch": 0.00025317013563341817,
-        "br1_hip_roll": 1.3102694857991537e-06,
-        "br2_hip_pitch": -0.00010932827087373198,
-        "br3_knee_pitch": 0.0002541189005125233
-      },
-      "tau_gravity_mjcf": {
-        "FBL_ABAD_JOINT": 1.3120491137996737e-06,
-        "FBL_HIP_JOINT": 0.00010977227730357697,
-        "FBL_KNEE_JOINT": -0.00025278087732250043,
-        "FAR_ABAD_JOINT": 1.3110967653773287e-06,
-        "FAR_HIP_JOINT": 0.0001097982516125029,
-        "FAR_KNEE_JOINT": -0.0002528422381251616,
-        "RBL_ABAD_JOINT": 1.3118594517358417e-06,
-        "RBL_HIP_JOINT": -0.0001088597614273823,
-        "RBL_KNEE_JOINT": 0.00025317013563341817,
-        "RAR_ABAD_JOINT": 1.3102694857991537e-06,
-        "RAR_HIP_JOINT": -0.00010932827087373198,
-        "RAR_KNEE_JOINT": 0.0002541189005125233
-      },
-      "tau_gravity_motor": {
-        "fl1_hip_roll": -1.3120491137996737e-06,
-        "fl2_hip_pitch": -0.00010977227730357697,
-        "fl3_knee_pitch": -0.00025278087732250043,
-        "fr1_hip_roll": -1.3110967653773287e-06,
-        "fr2_hip_pitch": 0.0001097982516125029,
-        "fr3_knee_pitch": 0.0002528422381251616,
-        "bl1_hip_roll": 1.3118594517358417e-06,
-        "bl2_hip_pitch": 0.0001088597614273823,
-        "bl3_knee_pitch": 0.00025317013563341817,
-        "br1_hip_roll": 1.3102694857991537e-06,
-        "br2_hip_pitch": -0.00010932827087373198,
-        "br3_knee_pitch": -0.0002541189005125233
-      },
-      "tau_abs_max": 0.0002541189005125233,
-      "sling_wrench": {
-        "force_N": [
-          0.0,
-          0.0,
-          380.82920310000003
-        ],
-        "torque_Nm": [
-          0.5786019882748166,
-          0.22420406900075884,
-          0.0
-        ],
-        "com_offset_x_mm": 0.5887260409015593,
-        "_note": "com_offset_x = My / 重量，＝質心離吊點正下方的水平距離。knee_back 模式四腿同向，會前移到 27~55 mm，吊帶上的機身會明顯前傾。"
-      },
-      "knee_mode": "front",
-      "limits": {
-        "min_margin_rad": 0.13276698401701215,
-        "tightest": "br1_hip_roll",
-        "range": [
-          -0.697,
-          0.523
-        ],
-        "ok": true
-      },
-      "self_contact_ncon": 10,
-      "checks": {
-        "bias_gap": 0.0,
-        "ncon_in_gravity_calc": 0,
-        "Fz_over_mg": 1.0
-      }
-    },
-    "STAND": {
-      "q_ctrl": {
-        "fl1_hip_roll": 0.0,
-        "fl2_hip_pitch": 0.6,
-        "fl3_knee_pitch": -1.2,
-        "fr1_hip_roll": 0.0,
-        "fr2_hip_pitch": 0.6,
-        "fr3_knee_pitch": -1.2,
-        "bl1_hip_roll": 0.0,
-        "bl2_hip_pitch": -0.6,
-        "bl3_knee_pitch": 1.2,
-        "br1_hip_roll": 0.0,
-        "br2_hip_pitch": -0.6,
-        "br3_knee_pitch": 1.2
-      },
-      "q_motor": {
-        "fl1_hip_roll": -0.523,
-        "fl2_hip_pitch": 1.843,
-        "fl3_knee_pitch": 1.603,
-        "fr1_hip_roll": 0.523,
-        "fr2_hip_pitch": -1.843,
-        "fr3_knee_pitch": -1.603,
-        "bl1_hip_roll": 0.523,
-        "bl2_hip_pitch": -1.843,
-        "bl3_knee_pitch": -1.603,
-        "br1_hip_roll": -0.523,
-        "br2_hip_pitch": 1.843,
-        "br3_knee_pitch": 1.603
-      },
-      "tau_gravity": {
-        "fl1_hip_roll": 6.087408979330802,
-        "fl2_hip_pitch": 2.5628188416389577,
-        "fl3_knee_pitch": -2.8968319925190817,
-        "fr1_hip_roll": -6.087408979330798,
-        "fr2_hip_pitch": 2.5646678496320696,
-        "fr3_knee_pitch": -2.896803329296402,
-        "bl1_hip_roll": 6.087408979330802,
-        "bl2_hip_pitch": -2.5651783385325224,
-        "bl3_knee_pitch": 2.896623233321151,
-        "br1_hip_roll": -6.084744849574198,
-        "br2_hip_pitch": -2.5579520160073272,
-        "br3_knee_pitch": 2.8969033285135586
-      },
-      "tau_gravity_mjcf": {
-        "FBL_ABAD_JOINT": 6.087408979330802,
-        "FBL_HIP_JOINT": 2.5628188416389577,
-        "FBL_KNEE_JOINT": -2.8968319925190817,
-        "FAR_ABAD_JOINT": -6.087408979330798,
-        "FAR_HIP_JOINT": 2.5646678496320696,
-        "FAR_KNEE_JOINT": -2.896803329296402,
-        "RBL_ABAD_JOINT": 6.087408979330802,
-        "RBL_HIP_JOINT": -2.5651783385325224,
-        "RBL_KNEE_JOINT": 2.896623233321151,
-        "RAR_ABAD_JOINT": -6.084744849574198,
-        "RAR_HIP_JOINT": -2.5579520160073272,
-        "RAR_KNEE_JOINT": 2.8969033285135586
-      },
-      "tau_gravity_motor": {
-        "fl1_hip_roll": -6.087408979330802,
-        "fl2_hip_pitch": -2.5628188416389577,
-        "fl3_knee_pitch": -2.8968319925190817,
-        "fr1_hip_roll": 6.087408979330798,
-        "fr2_hip_pitch": 2.5646678496320696,
-        "fr3_knee_pitch": 2.896803329296402,
-        "bl1_hip_roll": 6.087408979330802,
-        "bl2_hip_pitch": 2.5651783385325224,
-        "bl3_knee_pitch": 2.896623233321151,
-        "br1_hip_roll": -6.084744849574198,
-        "br2_hip_pitch": -2.5579520160073272,
-        "br3_knee_pitch": -2.8969033285135586
-      },
-      "tau_abs_max": 6.087408979330802,
-      "sling_wrench": {
-        "force_N": [
-          0.0,
-          0.0,
-          380.82920310000003
-        ],
-        "torque_Nm": [
-          0.581260872756606,
-          0.22855891306117393,
-          0.0
-        ],
-        "com_offset_x_mm": 0.6001612040270918,
-        "_note": "com_offset_x = My / 重量，＝質心離吊點正下方的水平距離。knee_back 模式四腿同向，會前移到 27~55 mm，吊帶上的機身會明顯前傾。"
-      },
-      "knee_mode": "front",
-      "limits": {
-        "min_margin_rad": 0.523,
-        "tightest": "fr1_hip_roll",
-        "range": [
-          -0.697,
-          0.523
-        ],
-        "ok": true
-      },
-      "self_contact_ncon": 0,
-      "checks": {
-        "bias_gap": 0.0,
-        "ncon_in_gravity_calc": 0,
-        "Fz_over_mg": 1.0
-      }
-    },
+  "settle": {
+   "t_s": 18.0,
+   "converged": true,
+   "qvel_max": 9.609228821977749e-05,
+   "start_sensitivity_rad": {
     "HOME": {
-      "q_ctrl": {
-        "fl1_hip_roll": 0.0,
-        "fl2_hip_pitch": 0.8,
-        "fl3_knee_pitch": -1.5,
-        "fr1_hip_roll": 0.0,
-        "fr2_hip_pitch": 0.8,
-        "fr3_knee_pitch": -1.5,
-        "bl1_hip_roll": 0.0,
-        "bl2_hip_pitch": -0.8,
-        "bl3_knee_pitch": 1.5,
-        "br1_hip_roll": 0.0,
-        "br2_hip_pitch": -0.8,
-        "br3_knee_pitch": 1.5
-      },
-      "q_motor": {
-        "fl1_hip_roll": -0.523,
-        "fl2_hip_pitch": 1.643,
-        "fl3_knee_pitch": 1.303,
-        "fr1_hip_roll": 0.523,
-        "fr2_hip_pitch": -1.643,
-        "fr3_knee_pitch": -1.303,
-        "bl1_hip_roll": 0.523,
-        "bl2_hip_pitch": -1.643,
-        "bl3_knee_pitch": -1.303,
-        "br1_hip_roll": -0.523,
-        "br2_hip_pitch": 1.643,
-        "br3_knee_pitch": 1.303
-      },
-      "tau_gravity": {
-        "fl1_hip_roll": 6.087408979330802,
-        "fl2_hip_pitch": 3.6316695083729726,
-        "fl3_knee_pitch": -3.305060932538927,
-        "fr1_hip_roll": -6.087408979330798,
-        "fr2_hip_pitch": 3.633232959577658,
-        "fr3_knee_pitch": -3.305034124600292,
-        "bl1_hip_roll": 6.087408979330802,
-        "bl2_hip_pitch": -3.633678505384463,
-        "bl3_knee_pitch": 3.304867479841193,
-        "br1_hip_roll": -6.084744849574198,
-        "br2_hip_pitch": -3.625495574254556,
-        "br3_knee_pitch": 3.305142257447538
-      },
-      "tau_gravity_mjcf": {
-        "FBL_ABAD_JOINT": 6.087408979330802,
-        "FBL_HIP_JOINT": 3.6316695083729726,
-        "FBL_KNEE_JOINT": -3.305060932538927,
-        "FAR_ABAD_JOINT": -6.087408979330798,
-        "FAR_HIP_JOINT": 3.633232959577658,
-        "FAR_KNEE_JOINT": -3.305034124600292,
-        "RBL_ABAD_JOINT": 6.087408979330802,
-        "RBL_HIP_JOINT": -3.633678505384463,
-        "RBL_KNEE_JOINT": 3.304867479841193,
-        "RAR_ABAD_JOINT": -6.084744849574198,
-        "RAR_HIP_JOINT": -3.625495574254556,
-        "RAR_KNEE_JOINT": 3.305142257447538
-      },
-      "tau_gravity_motor": {
-        "fl1_hip_roll": -6.087408979330802,
-        "fl2_hip_pitch": -3.6316695083729726,
-        "fl3_knee_pitch": -3.305060932538927,
-        "fr1_hip_roll": 6.087408979330798,
-        "fr2_hip_pitch": 3.633232959577658,
-        "fr3_knee_pitch": 3.305034124600292,
-        "bl1_hip_roll": 6.087408979330802,
-        "bl2_hip_pitch": 3.633678505384463,
-        "bl3_knee_pitch": 3.304867479841193,
-        "br1_hip_roll": -6.084744849574198,
-        "br2_hip_pitch": -3.625495574254556,
-        "br3_knee_pitch": -3.305142257447538
-      },
-      "tau_abs_max": 6.087408979330802,
-      "sling_wrench": {
-        "force_N": [
-          0.0,
-          0.0,
-          380.82920310000003
-        ],
-        "torque_Nm": [
-          0.581260872756606,
-          0.22993096464161444,
-          0.0
-        ],
-        "com_offset_x_mm": 0.6037640043619187,
-        "_note": "com_offset_x = My / 重量，＝質心離吊點正下方的水平距離。knee_back 模式四腿同向，會前移到 27~55 mm，吊帶上的機身會明顯前傾。"
-      },
-      "knee_mode": "front",
-      "limits": {
-        "min_margin_rad": 0.523,
-        "tightest": "fr1_hip_roll",
-        "range": [
-          -0.697,
-          0.523
-        ],
-        "ok": true
-      },
-      "self_contact_ncon": 0,
-      "checks": {
-        "bias_gap": 0.0,
-        "ncon_in_gravity_calc": 0,
-        "Fz_over_mg": 1.0
-      }
+     "abad": 6.578769758180947e-06,
+     "hipknee": 9.509802730895995e-05
+    },
+    "全零": {
+     "abad": 0.006042013269295321,
+     "hipknee": 0.000881687148065318
     },
     "CROUCH": {
-      "q_ctrl": {
-        "fl1_hip_roll": 0.0,
-        "fl2_hip_pitch": 1.4,
-        "fl3_knee_pitch": -2.4,
-        "fr1_hip_roll": 0.0,
-        "fr2_hip_pitch": 1.4,
-        "fr3_knee_pitch": -2.4,
-        "bl1_hip_roll": 0.0,
-        "bl2_hip_pitch": -1.4,
-        "bl3_knee_pitch": 2.4,
-        "br1_hip_roll": 0.0,
-        "br2_hip_pitch": -1.4,
-        "br3_knee_pitch": 2.4
-      },
-      "q_motor": {
-        "fl1_hip_roll": -0.523,
-        "fl2_hip_pitch": 1.0430000000000001,
-        "fl3_knee_pitch": 0.403,
-        "fr1_hip_roll": 0.523,
-        "fr2_hip_pitch": -1.0430000000000001,
-        "fr3_knee_pitch": -0.403,
-        "bl1_hip_roll": 0.523,
-        "bl2_hip_pitch": -1.0430000000000001,
-        "bl3_knee_pitch": -0.403,
-        "br1_hip_roll": -0.523,
-        "br2_hip_pitch": 1.0430000000000001,
-        "br3_knee_pitch": 0.403
-      },
-      "tau_gravity": {
-        "fl1_hip_roll": 6.087408979330802,
-        "fl2_hip_pitch": 5.213202037967964,
-        "fl3_knee_pitch": -4.316980976526212,
-        "fr1_hip_roll": -6.087408979330798,
-        "fr2_hip_pitch": 5.213596636583539,
-        "fr3_knee_pitch": -4.316961254256858,
-        "bl1_hip_roll": 6.087408979330802,
-        "bl2_hip_pitch": -5.213781596741811,
-        "bl3_knee_pitch": 4.316844334227374,
-        "br1_hip_roll": -6.084744849574198,
-        "br2_hip_pitch": -5.2047261259465465,
-        "br3_knee_pitch": 4.3170870350347235
-      },
-      "tau_gravity_mjcf": {
-        "FBL_ABAD_JOINT": 6.087408979330802,
-        "FBL_HIP_JOINT": 5.213202037967964,
-        "FBL_KNEE_JOINT": -4.316980976526212,
-        "FAR_ABAD_JOINT": -6.087408979330798,
-        "FAR_HIP_JOINT": 5.213596636583539,
-        "FAR_KNEE_JOINT": -4.316961254256858,
-        "RBL_ABAD_JOINT": 6.087408979330802,
-        "RBL_HIP_JOINT": -5.213781596741811,
-        "RBL_KNEE_JOINT": 4.316844334227374,
-        "RAR_ABAD_JOINT": -6.084744849574198,
-        "RAR_HIP_JOINT": -5.2047261259465465,
-        "RAR_KNEE_JOINT": 4.3170870350347235
-      },
-      "tau_gravity_motor": {
-        "fl1_hip_roll": -6.087408979330802,
-        "fl2_hip_pitch": -5.213202037967964,
-        "fl3_knee_pitch": -4.316980976526212,
-        "fr1_hip_roll": 6.087408979330798,
-        "fr2_hip_pitch": 5.213596636583539,
-        "fr3_knee_pitch": 4.316961254256858,
-        "bl1_hip_roll": 6.087408979330802,
-        "bl2_hip_pitch": 5.213781596741811,
-        "bl3_knee_pitch": 4.316844334227374,
-        "br1_hip_roll": -6.084744849574198,
-        "br2_hip_pitch": -5.2047261259465465,
-        "br3_knee_pitch": -4.3170870350347235
-      },
-      "tau_abs_max": 6.087408979330802,
-      "sling_wrench": {
-        "force_N": [
-          0.0,
-          0.0,
-          380.82920310000003
-        ],
-        "torque_Nm": [
-          0.581260872756606,
-          0.23249352819314886,
-          0.0
-        ],
-        "com_offset_x_mm": 0.6104929094213911,
-        "_note": "com_offset_x = My / 重量，＝質心離吊點正下方的水平距離。knee_back 模式四腿同向，會前移到 27~55 mm，吊帶上的機身會明顯前傾。"
-      },
-      "knee_mode": "front",
-      "limits": {
-        "min_margin_rad": 0.391,
-        "tightest": "fr3_knee_pitch",
-        "range": [
-          -2.791,
-          2.791
-        ],
-        "ok": true
-      },
-      "self_contact_ncon": 0,
-      "checks": {
-        "bias_gap": 0.0,
-        "ncon_in_gravity_calc": 0,
-        "Fz_over_mg": 1.0
-      }
-    },
-    "stand_knee_back": {
-      "q_ctrl": {
-        "fl1_hip_roll": 0.0,
-        "fl2_hip_pitch": 0.6,
-        "fl3_knee_pitch": -1.2,
-        "fr1_hip_roll": 0.0,
-        "fr2_hip_pitch": 0.6,
-        "fr3_knee_pitch": -1.2,
-        "bl1_hip_roll": 0.0,
-        "bl2_hip_pitch": 0.6,
-        "bl3_knee_pitch": -1.2,
-        "br1_hip_roll": 0.0,
-        "br2_hip_pitch": 0.6,
-        "br3_knee_pitch": -1.2
-      },
-      "q_motor": {
-        "fl1_hip_roll": -0.523,
-        "fl2_hip_pitch": 1.843,
-        "fl3_knee_pitch": 1.603,
-        "fr1_hip_roll": 0.523,
-        "fr2_hip_pitch": -1.843,
-        "fr3_knee_pitch": -1.603,
-        "bl1_hip_roll": 0.523,
-        "bl2_hip_pitch": -3.043,
-        "bl3_knee_pitch": -4.003,
-        "br1_hip_roll": -0.523,
-        "br2_hip_pitch": 3.043,
-        "br3_knee_pitch": 4.003
-      },
-      "tau_gravity": {
-        "fl1_hip_roll": 6.087408979330802,
-        "fl2_hip_pitch": 2.5628188416389595,
-        "fl3_knee_pitch": -2.896831992519081,
-        "fr1_hip_roll": -6.087408979330798,
-        "fr2_hip_pitch": 2.564667849632068,
-        "fr3_knee_pitch": -2.896803329296402,
-        "bl1_hip_roll": 6.0874089793308,
-        "bl2_hip_pitch": 2.5628187888307465,
-        "bl3_knee_pitch": -2.896832026102701,
-        "br1_hip_roll": -6.084744849574198,
-        "br2_hip_pitch": 2.5603115122000926,
-        "br3_knee_pitch": -2.8966939506291514
-      },
-      "tau_gravity_mjcf": {
-        "FBL_ABAD_JOINT": 6.087408979330802,
-        "FBL_HIP_JOINT": 2.5628188416389595,
-        "FBL_KNEE_JOINT": -2.896831992519081,
-        "FAR_ABAD_JOINT": -6.087408979330798,
-        "FAR_HIP_JOINT": 2.564667849632068,
-        "FAR_KNEE_JOINT": -2.896803329296402,
-        "RBL_ABAD_JOINT": 6.0874089793308,
-        "RBL_HIP_JOINT": 2.5628187888307465,
-        "RBL_KNEE_JOINT": -2.896832026102701,
-        "RAR_ABAD_JOINT": -6.084744849574198,
-        "RAR_HIP_JOINT": 2.5603115122000926,
-        "RAR_KNEE_JOINT": -2.8966939506291514
-      },
-      "tau_gravity_motor": {
-        "fl1_hip_roll": -6.087408979330802,
-        "fl2_hip_pitch": -2.5628188416389595,
-        "fl3_knee_pitch": -2.896831992519081,
-        "fr1_hip_roll": 6.087408979330798,
-        "fr2_hip_pitch": 2.564667849632068,
-        "fr3_knee_pitch": 2.896803329296402,
-        "bl1_hip_roll": 6.0874089793308,
-        "bl2_hip_pitch": -2.5628187888307465,
-        "bl3_knee_pitch": -2.896832026102701,
-        "br1_hip_roll": -6.084744849574198,
-        "br2_hip_pitch": 2.5603115122000926,
-        "br3_knee_pitch": 2.8966939506291514
-      },
-      "tau_abs_max": 6.087408979330802,
-      "sling_wrench": {
-        "force_N": [
-          0.0,
-          0.0,
-          380.82920310000003
-        ],
-        "torque_Nm": [
-          0.5812608727566042,
-          10.474819568631865,
-          0.0
-        ],
-        "com_offset_x_mm": 27.5052949809664,
-        "_note": "com_offset_x = My / 重量，＝質心離吊點正下方的水平距離。knee_back 模式四腿同向，會前移到 27~55 mm，吊帶上的機身會明顯前傾。"
-      },
-      "knee_mode": "back",
-      "limits": {
-        "min_margin_rad": 0.523,
-        "tightest": "fr1_hip_roll",
-        "range": [
-          -0.697,
-          0.523
-        ],
-        "ok": true
-      },
-      "self_contact_ncon": 0,
-      "checks": {
-        "bias_gap": 0.0,
-        "ncon_in_gravity_calc": 0,
-        "Fz_over_mg": 1.0
-      }
-    },
-    "home_knee_back": {
-      "q_ctrl": {
-        "fl1_hip_roll": 0.0,
-        "fl2_hip_pitch": 0.8,
-        "fl3_knee_pitch": -1.5,
-        "fr1_hip_roll": 0.0,
-        "fr2_hip_pitch": 0.8,
-        "fr3_knee_pitch": -1.5,
-        "bl1_hip_roll": 0.0,
-        "bl2_hip_pitch": 0.8,
-        "bl3_knee_pitch": -1.5,
-        "br1_hip_roll": 0.0,
-        "br2_hip_pitch": 0.8,
-        "br3_knee_pitch": -1.5
-      },
-      "q_motor": {
-        "fl1_hip_roll": -0.523,
-        "fl2_hip_pitch": 1.643,
-        "fl3_knee_pitch": 1.303,
-        "fr1_hip_roll": 0.523,
-        "fr2_hip_pitch": -1.643,
-        "fr3_knee_pitch": -1.303,
-        "bl1_hip_roll": 0.523,
-        "bl2_hip_pitch": -3.2430000000000003,
-        "bl3_knee_pitch": -4.303,
-        "br1_hip_roll": -0.523,
-        "br2_hip_pitch": 3.2430000000000003,
-        "br3_knee_pitch": 4.303
-      },
-      "tau_gravity": {
-        "fl1_hip_roll": 6.087408979330802,
-        "fl2_hip_pitch": 3.6316695083729726,
-        "fl3_knee_pitch": -3.305060932538928,
-        "fr1_hip_roll": -6.087408979330798,
-        "fr2_hip_pitch": 3.6332329595776596,
-        "fr3_knee_pitch": -3.3050341246002928,
-        "bl1_hip_roll": 6.087408979330802,
-        "bl2_hip_pitch": 3.6316694556424327,
-        "bl3_knee_pitch": -3.305060969041035,
-        "br1_hip_roll": -6.084744849574198,
-        "br2_hip_pitch": 3.627504627130074,
-        "br3_knee_pitch": -3.304948226030273
-      },
-      "tau_gravity_mjcf": {
-        "FBL_ABAD_JOINT": 6.087408979330802,
-        "FBL_HIP_JOINT": 3.6316695083729726,
-        "FBL_KNEE_JOINT": -3.305060932538928,
-        "FAR_ABAD_JOINT": -6.087408979330798,
-        "FAR_HIP_JOINT": 3.6332329595776596,
-        "FAR_KNEE_JOINT": -3.3050341246002928,
-        "RBL_ABAD_JOINT": 6.087408979330802,
-        "RBL_HIP_JOINT": 3.6316694556424327,
-        "RBL_KNEE_JOINT": -3.305060969041035,
-        "RAR_ABAD_JOINT": -6.084744849574198,
-        "RAR_HIP_JOINT": 3.627504627130074,
-        "RAR_KNEE_JOINT": -3.304948226030273
-      },
-      "tau_gravity_motor": {
-        "fl1_hip_roll": -6.087408979330802,
-        "fl2_hip_pitch": -3.6316695083729726,
-        "fl3_knee_pitch": -3.305060932538928,
-        "fr1_hip_roll": 6.087408979330798,
-        "fr2_hip_pitch": 3.6332329595776596,
-        "fr3_knee_pitch": 3.3050341246002928,
-        "bl1_hip_roll": 6.087408979330802,
-        "bl2_hip_pitch": -3.6316694556424327,
-        "bl3_knee_pitch": -3.305060969041035,
-        "br1_hip_roll": -6.084744849574198,
-        "br2_hip_pitch": 3.627504627130074,
-        "br3_knee_pitch": 3.304948226030273
-      },
-      "tau_abs_max": 6.087408979330802,
-      "sling_wrench": {
-        "force_N": [
-          0.0,
-          0.0,
-          380.82920310000003
-        ],
-        "torque_Nm": [
-          0.581260872756606,
-          14.748279127053136,
-          0.0
-        ],
-        "com_offset_x_mm": 38.72675468950437,
-        "_note": "com_offset_x = My / 重量，＝質心離吊點正下方的水平距離。knee_back 模式四腿同向，會前移到 27~55 mm，吊帶上的機身會明顯前傾。"
-      },
-      "knee_mode": "back",
-      "limits": {
-        "min_margin_rad": 0.523,
-        "tightest": "fr1_hip_roll",
-        "range": [
-          -0.697,
-          0.523
-        ],
-        "ok": true
-      },
-      "self_contact_ncon": 0,
-      "checks": {
-        "bias_gap": 0.0,
-        "ncon_in_gravity_calc": 0,
-        "Fz_over_mg": 1.0
-      }
-    },
-    "crouch_knee_back": {
-      "q_ctrl": {
-        "fl1_hip_roll": 0.0,
-        "fl2_hip_pitch": 1.4,
-        "fl3_knee_pitch": -2.4,
-        "fr1_hip_roll": 0.0,
-        "fr2_hip_pitch": 1.4,
-        "fr3_knee_pitch": -2.4,
-        "bl1_hip_roll": 0.0,
-        "bl2_hip_pitch": 1.4,
-        "bl3_knee_pitch": -2.4,
-        "br1_hip_roll": 0.0,
-        "br2_hip_pitch": 1.4,
-        "br3_knee_pitch": -2.4
-      },
-      "q_motor": {
-        "fl1_hip_roll": -0.523,
-        "fl2_hip_pitch": 1.0430000000000001,
-        "fl3_knee_pitch": 0.403,
-        "fr1_hip_roll": 0.523,
-        "fr2_hip_pitch": -1.0430000000000001,
-        "fr3_knee_pitch": -0.403,
-        "bl1_hip_roll": 0.523,
-        "bl2_hip_pitch": -3.843,
-        "bl3_knee_pitch": -5.202999999999999,
-        "br1_hip_roll": -0.523,
-        "br2_hip_pitch": 3.843,
-        "br3_knee_pitch": 5.202999999999999
-      },
-      "tau_gravity": {
-        "fl1_hip_roll": 6.087408979330802,
-        "fl2_hip_pitch": 5.213202037967962,
-        "fl3_knee_pitch": -4.316980976526211,
-        "fr1_hip_roll": -6.087408979330798,
-        "fr2_hip_pitch": 5.213596636583535,
-        "fr3_knee_pitch": -4.316961254256858,
-        "bl1_hip_roll": 6.087408979330802,
-        "bl2_hip_pitch": 5.213201991037799,
-        "bl3_knee_pitch": -4.3169810194973195,
-        "br1_hip_roll": -6.084744849574198,
-        "br2_hip_pitch": 5.205305983171737,
-        "br3_knee_pitch": -4.316949966729781
-      },
-      "tau_gravity_mjcf": {
-        "FBL_ABAD_JOINT": 6.087408979330802,
-        "FBL_HIP_JOINT": 5.213202037967962,
-        "FBL_KNEE_JOINT": -4.316980976526211,
-        "FAR_ABAD_JOINT": -6.087408979330798,
-        "FAR_HIP_JOINT": 5.213596636583535,
-        "FAR_KNEE_JOINT": -4.316961254256858,
-        "RBL_ABAD_JOINT": 6.087408979330802,
-        "RBL_HIP_JOINT": 5.213201991037799,
-        "RBL_KNEE_JOINT": -4.3169810194973195,
-        "RAR_ABAD_JOINT": -6.084744849574198,
-        "RAR_HIP_JOINT": 5.205305983171737,
-        "RAR_KNEE_JOINT": -4.316949966729781
-      },
-      "tau_gravity_motor": {
-        "fl1_hip_roll": -6.087408979330802,
-        "fl2_hip_pitch": -5.213202037967962,
-        "fl3_knee_pitch": -4.316980976526211,
-        "fr1_hip_roll": 6.087408979330798,
-        "fr2_hip_pitch": 5.213596636583535,
-        "fr3_knee_pitch": 4.316961254256858,
-        "bl1_hip_roll": 6.087408979330802,
-        "bl2_hip_pitch": -5.213201991037799,
-        "bl3_knee_pitch": -4.3169810194973195,
-        "br1_hip_roll": -6.084744849574198,
-        "br2_hip_pitch": 5.205305983171737,
-        "br3_knee_pitch": 4.316949966729781
-      },
-      "tau_abs_max": 6.087408979330802,
-      "sling_wrench": {
-        "force_N": [
-          0.0,
-          0.0,
-          380.82920310000003
-        ],
-        "torque_Nm": [
-          0.581260872756606,
-          21.06950922509104,
-          0.0
-        ],
-        "com_offset_x_mm": 55.32535071780854,
-        "_note": "com_offset_x = My / 重量，＝質心離吊點正下方的水平距離。knee_back 模式四腿同向，會前移到 27~55 mm，吊帶上的機身會明顯前傾。"
-      },
-      "knee_mode": "back",
-      "limits": {
-        "min_margin_rad": 0.391,
-        "tightest": "fr3_knee_pitch",
-        "range": [
-          -2.791,
-          2.791
-        ],
-        "ok": true
-      },
-      "self_contact_ncon": 0,
-      "checks": {
-        "bias_gap": 0.0,
-        "ncon_in_gravity_calc": 0,
-        "Fz_over_mg": 1.0
-      }
-    },
-    "S1_fl2+0.05": {
-      "q_ctrl": {
-        "fl1_hip_roll": 0.0,
-        "fl2_hip_pitch": 0.65,
-        "fl3_knee_pitch": -1.2,
-        "fr1_hip_roll": 0.0,
-        "fr2_hip_pitch": 0.6,
-        "fr3_knee_pitch": -1.2,
-        "bl1_hip_roll": 0.0,
-        "bl2_hip_pitch": -0.6,
-        "bl3_knee_pitch": 1.2,
-        "br1_hip_roll": 0.0,
-        "br2_hip_pitch": -0.6,
-        "br3_knee_pitch": 1.2
-      },
-      "q_motor": {
-        "fl1_hip_roll": -0.523,
-        "fl2_hip_pitch": 1.7930000000000001,
-        "fl3_knee_pitch": 1.603,
-        "fr1_hip_roll": 0.523,
-        "fr2_hip_pitch": -1.843,
-        "fr3_knee_pitch": -1.603,
-        "bl1_hip_roll": 0.523,
-        "bl2_hip_pitch": -1.843,
-        "bl3_knee_pitch": -1.603,
-        "br1_hip_roll": -0.523,
-        "br2_hip_pitch": 1.843,
-        "br3_knee_pitch": 1.603
-      },
-      "tau_gravity": {
-        "fl1_hip_roll": 6.087408979330802,
-        "fl2_hip_pitch": 3.1701975333132246,
-        "fl3_knee_pitch": -2.681596726290781,
-        "fr1_hip_roll": -6.087408979330798,
-        "fr2_hip_pitch": 2.5646678496320696,
-        "fr3_knee_pitch": -2.896803329296401,
-        "bl1_hip_roll": 6.087408979330802,
-        "bl2_hip_pitch": -2.5651783385325224,
-        "bl3_knee_pitch": 2.8966232333211517,
-        "br1_hip_roll": -6.084744849574198,
-        "br2_hip_pitch": -2.5579520160073272,
-        "br3_knee_pitch": 2.8969033285135595
-      },
-      "tau_gravity_mjcf": {
-        "FBL_ABAD_JOINT": 6.087408979330802,
-        "FBL_HIP_JOINT": 3.1701975333132246,
-        "FBL_KNEE_JOINT": -2.681596726290781,
-        "FAR_ABAD_JOINT": -6.087408979330798,
-        "FAR_HIP_JOINT": 2.5646678496320696,
-        "FAR_KNEE_JOINT": -2.896803329296401,
-        "RBL_ABAD_JOINT": 6.087408979330802,
-        "RBL_HIP_JOINT": -2.5651783385325224,
-        "RBL_KNEE_JOINT": 2.8966232333211517,
-        "RAR_ABAD_JOINT": -6.084744849574198,
-        "RAR_HIP_JOINT": -2.5579520160073272,
-        "RAR_KNEE_JOINT": 2.8969033285135595
-      },
-      "tau_gravity_motor": {
-        "fl1_hip_roll": -6.087408979330802,
-        "fl2_hip_pitch": -3.1701975333132246,
-        "fl3_knee_pitch": -2.681596726290781,
-        "fr1_hip_roll": 6.087408979330798,
-        "fr2_hip_pitch": 2.5646678496320696,
-        "fr3_knee_pitch": 2.896803329296401,
-        "bl1_hip_roll": 6.087408979330802,
-        "bl2_hip_pitch": 2.5651783385325224,
-        "bl3_knee_pitch": 2.8966232333211517,
-        "br1_hip_roll": -6.084744849574198,
-        "br2_hip_pitch": -2.5579520160073272,
-        "br3_knee_pitch": -2.8969033285135595
-      },
-      "tau_abs_max": 6.087408979330802,
-      "sling_wrench": {
-        "force_N": [
-          0.0,
-          0.0,
-          380.82920310000003
-        ],
-        "torque_Nm": [
-          0.581260872756606,
-          0.8359376047354536,
-          0.0
-        ],
-        "com_offset_x_mm": 2.195045962680412,
-        "_note": "com_offset_x = My / 重量，＝質心離吊點正下方的水平距離。knee_back 模式四腿同向，會前移到 27~55 mm，吊帶上的機身會明顯前傾。"
-      },
-      "knee_mode": "front",
-      "limits": {
-        "min_margin_rad": 0.523,
-        "tightest": "fr1_hip_roll",
-        "range": [
-          -0.697,
-          0.523
-        ],
-        "ok": true
-      },
-      "self_contact_ncon": 0,
-      "checks": {
-        "bias_gap": 0.0,
-        "ncon_in_gravity_calc": 0,
-        "Fz_over_mg": 1.0
-      }
-    },
-    "S1_fl2-0.05": {
-      "q_ctrl": {
-        "fl1_hip_roll": 0.0,
-        "fl2_hip_pitch": 0.5499999999999999,
-        "fl3_knee_pitch": -1.2,
-        "fr1_hip_roll": 0.0,
-        "fr2_hip_pitch": 0.6,
-        "fr3_knee_pitch": -1.2,
-        "bl1_hip_roll": 0.0,
-        "bl2_hip_pitch": -0.6,
-        "bl3_knee_pitch": 1.2,
-        "br1_hip_roll": 0.0,
-        "br2_hip_pitch": -0.6,
-        "br3_knee_pitch": 1.2
-      },
-      "q_motor": {
-        "fl1_hip_roll": -0.523,
-        "fl2_hip_pitch": 1.8930000000000002,
-        "fl3_knee_pitch": 1.603,
-        "fr1_hip_roll": 0.523,
-        "fr2_hip_pitch": -1.843,
-        "fr3_knee_pitch": -1.603,
-        "bl1_hip_roll": 0.523,
-        "bl2_hip_pitch": -1.843,
-        "bl3_knee_pitch": -1.603,
-        "br1_hip_roll": -0.523,
-        "br2_hip_pitch": 1.843,
-        "br3_knee_pitch": 1.603
-      },
-      "tau_gravity": {
-        "fl1_hip_roll": 6.0874089793308,
-        "fl2_hip_pitch": 1.94903443755085,
-        "fl3_knee_pitch": -3.104826687407022,
-        "fr1_hip_roll": -6.087408979330798,
-        "fr2_hip_pitch": 2.5646678496320696,
-        "fr3_knee_pitch": -2.8968033292964,
-        "bl1_hip_roll": 6.087408979330802,
-        "bl2_hip_pitch": -2.5651783385325206,
-        "bl3_knee_pitch": 2.8966232333211517,
-        "br1_hip_roll": -6.084744849574198,
-        "br2_hip_pitch": -2.557952016007329,
-        "br3_knee_pitch": 2.8969033285135595
-      },
-      "tau_gravity_mjcf": {
-        "FBL_ABAD_JOINT": 6.0874089793308,
-        "FBL_HIP_JOINT": 1.94903443755085,
-        "FBL_KNEE_JOINT": -3.104826687407022,
-        "FAR_ABAD_JOINT": -6.087408979330798,
-        "FAR_HIP_JOINT": 2.5646678496320696,
-        "FAR_KNEE_JOINT": -2.8968033292964,
-        "RBL_ABAD_JOINT": 6.087408979330802,
-        "RBL_HIP_JOINT": -2.5651783385325206,
-        "RBL_KNEE_JOINT": 2.8966232333211517,
-        "RAR_ABAD_JOINT": -6.084744849574198,
-        "RAR_HIP_JOINT": -2.557952016007329,
-        "RAR_KNEE_JOINT": 2.8969033285135595
-      },
-      "tau_gravity_motor": {
-        "fl1_hip_roll": -6.0874089793308,
-        "fl2_hip_pitch": -1.94903443755085,
-        "fl3_knee_pitch": -3.104826687407022,
-        "fr1_hip_roll": 6.087408979330798,
-        "fr2_hip_pitch": 2.5646678496320696,
-        "fr3_knee_pitch": 2.8968033292964,
-        "bl1_hip_roll": 6.087408979330802,
-        "bl2_hip_pitch": 2.5651783385325206,
-        "bl3_knee_pitch": 2.8966232333211517,
-        "br1_hip_roll": -6.084744849574198,
-        "br2_hip_pitch": -2.557952016007329,
-        "br3_knee_pitch": -2.8969033285135595
-      },
-      "tau_abs_max": 6.087408979330802,
-      "sling_wrench": {
-        "force_N": [
-          0.0,
-          0.0,
-          380.82920310000003
-        ],
-        "torque_Nm": [
-          0.5812608727566042,
-          -0.38522549102691755,
-          0.0
-        ],
-        "com_offset_x_mm": -1.0115439884628887,
-        "_note": "com_offset_x = My / 重量，＝質心離吊點正下方的水平距離。knee_back 模式四腿同向，會前移到 27~55 mm，吊帶上的機身會明顯前傾。"
-      },
-      "knee_mode": "front",
-      "limits": {
-        "min_margin_rad": 0.523,
-        "tightest": "fr1_hip_roll",
-        "range": [
-          -0.697,
-          0.523
-        ],
-        "ok": true
-      },
-      "self_contact_ncon": 0,
-      "checks": {
-        "bias_gap": 0.0,
-        "ncon_in_gravity_calc": 0,
-        "Fz_over_mg": 1.0
-      }
+     "abad": 1.0277644922285223e-05,
+     "hipknee": 8.445547745431652e-05
     }
-  },
-  "knee_mode": {
-    "_note": "膝模式切換 = **只把後兩腿（bl/br）的 hip_pitch 與 knee_pitch 翻號，前腿完全不動**。出處：2026-08-25 實機四姿勢驗證，docs/座標換算式驗證結果_2026-08-25.md §2.2。預設（不帶後綴的 STAND/HOME/CROUCH）是**後腿往前彎**；帶 _knee_back 後綴的是**後腿往後彎**。",
-    "pairs": {
-      "STAND": "stand_knee_back",
-      "HOME": "home_knee_back",
-      "CROUCH": "crouch_knee_back"
-    },
-    "abad_invariance_check": {
-      "STAND→stand_knee_back": {
-        "abad_max_change": 1.7763568394002505e-15,
-        "hipknee_max_change": 5.79359727914271
-      },
-      "HOME→home_knee_back": {
-        "abad_max_change": 0.0,
-        "hipknee_max_change": 7.265347961026896
-      },
-      "CROUCH→crouch_knee_back": {
-        "abad_max_change": 0.0,
-        "hipknee_max_change": 10.42698358777961
-      }
-    },
-    "abad_invariance_note": "ABAD 力矩與膝模式無關（變化 < 1e-9 N·m）——因為 hip/knee 只在矢狀面轉動，不改變腿對 abad 軸（x 軸）的力臂。這條是拿來檢驗 knee_back 這批數字的獨立判據，不是事後解釋。",
-    "verified_against": "realbot/coord.py flip_rear_knee_mode()（執行時逐項比對）"
-  },
-  "checks": {
-    "stand_symmetry": {
-      "front_hip_roll": {
-        "left": 6.087408979330802,
-        "right": -6.087408979330798,
-        "abs_gap": 4.440892098500626e-15
-      },
-      "front_hip_pitch": {
-        "left": 2.5628188416389577,
-        "right": 2.5646678496320696,
-        "abs_gap": 0.0018490079931119396
-      },
-      "front_knee_pitch": {
-        "left": -2.8968319925190817,
-        "right": -2.896803329296402,
-        "abs_gap": 2.866322267980337e-05
-      },
-      "rear_hip_roll": {
-        "left": 6.087408979330802,
-        "right": -6.084744849574198,
-        "abs_gap": 0.0026641297566039057
-      },
-      "rear_hip_pitch": {
-        "left": -2.5651783385325224,
-        "right": -2.5579520160073272,
-        "abs_gap": 0.007226322525195172
-      },
-      "rear_knee_pitch": {
-        "left": 2.896623233321151,
-        "right": 2.8969033285135586,
-        "abs_gap": 0.0002800951924077921
-      }
-    },
-    "stand_symmetry_worst": 0.007226322525195172,
-    "s1_cross_leg_max_change": 8.881784197001252e-16,
-    "sling_Fz_matches_model_weight": true,
-    "all_poses_within_mjcf_limits": true,
-    "pose_limit_margins": {
-      "HANG_FREE": {
-        "min_margin_rad": 0.24262622102563514,
-        "tightest": "bl1_hip_roll",
-        "range": [
-          -0.523,
-          0.697
-        ],
-        "ok": true
-      },
-      "HANG_NC": {
-        "min_margin_rad": 0.13276698401701215,
-        "tightest": "br1_hip_roll",
-        "range": [
-          -0.697,
-          0.523
-        ],
-        "ok": true
-      },
-      "STAND": {
-        "min_margin_rad": 0.523,
-        "tightest": "fr1_hip_roll",
-        "range": [
-          -0.697,
-          0.523
-        ],
-        "ok": true
-      },
-      "HOME": {
-        "min_margin_rad": 0.523,
-        "tightest": "fr1_hip_roll",
-        "range": [
-          -0.697,
-          0.523
-        ],
-        "ok": true
-      },
-      "CROUCH": {
-        "min_margin_rad": 0.391,
-        "tightest": "fr3_knee_pitch",
-        "range": [
-          -2.791,
-          2.791
-        ],
-        "ok": true
-      },
-      "stand_knee_back": {
-        "min_margin_rad": 0.523,
-        "tightest": "fr1_hip_roll",
-        "range": [
-          -0.697,
-          0.523
-        ],
-        "ok": true
-      },
-      "home_knee_back": {
-        "min_margin_rad": 0.523,
-        "tightest": "fr1_hip_roll",
-        "range": [
-          -0.697,
-          0.523
-        ],
-        "ok": true
-      },
-      "crouch_knee_back": {
-        "min_margin_rad": 0.391,
-        "tightest": "fr3_knee_pitch",
-        "range": [
-          -2.791,
-          2.791
-        ],
-        "ok": true
-      },
-      "S1_fl2+0.05": {
-        "min_margin_rad": 0.523,
-        "tightest": "fr1_hip_roll",
-        "range": [
-          -0.697,
-          0.523
-        ],
-        "ok": true
-      },
-      "S1_fl2-0.05": {
-        "min_margin_rad": 0.523,
-        "tightest": "fr1_hip_roll",
-        "range": [
-          -0.697,
-          0.523
-        ],
-        "ok": true
-      }
-    },
-    "pose_self_contact_ncon": {
-      "HANG_FREE": 3,
-      "HANG_NC": 10,
-      "STAND": 0,
-      "HOME": 0,
-      "CROUCH": 0,
-      "stand_knee_back": 0,
-      "home_knee_back": 0,
-      "crouch_knee_back": 0,
-      "S1_fl2+0.05": 0,
-      "S1_fl2-0.05": 0
-    },
-    "coord_py_crosscheck": "✓ sign/offset 12 項、膝模式翻號 12 項，與 realbot/coord.py 完全一致"
-  },
-  "gain_table": {
-    "_note": "穩態下垂量 err = |τ_重力| / kp（rad）。",
-    "kp_candidates": [
-      5.0,
-      10.0,
-      20.0,
-      40.0,
-      60.0,
-      80.0,
-      120.0,
-      150.0
-    ],
-    "sag_rad": {
-      "STAND": {
-        "kp=5": {
-          "fl1_hip_roll": 1.2174817958661603,
-          "fl2_hip_pitch": 0.5125637683277915,
-          "fl3_knee_pitch": 0.5793663985038163,
-          "fr1_hip_roll": 1.2174817958661595,
-          "fr2_hip_pitch": 0.5129335699264139,
-          "fr3_knee_pitch": 0.5793606658592804,
-          "bl1_hip_roll": 1.2174817958661603,
-          "bl2_hip_pitch": 0.5130356677065044,
-          "bl3_knee_pitch": 0.5793246466642301,
-          "br1_hip_roll": 1.2169489699148397,
-          "br2_hip_pitch": 0.5115904032014654,
-          "br3_knee_pitch": 0.5793806657027117
-        },
-        "kp=10": {
-          "fl1_hip_roll": 0.6087408979330802,
-          "fl2_hip_pitch": 0.25628188416389575,
-          "fl3_knee_pitch": 0.28968319925190816,
-          "fr1_hip_roll": 0.6087408979330797,
-          "fr2_hip_pitch": 0.25646678496320696,
-          "fr3_knee_pitch": 0.2896803329296402,
-          "bl1_hip_roll": 0.6087408979330802,
-          "bl2_hip_pitch": 0.2565178338532522,
-          "bl3_knee_pitch": 0.28966232333211506,
-          "br1_hip_roll": 0.6084744849574198,
-          "br2_hip_pitch": 0.2557952016007327,
-          "br3_knee_pitch": 0.28969033285135587
-        },
-        "kp=20": {
-          "fl1_hip_roll": 0.3043704489665401,
-          "fl2_hip_pitch": 0.12814094208194787,
-          "fl3_knee_pitch": 0.14484159962595408,
-          "fr1_hip_roll": 0.30437044896653986,
-          "fr2_hip_pitch": 0.12823339248160348,
-          "fr3_knee_pitch": 0.1448401664648201,
-          "bl1_hip_roll": 0.3043704489665401,
-          "bl2_hip_pitch": 0.1282589169266261,
-          "bl3_knee_pitch": 0.14483116166605753,
-          "br1_hip_roll": 0.3042372424787099,
-          "br2_hip_pitch": 0.12789760080036636,
-          "br3_knee_pitch": 0.14484516642567793
-        },
-        "kp=40": {
-          "fl1_hip_roll": 0.15218522448327004,
-          "fl2_hip_pitch": 0.06407047104097394,
-          "fl3_knee_pitch": 0.07242079981297704,
-          "fr1_hip_roll": 0.15218522448326993,
-          "fr2_hip_pitch": 0.06411669624080174,
-          "fr3_knee_pitch": 0.07242008323241005,
-          "bl1_hip_roll": 0.15218522448327004,
-          "bl2_hip_pitch": 0.06412945846331305,
-          "bl3_knee_pitch": 0.07241558083302876,
-          "br1_hip_roll": 0.15211862123935496,
-          "br2_hip_pitch": 0.06394880040018318,
-          "br3_knee_pitch": 0.07242258321283897
-        },
-        "kp=60": {
-          "fl1_hip_roll": 0.10145681632218004,
-          "fl2_hip_pitch": 0.042713647360649296,
-          "fl3_knee_pitch": 0.04828053320865136,
-          "fr1_hip_roll": 0.10145681632217997,
-          "fr2_hip_pitch": 0.04274446416053449,
-          "fr3_knee_pitch": 0.04828005548827337,
-          "bl1_hip_roll": 0.10145681632218004,
-          "bl2_hip_pitch": 0.04275297230887538,
-          "bl3_knee_pitch": 0.04827705388868585,
-          "br1_hip_roll": 0.10141241415956997,
-          "br2_hip_pitch": 0.04263253360012212,
-          "br3_knee_pitch": 0.04828172214189264
-        },
-        "kp=80": {
-          "fl1_hip_roll": 0.07609261224163502,
-          "fl2_hip_pitch": 0.03203523552048697,
-          "fl3_knee_pitch": 0.03621039990648852,
-          "fr1_hip_roll": 0.07609261224163497,
-          "fr2_hip_pitch": 0.03205834812040087,
-          "fr3_knee_pitch": 0.03621004161620502,
-          "bl1_hip_roll": 0.07609261224163502,
-          "bl2_hip_pitch": 0.03206472923165653,
-          "bl3_knee_pitch": 0.03620779041651438,
-          "br1_hip_roll": 0.07605931061967748,
-          "br2_hip_pitch": 0.03197440020009159,
-          "br3_knee_pitch": 0.036211291606419484
-        },
-        "kp=120": {
-          "fl1_hip_roll": 0.05072840816109002,
-          "fl2_hip_pitch": 0.021356823680324648,
-          "fl3_knee_pitch": 0.02414026660432568,
-          "fr1_hip_roll": 0.050728408161089984,
-          "fr2_hip_pitch": 0.021372232080267246,
-          "fr3_knee_pitch": 0.024140027744136684,
-          "bl1_hip_roll": 0.05072840816109002,
-          "bl2_hip_pitch": 0.02137648615443769,
-          "bl3_knee_pitch": 0.024138526944342924,
-          "br1_hip_roll": 0.05070620707978499,
-          "br2_hip_pitch": 0.02131626680006106,
-          "br3_knee_pitch": 0.02414086107094632
-        },
-        "kp=150": {
-          "fl1_hip_roll": 0.040582726528872015,
-          "fl2_hip_pitch": 0.017085458944259717,
-          "fl3_knee_pitch": 0.019312213283460545,
-          "fr1_hip_roll": 0.04058272652887199,
-          "fr2_hip_pitch": 0.017097785664213796,
-          "fr3_knee_pitch": 0.019312022195309347,
-          "bl1_hip_roll": 0.040582726528872015,
-          "bl2_hip_pitch": 0.01710118892355015,
-          "bl3_knee_pitch": 0.01931082155547434,
-          "br1_hip_roll": 0.04056496566382799,
-          "br2_hip_pitch": 0.017053013440048847,
-          "br3_knee_pitch": 0.019312688856757056
-        }
-      },
-      "HOME": {
-        "kp=5": {
-          "fl1_hip_roll": 1.2174817958661603,
-          "fl2_hip_pitch": 0.7263339016745946,
-          "fl3_knee_pitch": 0.6610121865077854,
-          "fr1_hip_roll": 1.2174817958661595,
-          "fr2_hip_pitch": 0.7266465919155316,
-          "fr3_knee_pitch": 0.6610068249200584,
-          "bl1_hip_roll": 1.2174817958661603,
-          "bl2_hip_pitch": 0.7267357010768926,
-          "bl3_knee_pitch": 0.6609734959682385,
-          "br1_hip_roll": 1.2169489699148397,
-          "br2_hip_pitch": 0.7250991148509112,
-          "br3_knee_pitch": 0.6610284514895076
-        },
-        "kp=10": {
-          "fl1_hip_roll": 0.6087408979330802,
-          "fl2_hip_pitch": 0.3631669508372973,
-          "fl3_knee_pitch": 0.3305060932538927,
-          "fr1_hip_roll": 0.6087408979330797,
-          "fr2_hip_pitch": 0.3633232959577658,
-          "fr3_knee_pitch": 0.3305034124600292,
-          "bl1_hip_roll": 0.6087408979330802,
-          "bl2_hip_pitch": 0.3633678505384463,
-          "bl3_knee_pitch": 0.33048674798411926,
-          "br1_hip_roll": 0.6084744849574198,
-          "br2_hip_pitch": 0.3625495574254556,
-          "br3_knee_pitch": 0.3305142257447538
-        },
-        "kp=20": {
-          "fl1_hip_roll": 0.3043704489665401,
-          "fl2_hip_pitch": 0.18158347541864864,
-          "fl3_knee_pitch": 0.16525304662694634,
-          "fr1_hip_roll": 0.30437044896653986,
-          "fr2_hip_pitch": 0.1816616479788829,
-          "fr3_knee_pitch": 0.1652517062300146,
-          "bl1_hip_roll": 0.3043704489665401,
-          "bl2_hip_pitch": 0.18168392526922314,
-          "bl3_knee_pitch": 0.16524337399205963,
-          "br1_hip_roll": 0.3042372424787099,
-          "br2_hip_pitch": 0.1812747787127278,
-          "br3_knee_pitch": 0.1652571128723769
-        },
-        "kp=40": {
-          "fl1_hip_roll": 0.15218522448327004,
-          "fl2_hip_pitch": 0.09079173770932432,
-          "fl3_knee_pitch": 0.08262652331347317,
-          "fr1_hip_roll": 0.15218522448326993,
-          "fr2_hip_pitch": 0.09083082398944145,
-          "fr3_knee_pitch": 0.0826258531150073,
-          "bl1_hip_roll": 0.15218522448327004,
-          "bl2_hip_pitch": 0.09084196263461157,
-          "bl3_knee_pitch": 0.08262168699602981,
-          "br1_hip_roll": 0.15211862123935496,
-          "br2_hip_pitch": 0.0906373893563639,
-          "br3_knee_pitch": 0.08262855643618845
-        },
-        "kp=60": {
-          "fl1_hip_roll": 0.10145681632218004,
-          "fl2_hip_pitch": 0.060527825139549546,
-          "fl3_knee_pitch": 0.05508434887564879,
-          "fr1_hip_roll": 0.10145681632217997,
-          "fr2_hip_pitch": 0.06055388265962763,
-          "fr3_knee_pitch": 0.055083902076671534,
-          "bl1_hip_roll": 0.10145681632218004,
-          "bl2_hip_pitch": 0.06056130842307438,
-          "bl3_knee_pitch": 0.05508112466401988,
-          "br1_hip_roll": 0.10141241415956997,
-          "br2_hip_pitch": 0.06042492623757593,
-          "br3_knee_pitch": 0.0550857042907923
-        },
-        "kp=80": {
-          "fl1_hip_roll": 0.07609261224163502,
-          "fl2_hip_pitch": 0.04539586885466216,
-          "fl3_knee_pitch": 0.041313261656736586,
-          "fr1_hip_roll": 0.07609261224163497,
-          "fr2_hip_pitch": 0.045415411994720725,
-          "fr3_knee_pitch": 0.04131292655750365,
-          "bl1_hip_roll": 0.07609261224163502,
-          "bl2_hip_pitch": 0.045420981317305785,
-          "bl3_knee_pitch": 0.04131084349801491,
-          "br1_hip_roll": 0.07605931061967748,
-          "br2_hip_pitch": 0.04531869467818195,
-          "br3_knee_pitch": 0.041314278218094226
-        },
-        "kp=120": {
-          "fl1_hip_roll": 0.05072840816109002,
-          "fl2_hip_pitch": 0.030263912569774773,
-          "fl3_knee_pitch": 0.027542174437824394,
-          "fr1_hip_roll": 0.050728408161089984,
-          "fr2_hip_pitch": 0.030276941329813813,
-          "fr3_knee_pitch": 0.027541951038335767,
-          "bl1_hip_roll": 0.05072840816109002,
-          "bl2_hip_pitch": 0.03028065421153719,
-          "bl3_knee_pitch": 0.02754056233200994,
-          "br1_hip_roll": 0.05070620707978499,
-          "br2_hip_pitch": 0.030212463118787964,
-          "br3_knee_pitch": 0.02754285214539615
-        },
-        "kp=150": {
-          "fl1_hip_roll": 0.040582726528872015,
-          "fl2_hip_pitch": 0.02421113005581982,
-          "fl3_knee_pitch": 0.022033739550259515,
-          "fr1_hip_roll": 0.04058272652887199,
-          "fr2_hip_pitch": 0.024221553063851053,
-          "fr3_knee_pitch": 0.02203356083066861,
-          "bl1_hip_roll": 0.040582726528872015,
-          "bl2_hip_pitch": 0.024224523369229752,
-          "bl3_knee_pitch": 0.022032449865607952,
-          "br1_hip_roll": 0.04056496566382799,
-          "br2_hip_pitch": 0.024169970495030373,
-          "br3_knee_pitch": 0.02203428171631692
-        }
-      },
-      "CROUCH": {
-        "kp=5": {
-          "fl1_hip_roll": 1.2174817958661603,
-          "fl2_hip_pitch": 1.0426404075935927,
-          "fl3_knee_pitch": 0.8633961953052424,
-          "fr1_hip_roll": 1.2174817958661595,
-          "fr2_hip_pitch": 1.0427193273167077,
-          "fr3_knee_pitch": 0.8633922508513716,
-          "bl1_hip_roll": 1.2174817958661603,
-          "bl2_hip_pitch": 1.0427563193483622,
-          "bl3_knee_pitch": 0.8633688668454749,
-          "br1_hip_roll": 1.2169489699148397,
-          "br2_hip_pitch": 1.0409452251893092,
-          "br3_knee_pitch": 0.8634174070069447
-        },
-        "kp=10": {
-          "fl1_hip_roll": 0.6087408979330802,
-          "fl2_hip_pitch": 0.5213202037967963,
-          "fl3_knee_pitch": 0.4316980976526212,
-          "fr1_hip_roll": 0.6087408979330797,
-          "fr2_hip_pitch": 0.5213596636583538,
-          "fr3_knee_pitch": 0.4316961254256858,
-          "bl1_hip_roll": 0.6087408979330802,
-          "bl2_hip_pitch": 0.5213781596741811,
-          "bl3_knee_pitch": 0.43168443342273743,
-          "br1_hip_roll": 0.6084744849574198,
-          "br2_hip_pitch": 0.5204726125946546,
-          "br3_knee_pitch": 0.43170870350347235
-        },
-        "kp=20": {
-          "fl1_hip_roll": 0.3043704489665401,
-          "fl2_hip_pitch": 0.26066010189839817,
-          "fl3_knee_pitch": 0.2158490488263106,
-          "fr1_hip_roll": 0.30437044896653986,
-          "fr2_hip_pitch": 0.2606798318291769,
-          "fr3_knee_pitch": 0.2158480627128429,
-          "bl1_hip_roll": 0.3043704489665401,
-          "bl2_hip_pitch": 0.26068907983709055,
-          "bl3_knee_pitch": 0.21584221671136872,
-          "br1_hip_roll": 0.3042372424787099,
-          "br2_hip_pitch": 0.2602363062973273,
-          "br3_knee_pitch": 0.21585435175173617
-        },
-        "kp=40": {
-          "fl1_hip_roll": 0.15218522448327004,
-          "fl2_hip_pitch": 0.13033005094919908,
-          "fl3_knee_pitch": 0.1079245244131553,
-          "fr1_hip_roll": 0.15218522448326993,
-          "fr2_hip_pitch": 0.13033991591458846,
-          "fr3_knee_pitch": 0.10792403135642145,
-          "bl1_hip_roll": 0.15218522448327004,
-          "bl2_hip_pitch": 0.13034453991854528,
-          "bl3_knee_pitch": 0.10792110835568436,
-          "br1_hip_roll": 0.15211862123935496,
-          "br2_hip_pitch": 0.13011815314866365,
-          "br3_knee_pitch": 0.10792717587586809
-        },
-        "kp=60": {
-          "fl1_hip_roll": 0.10145681632218004,
-          "fl2_hip_pitch": 0.0868867006327994,
-          "fl3_knee_pitch": 0.07194968294210353,
-          "fr1_hip_roll": 0.10145681632217997,
-          "fr2_hip_pitch": 0.08689327727639232,
-          "fr3_knee_pitch": 0.07194935423761431,
-          "bl1_hip_roll": 0.10145681632218004,
-          "bl2_hip_pitch": 0.08689635994569685,
-          "bl3_knee_pitch": 0.07194740557045624,
-          "br1_hip_roll": 0.10141241415956997,
-          "br2_hip_pitch": 0.08674543543244244,
-          "br3_knee_pitch": 0.07195145058391206
-        },
-        "kp=80": {
-          "fl1_hip_roll": 0.07609261224163502,
-          "fl2_hip_pitch": 0.06516502547459954,
-          "fl3_knee_pitch": 0.05396226220657765,
-          "fr1_hip_roll": 0.07609261224163497,
-          "fr2_hip_pitch": 0.06516995795729423,
-          "fr3_knee_pitch": 0.053962015678210726,
-          "bl1_hip_roll": 0.07609261224163502,
-          "bl2_hip_pitch": 0.06517226995927264,
-          "bl3_knee_pitch": 0.05396055417784218,
-          "br1_hip_roll": 0.07605931061967748,
-          "br2_hip_pitch": 0.06505907657433183,
-          "br3_knee_pitch": 0.05396358793793404
-        },
-        "kp=120": {
-          "fl1_hip_roll": 0.05072840816109002,
-          "fl2_hip_pitch": 0.0434433503163997,
-          "fl3_knee_pitch": 0.03597484147105177,
-          "fr1_hip_roll": 0.050728408161089984,
-          "fr2_hip_pitch": 0.04344663863819616,
-          "fr3_knee_pitch": 0.035974677118807155,
-          "bl1_hip_roll": 0.05072840816109002,
-          "bl2_hip_pitch": 0.04344817997284842,
-          "bl3_knee_pitch": 0.03597370278522812,
-          "br1_hip_roll": 0.05070620707978499,
-          "br2_hip_pitch": 0.04337271771622122,
-          "br3_knee_pitch": 0.03597572529195603
-        },
-        "kp=150": {
-          "fl1_hip_roll": 0.040582726528872015,
-          "fl2_hip_pitch": 0.03475468025311976,
-          "fl3_knee_pitch": 0.028779873176841414,
-          "fr1_hip_roll": 0.04058272652887199,
-          "fr2_hip_pitch": 0.03475731091055692,
-          "fr3_knee_pitch": 0.028779741695045723,
-          "bl1_hip_roll": 0.040582726528872015,
-          "bl2_hip_pitch": 0.03475854397827874,
-          "bl3_knee_pitch": 0.028778962228182495,
-          "br1_hip_roll": 0.04056496566382799,
-          "br2_hip_pitch": 0.03469817417297698,
-          "br3_knee_pitch": 0.028780580233564824
-        }
-      }
-    }
-  },
-  "trajectory_sweep": [
-    {
-      "label": "20/1",
-      "kp": [
-        20.0,
-        20.0,
-        20.0,
-        20.0,
-        20.0,
-        20.0,
-        20.0,
-        20.0,
-        20.0,
-        20.0,
-        20.0,
-        20.0
-      ],
-      "kd": [
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0
-      ],
-      "ok": false,
-      "peak_tau_max": 3.6762847949489754,
-      "peak_err_max": 0.18374445861931243,
-      "final_err_max": 0.18296272285094894,
-      "lim_margin_min": 0.24112626360685613,
-      "lim_hit": false,
-      "n_sat": 0,
-      "base_drift_m": 2.216407080562378e-07,
-      "diverged": false,
-      "peak_tau": {
-        "fl1_hip_roll": 3.676125445854713,
-        "fl2_hip_pitch": 1.9118198483448594,
-        "fl3_knee_pitch": 2.686680190119447,
-        "fr1_hip_roll": 3.6762847949489754,
-        "fr2_hip_pitch": 1.9143780089805653,
-        "fr3_knee_pitch": 2.6862956382553134,
-        "bl1_hip_roll": 3.676271314261659,
-        "bl2_hip_pitch": 1.9146810577151463,
-        "bl3_knee_pitch": 2.6861724840983623,
-        "br1_hip_roll": 3.675401967012138,
-        "br2_hip_pitch": 1.9093373955520268,
-        "br3_knee_pitch": 2.6862914444108643
-      }
-    },
-    {
-      "label": "20/2",
-      "kp": [
-        20.0,
-        20.0,
-        20.0,
-        20.0,
-        20.0,
-        20.0,
-        20.0,
-        20.0,
-        20.0,
-        20.0,
-        20.0,
-        20.0
-      ],
-      "kd": [
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0
-      ],
-      "ok": false,
-      "peak_tau_max": 3.666451204655599,
-      "peak_err_max": 0.18320492167872415,
-      "final_err_max": 0.1828809110701883,
-      "lim_margin_min": 0.24134866717173553,
-      "lim_hit": false,
-      "n_sat": 0,
-      "base_drift_m": 2.2161961501122634e-07,
-      "diverged": false,
-      "peak_tau": {
-        "fl1_hip_roll": 3.66616829398174,
-        "fl2_hip_pitch": 1.9118880932154476,
-        "fl3_knee_pitch": 2.685454488688608,
-        "fr1_hip_roll": 3.6664441871022726,
-        "fr2_hip_pitch": 1.9132889461538611,
-        "fr3_knee_pitch": 2.6855843558788206,
-        "bl1_hip_roll": 3.666451204655599,
-        "bl2_hip_pitch": 1.9135982285881543,
-        "bl3_knee_pitch": 2.6854888584640606,
-        "br1_hip_roll": 3.665436616651765,
-        "br2_hip_pitch": 1.9093221602884434,
-        "br3_knee_pitch": 2.685074685424968
-      }
-    },
-    {
-      "label": "20/4",
-      "kp": [
-        20.0,
-        20.0,
-        20.0,
-        20.0,
-        20.0,
-        20.0,
-        20.0,
-        20.0,
-        20.0,
-        20.0,
-        20.0,
-        20.0
-      ],
-      "kd": [
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0
-      ],
-      "ok": false,
-      "peak_tau_max": 3.6624421894782175,
-      "peak_err_max": 0.1829279827629839,
-      "final_err_max": 0.18284828956669308,
-      "lim_margin_min": 0.2417540154205417,
-      "lim_hit": false,
-      "n_sat": 0,
-      "base_drift_m": 2.2158867985048028e-07,
-      "diverged": false,
-      "peak_tau": {
-        "fl1_hip_roll": 3.6622545235336323,
-        "fl2_hip_pitch": 1.9106962761211839,
-        "fl3_knee_pitch": 2.6851524963538362,
-        "fr1_hip_roll": 3.662437155158289,
-        "fr2_hip_pitch": 1.911932711342434,
-        "fr3_knee_pitch": 2.6853401609159375,
-        "bl1_hip_roll": 3.6624421894782175,
-        "bl2_hip_pitch": 1.9122445721200745,
-        "bl3_knee_pitch": 2.685244366284635,
-        "br1_hip_roll": 3.661521385971995,
-        "br2_hip_pitch": 1.9081339310272363,
-        "br3_knee_pitch": 2.6847713835808444
-      }
-    },
-    {
-      "label": "40/1",
-      "kp": [
-        40.0,
-        40.0,
-        40.0,
-        40.0,
-        40.0,
-        40.0,
-        40.0,
-        40.0,
-        40.0,
-        40.0,
-        40.0,
-        40.0
-      ],
-      "kd": [
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0
-      ],
-      "ok": false,
-      "peak_tau_max": 4.6214521061432015,
-      "peak_err_max": 0.11552400430956808,
-      "final_err_max": 0.11509359011138237,
-      "lim_margin_min": 0.2426176933554346,
-      "lim_hit": false,
-      "n_sat": 0,
-      "base_drift_m": 2.2167234300652824e-07,
-      "diverged": false,
-      "peak_tau": {
-        "fl1_hip_roll": 4.620124863310444,
-        "fl2_hip_pitch": 2.1766548472226557,
-        "fl3_knee_pitch": 2.81193111937235,
-        "fr1_hip_roll": 4.621350443333536,
-        "fr2_hip_pitch": 2.1783578569104813,
-        "fr3_knee_pitch": 2.8127899695409675,
-        "bl1_hip_roll": 4.6214521061432015,
-        "bl2_hip_pitch": 2.1788732792851637,
-        "bl3_knee_pitch": 2.8126093545136492,
-        "br1_hip_roll": 4.61877092361467,
-        "br2_hip_pitch": 2.17341615078341,
-        "br3_knee_pitch": 2.811603361582949
-      }
-    },
-    {
-      "label": "40/2",
-      "kp": [
-        40.0,
-        40.0,
-        40.0,
-        40.0,
-        40.0,
-        40.0,
-        40.0,
-        40.0,
-        40.0,
-        40.0,
-        40.0,
-        40.0
-      ],
-      "kd": [
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0
-      ],
-      "ok": false,
-      "peak_tau_max": 4.620661780571227,
-      "peak_err_max": 0.11547302774828262,
-      "final_err_max": 0.11512779864124573,
-      "lim_margin_min": 0.24261731726406516,
-      "lim_hit": false,
-      "n_sat": 0,
-      "base_drift_m": 2.21644382554679e-07,
-      "diverged": false,
-      "peak_tau": {
-        "fl1_hip_roll": 4.620304642830232,
-        "fl2_hip_pitch": 2.176991117362174,
-        "fl3_knee_pitch": 2.8108406617061914,
-        "fr1_hip_roll": 4.6206529469209805,
-        "fr2_hip_pitch": 2.1785310339184476,
-        "fr3_knee_pitch": 2.8109487154106656,
-        "bl1_hip_roll": 4.620661780571227,
-        "bl2_hip_pitch": 2.1789260853352803,
-        "bl3_knee_pitch": 2.8108189530099508,
-        "br1_hip_roll": 4.61894700903491,
-        "br2_hip_pitch": 2.173583953777014,
-        "br3_knee_pitch": 2.8105863261092856
-      }
-    },
-    {
-      "label": "40/4",
-      "kp": [
-        40.0,
-        40.0,
-        40.0,
-        40.0,
-        40.0,
-        40.0,
-        40.0,
-        40.0,
-        40.0,
-        40.0,
-        40.0,
-        40.0
-      ],
-      "kd": [
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0
-      ],
-      "ok": false,
-      "peak_tau_max": 4.614595439472565,
-      "peak_err_max": 0.11527733835829501,
-      "final_err_max": 0.11513966513297984,
-      "lim_margin_min": 0.24261660764437742,
-      "lim_hit": false,
-      "n_sat": 0,
-      "base_drift_m": 2.2160887891993664e-07,
-      "diverged": false,
-      "peak_tau": {
-        "fl1_hip_roll": 4.614370034894984,
-        "fl2_hip_pitch": 2.175929339169601,
-        "fl3_knee_pitch": 2.8104226026641834,
-        "fr1_hip_roll": 4.6145905489028864,
-        "fr2_hip_pitch": 2.1774408540529566,
-        "fr3_knee_pitch": 2.8105312352581855,
-        "bl1_hip_roll": 4.614595439472565,
-        "bl2_hip_pitch": 2.1778298290490143,
-        "bl3_knee_pitch": 2.8104039852083913,
-        "br1_hip_roll": 4.613012373668895,
-        "br2_hip_pitch": 2.172518919540419,
-        "br3_knee_pitch": 2.8101686805594284
-      }
-    },
-    {
-      "label": "60/1",
-      "kp": [
-        60.0,
-        60.0,
-        60.0,
-        60.0,
-        60.0,
-        60.0,
-        60.0,
-        60.0,
-        60.0,
-        60.0,
-        60.0,
-        60.0
-      ],
-      "kd": [
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0
-      ],
-      "ok": false,
-      "peak_tau_max": 5.05896117139838,
-      "peak_err_max": 0.08430472611277104,
-      "final_err_max": 0.08382080651020916,
-      "lim_margin_min": 0.24261767270120993,
-      "lim_hit": false,
-      "n_sat": 0,
-      "base_drift_m": 2.2169274755393798e-07,
-      "diverged": false,
-      "peak_tau": {
-        "fl1_hip_roll": 5.058827903223181,
-        "fl2_hip_pitch": 2.290659731210297,
-        "fl3_knee_pitch": 2.850839576850443,
-        "fr1_hip_roll": 5.058923485979885,
-        "fr2_hip_pitch": 2.2935461157755164,
-        "fr3_knee_pitch": 2.8511552079874276,
-        "bl1_hip_roll": 5.05896117139838,
-        "bl2_hip_pitch": 2.2938011016046835,
-        "bl3_knee_pitch": 2.8508687900296543,
-        "br1_hip_roll": 5.057164362769042,
-        "br2_hip_pitch": 2.2866350360917704,
-        "br3_knee_pitch": 2.850521682522998
-      }
-    },
-    {
-      "label": "60/2",
-      "kp": [
-        60.0,
-        60.0,
-        60.0,
-        60.0,
-        60.0,
-        60.0,
-        60.0,
-        60.0,
-        60.0,
-        60.0,
-        60.0,
-        60.0
-      ],
-      "kd": [
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0
-      ],
-      "ok": false,
-      "peak_tau_max": 5.04460797021451,
-      "peak_err_max": 0.08405224133182926,
-      "final_err_max": 0.08377434731016989,
-      "lim_margin_min": 0.2426172866438751,
-      "lim_hit": false,
-      "n_sat": 0,
-      "base_drift_m": 2.2164304562969882e-07,
-      "diverged": false,
-      "peak_tau": {
-        "fl1_hip_roll": 5.044254827228224,
-        "fl2_hip_pitch": 2.2899624574177233,
-        "fl3_knee_pitch": 2.8480446022085384,
-        "fr1_hip_roll": 5.044603037837417,
-        "fr2_hip_pitch": 2.291711470714315,
-        "fr3_knee_pitch": 2.8481410982041786,
-        "bl1_hip_roll": 5.04460797021451,
-        "bl2_hip_pitch": 2.292134706409816,
-        "bl3_knee_pitch": 2.847996005379817,
-        "br1_hip_roll": 5.042566349282999,
-        "br2_hip_pitch": 2.286149825303931,
-        "br3_knee_pitch": 2.8478565101360447
-      }
-    },
-    {
-      "label": "60/4",
-      "kp": [
-        60.0,
-        60.0,
-        60.0,
-        60.0,
-        60.0,
-        60.0,
-        60.0,
-        60.0,
-        60.0,
-        60.0,
-        60.0,
-        60.0
-      ],
-      "kd": [
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0
-      ],
-      "ok": false,
-      "peak_tau_max": 5.036808835218779,
-      "peak_err_max": 0.08389401788077253,
-      "final_err_max": 0.08375286797227963,
-      "lim_margin_min": 0.24261656828023043,
-      "lim_hit": false,
-      "n_sat": 0,
-      "base_drift_m": 2.216094238259014e-07,
-      "diverged": false,
-      "peak_tau": {
-        "fl1_hip_roll": 5.036559195141056,
-        "fl2_hip_pitch": 2.2887325977098913,
-        "fl3_knee_pitch": 2.8473136508837182,
-        "fr1_hip_roll": 5.036804754949148,
-        "fr2_hip_pitch": 2.290372578187368,
-        "fr3_knee_pitch": 2.847378557482605,
-        "bl1_hip_roll": 5.036808835218779,
-        "bl2_hip_pitch": 2.290796415953861,
-        "bl3_knee_pitch": 2.8472364166537316,
-        "br1_hip_roll": 5.034869241767196,
-        "br2_hip_pitch": 2.284924714441942,
-        "br3_knee_pitch": 2.847136322313619
-      }
-    },
-    {
-      "label": "80/1",
-      "kp": [
-        80.0,
-        80.0,
-        80.0,
-        80.0,
-        80.0,
-        80.0,
-        80.0,
-        80.0,
-        80.0,
-        80.0,
-        80.0,
-        80.0
-      ],
-      "kd": [
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0
-      ],
-      "ok": false,
-      "peak_tau_max": 5.2961710106159146,
-      "peak_err_max": 0.06619543362985451,
-      "final_err_max": 0.06563447356028543,
-      "lim_margin_min": 0.2426176436493564,
-      "lim_hit": false,
-      "n_sat": 0,
-      "base_drift_m": 2.2169278243464784e-07,
-      "diverged": false,
-      "peak_tau": {
-        "fl1_hip_roll": 5.2961710106159146,
-        "fl2_hip_pitch": 2.3549073541592014,
-        "fl3_knee_pitch": 2.869353143843247,
-        "fr1_hip_roll": 5.29602180924206,
-        "fr2_hip_pitch": 2.357374338466878,
-        "fr3_knee_pitch": 2.8692077434199517,
-        "bl1_hip_roll": 5.2960302975157765,
-        "bl2_hip_pitch": 2.3576036106201275,
-        "bl3_knee_pitch": 2.8688843336101635,
-        "br1_hip_roll": 5.294331638898212,
-        "br2_hip_pitch": 2.350642134666468,
-        "br3_knee_pitch": 2.8690804065307747
-      }
-    },
-    {
-      "label": "80/2",
-      "kp": [
-        80.0,
-        80.0,
-        80.0,
-        80.0,
-        80.0,
-        80.0,
-        80.0,
-        80.0,
-        80.0,
-        80.0,
-        80.0,
-        80.0
-      ],
-      "kd": [
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0
-      ],
-      "ok": false,
-      "peak_tau_max": 5.282443620054858,
-      "peak_err_max": 0.06601498952274876,
-      "final_err_max": 0.0657241205044705,
-      "lim_margin_min": 0.24261725286885766,
-      "lim_hit": false,
-      "n_sat": 0,
-      "base_drift_m": 2.2163974975201555e-07,
-      "diverged": false,
-      "peak_tau": {
-        "fl1_hip_roll": 5.282081078139164,
-        "fl2_hip_pitch": 2.3526567113355683,
-        "fl3_knee_pitch": 2.864912492315704,
-        "fr1_hip_roll": 5.282440504693276,
-        "fr2_hip_pitch": 2.354459926312831,
-        "fr3_knee_pitch": 2.864971940254793,
-        "bl1_hip_roll": 5.282443620054858,
-        "bl2_hip_pitch": 2.354900963944624,
-        "bl3_knee_pitch": 2.864817756556699,
-        "br1_hip_roll": 5.28019117107452,
-        "br2_hip_pitch": 2.3486128090144973,
-        "br3_knee_pitch": 2.8647704440552655
-      }
-    },
-    {
-      "label": "80/4",
-      "kp": [
-        80.0,
-        80.0,
-        80.0,
-        80.0,
-        80.0,
-        80.0,
-        80.0,
-        80.0,
-        80.0,
-        80.0,
-        80.0,
-        80.0
-      ],
-      "kd": [
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0
-      ],
-      "ok": false,
-      "peak_tau_max": 5.2742265977641924,
-      "peak_err_max": 0.06589191822584782,
-      "final_err_max": 0.06575054268904261,
-      "lim_margin_min": 0.24261652194555205,
-      "lim_hit": false,
-      "n_sat": 0,
-      "base_drift_m": 2.2160836848327263e-07,
-      "diverged": false,
-      "peak_tau": {
-        "fl1_hip_roll": 5.273957049513124,
-        "fl2_hip_pitch": 2.3512384446916497,
-        "fl3_knee_pitch": 2.8636405018321835,
-        "fr1_hip_roll": 5.27422324358148,
-        "fr2_hip_pitch": 2.352954467824693,
-        "fr3_knee_pitch": 2.863682377066143,
-        "bl1_hip_roll": 5.2742265977641924,
-        "bl2_hip_pitch": 2.3533981550240246,
-        "bl3_knee_pitch": 2.8635317935513998,
-        "br1_hip_roll": 5.272066308570542,
-        "br2_hip_pitch": 2.3472010439412565,
-        "br3_knee_pitch": 2.8635112756421424
-      }
-    },
-    {
-      "label": "120/1",
-      "kp": [
-        120.0,
-        120.0,
-        120.0,
-        120.0,
-        120.0,
-        120.0,
-        120.0,
-        120.0,
-        120.0,
-        120.0,
-        120.0,
-        120.0
-      ],
-      "kd": [
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0
-      ],
-      "ok": true,
-      "peak_tau_max": 5.5544102890027585,
-      "peak_err_max": 0.04628341208597298,
-      "final_err_max": 0.04598891427739254,
-      "lim_margin_min": 0.24261756677729157,
-      "lim_hit": false,
-      "n_sat": 0,
-      "base_drift_m": 2.217024870940263e-07,
-      "diverged": false,
-      "peak_tau": {
-        "fl1_hip_roll": 5.554325000940041,
-        "fl2_hip_pitch": 2.4197905485033515,
-        "fl3_knee_pitch": 2.8829662776509988,
-        "fr1_hip_roll": 5.5544102890027585,
-        "fr2_hip_pitch": 2.4231596819739427,
-        "fr3_knee_pitch": 2.8835668728721418,
-        "bl1_hip_roll": 5.554370584686053,
-        "bl2_hip_pitch": 2.4239217272109346,
-        "bl3_knee_pitch": 2.8834159174674627,
-        "br1_hip_roll": 5.552451291024671,
-        "br2_hip_pitch": 2.415681352997521,
-        "br3_knee_pitch": 2.8828430548263615
-      }
-    },
-    {
-      "label": "120/2",
-      "kp": [
-        120.0,
-        120.0,
-        120.0,
-        120.0,
-        120.0,
-        120.0,
-        120.0,
-        120.0,
-        120.0,
-        120.0,
-        120.0,
-        120.0
-      ],
-      "kd": [
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0
-      ],
-      "ok": true,
-      "peak_tau_max": 5.540260148698104,
-      "peak_err_max": 0.04616081916748341,
-      "final_err_max": 0.04596508641482642,
-      "lim_margin_min": 0.24261717538171163,
-      "lim_hit": false,
-      "n_sat": 0,
-      "base_drift_m": 2.2163464646802686e-07,
-      "diverged": false,
-      "peak_tau": {
-        "fl1_hip_roll": 5.539853850051166,
-        "fl2_hip_pitch": 2.4199029778911103,
-        "fl3_knee_pitch": 2.8799777522861807,
-        "fr1_hip_roll": 5.540258068853052,
-        "fr2_hip_pitch": 2.4218072884434263,
-        "fr3_knee_pitch": 2.8800496339806347,
-        "bl1_hip_roll": 5.540260148698104,
-        "bl2_hip_pitch": 2.422284243543558,
-        "bl3_knee_pitch": 2.879893008955442,
-        "br1_hip_roll": 5.537739314260704,
-        "br2_hip_pitch": 2.415614050256377,
-        "br3_knee_pitch": 2.8798934591311665
-      }
-    },
-    {
-      "label": "120/4",
-      "kp": [
-        120.0,
-        120.0,
-        120.0,
-        120.0,
-        120.0,
-        120.0,
-        120.0,
-        120.0,
-        120.0,
-        120.0,
-        120.0,
-        120.0
-      ],
-      "kd": [
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0
-      ],
-      "ok": true,
-      "peak_tau_max": 5.531957734384073,
-      "peak_err_max": 0.04607949321309423,
-      "final_err_max": 0.04595418750742025,
-      "lim_margin_min": 0.24261642004264822,
-      "lim_hit": false,
-      "n_sat": 0,
-      "base_drift_m": 2.2160693260997931e-07,
-      "diverged": false,
-      "peak_tau": {
-        "fl1_hip_roll": 5.531655895201182,
-        "fl2_hip_pitch": 2.418441409384732,
-        "fl3_knee_pitch": 2.8779158994218426,
-        "fr1_hip_roll": 5.531955408928091,
-        "fr2_hip_pitch": 2.4202454587422895,
-        "fr3_knee_pitch": 2.8779329996536136,
-        "bl1_hip_roll": 5.531957734384073,
-        "bl2_hip_pitch": 2.420710929010331,
-        "bl3_knee_pitch": 2.877773135492161,
-        "br1_hip_roll": 5.529536791137397,
-        "br2_hip_pitch": 2.4141500240480007,
-        "br3_knee_pitch": 2.8778433739316145
-      }
-    },
-    {
-      "label": "原廠RL",
-      "kp": [
-        60.0,
-        120.0,
-        120.0,
-        60.0,
-        120.0,
-        120.0,
-        60.0,
-        120.0,
-        120.0,
-        60.0,
-        120.0,
-        120.0
-      ],
-      "kd": [
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0
-      ],
-      "ok": false,
-      "peak_tau_max": 5.066825402079738,
-      "peak_err_max": 0.08443503493339441,
-      "final_err_max": 0.08390766805986072,
-      "lim_margin_min": 0.24261774304602257,
-      "lim_hit": false,
-      "n_sat": 0,
-      "base_drift_m": 2.2169875384155673e-07,
-      "diverged": false,
-      "peak_tau": {
-        "fl1_hip_roll": 5.066825402079738,
-        "fl2_hip_pitch": 2.415972516406921,
-        "fl3_knee_pitch": 2.875716716657962,
-        "fr1_hip_roll": 5.066661227908615,
-        "fr2_hip_pitch": 2.417115626299831,
-        "fr3_knee_pitch": 2.874902173420816,
-        "bl1_hip_roll": 5.066670432354395,
-        "bl2_hip_pitch": 2.4178798806908426,
-        "bl3_knee_pitch": 2.874721016800607,
-        "br1_hip_roll": 5.06510152675413,
-        "br2_hip_pitch": 2.411989807611417,
-        "br3_knee_pitch": 2.875646996472667
-      }
-    },
-    {
-      "label": "承重建議",
-      "kp": [
-        120.0,
-        60.0,
-        60.0,
-        120.0,
-        60.0,
-        60.0,
-        120.0,
-        60.0,
-        60.0,
-        120.0,
-        60.0,
-        60.0
-      ],
-      "kd": [
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0,
-        2.0
-      ],
-      "ok": true,
-      "peak_tau_max": 5.535110820958904,
-      "peak_err_max": 0.0505872394930984,
-      "final_err_max": 0.047569003933312315,
-      "lim_margin_min": 0.24261710204901066,
-      "lim_hit": false,
-      "n_sat": 0,
-      "base_drift_m": 2.2163126857227735e-07,
-      "diverged": false,
-      "peak_tau": {
-        "fl1_hip_roll": 5.534709467457194,
-        "fl2_hip_pitch": 2.29522584371228,
-        "fl3_knee_pitch": 2.8559620945104975,
-        "fr1_hip_roll": 5.535109078834011,
-        "fr2_hip_pitch": 2.296871136418814,
-        "fr3_knee_pitch": 2.856075652593298,
-        "bl1_hip_roll": 5.535110820958904,
-        "bl2_hip_pitch": 2.297296292083563,
-        "bl3_knee_pitch": 2.855933685546846,
-        "br1_hip_roll": 5.532598742926427,
-        "br2_hip_pitch": 2.291404550048105,
-        "br3_knee_pitch": 2.8557726792584237
-      }
-    }
-  ],
-  "recommended": {
-    "_note": "結論欄。每一項都能在上面的原始數字裡復現，對不上時以原始數字為準。",
-    "s1_kp_by_kind": {
-      "ABAD": 15.0,
-      "HIP": 15.0,
-      "KNEE": 5.0
-    },
-    "s1_kp": {
-      "fl1_hip_roll": 15.0,
-      "fl2_hip_pitch": 15.0,
-      "fl3_knee_pitch": 5.0,
-      "fr1_hip_roll": 15.0,
-      "fr2_hip_pitch": 15.0,
-      "fr3_knee_pitch": 5.0,
-      "bl1_hip_roll": 15.0,
-      "bl2_hip_pitch": 15.0,
-      "bl3_knee_pitch": 5.0,
-      "br1_hip_roll": 15.0,
-      "br2_hip_pitch": 15.0,
-      "br3_knee_pitch": 5.0
-    },
-    "s1_kd": 1.0,
-    "s1_delta_rad": 0.05,
-    "s1_move_ratio": {
-      "fl1_hip_roll": 0.48558843690759057,
-      "fl2_hip_pitch": 0.5129639467875734,
-      "fl3_knee_pitch": 0.5032068995939836,
-      "fr1_hip_roll": 0.48541838869542014,
-      "fr2_hip_pitch": 0.5133915893091002,
-      "fr3_knee_pitch": 0.5036349164104554,
-      "bl1_hip_roll": 0.48541808593485314,
-      "bl2_hip_pitch": 0.5133922770647268,
-      "bl3_knee_pitch": 0.503635544632721,
-      "br1_hip_roll": 0.48572663679339834,
-      "br2_hip_pitch": 0.5131046246076978,
-      "br3_knee_pitch": 0.5032001732642827
-    },
-    "s1_predicted_move_rad": {
-      "fl1_hip_roll": -0.03560092434010006,
-      "fl2_hip_pitch": 0.02517910919881903,
-      "fl3_knee_pitch": 0.02444095475792152,
-      "fr1_hip_roll": 0.08103658129821126,
-      "fr2_hip_pitch": 0.026173785347113218,
-      "fr3_knee_pitch": 0.025974482680649103,
-      "bl1_hip_roll": -0.03248956302732204,
-      "bl2_hip_pitch": 0.025157520230382792,
-      "bl3_knee_pitch": 0.02437639173465274,
-      "br1_hip_roll": 0.0841785077730411,
-      "br2_hip_pitch": 0.026131823562477483,
-      "br3_knee_pitch": 0.025890647237802714
-    },
-    "s1_note": "S1 的判讀量是**移動比例**，不是下垂量：對 hang_free 下一個 Δ 的位移指令，關節只會走到 (kp·Δ − τ0)/(kp + k)。τ0 ≈ 0 的 hip/knee 就是 kp/(kp+k) 倍。建議 kp 讓比例落在 0.3~0.7，比例明顯不等於 1 才有鑑別力。★ 選 hip 或 knee 做 S1，不要選 abad —— abad 在 hang_free 被輪對輪的接觸力頂住，τ0 ≠ 0 且模型只是凸包近似，預測可信度低。",
-    "loaded_kp_by_kind": {
-      "ABAD": 120.0,
-      "HIP": 60.0,
-      "KNEE": 60.0
-    },
-    "loaded_expected_sag_rad": {
-      "fl1_hip_roll": 0.05072840816109002,
-      "fl2_hip_pitch": 0.042713647360649296,
-      "fl3_knee_pitch": 0.04828053320865136,
-      "fr1_hip_roll": 0.050728408161089984,
-      "fr2_hip_pitch": 0.04274446416053449,
-      "fr3_knee_pitch": 0.04828005548827337,
-      "bl1_hip_roll": 0.05072840816109002,
-      "bl2_hip_pitch": 0.04275297230887538,
-      "bl3_knee_pitch": 0.04827705388868585,
-      "br1_hip_roll": 0.05070620707978499,
-      "br2_hip_pitch": 0.04263253360012212,
-      "br3_knee_pitch": 0.04828172214189264
-    },
-    "loaded_note": "下垂量 |τ|/kp；方向與該關節的 τ 同號（指令角減實際角）。至少要大於感測雜訊 0.001 rad 的 20 倍才算量得準。",
-    "sensor_noise_rad": 0.001,
-    "traj_label": "120/4",
-    "traj_kp": [
-      120.0,
-      120.0,
-      120.0,
-      120.0,
-      120.0,
-      120.0,
-      120.0,
-      120.0,
-      120.0,
-      120.0,
-      120.0,
-      120.0
-    ],
-    "traj_kd": [
-      4.0,
-      4.0,
-      4.0,
-      4.0,
-      4.0,
-      4.0,
-      4.0,
-      4.0,
-      4.0,
-      4.0,
-      4.0,
-      4.0
-    ],
-    "traj_kp_by_kind": {
-      "ABAD": 120.0,
-      "HIP": 120.0,
-      "KNEE": 120.0
-    },
-    "traj_kd_by_kind": {
-      "ABAD": 4.0,
-      "HIP": 4.0,
-      "KNEE": 4.0
-    },
-    "traj_duration_s": 5.0,
-    "traj_interp": "cosine（兩端速度為 0）",
-    "traj_peak_tau_max": 5.531957734384073,
-    "traj_final_err_max_rad": 0.04595418750742025,
-    "traj_note": "終端誤差不會是 0：位置伺服撐住重力必然留下 τ/kp 的靜態撓度。峰值力矩在 kp 20~120 之間只從 3.7 變到 5.6 N·m，調高 kp 幾乎不用付力矩代價。",
-    "tau_limit_Nm": {
-      "fl1_hip_roll": 10.0,
-      "fl2_hip_pitch": 8.0,
-      "fl3_knee_pitch": 7.0,
-      "fr1_hip_roll": 10.0,
-      "fr2_hip_pitch": 8.0,
-      "fr3_knee_pitch": 7.0,
-      "bl1_hip_roll": 10.0,
-      "bl2_hip_pitch": 8.0,
-      "bl3_knee_pitch": 7.0,
-      "br1_hip_roll": 10.0,
-      "br2_hip_pitch": 8.0,
-      "br3_knee_pitch": 7.0
-    },
-    "tau_limit_by_kind_Nm": {
-      "ABAD": 10.0,
-      "HIP": 8.0,
-      "KNEE": 7.0
-    },
-    "tau_limit_driven_by_pose": {
-      "fr1_hip_roll": "STAND",
-      "fr2_hip_pitch": "CROUCH",
-      "fr3_knee_pitch": "CROUCH",
-      "fl1_hip_roll": "STAND",
-      "fl2_hip_pitch": "CROUCH",
-      "fl3_knee_pitch": "CROUCH",
-      "br1_hip_roll": "STAND",
-      "br2_hip_pitch": "crouch_knee_back",
-      "br3_knee_pitch": "CROUCH",
-      "bl1_hip_roll": "STAND",
-      "bl2_hip_pitch": "CROUCH",
-      "bl3_knee_pitch": "crouch_knee_back"
-    },
-    "tau_limit_rule": "max(所有靜態姿勢的重力力矩, 建議增益下的軌跡峰值) × 1.5，無條件進位，上限截到 150 N·m（MJCF actuatorfrcrange / 規格書），下限 3 N·m 免得 abad 被鎖死。★ 這是預演值不是硬體極限。實機有 MJCF 沒有的腿關節摩擦與少掉的 2.2 kg，可能誤觸發 —— 誤觸發代表模型與實機有系統性差異，先查清楚再放寬，不要一開始就設 150。"
+   }
   }
+ },
+ "hang_free_no_contact": {
+  "_note": "關掉碰撞算出來的**純單擺**平衡點，即幾何上的『完全自由下垂』。殘餘純重力力矩 ≈ 0，是「這是真的力學平衡點」的獨立證據。實機不會停在這裡（輪子會先撞上），列出來當對照組。",
+  "q_ctrl": {
+   "fl1_hip_roll": -0.39018791018873694,
+   "fl2_hip_pitch": 0.0001752592805966734,
+   "fl3_knee_pitch": -0.00020388298166963472,
+   "fr1_hip_roll": 0.3901882129023643,
+   "fr2_hip_pitch": -5.278941876069025e-05,
+   "fr3_knee_pitch": 1.7653973793429738e-05,
+   "bl1_hip_roll": -0.3901879985853795,
+   "bl2_hip_pitch": 9.425034483098113e-05,
+   "bl3_knee_pitch": -1.6234809157911607e-05,
+   "br1_hip_roll": 0.3902330159829879,
+   "br2_hip_pitch": -0.00017547650330839205,
+   "br3_knee_pitch": 0.00020431140670400464
+  },
+  "q_motor": {
+   "fl1_hip_roll": -0.13281208981126308,
+   "fl2_hip_pitch": 2.4428247407194035,
+   "fl3_knee_pitch": 2.8027961170183304,
+   "fr1_hip_roll": 0.13281178709763575,
+   "fr2_hip_pitch": -2.443052789418761,
+   "fr3_knee_pitch": -2.8030176539737934,
+   "bl1_hip_roll": 0.13281200141462052,
+   "bl2_hip_pitch": -2.443094250344831,
+   "bl3_knee_pitch": -2.803016234809158,
+   "br1_hip_roll": -0.13276698401701215,
+   "br2_hip_pitch": 2.4428245234966917,
+   "br3_knee_pitch": 2.802795688593296
+  },
+  "residual_tau": {
+   "fl1_hip_roll": 1.3120491137996737e-06,
+   "fl2_hip_pitch": 0.00010977227730357697,
+   "fl3_knee_pitch": -0.00025278087732250043,
+   "fr1_hip_roll": 1.3110967653773287e-06,
+   "fr2_hip_pitch": 0.0001097982516125029,
+   "fr3_knee_pitch": -0.0002528422381251616,
+   "bl1_hip_roll": 1.3118594517358417e-06,
+   "bl2_hip_pitch": -0.0001088597614273823,
+   "bl3_knee_pitch": 0.00025317013563341817,
+   "br1_hip_roll": 1.3102694857991537e-06,
+   "br2_hip_pitch": -0.00010932827087373198,
+   "br3_knee_pitch": 0.0002541189005125233
+  },
+  "max_diff_vs_hang_free_rad": 0.11588956025070957
+ },
+ "poses": {
+  "HANG_FREE": {
+   "q_ctrl": {
+    "fl1_hip_roll": -0.2743520443469086,
+    "fl2_hip_pitch": 0.0008403459923775538,
+    "fl3_knee_pitch": 0.0006317716670585251,
+    "fr1_hip_roll": 0.2803637891057944,
+    "fr2_hip_pitch": -0.0008316410138382651,
+    "fr3_knee_pitch": -0.0007466214052809105,
+    "bl1_hip_roll": -0.2803737789743649,
+    "bl2_hip_pitch": 0.0008843207147731335,
+    "bl3_knee_pitch": 0.000762226609498863,
+    "br1_hip_roll": 0.2743434557322783,
+    "br2_hip_pitch": -0.000852199876983203,
+    "br3_knee_pitch": -0.0006426008112759727
+   },
+   "q_motor": {
+    "fl1_hip_roll": -0.24864795565309145,
+    "fl2_hip_pitch": 2.4421596540076225,
+    "fl3_knee_pitch": 2.8036317716670585,
+    "fr1_hip_roll": 0.24263621089420562,
+    "fr2_hip_pitch": -2.4438316410138383,
+    "fr3_knee_pitch": -2.802253378594719,
+    "bl1_hip_roll": 0.24262622102563514,
+    "bl2_hip_pitch": -2.443884320714773,
+    "bl3_knee_pitch": -2.8022377733905013,
+    "br1_hip_roll": -0.2486565442677217,
+    "br2_hip_pitch": 2.442147800123017,
+    "br3_knee_pitch": 2.803642600811276
+   },
+   "tau_gravity": {
+    "fl1_hip_roll": 1.8497252498480021,
+    "fl2_hip_pitch": 0.01371699152047512,
+    "fl3_knee_pitch": 0.007148056021867966,
+    "fr1_hip_roll": -1.7541258176065413,
+    "fr2_hip_pitch": -0.014731616922379231,
+    "fr3_knee_pitch": -0.007870153898148935,
+    "bl1_hip_roll": 1.7539663941883612,
+    "bl2_hip_pitch": 0.014962056668871071,
+    "bl3_knee_pitch": 0.007995717394913449,
+    "br1_hip_roll": -1.8495642835883648,
+    "br2_hip_pitch": -0.013932606798963576,
+    "br3_knee_pitch": -0.007259919743756171
+   },
+   "tau_gravity_mjcf": {
+    "FBL_ABAD_JOINT": 1.8497252498480021,
+    "FBL_HIP_JOINT": 0.01371699152047512,
+    "FBL_KNEE_JOINT": 0.007148056021867966,
+    "FAR_ABAD_JOINT": -1.7541258176065413,
+    "FAR_HIP_JOINT": -0.014731616922379231,
+    "FAR_KNEE_JOINT": -0.007870153898148935,
+    "RBL_ABAD_JOINT": 1.7539663941883612,
+    "RBL_HIP_JOINT": 0.014962056668871071,
+    "RBL_KNEE_JOINT": 0.007995717394913449,
+    "RAR_ABAD_JOINT": -1.8495642835883648,
+    "RAR_HIP_JOINT": -0.013932606798963576,
+    "RAR_KNEE_JOINT": -0.007259919743756171
+   },
+   "tau_gravity_motor": {
+    "fl1_hip_roll": -1.8497252498480021,
+    "fl2_hip_pitch": -0.01371699152047512,
+    "fl3_knee_pitch": 0.007148056021867966,
+    "fr1_hip_roll": 1.7541258176065413,
+    "fr2_hip_pitch": -0.014731616922379231,
+    "fr3_knee_pitch": 0.007870153898148935,
+    "bl1_hip_roll": 1.7539663941883612,
+    "bl2_hip_pitch": -0.014962056668871071,
+    "bl3_knee_pitch": 0.007995717394913449,
+    "br1_hip_roll": -1.8495642835883648,
+    "br2_hip_pitch": -0.013932606798963576,
+    "br3_knee_pitch": 0.007259919743756171
+   },
+   "tau_abs_max": 1.8497252498480021,
+   "sling_wrench": {
+    "force_N": [
+     0.0,
+     0.0,
+     380.82920310000003
+    ],
+    "torque_Nm": [
+     0.578598285841458,
+     0.22421846661266376,
+     0.0
+    ],
+    "com_offset_x_mm": 0.5887638468570577,
+    "_note": "com_offset_x = My / 重量，＝質心離吊點正下方的水平距離。knee_back 模式四腿同向，會前移到 27~55 mm，吊帶上的機身會明顯前傾。"
+   },
+   "knee_mode": "front",
+   "limits": {
+    "min_margin_rad": 0.24262622102563514,
+    "tightest": "bl1_hip_roll",
+    "range": [
+     -0.523,
+     0.697
+    ],
+    "ok": true
+   },
+   "self_contact_ncon": 3,
+   "checks": {
+    "bias_gap": 0.0,
+    "ncon_in_gravity_calc": 0,
+    "Fz_over_mg": 1.0
+   }
+  },
+  "HANG_NC": {
+   "q_ctrl": {
+    "fl1_hip_roll": -0.39018791018873694,
+    "fl2_hip_pitch": 0.0001752592805966734,
+    "fl3_knee_pitch": -0.00020388298166963472,
+    "fr1_hip_roll": 0.3901882129023643,
+    "fr2_hip_pitch": -5.278941876069025e-05,
+    "fr3_knee_pitch": 1.7653973793429738e-05,
+    "bl1_hip_roll": -0.3901879985853795,
+    "bl2_hip_pitch": 9.425034483098113e-05,
+    "bl3_knee_pitch": -1.6234809157911607e-05,
+    "br1_hip_roll": 0.3902330159829879,
+    "br2_hip_pitch": -0.00017547650330839205,
+    "br3_knee_pitch": 0.00020431140670400464
+   },
+   "q_motor": {
+    "fl1_hip_roll": -0.13281208981126308,
+    "fl2_hip_pitch": 2.4428247407194035,
+    "fl3_knee_pitch": 2.8027961170183304,
+    "fr1_hip_roll": 0.13281178709763575,
+    "fr2_hip_pitch": -2.443052789418761,
+    "fr3_knee_pitch": -2.8030176539737934,
+    "bl1_hip_roll": 0.13281200141462052,
+    "bl2_hip_pitch": -2.443094250344831,
+    "bl3_knee_pitch": -2.803016234809158,
+    "br1_hip_roll": -0.13276698401701215,
+    "br2_hip_pitch": 2.4428245234966917,
+    "br3_knee_pitch": 2.802795688593296
+   },
+   "tau_gravity": {
+    "fl1_hip_roll": 1.3120491137996737e-06,
+    "fl2_hip_pitch": 0.00010977227730357697,
+    "fl3_knee_pitch": -0.00025278087732250043,
+    "fr1_hip_roll": 1.3110967653773287e-06,
+    "fr2_hip_pitch": 0.0001097982516125029,
+    "fr3_knee_pitch": -0.0002528422381251616,
+    "bl1_hip_roll": 1.3118594517358417e-06,
+    "bl2_hip_pitch": -0.0001088597614273823,
+    "bl3_knee_pitch": 0.00025317013563341817,
+    "br1_hip_roll": 1.3102694857991537e-06,
+    "br2_hip_pitch": -0.00010932827087373198,
+    "br3_knee_pitch": 0.0002541189005125233
+   },
+   "tau_gravity_mjcf": {
+    "FBL_ABAD_JOINT": 1.3120491137996737e-06,
+    "FBL_HIP_JOINT": 0.00010977227730357697,
+    "FBL_KNEE_JOINT": -0.00025278087732250043,
+    "FAR_ABAD_JOINT": 1.3110967653773287e-06,
+    "FAR_HIP_JOINT": 0.0001097982516125029,
+    "FAR_KNEE_JOINT": -0.0002528422381251616,
+    "RBL_ABAD_JOINT": 1.3118594517358417e-06,
+    "RBL_HIP_JOINT": -0.0001088597614273823,
+    "RBL_KNEE_JOINT": 0.00025317013563341817,
+    "RAR_ABAD_JOINT": 1.3102694857991537e-06,
+    "RAR_HIP_JOINT": -0.00010932827087373198,
+    "RAR_KNEE_JOINT": 0.0002541189005125233
+   },
+   "tau_gravity_motor": {
+    "fl1_hip_roll": -1.3120491137996737e-06,
+    "fl2_hip_pitch": -0.00010977227730357697,
+    "fl3_knee_pitch": -0.00025278087732250043,
+    "fr1_hip_roll": -1.3110967653773287e-06,
+    "fr2_hip_pitch": 0.0001097982516125029,
+    "fr3_knee_pitch": 0.0002528422381251616,
+    "bl1_hip_roll": 1.3118594517358417e-06,
+    "bl2_hip_pitch": 0.0001088597614273823,
+    "bl3_knee_pitch": 0.00025317013563341817,
+    "br1_hip_roll": 1.3102694857991537e-06,
+    "br2_hip_pitch": -0.00010932827087373198,
+    "br3_knee_pitch": -0.0002541189005125233
+   },
+   "tau_abs_max": 0.0002541189005125233,
+   "sling_wrench": {
+    "force_N": [
+     0.0,
+     0.0,
+     380.82920310000003
+    ],
+    "torque_Nm": [
+     0.5786019882748166,
+     0.22420406900075884,
+     0.0
+    ],
+    "com_offset_x_mm": 0.5887260409015593,
+    "_note": "com_offset_x = My / 重量，＝質心離吊點正下方的水平距離。knee_back 模式四腿同向，會前移到 27~55 mm，吊帶上的機身會明顯前傾。"
+   },
+   "knee_mode": "front",
+   "limits": {
+    "min_margin_rad": 0.13276698401701215,
+    "tightest": "br1_hip_roll",
+    "range": [
+     -0.697,
+     0.523
+    ],
+    "ok": true
+   },
+   "self_contact_ncon": 10,
+   "checks": {
+    "bias_gap": 0.0,
+    "ncon_in_gravity_calc": 0,
+    "Fz_over_mg": 1.0
+   }
+  },
+  "STAND": {
+   "q_ctrl": {
+    "fl1_hip_roll": 0.0,
+    "fl2_hip_pitch": 0.6,
+    "fl3_knee_pitch": -1.2,
+    "fr1_hip_roll": 0.0,
+    "fr2_hip_pitch": 0.6,
+    "fr3_knee_pitch": -1.2,
+    "bl1_hip_roll": 0.0,
+    "bl2_hip_pitch": -0.6,
+    "bl3_knee_pitch": 1.2,
+    "br1_hip_roll": 0.0,
+    "br2_hip_pitch": -0.6,
+    "br3_knee_pitch": 1.2
+   },
+   "q_motor": {
+    "fl1_hip_roll": -0.523,
+    "fl2_hip_pitch": 1.843,
+    "fl3_knee_pitch": 1.603,
+    "fr1_hip_roll": 0.523,
+    "fr2_hip_pitch": -1.843,
+    "fr3_knee_pitch": -1.603,
+    "bl1_hip_roll": 0.523,
+    "bl2_hip_pitch": -1.843,
+    "bl3_knee_pitch": -1.603,
+    "br1_hip_roll": -0.523,
+    "br2_hip_pitch": 1.843,
+    "br3_knee_pitch": 1.603
+   },
+   "tau_gravity": {
+    "fl1_hip_roll": 6.087408979330802,
+    "fl2_hip_pitch": 2.5628188416389577,
+    "fl3_knee_pitch": -2.8968319925190817,
+    "fr1_hip_roll": -6.087408979330798,
+    "fr2_hip_pitch": 2.5646678496320696,
+    "fr3_knee_pitch": -2.896803329296402,
+    "bl1_hip_roll": 6.087408979330802,
+    "bl2_hip_pitch": -2.5651783385325224,
+    "bl3_knee_pitch": 2.896623233321151,
+    "br1_hip_roll": -6.084744849574198,
+    "br2_hip_pitch": -2.5579520160073272,
+    "br3_knee_pitch": 2.8969033285135586
+   },
+   "tau_gravity_mjcf": {
+    "FBL_ABAD_JOINT": 6.087408979330802,
+    "FBL_HIP_JOINT": 2.5628188416389577,
+    "FBL_KNEE_JOINT": -2.8968319925190817,
+    "FAR_ABAD_JOINT": -6.087408979330798,
+    "FAR_HIP_JOINT": 2.5646678496320696,
+    "FAR_KNEE_JOINT": -2.896803329296402,
+    "RBL_ABAD_JOINT": 6.087408979330802,
+    "RBL_HIP_JOINT": -2.5651783385325224,
+    "RBL_KNEE_JOINT": 2.896623233321151,
+    "RAR_ABAD_JOINT": -6.084744849574198,
+    "RAR_HIP_JOINT": -2.5579520160073272,
+    "RAR_KNEE_JOINT": 2.8969033285135586
+   },
+   "tau_gravity_motor": {
+    "fl1_hip_roll": -6.087408979330802,
+    "fl2_hip_pitch": -2.5628188416389577,
+    "fl3_knee_pitch": -2.8968319925190817,
+    "fr1_hip_roll": 6.087408979330798,
+    "fr2_hip_pitch": 2.5646678496320696,
+    "fr3_knee_pitch": 2.896803329296402,
+    "bl1_hip_roll": 6.087408979330802,
+    "bl2_hip_pitch": 2.5651783385325224,
+    "bl3_knee_pitch": 2.896623233321151,
+    "br1_hip_roll": -6.084744849574198,
+    "br2_hip_pitch": -2.5579520160073272,
+    "br3_knee_pitch": -2.8969033285135586
+   },
+   "tau_abs_max": 6.087408979330802,
+   "sling_wrench": {
+    "force_N": [
+     0.0,
+     0.0,
+     380.82920310000003
+    ],
+    "torque_Nm": [
+     0.581260872756606,
+     0.22855891306117393,
+     0.0
+    ],
+    "com_offset_x_mm": 0.6001612040270918,
+    "_note": "com_offset_x = My / 重量，＝質心離吊點正下方的水平距離。knee_back 模式四腿同向，會前移到 27~55 mm，吊帶上的機身會明顯前傾。"
+   },
+   "knee_mode": "front",
+   "limits": {
+    "min_margin_rad": 0.523,
+    "tightest": "fr1_hip_roll",
+    "range": [
+     -0.697,
+     0.523
+    ],
+    "ok": true
+   },
+   "self_contact_ncon": 0,
+   "checks": {
+    "bias_gap": 0.0,
+    "ncon_in_gravity_calc": 0,
+    "Fz_over_mg": 1.0
+   }
+  },
+  "HOME": {
+   "q_ctrl": {
+    "fl1_hip_roll": 0.0,
+    "fl2_hip_pitch": 0.8,
+    "fl3_knee_pitch": -1.5,
+    "fr1_hip_roll": 0.0,
+    "fr2_hip_pitch": 0.8,
+    "fr3_knee_pitch": -1.5,
+    "bl1_hip_roll": 0.0,
+    "bl2_hip_pitch": -0.8,
+    "bl3_knee_pitch": 1.5,
+    "br1_hip_roll": 0.0,
+    "br2_hip_pitch": -0.8,
+    "br3_knee_pitch": 1.5
+   },
+   "q_motor": {
+    "fl1_hip_roll": -0.523,
+    "fl2_hip_pitch": 1.643,
+    "fl3_knee_pitch": 1.303,
+    "fr1_hip_roll": 0.523,
+    "fr2_hip_pitch": -1.643,
+    "fr3_knee_pitch": -1.303,
+    "bl1_hip_roll": 0.523,
+    "bl2_hip_pitch": -1.643,
+    "bl3_knee_pitch": -1.303,
+    "br1_hip_roll": -0.523,
+    "br2_hip_pitch": 1.643,
+    "br3_knee_pitch": 1.303
+   },
+   "tau_gravity": {
+    "fl1_hip_roll": 6.087408979330802,
+    "fl2_hip_pitch": 3.6316695083729726,
+    "fl3_knee_pitch": -3.305060932538927,
+    "fr1_hip_roll": -6.087408979330798,
+    "fr2_hip_pitch": 3.633232959577658,
+    "fr3_knee_pitch": -3.305034124600292,
+    "bl1_hip_roll": 6.087408979330802,
+    "bl2_hip_pitch": -3.633678505384463,
+    "bl3_knee_pitch": 3.304867479841193,
+    "br1_hip_roll": -6.084744849574198,
+    "br2_hip_pitch": -3.625495574254556,
+    "br3_knee_pitch": 3.305142257447538
+   },
+   "tau_gravity_mjcf": {
+    "FBL_ABAD_JOINT": 6.087408979330802,
+    "FBL_HIP_JOINT": 3.6316695083729726,
+    "FBL_KNEE_JOINT": -3.305060932538927,
+    "FAR_ABAD_JOINT": -6.087408979330798,
+    "FAR_HIP_JOINT": 3.633232959577658,
+    "FAR_KNEE_JOINT": -3.305034124600292,
+    "RBL_ABAD_JOINT": 6.087408979330802,
+    "RBL_HIP_JOINT": -3.633678505384463,
+    "RBL_KNEE_JOINT": 3.304867479841193,
+    "RAR_ABAD_JOINT": -6.084744849574198,
+    "RAR_HIP_JOINT": -3.625495574254556,
+    "RAR_KNEE_JOINT": 3.305142257447538
+   },
+   "tau_gravity_motor": {
+    "fl1_hip_roll": -6.087408979330802,
+    "fl2_hip_pitch": -3.6316695083729726,
+    "fl3_knee_pitch": -3.305060932538927,
+    "fr1_hip_roll": 6.087408979330798,
+    "fr2_hip_pitch": 3.633232959577658,
+    "fr3_knee_pitch": 3.305034124600292,
+    "bl1_hip_roll": 6.087408979330802,
+    "bl2_hip_pitch": 3.633678505384463,
+    "bl3_knee_pitch": 3.304867479841193,
+    "br1_hip_roll": -6.084744849574198,
+    "br2_hip_pitch": -3.625495574254556,
+    "br3_knee_pitch": -3.305142257447538
+   },
+   "tau_abs_max": 6.087408979330802,
+   "sling_wrench": {
+    "force_N": [
+     0.0,
+     0.0,
+     380.82920310000003
+    ],
+    "torque_Nm": [
+     0.581260872756606,
+     0.22993096464161444,
+     0.0
+    ],
+    "com_offset_x_mm": 0.6037640043619187,
+    "_note": "com_offset_x = My / 重量，＝質心離吊點正下方的水平距離。knee_back 模式四腿同向，會前移到 27~55 mm，吊帶上的機身會明顯前傾。"
+   },
+   "knee_mode": "front",
+   "limits": {
+    "min_margin_rad": 0.523,
+    "tightest": "fr1_hip_roll",
+    "range": [
+     -0.697,
+     0.523
+    ],
+    "ok": true
+   },
+   "self_contact_ncon": 0,
+   "checks": {
+    "bias_gap": 0.0,
+    "ncon_in_gravity_calc": 0,
+    "Fz_over_mg": 1.0
+   }
+  },
+  "CROUCH": {
+   "q_ctrl": {
+    "fl1_hip_roll": 0.0,
+    "fl2_hip_pitch": 1.4,
+    "fl3_knee_pitch": -2.4,
+    "fr1_hip_roll": 0.0,
+    "fr2_hip_pitch": 1.4,
+    "fr3_knee_pitch": -2.4,
+    "bl1_hip_roll": 0.0,
+    "bl2_hip_pitch": -1.4,
+    "bl3_knee_pitch": 2.4,
+    "br1_hip_roll": 0.0,
+    "br2_hip_pitch": -1.4,
+    "br3_knee_pitch": 2.4
+   },
+   "q_motor": {
+    "fl1_hip_roll": -0.523,
+    "fl2_hip_pitch": 1.0430000000000001,
+    "fl3_knee_pitch": 0.403,
+    "fr1_hip_roll": 0.523,
+    "fr2_hip_pitch": -1.0430000000000001,
+    "fr3_knee_pitch": -0.403,
+    "bl1_hip_roll": 0.523,
+    "bl2_hip_pitch": -1.0430000000000001,
+    "bl3_knee_pitch": -0.403,
+    "br1_hip_roll": -0.523,
+    "br2_hip_pitch": 1.0430000000000001,
+    "br3_knee_pitch": 0.403
+   },
+   "tau_gravity": {
+    "fl1_hip_roll": 6.087408979330802,
+    "fl2_hip_pitch": 5.213202037967964,
+    "fl3_knee_pitch": -4.316980976526212,
+    "fr1_hip_roll": -6.087408979330798,
+    "fr2_hip_pitch": 5.213596636583539,
+    "fr3_knee_pitch": -4.316961254256858,
+    "bl1_hip_roll": 6.087408979330802,
+    "bl2_hip_pitch": -5.213781596741811,
+    "bl3_knee_pitch": 4.316844334227374,
+    "br1_hip_roll": -6.084744849574198,
+    "br2_hip_pitch": -5.2047261259465465,
+    "br3_knee_pitch": 4.3170870350347235
+   },
+   "tau_gravity_mjcf": {
+    "FBL_ABAD_JOINT": 6.087408979330802,
+    "FBL_HIP_JOINT": 5.213202037967964,
+    "FBL_KNEE_JOINT": -4.316980976526212,
+    "FAR_ABAD_JOINT": -6.087408979330798,
+    "FAR_HIP_JOINT": 5.213596636583539,
+    "FAR_KNEE_JOINT": -4.316961254256858,
+    "RBL_ABAD_JOINT": 6.087408979330802,
+    "RBL_HIP_JOINT": -5.213781596741811,
+    "RBL_KNEE_JOINT": 4.316844334227374,
+    "RAR_ABAD_JOINT": -6.084744849574198,
+    "RAR_HIP_JOINT": -5.2047261259465465,
+    "RAR_KNEE_JOINT": 4.3170870350347235
+   },
+   "tau_gravity_motor": {
+    "fl1_hip_roll": -6.087408979330802,
+    "fl2_hip_pitch": -5.213202037967964,
+    "fl3_knee_pitch": -4.316980976526212,
+    "fr1_hip_roll": 6.087408979330798,
+    "fr2_hip_pitch": 5.213596636583539,
+    "fr3_knee_pitch": 4.316961254256858,
+    "bl1_hip_roll": 6.087408979330802,
+    "bl2_hip_pitch": 5.213781596741811,
+    "bl3_knee_pitch": 4.316844334227374,
+    "br1_hip_roll": -6.084744849574198,
+    "br2_hip_pitch": -5.2047261259465465,
+    "br3_knee_pitch": -4.3170870350347235
+   },
+   "tau_abs_max": 6.087408979330802,
+   "sling_wrench": {
+    "force_N": [
+     0.0,
+     0.0,
+     380.82920310000003
+    ],
+    "torque_Nm": [
+     0.581260872756606,
+     0.23249352819314886,
+     0.0
+    ],
+    "com_offset_x_mm": 0.6104929094213911,
+    "_note": "com_offset_x = My / 重量，＝質心離吊點正下方的水平距離。knee_back 模式四腿同向，會前移到 27~55 mm，吊帶上的機身會明顯前傾。"
+   },
+   "knee_mode": "front",
+   "limits": {
+    "min_margin_rad": 0.391,
+    "tightest": "fr3_knee_pitch",
+    "range": [
+     -2.791,
+     2.791
+    ],
+    "ok": true
+   },
+   "self_contact_ncon": 0,
+   "checks": {
+    "bias_gap": 0.0,
+    "ncon_in_gravity_calc": 0,
+    "Fz_over_mg": 1.0
+   }
+  },
+  "stand_knee_back": {
+   "q_ctrl": {
+    "fl1_hip_roll": 0.0,
+    "fl2_hip_pitch": 0.6,
+    "fl3_knee_pitch": -1.2,
+    "fr1_hip_roll": 0.0,
+    "fr2_hip_pitch": 0.6,
+    "fr3_knee_pitch": -1.2,
+    "bl1_hip_roll": 0.0,
+    "bl2_hip_pitch": 0.6,
+    "bl3_knee_pitch": -1.2,
+    "br1_hip_roll": 0.0,
+    "br2_hip_pitch": 0.6,
+    "br3_knee_pitch": -1.2
+   },
+   "q_motor": {
+    "fl1_hip_roll": -0.523,
+    "fl2_hip_pitch": 1.843,
+    "fl3_knee_pitch": 1.603,
+    "fr1_hip_roll": 0.523,
+    "fr2_hip_pitch": -1.843,
+    "fr3_knee_pitch": -1.603,
+    "bl1_hip_roll": 0.523,
+    "bl2_hip_pitch": -3.043,
+    "bl3_knee_pitch": -4.003,
+    "br1_hip_roll": -0.523,
+    "br2_hip_pitch": 3.043,
+    "br3_knee_pitch": 4.003
+   },
+   "tau_gravity": {
+    "fl1_hip_roll": 6.087408979330802,
+    "fl2_hip_pitch": 2.5628188416389595,
+    "fl3_knee_pitch": -2.896831992519081,
+    "fr1_hip_roll": -6.087408979330798,
+    "fr2_hip_pitch": 2.564667849632068,
+    "fr3_knee_pitch": -2.896803329296402,
+    "bl1_hip_roll": 6.0874089793308,
+    "bl2_hip_pitch": 2.5628187888307465,
+    "bl3_knee_pitch": -2.896832026102701,
+    "br1_hip_roll": -6.084744849574198,
+    "br2_hip_pitch": 2.5603115122000926,
+    "br3_knee_pitch": -2.8966939506291514
+   },
+   "tau_gravity_mjcf": {
+    "FBL_ABAD_JOINT": 6.087408979330802,
+    "FBL_HIP_JOINT": 2.5628188416389595,
+    "FBL_KNEE_JOINT": -2.896831992519081,
+    "FAR_ABAD_JOINT": -6.087408979330798,
+    "FAR_HIP_JOINT": 2.564667849632068,
+    "FAR_KNEE_JOINT": -2.896803329296402,
+    "RBL_ABAD_JOINT": 6.0874089793308,
+    "RBL_HIP_JOINT": 2.5628187888307465,
+    "RBL_KNEE_JOINT": -2.896832026102701,
+    "RAR_ABAD_JOINT": -6.084744849574198,
+    "RAR_HIP_JOINT": 2.5603115122000926,
+    "RAR_KNEE_JOINT": -2.8966939506291514
+   },
+   "tau_gravity_motor": {
+    "fl1_hip_roll": -6.087408979330802,
+    "fl2_hip_pitch": -2.5628188416389595,
+    "fl3_knee_pitch": -2.896831992519081,
+    "fr1_hip_roll": 6.087408979330798,
+    "fr2_hip_pitch": 2.564667849632068,
+    "fr3_knee_pitch": 2.896803329296402,
+    "bl1_hip_roll": 6.0874089793308,
+    "bl2_hip_pitch": -2.5628187888307465,
+    "bl3_knee_pitch": -2.896832026102701,
+    "br1_hip_roll": -6.084744849574198,
+    "br2_hip_pitch": 2.5603115122000926,
+    "br3_knee_pitch": 2.8966939506291514
+   },
+   "tau_abs_max": 6.087408979330802,
+   "sling_wrench": {
+    "force_N": [
+     0.0,
+     0.0,
+     380.82920310000003
+    ],
+    "torque_Nm": [
+     0.5812608727566042,
+     10.474819568631865,
+     0.0
+    ],
+    "com_offset_x_mm": 27.5052949809664,
+    "_note": "com_offset_x = My / 重量，＝質心離吊點正下方的水平距離。knee_back 模式四腿同向，會前移到 27~55 mm，吊帶上的機身會明顯前傾。"
+   },
+   "knee_mode": "back",
+   "limits": {
+    "min_margin_rad": 0.523,
+    "tightest": "fr1_hip_roll",
+    "range": [
+     -0.697,
+     0.523
+    ],
+    "ok": true
+   },
+   "self_contact_ncon": 0,
+   "checks": {
+    "bias_gap": 0.0,
+    "ncon_in_gravity_calc": 0,
+    "Fz_over_mg": 1.0
+   }
+  },
+  "home_knee_back": {
+   "q_ctrl": {
+    "fl1_hip_roll": 0.0,
+    "fl2_hip_pitch": 0.8,
+    "fl3_knee_pitch": -1.5,
+    "fr1_hip_roll": 0.0,
+    "fr2_hip_pitch": 0.8,
+    "fr3_knee_pitch": -1.5,
+    "bl1_hip_roll": 0.0,
+    "bl2_hip_pitch": 0.8,
+    "bl3_knee_pitch": -1.5,
+    "br1_hip_roll": 0.0,
+    "br2_hip_pitch": 0.8,
+    "br3_knee_pitch": -1.5
+   },
+   "q_motor": {
+    "fl1_hip_roll": -0.523,
+    "fl2_hip_pitch": 1.643,
+    "fl3_knee_pitch": 1.303,
+    "fr1_hip_roll": 0.523,
+    "fr2_hip_pitch": -1.643,
+    "fr3_knee_pitch": -1.303,
+    "bl1_hip_roll": 0.523,
+    "bl2_hip_pitch": -3.2430000000000003,
+    "bl3_knee_pitch": -4.303,
+    "br1_hip_roll": -0.523,
+    "br2_hip_pitch": 3.2430000000000003,
+    "br3_knee_pitch": 4.303
+   },
+   "tau_gravity": {
+    "fl1_hip_roll": 6.087408979330802,
+    "fl2_hip_pitch": 3.6316695083729726,
+    "fl3_knee_pitch": -3.305060932538928,
+    "fr1_hip_roll": -6.087408979330798,
+    "fr2_hip_pitch": 3.6332329595776596,
+    "fr3_knee_pitch": -3.3050341246002928,
+    "bl1_hip_roll": 6.087408979330802,
+    "bl2_hip_pitch": 3.6316694556424327,
+    "bl3_knee_pitch": -3.305060969041035,
+    "br1_hip_roll": -6.084744849574198,
+    "br2_hip_pitch": 3.627504627130074,
+    "br3_knee_pitch": -3.304948226030273
+   },
+   "tau_gravity_mjcf": {
+    "FBL_ABAD_JOINT": 6.087408979330802,
+    "FBL_HIP_JOINT": 3.6316695083729726,
+    "FBL_KNEE_JOINT": -3.305060932538928,
+    "FAR_ABAD_JOINT": -6.087408979330798,
+    "FAR_HIP_JOINT": 3.6332329595776596,
+    "FAR_KNEE_JOINT": -3.3050341246002928,
+    "RBL_ABAD_JOINT": 6.087408979330802,
+    "RBL_HIP_JOINT": 3.6316694556424327,
+    "RBL_KNEE_JOINT": -3.305060969041035,
+    "RAR_ABAD_JOINT": -6.084744849574198,
+    "RAR_HIP_JOINT": 3.627504627130074,
+    "RAR_KNEE_JOINT": -3.304948226030273
+   },
+   "tau_gravity_motor": {
+    "fl1_hip_roll": -6.087408979330802,
+    "fl2_hip_pitch": -3.6316695083729726,
+    "fl3_knee_pitch": -3.305060932538928,
+    "fr1_hip_roll": 6.087408979330798,
+    "fr2_hip_pitch": 3.6332329595776596,
+    "fr3_knee_pitch": 3.3050341246002928,
+    "bl1_hip_roll": 6.087408979330802,
+    "bl2_hip_pitch": -3.6316694556424327,
+    "bl3_knee_pitch": -3.305060969041035,
+    "br1_hip_roll": -6.084744849574198,
+    "br2_hip_pitch": 3.627504627130074,
+    "br3_knee_pitch": 3.304948226030273
+   },
+   "tau_abs_max": 6.087408979330802,
+   "sling_wrench": {
+    "force_N": [
+     0.0,
+     0.0,
+     380.82920310000003
+    ],
+    "torque_Nm": [
+     0.581260872756606,
+     14.748279127053136,
+     0.0
+    ],
+    "com_offset_x_mm": 38.72675468950437,
+    "_note": "com_offset_x = My / 重量，＝質心離吊點正下方的水平距離。knee_back 模式四腿同向，會前移到 27~55 mm，吊帶上的機身會明顯前傾。"
+   },
+   "knee_mode": "back",
+   "limits": {
+    "min_margin_rad": 0.523,
+    "tightest": "fr1_hip_roll",
+    "range": [
+     -0.697,
+     0.523
+    ],
+    "ok": true
+   },
+   "self_contact_ncon": 0,
+   "checks": {
+    "bias_gap": 0.0,
+    "ncon_in_gravity_calc": 0,
+    "Fz_over_mg": 1.0
+   }
+  },
+  "crouch_knee_back": {
+   "q_ctrl": {
+    "fl1_hip_roll": 0.0,
+    "fl2_hip_pitch": 1.4,
+    "fl3_knee_pitch": -2.4,
+    "fr1_hip_roll": 0.0,
+    "fr2_hip_pitch": 1.4,
+    "fr3_knee_pitch": -2.4,
+    "bl1_hip_roll": 0.0,
+    "bl2_hip_pitch": 1.4,
+    "bl3_knee_pitch": -2.4,
+    "br1_hip_roll": 0.0,
+    "br2_hip_pitch": 1.4,
+    "br3_knee_pitch": -2.4
+   },
+   "q_motor": {
+    "fl1_hip_roll": -0.523,
+    "fl2_hip_pitch": 1.0430000000000001,
+    "fl3_knee_pitch": 0.403,
+    "fr1_hip_roll": 0.523,
+    "fr2_hip_pitch": -1.0430000000000001,
+    "fr3_knee_pitch": -0.403,
+    "bl1_hip_roll": 0.523,
+    "bl2_hip_pitch": -3.843,
+    "bl3_knee_pitch": -5.202999999999999,
+    "br1_hip_roll": -0.523,
+    "br2_hip_pitch": 3.843,
+    "br3_knee_pitch": 5.202999999999999
+   },
+   "tau_gravity": {
+    "fl1_hip_roll": 6.087408979330802,
+    "fl2_hip_pitch": 5.213202037967962,
+    "fl3_knee_pitch": -4.316980976526211,
+    "fr1_hip_roll": -6.087408979330798,
+    "fr2_hip_pitch": 5.213596636583535,
+    "fr3_knee_pitch": -4.316961254256858,
+    "bl1_hip_roll": 6.087408979330802,
+    "bl2_hip_pitch": 5.213201991037799,
+    "bl3_knee_pitch": -4.3169810194973195,
+    "br1_hip_roll": -6.084744849574198,
+    "br2_hip_pitch": 5.205305983171737,
+    "br3_knee_pitch": -4.316949966729781
+   },
+   "tau_gravity_mjcf": {
+    "FBL_ABAD_JOINT": 6.087408979330802,
+    "FBL_HIP_JOINT": 5.213202037967962,
+    "FBL_KNEE_JOINT": -4.316980976526211,
+    "FAR_ABAD_JOINT": -6.087408979330798,
+    "FAR_HIP_JOINT": 5.213596636583535,
+    "FAR_KNEE_JOINT": -4.316961254256858,
+    "RBL_ABAD_JOINT": 6.087408979330802,
+    "RBL_HIP_JOINT": 5.213201991037799,
+    "RBL_KNEE_JOINT": -4.3169810194973195,
+    "RAR_ABAD_JOINT": -6.084744849574198,
+    "RAR_HIP_JOINT": 5.205305983171737,
+    "RAR_KNEE_JOINT": -4.316949966729781
+   },
+   "tau_gravity_motor": {
+    "fl1_hip_roll": -6.087408979330802,
+    "fl2_hip_pitch": -5.213202037967962,
+    "fl3_knee_pitch": -4.316980976526211,
+    "fr1_hip_roll": 6.087408979330798,
+    "fr2_hip_pitch": 5.213596636583535,
+    "fr3_knee_pitch": 4.316961254256858,
+    "bl1_hip_roll": 6.087408979330802,
+    "bl2_hip_pitch": -5.213201991037799,
+    "bl3_knee_pitch": -4.3169810194973195,
+    "br1_hip_roll": -6.084744849574198,
+    "br2_hip_pitch": 5.205305983171737,
+    "br3_knee_pitch": 4.316949966729781
+   },
+   "tau_abs_max": 6.087408979330802,
+   "sling_wrench": {
+    "force_N": [
+     0.0,
+     0.0,
+     380.82920310000003
+    ],
+    "torque_Nm": [
+     0.581260872756606,
+     21.06950922509104,
+     0.0
+    ],
+    "com_offset_x_mm": 55.32535071780854,
+    "_note": "com_offset_x = My / 重量，＝質心離吊點正下方的水平距離。knee_back 模式四腿同向，會前移到 27~55 mm，吊帶上的機身會明顯前傾。"
+   },
+   "knee_mode": "back",
+   "limits": {
+    "min_margin_rad": 0.391,
+    "tightest": "fr3_knee_pitch",
+    "range": [
+     -2.791,
+     2.791
+    ],
+    "ok": true
+   },
+   "self_contact_ncon": 0,
+   "checks": {
+    "bias_gap": 0.0,
+    "ncon_in_gravity_calc": 0,
+    "Fz_over_mg": 1.0
+   }
+  },
+  "S1_fl2+0.05": {
+   "q_ctrl": {
+    "fl1_hip_roll": 0.0,
+    "fl2_hip_pitch": 0.65,
+    "fl3_knee_pitch": -1.2,
+    "fr1_hip_roll": 0.0,
+    "fr2_hip_pitch": 0.6,
+    "fr3_knee_pitch": -1.2,
+    "bl1_hip_roll": 0.0,
+    "bl2_hip_pitch": -0.6,
+    "bl3_knee_pitch": 1.2,
+    "br1_hip_roll": 0.0,
+    "br2_hip_pitch": -0.6,
+    "br3_knee_pitch": 1.2
+   },
+   "q_motor": {
+    "fl1_hip_roll": -0.523,
+    "fl2_hip_pitch": 1.7930000000000001,
+    "fl3_knee_pitch": 1.603,
+    "fr1_hip_roll": 0.523,
+    "fr2_hip_pitch": -1.843,
+    "fr3_knee_pitch": -1.603,
+    "bl1_hip_roll": 0.523,
+    "bl2_hip_pitch": -1.843,
+    "bl3_knee_pitch": -1.603,
+    "br1_hip_roll": -0.523,
+    "br2_hip_pitch": 1.843,
+    "br3_knee_pitch": 1.603
+   },
+   "tau_gravity": {
+    "fl1_hip_roll": 6.087408979330802,
+    "fl2_hip_pitch": 3.1701975333132246,
+    "fl3_knee_pitch": -2.681596726290781,
+    "fr1_hip_roll": -6.087408979330798,
+    "fr2_hip_pitch": 2.5646678496320696,
+    "fr3_knee_pitch": -2.896803329296401,
+    "bl1_hip_roll": 6.087408979330802,
+    "bl2_hip_pitch": -2.5651783385325224,
+    "bl3_knee_pitch": 2.8966232333211517,
+    "br1_hip_roll": -6.084744849574198,
+    "br2_hip_pitch": -2.5579520160073272,
+    "br3_knee_pitch": 2.8969033285135595
+   },
+   "tau_gravity_mjcf": {
+    "FBL_ABAD_JOINT": 6.087408979330802,
+    "FBL_HIP_JOINT": 3.1701975333132246,
+    "FBL_KNEE_JOINT": -2.681596726290781,
+    "FAR_ABAD_JOINT": -6.087408979330798,
+    "FAR_HIP_JOINT": 2.5646678496320696,
+    "FAR_KNEE_JOINT": -2.896803329296401,
+    "RBL_ABAD_JOINT": 6.087408979330802,
+    "RBL_HIP_JOINT": -2.5651783385325224,
+    "RBL_KNEE_JOINT": 2.8966232333211517,
+    "RAR_ABAD_JOINT": -6.084744849574198,
+    "RAR_HIP_JOINT": -2.5579520160073272,
+    "RAR_KNEE_JOINT": 2.8969033285135595
+   },
+   "tau_gravity_motor": {
+    "fl1_hip_roll": -6.087408979330802,
+    "fl2_hip_pitch": -3.1701975333132246,
+    "fl3_knee_pitch": -2.681596726290781,
+    "fr1_hip_roll": 6.087408979330798,
+    "fr2_hip_pitch": 2.5646678496320696,
+    "fr3_knee_pitch": 2.896803329296401,
+    "bl1_hip_roll": 6.087408979330802,
+    "bl2_hip_pitch": 2.5651783385325224,
+    "bl3_knee_pitch": 2.8966232333211517,
+    "br1_hip_roll": -6.084744849574198,
+    "br2_hip_pitch": -2.5579520160073272,
+    "br3_knee_pitch": -2.8969033285135595
+   },
+   "tau_abs_max": 6.087408979330802,
+   "sling_wrench": {
+    "force_N": [
+     0.0,
+     0.0,
+     380.82920310000003
+    ],
+    "torque_Nm": [
+     0.581260872756606,
+     0.8359376047354536,
+     0.0
+    ],
+    "com_offset_x_mm": 2.195045962680412,
+    "_note": "com_offset_x = My / 重量，＝質心離吊點正下方的水平距離。knee_back 模式四腿同向，會前移到 27~55 mm，吊帶上的機身會明顯前傾。"
+   },
+   "knee_mode": "front",
+   "limits": {
+    "min_margin_rad": 0.523,
+    "tightest": "fr1_hip_roll",
+    "range": [
+     -0.697,
+     0.523
+    ],
+    "ok": true
+   },
+   "self_contact_ncon": 0,
+   "checks": {
+    "bias_gap": 0.0,
+    "ncon_in_gravity_calc": 0,
+    "Fz_over_mg": 1.0
+   }
+  },
+  "S1_fl2-0.05": {
+   "q_ctrl": {
+    "fl1_hip_roll": 0.0,
+    "fl2_hip_pitch": 0.5499999999999999,
+    "fl3_knee_pitch": -1.2,
+    "fr1_hip_roll": 0.0,
+    "fr2_hip_pitch": 0.6,
+    "fr3_knee_pitch": -1.2,
+    "bl1_hip_roll": 0.0,
+    "bl2_hip_pitch": -0.6,
+    "bl3_knee_pitch": 1.2,
+    "br1_hip_roll": 0.0,
+    "br2_hip_pitch": -0.6,
+    "br3_knee_pitch": 1.2
+   },
+   "q_motor": {
+    "fl1_hip_roll": -0.523,
+    "fl2_hip_pitch": 1.8930000000000002,
+    "fl3_knee_pitch": 1.603,
+    "fr1_hip_roll": 0.523,
+    "fr2_hip_pitch": -1.843,
+    "fr3_knee_pitch": -1.603,
+    "bl1_hip_roll": 0.523,
+    "bl2_hip_pitch": -1.843,
+    "bl3_knee_pitch": -1.603,
+    "br1_hip_roll": -0.523,
+    "br2_hip_pitch": 1.843,
+    "br3_knee_pitch": 1.603
+   },
+   "tau_gravity": {
+    "fl1_hip_roll": 6.0874089793308,
+    "fl2_hip_pitch": 1.94903443755085,
+    "fl3_knee_pitch": -3.104826687407022,
+    "fr1_hip_roll": -6.087408979330798,
+    "fr2_hip_pitch": 2.5646678496320696,
+    "fr3_knee_pitch": -2.8968033292964,
+    "bl1_hip_roll": 6.087408979330802,
+    "bl2_hip_pitch": -2.5651783385325206,
+    "bl3_knee_pitch": 2.8966232333211517,
+    "br1_hip_roll": -6.084744849574198,
+    "br2_hip_pitch": -2.557952016007329,
+    "br3_knee_pitch": 2.8969033285135595
+   },
+   "tau_gravity_mjcf": {
+    "FBL_ABAD_JOINT": 6.0874089793308,
+    "FBL_HIP_JOINT": 1.94903443755085,
+    "FBL_KNEE_JOINT": -3.104826687407022,
+    "FAR_ABAD_JOINT": -6.087408979330798,
+    "FAR_HIP_JOINT": 2.5646678496320696,
+    "FAR_KNEE_JOINT": -2.8968033292964,
+    "RBL_ABAD_JOINT": 6.087408979330802,
+    "RBL_HIP_JOINT": -2.5651783385325206,
+    "RBL_KNEE_JOINT": 2.8966232333211517,
+    "RAR_ABAD_JOINT": -6.084744849574198,
+    "RAR_HIP_JOINT": -2.557952016007329,
+    "RAR_KNEE_JOINT": 2.8969033285135595
+   },
+   "tau_gravity_motor": {
+    "fl1_hip_roll": -6.0874089793308,
+    "fl2_hip_pitch": -1.94903443755085,
+    "fl3_knee_pitch": -3.104826687407022,
+    "fr1_hip_roll": 6.087408979330798,
+    "fr2_hip_pitch": 2.5646678496320696,
+    "fr3_knee_pitch": 2.8968033292964,
+    "bl1_hip_roll": 6.087408979330802,
+    "bl2_hip_pitch": 2.5651783385325206,
+    "bl3_knee_pitch": 2.8966232333211517,
+    "br1_hip_roll": -6.084744849574198,
+    "br2_hip_pitch": -2.557952016007329,
+    "br3_knee_pitch": -2.8969033285135595
+   },
+   "tau_abs_max": 6.087408979330802,
+   "sling_wrench": {
+    "force_N": [
+     0.0,
+     0.0,
+     380.82920310000003
+    ],
+    "torque_Nm": [
+     0.5812608727566042,
+     -0.38522549102691755,
+     0.0
+    ],
+    "com_offset_x_mm": -1.0115439884628887,
+    "_note": "com_offset_x = My / 重量，＝質心離吊點正下方的水平距離。knee_back 模式四腿同向，會前移到 27~55 mm，吊帶上的機身會明顯前傾。"
+   },
+   "knee_mode": "front",
+   "limits": {
+    "min_margin_rad": 0.523,
+    "tightest": "fr1_hip_roll",
+    "range": [
+     -0.697,
+     0.523
+    ],
+    "ok": true
+   },
+   "self_contact_ncon": 0,
+   "checks": {
+    "bias_gap": 0.0,
+    "ncon_in_gravity_calc": 0,
+    "Fz_over_mg": 1.0
+   }
+  }
+ },
+ "knee_mode": {
+  "_note": "膝模式切換 = **只把後兩腿（bl/br）的 hip_pitch 與 knee_pitch 翻號，前腿完全不動**。出處：2026-08-25 實機四姿勢驗證，docs/座標換算式驗證結果_2026-08-25.md §2.2。預設（不帶後綴的 STAND/HOME/CROUCH）是**後腿往前彎**；帶 _knee_back 後綴的是**後腿往後彎**。",
+  "pairs": {
+   "STAND": "stand_knee_back",
+   "HOME": "home_knee_back",
+   "CROUCH": "crouch_knee_back"
+  },
+  "abad_invariance_check": {
+   "STAND→stand_knee_back": {
+    "abad_max_change": 1.7763568394002505e-15,
+    "hipknee_max_change": 5.79359727914271
+   },
+   "HOME→home_knee_back": {
+    "abad_max_change": 0.0,
+    "hipknee_max_change": 7.265347961026896
+   },
+   "CROUCH→crouch_knee_back": {
+    "abad_max_change": 0.0,
+    "hipknee_max_change": 10.42698358777961
+   }
+  },
+  "abad_invariance_note": "ABAD 力矩與膝模式無關（變化 < 1e-9 N·m）——因為 hip/knee 只在矢狀面轉動，不改變腿對 abad 軸（x 軸）的力臂。這條是拿來檢驗 knee_back 這批數字的獨立判據，不是事後解釋。",
+  "verified_against": "realbot/coord.py flip_rear_knee_mode()（執行時逐項比對）"
+ },
+ "checks": {
+  "stand_symmetry": {
+   "front_hip_roll": {
+    "left": 6.087408979330802,
+    "right": -6.087408979330798,
+    "abs_gap": 4.440892098500626e-15
+   },
+   "front_hip_pitch": {
+    "left": 2.5628188416389577,
+    "right": 2.5646678496320696,
+    "abs_gap": 0.0018490079931119396
+   },
+   "front_knee_pitch": {
+    "left": -2.8968319925190817,
+    "right": -2.896803329296402,
+    "abs_gap": 2.866322267980337e-05
+   },
+   "rear_hip_roll": {
+    "left": 6.087408979330802,
+    "right": -6.084744849574198,
+    "abs_gap": 0.0026641297566039057
+   },
+   "rear_hip_pitch": {
+    "left": -2.5651783385325224,
+    "right": -2.5579520160073272,
+    "abs_gap": 0.007226322525195172
+   },
+   "rear_knee_pitch": {
+    "left": 2.896623233321151,
+    "right": 2.8969033285135586,
+    "abs_gap": 0.0002800951924077921
+   }
+  },
+  "stand_symmetry_worst": 0.007226322525195172,
+  "s1_cross_leg_max_change": 8.881784197001252e-16,
+  "sling_Fz_matches_model_weight": true,
+  "all_poses_within_mjcf_limits": true,
+  "pose_limit_margins": {
+   "HANG_FREE": {
+    "min_margin_rad": 0.24262622102563514,
+    "tightest": "bl1_hip_roll",
+    "range": [
+     -0.523,
+     0.697
+    ],
+    "ok": true
+   },
+   "HANG_NC": {
+    "min_margin_rad": 0.13276698401701215,
+    "tightest": "br1_hip_roll",
+    "range": [
+     -0.697,
+     0.523
+    ],
+    "ok": true
+   },
+   "STAND": {
+    "min_margin_rad": 0.523,
+    "tightest": "fr1_hip_roll",
+    "range": [
+     -0.697,
+     0.523
+    ],
+    "ok": true
+   },
+   "HOME": {
+    "min_margin_rad": 0.523,
+    "tightest": "fr1_hip_roll",
+    "range": [
+     -0.697,
+     0.523
+    ],
+    "ok": true
+   },
+   "CROUCH": {
+    "min_margin_rad": 0.391,
+    "tightest": "fr3_knee_pitch",
+    "range": [
+     -2.791,
+     2.791
+    ],
+    "ok": true
+   },
+   "stand_knee_back": {
+    "min_margin_rad": 0.523,
+    "tightest": "fr1_hip_roll",
+    "range": [
+     -0.697,
+     0.523
+    ],
+    "ok": true
+   },
+   "home_knee_back": {
+    "min_margin_rad": 0.523,
+    "tightest": "fr1_hip_roll",
+    "range": [
+     -0.697,
+     0.523
+    ],
+    "ok": true
+   },
+   "crouch_knee_back": {
+    "min_margin_rad": 0.391,
+    "tightest": "fr3_knee_pitch",
+    "range": [
+     -2.791,
+     2.791
+    ],
+    "ok": true
+   },
+   "S1_fl2+0.05": {
+    "min_margin_rad": 0.523,
+    "tightest": "fr1_hip_roll",
+    "range": [
+     -0.697,
+     0.523
+    ],
+    "ok": true
+   },
+   "S1_fl2-0.05": {
+    "min_margin_rad": 0.523,
+    "tightest": "fr1_hip_roll",
+    "range": [
+     -0.697,
+     0.523
+    ],
+    "ok": true
+   }
+  },
+  "pose_self_contact_ncon": {
+   "HANG_FREE": 3,
+   "HANG_NC": 10,
+   "STAND": 0,
+   "HOME": 0,
+   "CROUCH": 0,
+   "stand_knee_back": 0,
+   "home_knee_back": 0,
+   "crouch_knee_back": 0,
+   "S1_fl2+0.05": 0,
+   "S1_fl2-0.05": 0
+  },
+  "coord_py_crosscheck": "✓ sign/offset 12 項、膝模式翻號 12 項，與 realbot/coord.py 完全一致"
+ },
+ "gain_table": {
+  "_note": "穩態下垂量 err = |τ_重力| / kp（rad）。",
+  "kp_candidates": [
+   5.0,
+   10.0,
+   20.0,
+   40.0,
+   60.0,
+   80.0,
+   120.0,
+   150.0
+  ],
+  "sag_rad": {
+   "STAND": {
+    "kp=5": {
+     "fl1_hip_roll": 1.2174817958661603,
+     "fl2_hip_pitch": 0.5125637683277915,
+     "fl3_knee_pitch": 0.5793663985038163,
+     "fr1_hip_roll": 1.2174817958661595,
+     "fr2_hip_pitch": 0.5129335699264139,
+     "fr3_knee_pitch": 0.5793606658592804,
+     "bl1_hip_roll": 1.2174817958661603,
+     "bl2_hip_pitch": 0.5130356677065044,
+     "bl3_knee_pitch": 0.5793246466642301,
+     "br1_hip_roll": 1.2169489699148397,
+     "br2_hip_pitch": 0.5115904032014654,
+     "br3_knee_pitch": 0.5793806657027117
+    },
+    "kp=10": {
+     "fl1_hip_roll": 0.6087408979330802,
+     "fl2_hip_pitch": 0.25628188416389575,
+     "fl3_knee_pitch": 0.28968319925190816,
+     "fr1_hip_roll": 0.6087408979330797,
+     "fr2_hip_pitch": 0.25646678496320696,
+     "fr3_knee_pitch": 0.2896803329296402,
+     "bl1_hip_roll": 0.6087408979330802,
+     "bl2_hip_pitch": 0.2565178338532522,
+     "bl3_knee_pitch": 0.28966232333211506,
+     "br1_hip_roll": 0.6084744849574198,
+     "br2_hip_pitch": 0.2557952016007327,
+     "br3_knee_pitch": 0.28969033285135587
+    },
+    "kp=20": {
+     "fl1_hip_roll": 0.3043704489665401,
+     "fl2_hip_pitch": 0.12814094208194787,
+     "fl3_knee_pitch": 0.14484159962595408,
+     "fr1_hip_roll": 0.30437044896653986,
+     "fr2_hip_pitch": 0.12823339248160348,
+     "fr3_knee_pitch": 0.1448401664648201,
+     "bl1_hip_roll": 0.3043704489665401,
+     "bl2_hip_pitch": 0.1282589169266261,
+     "bl3_knee_pitch": 0.14483116166605753,
+     "br1_hip_roll": 0.3042372424787099,
+     "br2_hip_pitch": 0.12789760080036636,
+     "br3_knee_pitch": 0.14484516642567793
+    },
+    "kp=40": {
+     "fl1_hip_roll": 0.15218522448327004,
+     "fl2_hip_pitch": 0.06407047104097394,
+     "fl3_knee_pitch": 0.07242079981297704,
+     "fr1_hip_roll": 0.15218522448326993,
+     "fr2_hip_pitch": 0.06411669624080174,
+     "fr3_knee_pitch": 0.07242008323241005,
+     "bl1_hip_roll": 0.15218522448327004,
+     "bl2_hip_pitch": 0.06412945846331305,
+     "bl3_knee_pitch": 0.07241558083302876,
+     "br1_hip_roll": 0.15211862123935496,
+     "br2_hip_pitch": 0.06394880040018318,
+     "br3_knee_pitch": 0.07242258321283897
+    },
+    "kp=60": {
+     "fl1_hip_roll": 0.10145681632218004,
+     "fl2_hip_pitch": 0.042713647360649296,
+     "fl3_knee_pitch": 0.04828053320865136,
+     "fr1_hip_roll": 0.10145681632217997,
+     "fr2_hip_pitch": 0.04274446416053449,
+     "fr3_knee_pitch": 0.04828005548827337,
+     "bl1_hip_roll": 0.10145681632218004,
+     "bl2_hip_pitch": 0.04275297230887538,
+     "bl3_knee_pitch": 0.04827705388868585,
+     "br1_hip_roll": 0.10141241415956997,
+     "br2_hip_pitch": 0.04263253360012212,
+     "br3_knee_pitch": 0.04828172214189264
+    },
+    "kp=80": {
+     "fl1_hip_roll": 0.07609261224163502,
+     "fl2_hip_pitch": 0.03203523552048697,
+     "fl3_knee_pitch": 0.03621039990648852,
+     "fr1_hip_roll": 0.07609261224163497,
+     "fr2_hip_pitch": 0.03205834812040087,
+     "fr3_knee_pitch": 0.03621004161620502,
+     "bl1_hip_roll": 0.07609261224163502,
+     "bl2_hip_pitch": 0.03206472923165653,
+     "bl3_knee_pitch": 0.03620779041651438,
+     "br1_hip_roll": 0.07605931061967748,
+     "br2_hip_pitch": 0.03197440020009159,
+     "br3_knee_pitch": 0.036211291606419484
+    },
+    "kp=120": {
+     "fl1_hip_roll": 0.05072840816109002,
+     "fl2_hip_pitch": 0.021356823680324648,
+     "fl3_knee_pitch": 0.02414026660432568,
+     "fr1_hip_roll": 0.050728408161089984,
+     "fr2_hip_pitch": 0.021372232080267246,
+     "fr3_knee_pitch": 0.024140027744136684,
+     "bl1_hip_roll": 0.05072840816109002,
+     "bl2_hip_pitch": 0.02137648615443769,
+     "bl3_knee_pitch": 0.024138526944342924,
+     "br1_hip_roll": 0.05070620707978499,
+     "br2_hip_pitch": 0.02131626680006106,
+     "br3_knee_pitch": 0.02414086107094632
+    },
+    "kp=150": {
+     "fl1_hip_roll": 0.040582726528872015,
+     "fl2_hip_pitch": 0.017085458944259717,
+     "fl3_knee_pitch": 0.019312213283460545,
+     "fr1_hip_roll": 0.04058272652887199,
+     "fr2_hip_pitch": 0.017097785664213796,
+     "fr3_knee_pitch": 0.019312022195309347,
+     "bl1_hip_roll": 0.040582726528872015,
+     "bl2_hip_pitch": 0.01710118892355015,
+     "bl3_knee_pitch": 0.01931082155547434,
+     "br1_hip_roll": 0.04056496566382799,
+     "br2_hip_pitch": 0.017053013440048847,
+     "br3_knee_pitch": 0.019312688856757056
+    }
+   },
+   "HOME": {
+    "kp=5": {
+     "fl1_hip_roll": 1.2174817958661603,
+     "fl2_hip_pitch": 0.7263339016745946,
+     "fl3_knee_pitch": 0.6610121865077854,
+     "fr1_hip_roll": 1.2174817958661595,
+     "fr2_hip_pitch": 0.7266465919155316,
+     "fr3_knee_pitch": 0.6610068249200584,
+     "bl1_hip_roll": 1.2174817958661603,
+     "bl2_hip_pitch": 0.7267357010768926,
+     "bl3_knee_pitch": 0.6609734959682385,
+     "br1_hip_roll": 1.2169489699148397,
+     "br2_hip_pitch": 0.7250991148509112,
+     "br3_knee_pitch": 0.6610284514895076
+    },
+    "kp=10": {
+     "fl1_hip_roll": 0.6087408979330802,
+     "fl2_hip_pitch": 0.3631669508372973,
+     "fl3_knee_pitch": 0.3305060932538927,
+     "fr1_hip_roll": 0.6087408979330797,
+     "fr2_hip_pitch": 0.3633232959577658,
+     "fr3_knee_pitch": 0.3305034124600292,
+     "bl1_hip_roll": 0.6087408979330802,
+     "bl2_hip_pitch": 0.3633678505384463,
+     "bl3_knee_pitch": 0.33048674798411926,
+     "br1_hip_roll": 0.6084744849574198,
+     "br2_hip_pitch": 0.3625495574254556,
+     "br3_knee_pitch": 0.3305142257447538
+    },
+    "kp=20": {
+     "fl1_hip_roll": 0.3043704489665401,
+     "fl2_hip_pitch": 0.18158347541864864,
+     "fl3_knee_pitch": 0.16525304662694634,
+     "fr1_hip_roll": 0.30437044896653986,
+     "fr2_hip_pitch": 0.1816616479788829,
+     "fr3_knee_pitch": 0.1652517062300146,
+     "bl1_hip_roll": 0.3043704489665401,
+     "bl2_hip_pitch": 0.18168392526922314,
+     "bl3_knee_pitch": 0.16524337399205963,
+     "br1_hip_roll": 0.3042372424787099,
+     "br2_hip_pitch": 0.1812747787127278,
+     "br3_knee_pitch": 0.1652571128723769
+    },
+    "kp=40": {
+     "fl1_hip_roll": 0.15218522448327004,
+     "fl2_hip_pitch": 0.09079173770932432,
+     "fl3_knee_pitch": 0.08262652331347317,
+     "fr1_hip_roll": 0.15218522448326993,
+     "fr2_hip_pitch": 0.09083082398944145,
+     "fr3_knee_pitch": 0.0826258531150073,
+     "bl1_hip_roll": 0.15218522448327004,
+     "bl2_hip_pitch": 0.09084196263461157,
+     "bl3_knee_pitch": 0.08262168699602981,
+     "br1_hip_roll": 0.15211862123935496,
+     "br2_hip_pitch": 0.0906373893563639,
+     "br3_knee_pitch": 0.08262855643618845
+    },
+    "kp=60": {
+     "fl1_hip_roll": 0.10145681632218004,
+     "fl2_hip_pitch": 0.060527825139549546,
+     "fl3_knee_pitch": 0.05508434887564879,
+     "fr1_hip_roll": 0.10145681632217997,
+     "fr2_hip_pitch": 0.06055388265962763,
+     "fr3_knee_pitch": 0.055083902076671534,
+     "bl1_hip_roll": 0.10145681632218004,
+     "bl2_hip_pitch": 0.06056130842307438,
+     "bl3_knee_pitch": 0.05508112466401988,
+     "br1_hip_roll": 0.10141241415956997,
+     "br2_hip_pitch": 0.06042492623757593,
+     "br3_knee_pitch": 0.0550857042907923
+    },
+    "kp=80": {
+     "fl1_hip_roll": 0.07609261224163502,
+     "fl2_hip_pitch": 0.04539586885466216,
+     "fl3_knee_pitch": 0.041313261656736586,
+     "fr1_hip_roll": 0.07609261224163497,
+     "fr2_hip_pitch": 0.045415411994720725,
+     "fr3_knee_pitch": 0.04131292655750365,
+     "bl1_hip_roll": 0.07609261224163502,
+     "bl2_hip_pitch": 0.045420981317305785,
+     "bl3_knee_pitch": 0.04131084349801491,
+     "br1_hip_roll": 0.07605931061967748,
+     "br2_hip_pitch": 0.04531869467818195,
+     "br3_knee_pitch": 0.041314278218094226
+    },
+    "kp=120": {
+     "fl1_hip_roll": 0.05072840816109002,
+     "fl2_hip_pitch": 0.030263912569774773,
+     "fl3_knee_pitch": 0.027542174437824394,
+     "fr1_hip_roll": 0.050728408161089984,
+     "fr2_hip_pitch": 0.030276941329813813,
+     "fr3_knee_pitch": 0.027541951038335767,
+     "bl1_hip_roll": 0.05072840816109002,
+     "bl2_hip_pitch": 0.03028065421153719,
+     "bl3_knee_pitch": 0.02754056233200994,
+     "br1_hip_roll": 0.05070620707978499,
+     "br2_hip_pitch": 0.030212463118787964,
+     "br3_knee_pitch": 0.02754285214539615
+    },
+    "kp=150": {
+     "fl1_hip_roll": 0.040582726528872015,
+     "fl2_hip_pitch": 0.02421113005581982,
+     "fl3_knee_pitch": 0.022033739550259515,
+     "fr1_hip_roll": 0.04058272652887199,
+     "fr2_hip_pitch": 0.024221553063851053,
+     "fr3_knee_pitch": 0.02203356083066861,
+     "bl1_hip_roll": 0.040582726528872015,
+     "bl2_hip_pitch": 0.024224523369229752,
+     "bl3_knee_pitch": 0.022032449865607952,
+     "br1_hip_roll": 0.04056496566382799,
+     "br2_hip_pitch": 0.024169970495030373,
+     "br3_knee_pitch": 0.02203428171631692
+    }
+   },
+   "CROUCH": {
+    "kp=5": {
+     "fl1_hip_roll": 1.2174817958661603,
+     "fl2_hip_pitch": 1.0426404075935927,
+     "fl3_knee_pitch": 0.8633961953052424,
+     "fr1_hip_roll": 1.2174817958661595,
+     "fr2_hip_pitch": 1.0427193273167077,
+     "fr3_knee_pitch": 0.8633922508513716,
+     "bl1_hip_roll": 1.2174817958661603,
+     "bl2_hip_pitch": 1.0427563193483622,
+     "bl3_knee_pitch": 0.8633688668454749,
+     "br1_hip_roll": 1.2169489699148397,
+     "br2_hip_pitch": 1.0409452251893092,
+     "br3_knee_pitch": 0.8634174070069447
+    },
+    "kp=10": {
+     "fl1_hip_roll": 0.6087408979330802,
+     "fl2_hip_pitch": 0.5213202037967963,
+     "fl3_knee_pitch": 0.4316980976526212,
+     "fr1_hip_roll": 0.6087408979330797,
+     "fr2_hip_pitch": 0.5213596636583538,
+     "fr3_knee_pitch": 0.4316961254256858,
+     "bl1_hip_roll": 0.6087408979330802,
+     "bl2_hip_pitch": 0.5213781596741811,
+     "bl3_knee_pitch": 0.43168443342273743,
+     "br1_hip_roll": 0.6084744849574198,
+     "br2_hip_pitch": 0.5204726125946546,
+     "br3_knee_pitch": 0.43170870350347235
+    },
+    "kp=20": {
+     "fl1_hip_roll": 0.3043704489665401,
+     "fl2_hip_pitch": 0.26066010189839817,
+     "fl3_knee_pitch": 0.2158490488263106,
+     "fr1_hip_roll": 0.30437044896653986,
+     "fr2_hip_pitch": 0.2606798318291769,
+     "fr3_knee_pitch": 0.2158480627128429,
+     "bl1_hip_roll": 0.3043704489665401,
+     "bl2_hip_pitch": 0.26068907983709055,
+     "bl3_knee_pitch": 0.21584221671136872,
+     "br1_hip_roll": 0.3042372424787099,
+     "br2_hip_pitch": 0.2602363062973273,
+     "br3_knee_pitch": 0.21585435175173617
+    },
+    "kp=40": {
+     "fl1_hip_roll": 0.15218522448327004,
+     "fl2_hip_pitch": 0.13033005094919908,
+     "fl3_knee_pitch": 0.1079245244131553,
+     "fr1_hip_roll": 0.15218522448326993,
+     "fr2_hip_pitch": 0.13033991591458846,
+     "fr3_knee_pitch": 0.10792403135642145,
+     "bl1_hip_roll": 0.15218522448327004,
+     "bl2_hip_pitch": 0.13034453991854528,
+     "bl3_knee_pitch": 0.10792110835568436,
+     "br1_hip_roll": 0.15211862123935496,
+     "br2_hip_pitch": 0.13011815314866365,
+     "br3_knee_pitch": 0.10792717587586809
+    },
+    "kp=60": {
+     "fl1_hip_roll": 0.10145681632218004,
+     "fl2_hip_pitch": 0.0868867006327994,
+     "fl3_knee_pitch": 0.07194968294210353,
+     "fr1_hip_roll": 0.10145681632217997,
+     "fr2_hip_pitch": 0.08689327727639232,
+     "fr3_knee_pitch": 0.07194935423761431,
+     "bl1_hip_roll": 0.10145681632218004,
+     "bl2_hip_pitch": 0.08689635994569685,
+     "bl3_knee_pitch": 0.07194740557045624,
+     "br1_hip_roll": 0.10141241415956997,
+     "br2_hip_pitch": 0.08674543543244244,
+     "br3_knee_pitch": 0.07195145058391206
+    },
+    "kp=80": {
+     "fl1_hip_roll": 0.07609261224163502,
+     "fl2_hip_pitch": 0.06516502547459954,
+     "fl3_knee_pitch": 0.05396226220657765,
+     "fr1_hip_roll": 0.07609261224163497,
+     "fr2_hip_pitch": 0.06516995795729423,
+     "fr3_knee_pitch": 0.053962015678210726,
+     "bl1_hip_roll": 0.07609261224163502,
+     "bl2_hip_pitch": 0.06517226995927264,
+     "bl3_knee_pitch": 0.05396055417784218,
+     "br1_hip_roll": 0.07605931061967748,
+     "br2_hip_pitch": 0.06505907657433183,
+     "br3_knee_pitch": 0.05396358793793404
+    },
+    "kp=120": {
+     "fl1_hip_roll": 0.05072840816109002,
+     "fl2_hip_pitch": 0.0434433503163997,
+     "fl3_knee_pitch": 0.03597484147105177,
+     "fr1_hip_roll": 0.050728408161089984,
+     "fr2_hip_pitch": 0.04344663863819616,
+     "fr3_knee_pitch": 0.035974677118807155,
+     "bl1_hip_roll": 0.05072840816109002,
+     "bl2_hip_pitch": 0.04344817997284842,
+     "bl3_knee_pitch": 0.03597370278522812,
+     "br1_hip_roll": 0.05070620707978499,
+     "br2_hip_pitch": 0.04337271771622122,
+     "br3_knee_pitch": 0.03597572529195603
+    },
+    "kp=150": {
+     "fl1_hip_roll": 0.040582726528872015,
+     "fl2_hip_pitch": 0.03475468025311976,
+     "fl3_knee_pitch": 0.028779873176841414,
+     "fr1_hip_roll": 0.04058272652887199,
+     "fr2_hip_pitch": 0.03475731091055692,
+     "fr3_knee_pitch": 0.028779741695045723,
+     "bl1_hip_roll": 0.040582726528872015,
+     "bl2_hip_pitch": 0.03475854397827874,
+     "bl3_knee_pitch": 0.028778962228182495,
+     "br1_hip_roll": 0.04056496566382799,
+     "br2_hip_pitch": 0.03469817417297698,
+     "br3_knee_pitch": 0.028780580233564824
+    }
+   }
+  }
+ },
+ "trajectory_sweep": [
+  {
+   "label": "20/1",
+   "kp": [
+    20.0,
+    20.0,
+    20.0,
+    20.0,
+    20.0,
+    20.0,
+    20.0,
+    20.0,
+    20.0,
+    20.0,
+    20.0,
+    20.0
+   ],
+   "kd": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0
+   ],
+   "ok": false,
+   "peak_tau_max": 3.6762847949489754,
+   "peak_err_max": 0.18374445861931243,
+   "final_err_max": 0.18296272285094894,
+   "lim_margin_min": 0.24112626360685613,
+   "lim_hit": false,
+   "n_sat": 0,
+   "base_drift_m": 2.216407080562378e-07,
+   "diverged": false,
+   "peak_tau": {
+    "fl1_hip_roll": 3.676125445854713,
+    "fl2_hip_pitch": 1.9118198483448594,
+    "fl3_knee_pitch": 2.686680190119447,
+    "fr1_hip_roll": 3.6762847949489754,
+    "fr2_hip_pitch": 1.9143780089805653,
+    "fr3_knee_pitch": 2.6862956382553134,
+    "bl1_hip_roll": 3.676271314261659,
+    "bl2_hip_pitch": 1.9146810577151463,
+    "bl3_knee_pitch": 2.6861724840983623,
+    "br1_hip_roll": 3.675401967012138,
+    "br2_hip_pitch": 1.9093373955520268,
+    "br3_knee_pitch": 2.6862914444108643
+   }
+  },
+  {
+   "label": "20/2",
+   "kp": [
+    20.0,
+    20.0,
+    20.0,
+    20.0,
+    20.0,
+    20.0,
+    20.0,
+    20.0,
+    20.0,
+    20.0,
+    20.0,
+    20.0
+   ],
+   "kd": [
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0
+   ],
+   "ok": false,
+   "peak_tau_max": 3.666451204655599,
+   "peak_err_max": 0.18320492167872415,
+   "final_err_max": 0.1828809110701883,
+   "lim_margin_min": 0.24134866717173553,
+   "lim_hit": false,
+   "n_sat": 0,
+   "base_drift_m": 2.2161961501122634e-07,
+   "diverged": false,
+   "peak_tau": {
+    "fl1_hip_roll": 3.66616829398174,
+    "fl2_hip_pitch": 1.9118880932154476,
+    "fl3_knee_pitch": 2.685454488688608,
+    "fr1_hip_roll": 3.6664441871022726,
+    "fr2_hip_pitch": 1.9132889461538611,
+    "fr3_knee_pitch": 2.6855843558788206,
+    "bl1_hip_roll": 3.666451204655599,
+    "bl2_hip_pitch": 1.9135982285881543,
+    "bl3_knee_pitch": 2.6854888584640606,
+    "br1_hip_roll": 3.665436616651765,
+    "br2_hip_pitch": 1.9093221602884434,
+    "br3_knee_pitch": 2.685074685424968
+   }
+  },
+  {
+   "label": "20/4",
+   "kp": [
+    20.0,
+    20.0,
+    20.0,
+    20.0,
+    20.0,
+    20.0,
+    20.0,
+    20.0,
+    20.0,
+    20.0,
+    20.0,
+    20.0
+   ],
+   "kd": [
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0
+   ],
+   "ok": false,
+   "peak_tau_max": 3.6624421894782175,
+   "peak_err_max": 0.1829279827629839,
+   "final_err_max": 0.18284828956669308,
+   "lim_margin_min": 0.2417540154205417,
+   "lim_hit": false,
+   "n_sat": 0,
+   "base_drift_m": 2.2158867985048028e-07,
+   "diverged": false,
+   "peak_tau": {
+    "fl1_hip_roll": 3.6622545235336323,
+    "fl2_hip_pitch": 1.9106962761211839,
+    "fl3_knee_pitch": 2.6851524963538362,
+    "fr1_hip_roll": 3.662437155158289,
+    "fr2_hip_pitch": 1.911932711342434,
+    "fr3_knee_pitch": 2.6853401609159375,
+    "bl1_hip_roll": 3.6624421894782175,
+    "bl2_hip_pitch": 1.9122445721200745,
+    "bl3_knee_pitch": 2.685244366284635,
+    "br1_hip_roll": 3.661521385971995,
+    "br2_hip_pitch": 1.9081339310272363,
+    "br3_knee_pitch": 2.6847713835808444
+   }
+  },
+  {
+   "label": "40/1",
+   "kp": [
+    40.0,
+    40.0,
+    40.0,
+    40.0,
+    40.0,
+    40.0,
+    40.0,
+    40.0,
+    40.0,
+    40.0,
+    40.0,
+    40.0
+   ],
+   "kd": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0
+   ],
+   "ok": false,
+   "peak_tau_max": 4.6214521061432015,
+   "peak_err_max": 0.11552400430956808,
+   "final_err_max": 0.11509359011138237,
+   "lim_margin_min": 0.2426176933554346,
+   "lim_hit": false,
+   "n_sat": 0,
+   "base_drift_m": 2.2167234300652824e-07,
+   "diverged": false,
+   "peak_tau": {
+    "fl1_hip_roll": 4.620124863310444,
+    "fl2_hip_pitch": 2.1766548472226557,
+    "fl3_knee_pitch": 2.81193111937235,
+    "fr1_hip_roll": 4.621350443333536,
+    "fr2_hip_pitch": 2.1783578569104813,
+    "fr3_knee_pitch": 2.8127899695409675,
+    "bl1_hip_roll": 4.6214521061432015,
+    "bl2_hip_pitch": 2.1788732792851637,
+    "bl3_knee_pitch": 2.8126093545136492,
+    "br1_hip_roll": 4.61877092361467,
+    "br2_hip_pitch": 2.17341615078341,
+    "br3_knee_pitch": 2.811603361582949
+   }
+  },
+  {
+   "label": "40/2",
+   "kp": [
+    40.0,
+    40.0,
+    40.0,
+    40.0,
+    40.0,
+    40.0,
+    40.0,
+    40.0,
+    40.0,
+    40.0,
+    40.0,
+    40.0
+   ],
+   "kd": [
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0
+   ],
+   "ok": false,
+   "peak_tau_max": 4.620661780571227,
+   "peak_err_max": 0.11547302774828262,
+   "final_err_max": 0.11512779864124573,
+   "lim_margin_min": 0.24261731726406516,
+   "lim_hit": false,
+   "n_sat": 0,
+   "base_drift_m": 2.21644382554679e-07,
+   "diverged": false,
+   "peak_tau": {
+    "fl1_hip_roll": 4.620304642830232,
+    "fl2_hip_pitch": 2.176991117362174,
+    "fl3_knee_pitch": 2.8108406617061914,
+    "fr1_hip_roll": 4.6206529469209805,
+    "fr2_hip_pitch": 2.1785310339184476,
+    "fr3_knee_pitch": 2.8109487154106656,
+    "bl1_hip_roll": 4.620661780571227,
+    "bl2_hip_pitch": 2.1789260853352803,
+    "bl3_knee_pitch": 2.8108189530099508,
+    "br1_hip_roll": 4.61894700903491,
+    "br2_hip_pitch": 2.173583953777014,
+    "br3_knee_pitch": 2.8105863261092856
+   }
+  },
+  {
+   "label": "40/4",
+   "kp": [
+    40.0,
+    40.0,
+    40.0,
+    40.0,
+    40.0,
+    40.0,
+    40.0,
+    40.0,
+    40.0,
+    40.0,
+    40.0,
+    40.0
+   ],
+   "kd": [
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0
+   ],
+   "ok": false,
+   "peak_tau_max": 4.614595439472565,
+   "peak_err_max": 0.11527733835829501,
+   "final_err_max": 0.11513966513297984,
+   "lim_margin_min": 0.24261660764437742,
+   "lim_hit": false,
+   "n_sat": 0,
+   "base_drift_m": 2.2160887891993664e-07,
+   "diverged": false,
+   "peak_tau": {
+    "fl1_hip_roll": 4.614370034894984,
+    "fl2_hip_pitch": 2.175929339169601,
+    "fl3_knee_pitch": 2.8104226026641834,
+    "fr1_hip_roll": 4.6145905489028864,
+    "fr2_hip_pitch": 2.1774408540529566,
+    "fr3_knee_pitch": 2.8105312352581855,
+    "bl1_hip_roll": 4.614595439472565,
+    "bl2_hip_pitch": 2.1778298290490143,
+    "bl3_knee_pitch": 2.8104039852083913,
+    "br1_hip_roll": 4.613012373668895,
+    "br2_hip_pitch": 2.172518919540419,
+    "br3_knee_pitch": 2.8101686805594284
+   }
+  },
+  {
+   "label": "60/1",
+   "kp": [
+    60.0,
+    60.0,
+    60.0,
+    60.0,
+    60.0,
+    60.0,
+    60.0,
+    60.0,
+    60.0,
+    60.0,
+    60.0,
+    60.0
+   ],
+   "kd": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0
+   ],
+   "ok": false,
+   "peak_tau_max": 5.05896117139838,
+   "peak_err_max": 0.08430472611277104,
+   "final_err_max": 0.08382080651020916,
+   "lim_margin_min": 0.24261767270120993,
+   "lim_hit": false,
+   "n_sat": 0,
+   "base_drift_m": 2.2169274755393798e-07,
+   "diverged": false,
+   "peak_tau": {
+    "fl1_hip_roll": 5.058827903223181,
+    "fl2_hip_pitch": 2.290659731210297,
+    "fl3_knee_pitch": 2.850839576850443,
+    "fr1_hip_roll": 5.058923485979885,
+    "fr2_hip_pitch": 2.2935461157755164,
+    "fr3_knee_pitch": 2.8511552079874276,
+    "bl1_hip_roll": 5.05896117139838,
+    "bl2_hip_pitch": 2.2938011016046835,
+    "bl3_knee_pitch": 2.8508687900296543,
+    "br1_hip_roll": 5.057164362769042,
+    "br2_hip_pitch": 2.2866350360917704,
+    "br3_knee_pitch": 2.850521682522998
+   }
+  },
+  {
+   "label": "60/2",
+   "kp": [
+    60.0,
+    60.0,
+    60.0,
+    60.0,
+    60.0,
+    60.0,
+    60.0,
+    60.0,
+    60.0,
+    60.0,
+    60.0,
+    60.0
+   ],
+   "kd": [
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0
+   ],
+   "ok": false,
+   "peak_tau_max": 5.04460797021451,
+   "peak_err_max": 0.08405224133182926,
+   "final_err_max": 0.08377434731016989,
+   "lim_margin_min": 0.2426172866438751,
+   "lim_hit": false,
+   "n_sat": 0,
+   "base_drift_m": 2.2164304562969882e-07,
+   "diverged": false,
+   "peak_tau": {
+    "fl1_hip_roll": 5.044254827228224,
+    "fl2_hip_pitch": 2.2899624574177233,
+    "fl3_knee_pitch": 2.8480446022085384,
+    "fr1_hip_roll": 5.044603037837417,
+    "fr2_hip_pitch": 2.291711470714315,
+    "fr3_knee_pitch": 2.8481410982041786,
+    "bl1_hip_roll": 5.04460797021451,
+    "bl2_hip_pitch": 2.292134706409816,
+    "bl3_knee_pitch": 2.847996005379817,
+    "br1_hip_roll": 5.042566349282999,
+    "br2_hip_pitch": 2.286149825303931,
+    "br3_knee_pitch": 2.8478565101360447
+   }
+  },
+  {
+   "label": "60/4",
+   "kp": [
+    60.0,
+    60.0,
+    60.0,
+    60.0,
+    60.0,
+    60.0,
+    60.0,
+    60.0,
+    60.0,
+    60.0,
+    60.0,
+    60.0
+   ],
+   "kd": [
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0
+   ],
+   "ok": false,
+   "peak_tau_max": 5.036808835218779,
+   "peak_err_max": 0.08389401788077253,
+   "final_err_max": 0.08375286797227963,
+   "lim_margin_min": 0.24261656828023043,
+   "lim_hit": false,
+   "n_sat": 0,
+   "base_drift_m": 2.216094238259014e-07,
+   "diverged": false,
+   "peak_tau": {
+    "fl1_hip_roll": 5.036559195141056,
+    "fl2_hip_pitch": 2.2887325977098913,
+    "fl3_knee_pitch": 2.8473136508837182,
+    "fr1_hip_roll": 5.036804754949148,
+    "fr2_hip_pitch": 2.290372578187368,
+    "fr3_knee_pitch": 2.847378557482605,
+    "bl1_hip_roll": 5.036808835218779,
+    "bl2_hip_pitch": 2.290796415953861,
+    "bl3_knee_pitch": 2.8472364166537316,
+    "br1_hip_roll": 5.034869241767196,
+    "br2_hip_pitch": 2.284924714441942,
+    "br3_knee_pitch": 2.847136322313619
+   }
+  },
+  {
+   "label": "80/1",
+   "kp": [
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0
+   ],
+   "kd": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0
+   ],
+   "ok": false,
+   "peak_tau_max": 5.2961710106159146,
+   "peak_err_max": 0.06619543362985451,
+   "final_err_max": 0.06563447356028543,
+   "lim_margin_min": 0.2426176436493564,
+   "lim_hit": false,
+   "n_sat": 0,
+   "base_drift_m": 2.2169278243464784e-07,
+   "diverged": false,
+   "peak_tau": {
+    "fl1_hip_roll": 5.2961710106159146,
+    "fl2_hip_pitch": 2.3549073541592014,
+    "fl3_knee_pitch": 2.869353143843247,
+    "fr1_hip_roll": 5.29602180924206,
+    "fr2_hip_pitch": 2.357374338466878,
+    "fr3_knee_pitch": 2.8692077434199517,
+    "bl1_hip_roll": 5.2960302975157765,
+    "bl2_hip_pitch": 2.3576036106201275,
+    "bl3_knee_pitch": 2.8688843336101635,
+    "br1_hip_roll": 5.294331638898212,
+    "br2_hip_pitch": 2.350642134666468,
+    "br3_knee_pitch": 2.8690804065307747
+   }
+  },
+  {
+   "label": "80/2",
+   "kp": [
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0
+   ],
+   "kd": [
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0
+   ],
+   "ok": false,
+   "peak_tau_max": 5.282443620054858,
+   "peak_err_max": 0.06601498952274876,
+   "final_err_max": 0.0657241205044705,
+   "lim_margin_min": 0.24261725286885766,
+   "lim_hit": false,
+   "n_sat": 0,
+   "base_drift_m": 2.2163974975201555e-07,
+   "diverged": false,
+   "peak_tau": {
+    "fl1_hip_roll": 5.282081078139164,
+    "fl2_hip_pitch": 2.3526567113355683,
+    "fl3_knee_pitch": 2.864912492315704,
+    "fr1_hip_roll": 5.282440504693276,
+    "fr2_hip_pitch": 2.354459926312831,
+    "fr3_knee_pitch": 2.864971940254793,
+    "bl1_hip_roll": 5.282443620054858,
+    "bl2_hip_pitch": 2.354900963944624,
+    "bl3_knee_pitch": 2.864817756556699,
+    "br1_hip_roll": 5.28019117107452,
+    "br2_hip_pitch": 2.3486128090144973,
+    "br3_knee_pitch": 2.8647704440552655
+   }
+  },
+  {
+   "label": "80/4",
+   "kp": [
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0
+   ],
+   "kd": [
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0
+   ],
+   "ok": false,
+   "peak_tau_max": 5.2742265977641924,
+   "peak_err_max": 0.06589191822584782,
+   "final_err_max": 0.06575054268904261,
+   "lim_margin_min": 0.24261652194555205,
+   "lim_hit": false,
+   "n_sat": 0,
+   "base_drift_m": 2.2160836848327263e-07,
+   "diverged": false,
+   "peak_tau": {
+    "fl1_hip_roll": 5.273957049513124,
+    "fl2_hip_pitch": 2.3512384446916497,
+    "fl3_knee_pitch": 2.8636405018321835,
+    "fr1_hip_roll": 5.27422324358148,
+    "fr2_hip_pitch": 2.352954467824693,
+    "fr3_knee_pitch": 2.863682377066143,
+    "bl1_hip_roll": 5.2742265977641924,
+    "bl2_hip_pitch": 2.3533981550240246,
+    "bl3_knee_pitch": 2.8635317935513998,
+    "br1_hip_roll": 5.272066308570542,
+    "br2_hip_pitch": 2.3472010439412565,
+    "br3_knee_pitch": 2.8635112756421424
+   }
+  },
+  {
+   "label": "120/1",
+   "kp": [
+    120.0,
+    120.0,
+    120.0,
+    120.0,
+    120.0,
+    120.0,
+    120.0,
+    120.0,
+    120.0,
+    120.0,
+    120.0,
+    120.0
+   ],
+   "kd": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0
+   ],
+   "ok": true,
+   "peak_tau_max": 5.5544102890027585,
+   "peak_err_max": 0.04628341208597298,
+   "final_err_max": 0.04598891427739254,
+   "lim_margin_min": 0.24261756677729157,
+   "lim_hit": false,
+   "n_sat": 0,
+   "base_drift_m": 2.217024870940263e-07,
+   "diverged": false,
+   "peak_tau": {
+    "fl1_hip_roll": 5.554325000940041,
+    "fl2_hip_pitch": 2.4197905485033515,
+    "fl3_knee_pitch": 2.8829662776509988,
+    "fr1_hip_roll": 5.5544102890027585,
+    "fr2_hip_pitch": 2.4231596819739427,
+    "fr3_knee_pitch": 2.8835668728721418,
+    "bl1_hip_roll": 5.554370584686053,
+    "bl2_hip_pitch": 2.4239217272109346,
+    "bl3_knee_pitch": 2.8834159174674627,
+    "br1_hip_roll": 5.552451291024671,
+    "br2_hip_pitch": 2.415681352997521,
+    "br3_knee_pitch": 2.8828430548263615
+   }
+  },
+  {
+   "label": "120/2",
+   "kp": [
+    120.0,
+    120.0,
+    120.0,
+    120.0,
+    120.0,
+    120.0,
+    120.0,
+    120.0,
+    120.0,
+    120.0,
+    120.0,
+    120.0
+   ],
+   "kd": [
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0
+   ],
+   "ok": true,
+   "peak_tau_max": 5.540260148698104,
+   "peak_err_max": 0.04616081916748341,
+   "final_err_max": 0.04596508641482642,
+   "lim_margin_min": 0.24261717538171163,
+   "lim_hit": false,
+   "n_sat": 0,
+   "base_drift_m": 2.2163464646802686e-07,
+   "diverged": false,
+   "peak_tau": {
+    "fl1_hip_roll": 5.539853850051166,
+    "fl2_hip_pitch": 2.4199029778911103,
+    "fl3_knee_pitch": 2.8799777522861807,
+    "fr1_hip_roll": 5.540258068853052,
+    "fr2_hip_pitch": 2.4218072884434263,
+    "fr3_knee_pitch": 2.8800496339806347,
+    "bl1_hip_roll": 5.540260148698104,
+    "bl2_hip_pitch": 2.422284243543558,
+    "bl3_knee_pitch": 2.879893008955442,
+    "br1_hip_roll": 5.537739314260704,
+    "br2_hip_pitch": 2.415614050256377,
+    "br3_knee_pitch": 2.8798934591311665
+   }
+  },
+  {
+   "label": "120/4",
+   "kp": [
+    120.0,
+    120.0,
+    120.0,
+    120.0,
+    120.0,
+    120.0,
+    120.0,
+    120.0,
+    120.0,
+    120.0,
+    120.0,
+    120.0
+   ],
+   "kd": [
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0,
+    4.0
+   ],
+   "ok": true,
+   "peak_tau_max": 5.531957734384073,
+   "peak_err_max": 0.04607949321309423,
+   "final_err_max": 0.04595418750742025,
+   "lim_margin_min": 0.24261642004264822,
+   "lim_hit": false,
+   "n_sat": 0,
+   "base_drift_m": 2.2160693260997931e-07,
+   "diverged": false,
+   "peak_tau": {
+    "fl1_hip_roll": 5.531655895201182,
+    "fl2_hip_pitch": 2.418441409384732,
+    "fl3_knee_pitch": 2.8779158994218426,
+    "fr1_hip_roll": 5.531955408928091,
+    "fr2_hip_pitch": 2.4202454587422895,
+    "fr3_knee_pitch": 2.8779329996536136,
+    "bl1_hip_roll": 5.531957734384073,
+    "bl2_hip_pitch": 2.420710929010331,
+    "bl3_knee_pitch": 2.877773135492161,
+    "br1_hip_roll": 5.529536791137397,
+    "br2_hip_pitch": 2.4141500240480007,
+    "br3_knee_pitch": 2.8778433739316145
+   }
+  },
+  {
+   "label": "原廠RL",
+   "kp": [
+    60.0,
+    120.0,
+    120.0,
+    60.0,
+    120.0,
+    120.0,
+    60.0,
+    120.0,
+    120.0,
+    60.0,
+    120.0,
+    120.0
+   ],
+   "kd": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0
+   ],
+   "ok": false,
+   "peak_tau_max": 5.066825402079738,
+   "peak_err_max": 0.08443503493339441,
+   "final_err_max": 0.08390766805986072,
+   "lim_margin_min": 0.24261774304602257,
+   "lim_hit": false,
+   "n_sat": 0,
+   "base_drift_m": 2.2169875384155673e-07,
+   "diverged": false,
+   "peak_tau": {
+    "fl1_hip_roll": 5.066825402079738,
+    "fl2_hip_pitch": 2.415972516406921,
+    "fl3_knee_pitch": 2.875716716657962,
+    "fr1_hip_roll": 5.066661227908615,
+    "fr2_hip_pitch": 2.417115626299831,
+    "fr3_knee_pitch": 2.874902173420816,
+    "bl1_hip_roll": 5.066670432354395,
+    "bl2_hip_pitch": 2.4178798806908426,
+    "bl3_knee_pitch": 2.874721016800607,
+    "br1_hip_roll": 5.06510152675413,
+    "br2_hip_pitch": 2.411989807611417,
+    "br3_knee_pitch": 2.875646996472667
+   }
+  },
+  {
+   "label": "承重建議",
+   "kp": [
+    120.0,
+    60.0,
+    60.0,
+    120.0,
+    60.0,
+    60.0,
+    120.0,
+    60.0,
+    60.0,
+    120.0,
+    60.0,
+    60.0
+   ],
+   "kd": [
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0
+   ],
+   "ok": true,
+   "peak_tau_max": 5.535110820958904,
+   "peak_err_max": 0.0505872394930984,
+   "final_err_max": 0.047569003933312315,
+   "lim_margin_min": 0.24261710204901066,
+   "lim_hit": false,
+   "n_sat": 0,
+   "base_drift_m": 2.2163126857227735e-07,
+   "diverged": false,
+   "peak_tau": {
+    "fl1_hip_roll": 5.534709467457194,
+    "fl2_hip_pitch": 2.29522584371228,
+    "fl3_knee_pitch": 2.8559620945104975,
+    "fr1_hip_roll": 5.535109078834011,
+    "fr2_hip_pitch": 2.296871136418814,
+    "fr3_knee_pitch": 2.856075652593298,
+    "bl1_hip_roll": 5.535110820958904,
+    "bl2_hip_pitch": 2.297296292083563,
+    "bl3_knee_pitch": 2.855933685546846,
+    "br1_hip_roll": 5.532598742926427,
+    "br2_hip_pitch": 2.291404550048105,
+    "br3_knee_pitch": 2.8557726792584237
+   }
+  }
+ ],
+ "recommended": {
+  "_note": "結論欄。每一項都能在上面的原始數字裡復現，對不上時以原始數字為準。",
+  "s1_kp_by_kind": {
+   "ABAD": 15.0,
+   "HIP": 15.0,
+   "KNEE": 5.0
+  },
+  "s1_kp": {
+   "fl1_hip_roll": 15.0,
+   "fl2_hip_pitch": 15.0,
+   "fl3_knee_pitch": 5.0,
+   "fr1_hip_roll": 15.0,
+   "fr2_hip_pitch": 15.0,
+   "fr3_knee_pitch": 5.0,
+   "bl1_hip_roll": 15.0,
+   "bl2_hip_pitch": 15.0,
+   "bl3_knee_pitch": 5.0,
+   "br1_hip_roll": 15.0,
+   "br2_hip_pitch": 15.0,
+   "br3_knee_pitch": 5.0
+  },
+  "s1_kd": 1.0,
+  "s1_delta_rad": 0.05,
+  "s1_move_ratio": {
+   "fl1_hip_roll": 0.48558843690759057,
+   "fl2_hip_pitch": 0.5129639467875734,
+   "fl3_knee_pitch": 0.5032068995939836,
+   "fr1_hip_roll": 0.48541838869542014,
+   "fr2_hip_pitch": 0.5133915893091002,
+   "fr3_knee_pitch": 0.5036349164104554,
+   "bl1_hip_roll": 0.48541808593485314,
+   "bl2_hip_pitch": 0.5133922770647268,
+   "bl3_knee_pitch": 0.503635544632721,
+   "br1_hip_roll": 0.48572663679339834,
+   "br2_hip_pitch": 0.5131046246076978,
+   "br3_knee_pitch": 0.5032001732642827
+  },
+  "s1_predicted_move_rad": {
+   "fl1_hip_roll": -0.03560092434010006,
+   "fl2_hip_pitch": 0.02517910919881903,
+   "fl3_knee_pitch": 0.02444095475792152,
+   "fr1_hip_roll": 0.08103658129821126,
+   "fr2_hip_pitch": 0.026173785347113218,
+   "fr3_knee_pitch": 0.025974482680649103,
+   "bl1_hip_roll": -0.03248956302732204,
+   "bl2_hip_pitch": 0.025157520230382792,
+   "bl3_knee_pitch": 0.02437639173465274,
+   "br1_hip_roll": 0.0841785077730411,
+   "br2_hip_pitch": 0.026131823562477483,
+   "br3_knee_pitch": 0.025890647237802714
+  },
+  "s1_note": "S1 的判讀量是**移動比例**，不是下垂量：對 hang_free 下一個 Δ 的位移指令，關節只會走到 (kp·Δ − τ0)/(kp + k)。τ0 ≈ 0 的 hip/knee 就是 kp/(kp+k) 倍。建議 kp 讓比例落在 0.3~0.7，比例明顯不等於 1 才有鑑別力。★ 選 hip 或 knee 做 S1，不要選 abad —— abad 在 hang_free 被輪對輪的接觸力頂住，τ0 ≠ 0 且模型只是凸包近似，預測可信度低。",
+  "loaded_kp_by_kind": {
+   "ABAD": 120.0,
+   "HIP": 60.0,
+   "KNEE": 60.0
+  },
+  "loaded_expected_sag_rad": {
+   "fl1_hip_roll": 0.05072840816109002,
+   "fl2_hip_pitch": 0.042713647360649296,
+   "fl3_knee_pitch": 0.04828053320865136,
+   "fr1_hip_roll": 0.050728408161089984,
+   "fr2_hip_pitch": 0.04274446416053449,
+   "fr3_knee_pitch": 0.04828005548827337,
+   "bl1_hip_roll": 0.05072840816109002,
+   "bl2_hip_pitch": 0.04275297230887538,
+   "bl3_knee_pitch": 0.04827705388868585,
+   "br1_hip_roll": 0.05070620707978499,
+   "br2_hip_pitch": 0.04263253360012212,
+   "br3_knee_pitch": 0.04828172214189264
+  },
+  "loaded_note": "下垂量 |τ|/kp；方向與該關節的 τ 同號（指令角減實際角）。至少要大於感測雜訊 0.001 rad 的 20 倍才算量得準。",
+  "sensor_noise_rad": 0.001,
+  "traj_label": "120/4",
+  "traj_kp": [
+   120.0,
+   120.0,
+   120.0,
+   120.0,
+   120.0,
+   120.0,
+   120.0,
+   120.0,
+   120.0,
+   120.0,
+   120.0,
+   120.0
+  ],
+  "traj_kd": [
+   4.0,
+   4.0,
+   4.0,
+   4.0,
+   4.0,
+   4.0,
+   4.0,
+   4.0,
+   4.0,
+   4.0,
+   4.0,
+   4.0
+  ],
+  "traj_kp_by_kind": {
+   "ABAD": 120.0,
+   "HIP": 120.0,
+   "KNEE": 120.0
+  },
+  "traj_kd_by_kind": {
+   "ABAD": 4.0,
+   "HIP": 4.0,
+   "KNEE": 4.0
+  },
+  "traj_duration_s": 5.0,
+  "traj_interp": "cosine（兩端速度為 0）",
+  "traj_peak_tau_max": 5.531957734384073,
+  "traj_final_err_max_rad": 0.04595418750742025,
+  "traj_note": "終端誤差不會是 0：位置伺服撐住重力必然留下 τ/kp 的靜態撓度。峰值力矩在 kp 20~120 之間只從 3.7 變到 5.6 N·m，調高 kp 幾乎不用付力矩代價。",
+  "tau_limit_Nm": {
+   "fl1_hip_roll": 10.0,
+   "fl2_hip_pitch": 8.0,
+   "fl3_knee_pitch": 7.0,
+   "fr1_hip_roll": 10.0,
+   "fr2_hip_pitch": 8.0,
+   "fr3_knee_pitch": 7.0,
+   "bl1_hip_roll": 10.0,
+   "bl2_hip_pitch": 8.0,
+   "bl3_knee_pitch": 7.0,
+   "br1_hip_roll": 10.0,
+   "br2_hip_pitch": 8.0,
+   "br3_knee_pitch": 7.0
+  },
+  "tau_limit_by_kind_Nm": {
+   "ABAD": 10.0,
+   "HIP": 8.0,
+   "KNEE": 7.0
+  },
+  "tau_limit_driven_by_pose": {
+   "fr1_hip_roll": "STAND",
+   "fr2_hip_pitch": "CROUCH",
+   "fr3_knee_pitch": "CROUCH",
+   "fl1_hip_roll": "STAND",
+   "fl2_hip_pitch": "CROUCH",
+   "fl3_knee_pitch": "CROUCH",
+   "br1_hip_roll": "STAND",
+   "br2_hip_pitch": "crouch_knee_back",
+   "br3_knee_pitch": "CROUCH",
+   "bl1_hip_roll": "STAND",
+   "bl2_hip_pitch": "CROUCH",
+   "bl3_knee_pitch": "crouch_knee_back"
+  },
+  "tau_limit_rule": "max(所有靜態姿勢的重力力矩, 建議增益下的軌跡峰值) × 1.5，無條件進位，上限截到 150 N·m（MJCF actuatorfrcrange / 規格書），下限 3 N·m 免得 abad 被鎖死。★ 這是預演值不是硬體極限。實機有 MJCF 沒有的腿關節摩擦與少掉的 2.2 kg，可能誤觸發 —— 誤觸發代表模型與實機有系統性差異，先查清楚再放寬，不要一開始就設 150。"
+ }
 }

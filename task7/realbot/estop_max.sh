@@ -32,7 +32,10 @@ set -uo pipefail        # ⚠️ 不用 -e：這支的每一步都要跑完並�
 #    ★ 新增任何會寫入的工具時，**必須同步加進這個清單** ——
 #      task6 就是漏加 L7，按下 estop 只解凍不殺程式。
 #      下面的 §maps 交叉檢查就是為了讓「漏加」會被抓到而不是靜靜失效。
-WRITERS=("M5_leg_pose.py" "M1_zero_write.py" "M2_wheel_spin.py" "M3_wheel_tour.py")
+WRITERS=("M5_leg_pose.py" "M7_standup.py" "M1_zero_write.py"
+         "M2_wheel_spin.py" "M3_wheel_tour.py")
+# ⚠️ M6_load_probe.py **不在**這個清單裡 —— 它是唯讀的，不寫 joint_cmd。
+#    清單只列會寫入的，殺錯無辜的唯讀工具沒有幫助。
 
 # 原廠自己的行程本來就會 mmap joint_cmd，不是我們的問題，交叉檢查時要排除
 FACTORY_RE='mc_ctrl|ros2|controller_manager|robot_hal|zsi_actuator|spline'

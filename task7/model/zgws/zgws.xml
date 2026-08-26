@@ -37,7 +37,7 @@
 
       <body name="FAR_ABAD_LINK" pos="0.2698 -0.065 0">
         <inertial pos="0.033776 -0.02146 9.6941e-07" quat="0.351949 0.351975 0.613287 0.613289" mass="0.19789" diaginertia="0.00025478 0.00020921 0.00011958"/>
-        <joint name="FAR_ABAD_JOINT" pos="0 0 0" axis="1 0 0" range="-0.697 0.523" actuatorfrcrange="-150 150" frictionloss="1.5"/>
+        <joint name="FAR_ABAD_JOINT" pos="0 0 0" axis="1 0 0" range="-0.697 0.523" actuatorfrcrange="-150 150" frictionloss="1.85"/>
         <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.49804 0.5 0.49804 1" mesh="FAR_ABAD_LINK"/>
         <body name="FAR_HIP_LINK" pos="0.0587 -0.045 0">
           <inertial pos="-3.2e-05 -0.065021 -0.128154" quat="0.703257 -0.0677607 0.068164 0.704409" mass="2.8754" diaginertia="0.0456037 0.045202 0.00275532"/>
@@ -61,7 +61,7 @@
 
       <body name="FBL_ABAD_LINK" pos="0.2698 0.065 0">
         <inertial pos="0.033776 0.02146 -9.6941e-07" quat="0.613283 0.613294 0.351948 0.351976" mass="0.19789" diaginertia="0.00025478 0.00020921 0.00011958"/>
-        <joint name="FBL_ABAD_JOINT" pos="0 0 0" axis="1 0 0" range="-0.523 0.697" actuatorfrcrange="-150 150" frictionloss="1.5"/>
+        <joint name="FBL_ABAD_JOINT" pos="0 0 0" axis="1 0 0" range="-0.523 0.697" actuatorfrcrange="-150 150" frictionloss="1.85"/>
         <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.49804 0.5 0.49804 1" mesh="FBL_ABAD_LINK"/>
         <body name="FBL_HIP_LINK" pos="0.0587 0.045 0">
           <inertial pos="3.7e-05 0.065021 -0.128154" quat="0.702733 0.067692 -0.0682323 0.704931" mass="2.8754" diaginertia="0.0456037 0.045202 0.00275532"/>
@@ -85,7 +85,7 @@
 
       <body name="RAR_ABAD_LINK" pos="-0.2698 -0.065 0">
         <inertial pos="-0.033776 -0.02146 -9.6931e-07" quat="0.613283 0.613294 0.351948 0.351976" mass="0.19789" diaginertia="0.00025478 0.00020921 0.00011958"/>
-        <joint name="RAR_ABAD_JOINT" pos="0 0 0" axis="1 0 0" range="-0.697 0.523" actuatorfrcrange="-150 150" frictionloss="1.5"/>
+        <joint name="RAR_ABAD_JOINT" pos="0 0 0" axis="1 0 0" range="-0.697 0.523" actuatorfrcrange="-150 150" frictionloss="1.85"/>
         <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.49804 0.5 0.49804 1" mesh="RAR_ABAD_LINK"/>
         <body name="RAR_HIP_LINK" pos="-0.0587 -0.045 0">
           <inertial pos="-3.7e-05 -0.065021 -0.128154" quat="0.702733 -0.067692 0.0682323 0.704931" mass="2.8754" diaginertia="0.0456037 0.045202 0.00275532"/>
@@ -109,7 +109,7 @@
 
       <body name="RBL_ABAD_LINK" pos="-0.2698 0.065 0">
         <inertial pos="-0.033776 0.02146 9.6918e-07" quat="0.351949 0.351975 0.613287 0.613289" mass="0.19789" diaginertia="0.00025478 0.00020921 0.00011958"/>
-        <joint name="RBL_ABAD_JOINT" pos="0 0 0" axis="1 0 0" range="-0.523 0.697" actuatorfrcrange="-150 150" frictionloss="1.5"/>
+        <joint name="RBL_ABAD_JOINT" pos="0 0 0" axis="1 0 0" range="-0.523 0.697" actuatorfrcrange="-150 150" frictionloss="1.85"/>
         <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.49804 0.5 0.49804 1" mesh="RBL_ABAD_LINK"/>
         <body name="RBL_HIP_LINK" pos="-0.0587 0.045 0">
           <inertial pos="3.7e-05 0.065021 -0.128154" quat="0.702733 0.067692 -0.0682323 0.704931" mass="2.8754" diaginertia="0.0456037 0.045202 0.00275532"/>

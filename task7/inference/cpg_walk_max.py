@@ -104,11 +104,15 @@ OUT_DIR = Path(__file__).resolve().parents[1] / "outputs"
 # ⚠️ x_off 隨輪摩擦而變。無摩擦時「平均俯仰過零」落在 −42 mm，
 #    加上實測 frictionloss=0.15 之後移到 **−30 mm**。改摩擦就要重掃這一項。
 #    （其餘三項 —— duty、mu_y、地面摩擦門檻 —— 加摩擦後結論完全沒變，已重驗。）
+# ⚠️ `x_off` 每次改摩擦都要重掃 —— 它是**配平點**，不是只讓速度整體平移。
+#    判準是**平均俯仰過零**（偏航太吵，在 −0.035↔−0.025 之間會從 −1.1° 跳到 −18.3°，
+#    那是混沌不是趨勢）。歷次：無摩擦 −42 → 併入輪摩擦 0.15 後 −30
+#    → 2026-08-26 併入實測腿關節摩擦 1.5 後 **−40**。
 GAITS = {
     "walk": dict(phase=cpg_max.PHASE_WALK, duty=0.80, omega=1.4, mu_x=1.80,
-                 x_off=-0.030, d_step=0.10, g_c=0.08),
+                 x_off=-0.040, d_step=0.10, g_c=0.08),
     "walk_fast": dict(phase=cpg_max.PHASE_WALK, duty=0.80, omega=1.4, mu_x=1.80,
-                      x_off=-0.030, d_step=0.13, g_c=0.08),
+                      x_off=-0.040, d_step=0.13, g_c=0.08),
     # trot 的 x_off 沒有重掃 —— 它的指標是混沌的，掃了也選不出東西。
     "trot": dict(phase=cpg_max.PHASE_TROT, duty=0.50, omega=3.0, mu_x=1.80,
                  x_off=-0.050, d_step=0.10, g_c=0.08),
@@ -121,7 +125,8 @@ SETTLE_S = 1.5    # 開走前先站穩。這台 41 kg，比 task6 的 0.8 s 需�
 class Robot:
     """MuJoCo 模型 + 迴圈內 PD。所有 rollout 共用，確保控制律只有一份。"""
 
-    def __init__(self, friction: float = None, wheel_friction: float = None):
+    def __init__(self, friction: float = None, wheel_friction: float = None,
+                 leg_friction: float = None):
         self.m = mm.make_model()
         if friction is not None:
             self.m.geom_friction[:, 0] = friction
@@ -130,6 +135,10 @@ class Robot:
         #    `--wheel-friction 0` 會被靜默忽略、拿不回無摩擦的對照組。
         if wheel_friction is not None:
             self.m.dof_frictionloss[mm.WHEEL_QVEL_IDX] = wheel_friction
+        # 腿關節同理。MJCF 自帶 1.5（2026-08-26 實機量到的靜摩擦掙脫門檻），
+        # `--leg-friction 0` 可取回舊的無摩擦對照組。
+        if leg_friction is not None:
+            self.m.dof_frictionloss[mm.LEG_QVEL_IDX] = leg_friction
         self.d = mujoco.MjData(self.m)
         self.foot_bid = mm.foot_body_ids(self.m)
         self.jnt_rng = mm.leg_joint_ranges(self.m)
@@ -272,7 +281,8 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
             mu_x: float = None, mu_y: float = MU_Y, x_off: float = None,
             g_c: float = None, d_step: float = None, d_step_y: float = D_STEP_Y,
             duty: float = None, friction: float = None, wheel_mode: str = "damp",
-            wheel_friction: float = None, z_sag: float = None, video: bool = False,
+            wheel_friction: float = None, leg_friction: float = None,
+            z_sag: float = None, video: bool = False,
             quiet: bool = False) -> dict:
     """開迴路步態 rollout。未指定的參數取 `GAITS[gait]` 的預設值。"""
     cfg = GAITS[gait]
@@ -285,7 +295,8 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
     d_step = cfg["d_step"] if d_step is None else d_step
     z_sag = mm.STATIC_SAG if z_sag is None else z_sag
 
-    r = Robot(friction=friction, wheel_friction=wheel_friction)
+    r = Robot(friction=friction, wheel_friction=wheel_friction,
+              leg_friction=leg_friction)
     ks = leg_kin.knee_sign_of(mm.HOME)
     f0 = leg_kin.home_foot(mm.HOME)
     step = cpg_max.make_cpg_step(phase)
@@ -445,6 +456,9 @@ if __name__ == "__main__":
                     dest="wheel_mode")
     ap.add_argument("--wheel-friction", type=float, default=None, dest="wheel_friction",
                     help="覆寫輪關節 frictionloss；MJCF 預設已是實測的 0.15，給 0 可拿無摩擦對照")
+    ap.add_argument("--leg-friction", type=float, default=None, dest="leg_friction",
+                    help="覆寫腿關節 frictionloss；MJCF 預設已是實測的 1.5，"
+                         "給 0 可拿回無摩擦對照組（2026-08-26 之前的行為）")
     ap.add_argument("--z-sag", type=float, default=None, dest="z_sag")
     ap.add_argument("--video", action="store_true")
     ap.add_argument("--sweep", type=str, default=None,

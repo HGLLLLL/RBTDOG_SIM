@@ -368,6 +368,57 @@ def build_plan(name: str, secs: float, nseed: int) -> list[dict]:
                                              kd3=[4.0, 4.0, 4.0],
                                              z_sag=mm.STATIC_SAG * 120.0 / 480.0)))
 
+    if name == "kp250":
+        # 實機線指定的重掃（`docs/給CPG線_請重掃kp250基準_2026-08-27.md`）。
+        #
+        # ⚠️ kd 對方沒指定 —— 這裡用原廠**站立實測**的 5.0（與 kp=250 同一組來源）。
+        # ⚠️ 對方 §2 的關鍵警告：**模擬在 z 方向系統性高估順從性約 2 倍，x 方向卻是準的**
+        #    （靜態撓度 2.13×、擺動離地 1.81×，但擺動前跨 1.01×）。
+        #    → `d_step` / `x_off`（x 方向）可以直接信模擬；
+        #      `g_c` / `z_sag`（z 方向）在模擬掃出來的值**不可以直接搬上實機**。
+        # ⚠️ z_sag 用**實機錨點**：實機 kp=250 的擺動離地損失是 36 mm。
+        #    模擬會高估約 1.9 倍，所以模擬裡掃出來的最佳值會比 36 大 ——
+        #    兩個都報，實機取 36。
+        KP = [250.0, 250.0, 250.0]
+        KD = [5.0, 5.0, 5.0]
+        Z = 0.036                     # 實機錨點
+        for duty in (0.75, 0.80, 0.85, 0.90):
+            for d in (0.10, 0.12, 0.14, 0.16):
+                P.append((f"kp250 duty {duty:.2f}", f"d{d:.2f}",
+                          dict(S, gait="walk", duty=duty, d_step=d,
+                               kp3=KP, kd3=KD, z_sag=Z)))
+
+    if name == "kp250_trim":
+        # 決選格的配平與 z 方向。⚠️ 舊的 x_off 判準（平均俯仰單調過零）
+        # 在換工作點之後失效過一次（kp480 那組在 −50~−30 完全不變號），
+        # 所以這裡掃**更寬**的範圍，先確認有沒有過零點再談取值。
+        KP, KD = [250.0, 250.0, 250.0], [5.0, 5.0, 5.0]
+        for v in (-0.060, -0.040, -0.020, 0.0, +0.020):
+            P.append(("x_off @ kp250", f"{v:+.3f}",
+                      dict(S, gait="walk", duty=0.85, d_step=0.12, x_off=v,
+                           kp3=KP, kd3=KD, z_sag=0.036)))
+        # z 方向：模擬最佳 vs 實機錨點（36 mm）。兩個都要有數字才比得了。
+        for z in (0.0, 0.018, 0.036, 0.054, 0.072):
+            P.append(("z_sag @ kp250", f"{z*1000:.0f}mm",
+                      dict(S, gait="walk", duty=0.85, d_step=0.12,
+                           kp3=KP, kd3=KD, z_sag=z)))
+
+    if name == "kp250_final":
+        # 配平後的最終確認。★ 長時程一定要跑 —— 舊基準的偏航結論就是靠 180 秒才看得出來
+        # （60 秒那格因為起步暫態抵銷，看起來像「不漂」）。
+        # 實機線已確認 mc_ctrl 凍 200 秒正常，所以 180 秒可以一氣呵成。
+        KP, KD = [250.0, 250.0, 250.0], [5.0, 5.0, 5.0]
+        REC = dict(gait="walk", duty=0.85, d_step=0.12, x_off=-0.050,
+                   kp3=KP, kd3=KD, z_sag=0.036)
+        ALT = dict(gait="walk", duty=0.90, d_step=0.14, x_off=-0.050,
+                   kp3=KP, kd3=KD, z_sag=0.036)
+        for t in (20.0, 60.0, 180.0):
+            P.append(("★建議 d0.85/dstep0.12", f"{t:.0f}s", dict(REC, secs=t)))
+        for t in (20.0, 180.0):
+            P.append(("備選 d0.90/dstep0.14", f"{t:.0f}s", dict(ALT, secs=t)))
+        for t in (20.0, 180.0):
+            P.append(("對照 舊基準 kp120", f"{t:.0f}s", dict(gait="walk", secs=t)))
+
     if name == "drift":
         # `walk_fast` 的慢漂不隨 x_off 變（見 plan=yaw），但**隨 d_step 變號**：
         # 20 s 掃描裡 0.08→+8.6°、0.10→+8.2°、0.13→−19.4°、0.16→−35.6°。
@@ -408,7 +459,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--plan", default="full",
                     choices=("full", "trim", "params", "abad", "base", "yaw", "drift",
-                             "omega_trim", "g1", "duty_kp", "duty_kp2", "gc_winner", "kp120_limit", "finals"))
+                             "omega_trim", "g1", "duty_kp", "duty_kp2", "gc_winner", "kp120_limit", "finals", "kp250", "kp250_trim", "kp250_final"))
     ap.add_argument("--secs", type=float, default=20.0)
     ap.add_argument("--seeds", type=int, default=6, help="每格的擾動數")
     ap.add_argument("--procs", type=int, default=None,

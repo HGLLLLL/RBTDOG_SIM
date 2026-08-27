@@ -108,3 +108,38 @@ def test_gain_override_changes_front_exec():
     assert stiff["exec_front"] > soft["exec_front"] + 0.3, (
         f"加硬增益後前腳執行率只從 {soft['exec_front']:.2f} 到 "
         f"{stiff['exec_front']:.2f} —— kp3 可能沒接進去")
+
+
+def test_kp250_baseline_frozen():
+    """kp=250 那組（給實機 M9 用）的參數釘住。
+
+    ⚠️ 它**不是**新的凍結基準 —— 實機線的決定是「下一階段測試用 250，
+       最終增益之後再議」。`BASELINE` 維持 kp=120 那組不動。
+    """
+    assert gb.BASELINE_KP250["duty"] == 0.85
+    assert gb.BASELINE_KP250["d_step"] == 0.12
+    assert gb.BASELINE_KP250["x_off"] == -0.050
+    assert gb.BASELINE_KP250["z_sag"] == 0.036       # ★ 實機錨點，不是模擬掃出來的
+    assert gb.BASELINE_KP250["kp3"] == [250.0, 250.0, 250.0]
+    assert gb.BASELINE_KP250["kd3"] == [5.0, 5.0, 5.0]
+    # 舊基準不可以被順手改掉
+    assert gb.BASELINE["duty"] == 0.80 and gb.BASELINE["x_off"] == -0.040
+
+
+def test_kp250_gait_actually_fixes_front_legs():
+    """kp=250 那組必須真的把前腳修好 —— 這是它存在的唯一理由。
+
+    ⚠️ 用它**必須同時給 kp3/kd3/z_sag**，只改 gait 名稱是不夠的。
+       這條測試順便釘住那件事：少給增益的話前腳執行率會掉回 0.0x。
+    """
+    b = gb.BASELINE_KP250
+    good = cw.rollout(gait="walk_kp250", secs=12.0, kp3=b["kp3"], kd3=b["kd3"],
+                      z_sag=b["z_sag"], quiet=True)
+    assert good["fell"] is None
+    assert good["exec_front"] > 0.5, f"前腳執行率只有 {good['exec_front']:.2f}"
+    assert good["step_self"][0] > 70.0, "前腿每步自走應該 > 70 mm"
+
+    # 只改 gait 名稱、不給增益 → 前腳仍然不跨步（這是常見的誤用）
+    bad = cw.rollout(gait="walk_kp250", secs=12.0, quiet=True)
+    assert bad["exec_front"] < 0.3, (
+        "沒給 kp3 時前腳執行率竟然是好的 —— 表示增益從別的地方漏進來了")

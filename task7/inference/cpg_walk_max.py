@@ -133,6 +133,13 @@ GAITS = {
     #   配平點會隨 d_step 移動，不是只隨摩擦移動。
     "walk_fast": dict(phase=cpg_max.PHASE_WALK, duty=0.80, omega=1.4, mu_x=1.80,
                       x_off=-0.046, d_step=0.13, g_c=0.08),
+    # ★ kp=250 的重掃結果（2026-08-27，應實機線要求）。**不是新的凍結基準** ——
+    #   實機線的決定是「下一階段測試用 250，最終增益之後再議」。
+    #   ⚠️ 用這組**必須同時給 kp3/kd3/z_sag**，光改 GAITS 是不夠的：
+    #      rollout(gait="walk_kp250", kp3=gb.BASELINE_KP250["kp3"],
+    #              kd3=gb.BASELINE_KP250["kd3"], z_sag=gb.BASELINE_KP250["z_sag"])
+    #      這正是「參數散在兩個地方」的坑，所以 gait_baseline 那邊放的是完整字典。
+    "walk_kp250": gb.kp250_gait(),
     # trot 的 x_off 沒有重掃 —— 它的指標是混沌的，掃了也選不出東西。
     "trot": dict(phase=cpg_max.PHASE_TROT, duty=0.50, omega=3.0, mu_x=1.80,
                  x_off=-0.050, d_step=0.10, g_c=0.08),

@@ -144,25 +144,32 @@ def _agg(rs: list[dict]) -> dict:
         "height": med("height", 1000),
         "lateral": med("lateral", 1000),
         "net_roll": med("net_roll", 1000),
+        # ★★ 執行率：2026-08-27 補上。前腳「抬起來原地放下」時其餘指標全是乾淨的，
+        #    只有這一項會露餡。前/後分開看——缺陷是**前後不對稱**，平均會把它抹掉。
+        "exec_front": med("exec_front"), "exec_front_rng": rng("exec_front"),
+        "exec_rear": med("exec_rear"),
+        "step_self_front": float(np.median([np.mean(r["step_self"][:2]) for r in rs])),
         "lim_pct": max(r["lim_pct"] for r in rs),
         "tau_pct": max(r["tau_pct"] for r in rs),
         "reach_pct": max(r["reach_pct"] for r in rs),
     }
 
 
-HDR = (f"{'值':>10} |{'跌倒':>6}{'★行進速度m/s':>15}{'彈跳mm':>13}{'支撐腳':>12}"
-       f"{'直線速度':>11}{'離地mm':>8}{'平均俯仰°':>15}{'偏航°(中位/全距)':>20}{'偏航°/s':>16}{'超限%':>7}{'飽和%':>7}")
+HDR = (f"{'值':>10} |{'跌倒':>6}{'★行進速度m/s':>15}{'★前腳執行':>13}{'後腳':>7}"
+       f"{'前腿自走mm':>12}{'彈跳mm':>13}{'支撐腳':>12}"
+       f"{'離地mm':>8}{'平均俯仰°':>15}{'偏航°/s':>16}{'超限%':>7}{'飽和%':>7}")
 
 
 def _row(label: str, a: dict) -> str:
     fell = f"{a['n_fell']}/{a['n']}"
     return (f"{label:>10} |{fell:>6}"
             f"{a['speed_travel']:>9.3f}±{a['speed_travel_rng']:>4.3f}"
+            f"{a['exec_front']:>8.2f}±{a['exec_front_rng']:>3.2f}"
+            f"{a['exec_rear']:>7.2f}{a['step_self_front']:>12.1f}"
             f"{a['bounce']:>7.1f}±{a['bounce_rng']:>4.1f}"
             f"{a['support']:>7.2f}±{a['support_rng']:>3.2f}"
-            f"{a['speed_net']:>11.3f}{a['min_lift']:>8.1f}"
+            f"{a['min_lift']:>8.1f}"
             f"{a['pitch_mean']:>+9.2f}±{a['pitch_mean_rng']:>4.2f}"
-            f"{a['yaw']:>+13.1f}/{a['yaw_rng']:>5.1f}"
             f"{a['yaw_rate']:>+9.3f}±{a['yaw_rate_rng']:>5.3f}"
             f"{a['lim_pct']:>7.2f}{a['tau_pct']:>7.2f}")
 
@@ -261,6 +268,68 @@ def build_plan(name: str, secs: float, nseed: int) -> list[dict]:
         P.append(("G1/模型", "C3 訓練模型",
                   dict(S, gait="walk", scene=mm.SCENE_MJX, actuator_mode="position")))
 
+    if name == "duty_kp":
+        # ★ duty × kp 二維掃描（2026-08-27）。
+        #
+        # 為什麼要二維：前腳擺動相只執行指令的 2–5%，兩個候選解釋是
+        #   (a) 位置伺服對擺動腿慣量太軟（kp=120 是原廠**RL 設定檔**的值）
+        #   (b) 擺動相時間太短（duty 0.80 + ω 1.4 → 只有 143 ms）
+        # 分開掃很可能各自都「成立」，而不知道哪個是主因 ——
+        # 那正是這個專案 2026-08-27 已經踩過一次的坑（第一版 G1 對照）。
+        #
+        # ⚠️ `duty ≤ 0.70 必跌` 這條結論**是在 kp=120 下量的**，高增益下未必成立，
+        #    所以 duty 要往下掃到 0.60。
+        # ⚠️ `z_sag` 不是獨立旋鈕，是**為某個 kp 量出來的撓度補償**。
+        #    實測靜態撓度：kp=120 → 32.5 mm、kp=250 → **16.7 mm**（幾乎正比於 1/kp）。
+        #    所以這裡讓它**隨 kp 等比縮放**。固定 z_sag 反而是引入混淆 ——
+        #    高增益格的補償會按定義就是錯的（補過頭 → 離地量被吃掉）。
+        # ⚠️ `x_off`（配平點）同樣與增益綁死，但它沒有這種簡單的比例關係，
+        #    這裡維持基準值，配平留到選定 (duty, kp) 之後用 `--plan trim` 重掃。
+        for duty in (0.60, 0.65, 0.70, 0.75, 0.80, 0.85):
+            for kp in (120.0, 180.0, 250.0, 360.0, 480.0):
+                # kd 隨 kp 等比例縮放，維持阻尼比。原廠兩組都符合這個關係
+                # （120/1.0 與 250/5.0 不完全等比，但 kd 對執行率的敏感度低，
+                #  見 gain_compare 的 250/kd2 vs 250/kd5）。
+                kd = 1.0 * (kp / 120.0)
+                P.append((f"duty {duty:.2f}", f"kp{kp:.0f}",
+                          dict(S, gait="walk", duty=duty,
+                               kp3=[kp * 0.5, kp, kp], kd3=[kd, kd, kd],
+                               z_sag=mm.STATIC_SAG * 120.0 / kp)))
+
+    if name == "duty_kp2":
+        # duty_kp 的決選：只留有希望的格，改用 12 擾動確認。
+        # duty 0.60–0.70 全部淘汰（彈跳 50–100 mm、支撐腳 2.0–2.4），不再花時間。
+        for duty in (0.80, 0.85):
+            for kp in (250.0, 360.0, 480.0):
+                kd = 1.0 * (kp / 120.0)
+                P.append((f"決選 duty {duty:.2f}", f"kp{kp:.0f}",
+                          dict(S, gait="walk", duty=duty,
+                               kp3=[kp * 0.5, kp, kp], kd3=[kd, kd, kd],
+                               z_sag=mm.STATIC_SAG * 120.0 / kp)))
+        # 對照組：現況
+        P.append(("決選 duty 0.80", "kp120(現況)", dict(S, gait="walk")))
+
+    if name == "gc_winner":
+        # 決選格（duty 0.85 / kp 480）的離地量只有 55 mm。掃 g_c 確認它調得回來。
+        for g in (0.08, 0.10, 0.12, 0.14, 0.16):
+            P.append(("g_c @ d0.85 kp480", f"{g:.2f}",
+                      dict(S, gait="walk", duty=0.85, g_c=g,
+                           kp3=[240.0, 480.0, 480.0], kd3=[4.0, 4.0, 4.0],
+                           z_sag=mm.STATIC_SAG * 120.0 / 480.0)))
+        # 同一組 g_c 在較保守的 kp360 也掃一次 —— kp=480 是原廠站立值的 1.9 倍，
+        # 拿它跟「沒調過 g_c 的 kp360」比是不公平的比較。
+        for g in (0.08, 0.10, 0.12, 0.14):
+            P.append(("g_c @ d0.85 kp360", f"{g:.2f}",
+                      dict(S, gait="walk", duty=0.85, g_c=g,
+                           kp3=[180.0, 360.0, 360.0], kd3=[3.0, 3.0, 3.0],
+                           z_sag=mm.STATIC_SAG * 120.0 / 360.0)))
+        # 順便確認配平：kp480/d0.85 的平均俯仰是 +0.10，x_off 幾乎不用動，掃三點看趨勢
+        for v in (-0.050, -0.040, -0.030):
+            P.append(("x_off @ d0.85 kp480", f"{v:.3f}",
+                      dict(S, gait="walk", duty=0.85, x_off=v, g_c=0.12,
+                           kp3=[240.0, 480.0, 480.0], kd3=[4.0, 4.0, 4.0],
+                           z_sag=mm.STATIC_SAG * 120.0 / 480.0)))
+
     if name == "drift":
         # `walk_fast` 的慢漂不隨 x_off 變（見 plan=yaw），但**隨 d_step 變號**：
         # 20 s 掃描裡 0.08→+8.6°、0.10→+8.2°、0.13→−19.4°、0.16→−35.6°。
@@ -301,7 +370,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--plan", default="full",
                     choices=("full", "trim", "params", "abad", "base", "yaw", "drift",
-                             "omega_trim", "g1"))
+                             "omega_trim", "g1", "duty_kp", "duty_kp2", "gc_winner"))
     ap.add_argument("--secs", type=float, default=20.0)
     ap.add_argument("--seeds", type=int, default=6, help="每格的擾動數")
     ap.add_argument("--procs", type=int, default=None,

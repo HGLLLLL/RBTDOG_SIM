@@ -75,3 +75,36 @@ def test_baseline_walks_without_falling():
     assert r["reach_pct"] == 0.0
     assert r["support"] > 3.0
     assert np.isfinite(r["speed_travel"]) and r["speed_travel"] > 0.10
+
+
+def test_exec_rate_catches_front_legs_not_stepping():
+    """★ 執行率必須抓得到「前腳抬起來、原地放下」。
+
+    2026-08-27：使用者看影片才發現前腳幾乎不往前踏，而當時**全部指標都是乾淨的**
+    （離地 93–111 mm 四腿很平均、支撐腳 3.20、速度正常、三個診斷 0.00%）。
+    這條測試釘住「這個缺陷會被量到」——它現在是已知狀態，不是回歸失敗。
+    ⚠️ 若哪天基準改好了（前腳執行率上去），**這條要跟著改**，
+       而且必須連同 `docs/前腳不跨步的根因_2026-08-27.md` 一起更新。
+    """
+    r = cw.rollout(gait="walk", secs=12.0, quiet=True)
+    assert r["exec_rear"] > 1.0, f"後腳執行率不該低：{r['exec_rear']}"
+    assert r["exec_front"] < 0.2, (
+        f"前腳執行率變成 {r['exec_front']:.2f} —— 若這是刻意改好的，"
+        "請更新本測試與 docs/前腳不跨步的根因_2026-08-27.md")
+    # 世界前跨與「腿自走」必須分開：前腳世界有 30 mm 但腿自己只走 2–5 mm
+    assert r["step_world"][0] > 20.0 and r["step_self"][0] < 10.0
+
+
+def test_gain_override_changes_front_exec():
+    """增益覆寫要真的生效 —— 加硬增益前腳執行率必須上去。
+
+    這同時擋住「kp3 參數被接錯而靜默沿用預設」：那種錯誤下整組掃描會得到
+    「增益沒有影響」的結論，而那結論看起來完全合理。
+    """
+    soft = cw.rollout(gait="walk", secs=12.0, quiet=True)
+    stiff = cw.rollout(gait="walk", secs=12.0, kp3=[250.0, 250.0, 250.0],
+                       kd3=[5.0, 5.0, 5.0], quiet=True)
+    assert stiff["kp3"] == [250.0, 250.0, 250.0]
+    assert stiff["exec_front"] > soft["exec_front"] + 0.3, (
+        f"加硬增益後前腳執行率只從 {soft['exec_front']:.2f} 到 "
+        f"{stiff['exec_front']:.2f} —— kp3 可能沒接進去")

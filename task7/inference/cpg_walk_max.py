@@ -178,7 +178,7 @@ class Robot:
     def __init__(self, friction: float = None, wheel_friction: float = None,
                  leg_friction: float = None, abad_friction: float = None,
                  scene: str = None, actuator_mode: str = "torque_pd",
-                 solver_iters: tuple = None):
+                 solver_iters: tuple = None, kp3=None, kd3=None):
         assert actuator_mode in ("torque_pd", "position"), \
             f"actuator_mode 只能是 torque_pd / position，收到 {actuator_mode!r}"
         self.m = _model(scene)
@@ -225,8 +225,13 @@ class Robot:
         self.foot_bid = mm.foot_body_ids(self.m)
         self.jnt_rng = mm.leg_joint_ranges(self.m)
         self.n_sub = int(round(mm.CTRL_DT / self.m.opt.timestep))
-        self.kp = np.tile(mm.KP3, 4)
-        self.kd = np.tile(mm.KD3, 4)
+        # ⚠️ 增益不是自由參數，要對得上實機。原廠有**兩組互相矛盾**的值：
+        #      RL 設定檔（FSM_RL_*）：ABAD 60 / HIP 120 / KNEE 120、Kd 1.0  ← 預設
+        #      站立實測（2026-08-26）：三個關節都 250、Kd 5.0
+        #    而且 `STATIC_SAG`（z_sag）與 `x_off`（配平點）**都與增益綁死**，
+        #    覆寫增益之後那兩個一定要重掃，不可以沿用。
+        self.kp = np.tile(mm.KP3 if kp3 is None else np.asarray(kp3, float), 4)
+        self.kd = np.tile(mm.KD3 if kd3 is None else np.asarray(kd3, float), 4)
         self.tau_max = np.tile(mm.TAU_MAX3, 4)
         # 診斷計數器
         self.n_cmd = 0          # 送出的關節指令數（= 控制步數 × 12）
@@ -335,10 +340,11 @@ class Trace:
     """
 
     def __init__(self, robot: "Robot", n_steps: int, secs: float, omega: float,
-                 phase: np.ndarray):
+                 phase: np.ndarray, duty: float = None):
         self.r, self.n, self.secs = robot, n_steps, secs
         self.omega = omega
         self.phase = np.asarray(phase)
+        self.duty = gb.BASELINE["duty"] if duty is None else duty
         self.half = n_steps // 2
         self.i = 0
         d = robot.d
@@ -363,8 +369,29 @@ class Trace:
         self.yaw_total = 0.0
         self._yaw_prev = self.yaw0
 
-    def record(self, theta: np.ndarray):
-        """在 `robot.step()` 之後呼叫一次。`theta` 是當下的 CPG 相位 (4,)。"""
+        # ★★ 「每步往前跨多少」—— 2026-08-27 補上的。
+        #
+        # 這個量當初**整組指標裡沒有**，結果是：前腳在擺動相只執行了指令的 2–5%
+        # （抬起來、原地放下），而離地量 93–111 mm 四腿很平均、支撐腳 3.20、
+        # 速度正常、超限／飽和／IK縮限全部 0.00% —— **每一個指標都是乾淨的**。
+        # 是使用者看影片發現的，不是量出來的。見 `docs/前腳不跨步的根因_2026-08-27.md`。
+        #
+        # 量法：足端世界位移 = 機身位移 + **足端自己相對機身的位移**，
+        # 後者除以指令要求的量 = 執行率。擺動相判定用 `duty_remap` 後的
+        # `sin(th) > 0`（軌跡公式自己的定義），**不用離地高度門檻** ——
+        # 那在會彈跳的步態上會騙人（機身騰空時腳離地面很近卻沒受力）。
+        self._sw_prev = np.zeros(4, dtype=bool)
+        self._sw_foot = np.zeros(4)
+        self._sw_body = np.zeros(4)   # ⚠️ 逐腿：四條腿的擺動起點不同時
+        self._sw_cmd = np.zeros(4)
+        self.steps = [[] for _ in range(4)]      # 每次擺動的 (自走量, 指令量) m
+
+    def record(self, theta: np.ndarray, tgt_x: np.ndarray = None):
+        """在 `robot.step()` 之後呼叫一次。
+
+        `theta`  當下的 CPG 相位 (4,)
+        `tgt_x`  當下**指令**的足端 x（4,，各腿自己的座標系）。給了才算得出執行率。
+        """
         d, r, i = self.r.d, self.r, self.i
         xy = np.array([float(d.qpos[0]), float(d.qpos[1])])
         self.path_len += float(np.linalg.norm(xy - self.prev_xy))
@@ -390,6 +417,21 @@ class Trace:
             self.roll.append(np.degrees(np.arcsin(np.clip(grav[1], -1.0, 1.0))))
             self.height.append(float(d.qpos[2]))
             self.phases.append(np.asarray(theta).copy())
+
+        if tgt_x is not None:
+            th = cpg_max.duty_remap(theta, self.duty)
+            sw = np.sin(th) > 0
+            fx = np.array([float(d.xpos[b][0]) for b in r.foot_bid])
+            bx = float(d.qpos[0])
+            for k in range(4):
+                if sw[k] and not self._sw_prev[k]:
+                    self._sw_foot[k], self._sw_cmd[k] = fx[k], tgt_x[k]
+                    self._sw_body[k] = bx
+                elif (not sw[k]) and self._sw_prev[k] and i >= self.half:
+                    self.steps[k].append((fx[k] - self._sw_foot[k],            # 世界前跨
+                                          bx - self._sw_body[k],                # 機身帶的
+                                          tgt_x[k] - self._sw_cmd[k]))          # 指令要求
+            self._sw_prev = sw
         self.i += 1
 
     def summarize(self, n_reach: int = 0, extra: dict = None) -> dict:
@@ -426,6 +468,22 @@ class Trace:
                         if stride is not None and len(stride) else float("nan"))
         net = float(np.linalg.norm(xy[-1] - xy[0]))
 
+        # 每步前跨與執行率（沒餵 tgt_x 就都是 nan）
+        step_world, step_self, exec_rate = [], [], []
+        for k in range(4):
+            a = np.asarray(self.steps[k])
+            if len(a) == 0:
+                step_world.append(float("nan"))
+                step_self.append(float("nan"))
+                exec_rate.append(float("nan"))
+            else:
+                world, body, cmd = a.mean(0)
+                step_world.append(float(world * 1000))
+                step_self.append(float((world - body) * 1000))
+                # 指令量太小時比值沒有意義（例如 d_step=0 的原地踏步），回 nan 而不是爆數
+                exec_rate.append(float((world - body) / cmd) if abs(cmd) > 1e-4
+                                 else float("nan"))
+
         res = {
             "peak_lift": [float(np.percentile(l, 99)) for l in self.lift],
             "min_lift": float(min(np.percentile(l, 99) for l in self.lift)),
@@ -447,6 +505,16 @@ class Trace:
             #    轉彎時一定要看 `yaw_total`，否則會包裹成錯誤的值甚至錯誤的符號。
             "yaw": cpg_max.yaw_deg(d.qpos[3:7]) - self.yaw0,
             "yaw_total": self.yaw_total,        # ★ 逐步累積、不包裹。轉彎時看這個
+            # ★★ 每步往前跨（mm）與**執行率**。三個量必須分開看：
+            #      step_world  足端在世界座標前跨多少  ← 「看起來有沒有在走」
+            #      step_self   扣掉機身位移後**腿自己走的** ← 「腿有沒有在做事」
+            #      exec_rate   step_self ÷ 指令要求 ← ★ 前腳「抬起來原地放下」只有這項會露餡
+            #    實測開迴路基準：前腳 world 31 mm 但 self 只有 2 mm、執行率 0.03。
+            "step_world": step_world,
+            "step_self": step_self,
+            "exec_rate": exec_rate,
+            "exec_front": float(np.mean(exec_rate[:2])) if exec_rate else float("nan"),
+            "exec_rear": float(np.mean(exec_rate[2:])) if exec_rate else float("nan"),
             # 淨滾動距離：回答「牠是在走還是在滾」。輪軸 +y，前進對應輪角減少。
             "net_roll": float(-np.mean(d.qpos[mm.WHEEL_QPOS_IDX] - self.w0)
                               * mm.WHEEL_RADIUS),
@@ -475,6 +543,13 @@ def report(res: dict, header: str) -> None:
           f"側偏 {res['lateral']:+.2f} m  偏航 {res['yaw']:+.1f}°  "
           f"淨滾動 {res['net_roll'] * 1000:+.0f} mm  "
           f"跌倒={'是 @%.1fs' % res['fell'] if res['fell'] is not None else '否'}")
+    if not (isinstance(res.get("exec_front"), float) and res["exec_front"] != res["exec_front"]):
+        print("[跨步] " + "  ".join(f"{L}={w:.0f}/{s_:.0f}"
+                                    for L, w, s_ in zip(mm.LEGS, res["step_world"],
+                                                        res["step_self"]))
+              + f"  mm（世界/腿自走）  ★執行率 前 {res['exec_front']:.2f}"
+              f" ／ 後 {res['exec_rear']:.2f}"
+              + ("  ⚠️ 前腳幾乎不跨步" if res["exec_front"] < 0.5 else ""))
     print(f"[診斷] 超限 {res['lim_pct']:.2f}%  力矩飽和 {res['tau_pct']:.2f}%  "
           f"IK縮限 {res['reach_pct']:.2f}%  "
           f"相位鎖定σ " + "/".join(f"{v:.1f}" for v in res["phase_lock"]) + "°")
@@ -540,7 +615,8 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
             wheel_friction: float = None, leg_friction: float = None,
             abad_friction: float = None, z_sag: float = None, video: bool = False,
             scene: str = None, actuator_mode: str = "torque_pd",
-            solver_iters: tuple = None, quiet: bool = False) -> dict:
+            solver_iters: tuple = None, kp3=None, kd3=None,
+            quiet: bool = False) -> dict:
     """開迴路步態 rollout。未指定的參數取 `GAITS[gait]` 的預設值。"""
     cfg = GAITS[gait]
     phase = cfg["phase"]
@@ -554,7 +630,8 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
 
     r = Robot(friction=friction, wheel_friction=wheel_friction,
               leg_friction=leg_friction, abad_friction=abad_friction,
-              scene=scene, actuator_mode=actuator_mode, solver_iters=solver_iters)
+              scene=scene, actuator_mode=actuator_mode, solver_iters=solver_iters,
+              kp3=kp3, kd3=kd3)
     ks = leg_kin.knee_sign_of(mm.HOME)
     f0 = leg_kin.home_foot(mm.HOME)
     step = cpg_max.make_cpg_step(phase)
@@ -581,15 +658,16 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
     # ★ 取樣與統計都在 Trace 裡，與 RL 推論端 (local_infer_max.py) 共用同一份定義。
     #   不要在推論端複製第二份：兩份遲早分岔，分岔之後
     #   「RL 比開迴路快 x%」會同時包含真實差異與兩份程式的差異，事後分不開。
-    tr = Trace(r, n, secs, omega, phase)
+    tr = Trace(r, n, secs, omega, phase, duty)
 
     for i in range(n):
         c = step(c, np.full(4, mu_x), np.full(4, mu_y), np.full(4, omega), mm.CTRL_DT)
+        tgt = cpg_max.foot_targets(c, f0, x_off, g_c, d_step, d_step_y, duty, z_sag)
         q_des, nc = cpg_max.joint_targets(c, f0, x_off, g_c, d_step, d_step_y, duty,
                                           ks, z_sag)
         n_reach += nc
         r.step(q_des, wheel_mode)
-        tr.record(c["theta"])
+        tr.record(c["theta"], tgt[:, 0])
 
         if ren is not None and i % 2 == 0:
             cam.lookat[:] = [d.qpos[0], d.qpos[1], 0.30]
@@ -600,6 +678,8 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
     res = tr.summarize(n_reach, extra={
         "actuator_mode": actuator_mode,
         "scene": scene or mm.SCENE,
+        "kp3": list(np.asarray(mm.KP3 if kp3 is None else kp3, float)),
+        "kd3": list(np.asarray(mm.KD3 if kd3 is None else kd3, float)),
         "gait": gait, "omega": omega, "mu_x": mu_x, "x_off": x_off,
         "g_c": g_c, "d_step": d_step, "duty": duty, "z_sag": z_sag,
     })

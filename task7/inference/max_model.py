@@ -20,6 +20,12 @@ import numpy as np
 _MODEL_DIR = Path(__file__).resolve().parents[1] / "model" / "zgws"
 SCENE = str(_MODEL_DIR / "scene_flat.xml")
 
+# MJX / Colab 訓練用的場景（產生器 `model/zgws/make_mjx_model.py`）。
+# 碰撞網格換成原始形狀、致動器換成位置伺服、關掉自碰撞、無 STL 相依。
+# ⚠️ 它與 SCENE **不是同一個物理模型**，差異的量化對照見
+#    `task7/docs/MJX模型對照_2026-08-27.md`。引用數字時要標明是哪一個。
+SCENE_MJX = str(_MODEL_DIR / "scene_flat_mjx.xml")
+
 # =============================================================================
 # 機構
 # =============================================================================

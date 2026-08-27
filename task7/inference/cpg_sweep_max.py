@@ -330,6 +330,44 @@ def build_plan(name: str, secs: float, nseed: int) -> list[dict]:
                            kp3=[240.0, 480.0, 480.0], kd3=[4.0, 4.0, 4.0],
                            z_sag=mm.STATIC_SAG * 120.0 / 480.0)))
 
+    if name == "kp120_limit":
+        # ★ 問題：kp=120（原廠 RL 設定檔值）到底能不能好好控制？
+        #
+        # duty_kp 掃描只動了 duty 與 kp，**步幅從頭到尾固定 0.10**。
+        # 但擺動腿需要的力矩 ∝ 步幅 × ω²，而位置伺服給得出的力矩 = kp × 追蹤誤差 ——
+        # 「kp 太軟」與「步幅對這個 kp 太大」是同一個不等式的兩邊。
+        # 所以要回答「120 行不行」，必須掃**步幅與步頻**，不是只掃 duty。
+        #
+        # 反證也在那裡：原廠自己的 RL 模式就是用 kp=120 出貨的。
+        for d in (0.04, 0.06, 0.08, 0.10, 0.13):
+            for w in (0.7, 1.0, 1.4, 1.8):
+                P.append((f"kp120 d_step {d:.2f}", f"w{w:.1f}",
+                          dict(S, gait="walk", duty=0.85, d_step=d, omega=w)))
+        # ★ 「多下指令去補償落後」：縮小步幅沒救（反而變負），但加大步幅時
+        #    前腳**自己走的絕對量**有增加（d_step 0.10→0.13 在 ω1.4：1.2 → 46.2 mm）。
+        #    若這條成立，RL 就能在 kp=120 下自己學會補償（mu_x 是逐腿的動作維度），
+        #    那就不必動增益——那是 sim2real 風險最高的一步。
+        for d in (0.16, 0.20, 0.25, 0.30):
+            for w in (1.4, 1.8):
+                P.append((f"kp120 過量指令 {d:.2f}", f"w{w:.1f}",
+                          dict(S, gait="walk", duty=0.85, d_step=d, omega=w)))
+
+    if name == "finals":
+        # 五個方案同一張表（12 擾動）。★ 判準看 `step_self`（腿自己走的絕對量），
+        # 不是 `exec_rate` —— 過量指令下比值本來就低，但走路要的是絕對步幅。
+        P.append(("決選", "現況 kp120 d.10", dict(S, gait="walk")))
+        P.append(("決選", "kp120 d.16", dict(S, gait="walk", duty=0.85, d_step=0.16)))
+        P.append(("決選", "kp120 d.20", dict(S, gait="walk", duty=0.85, d_step=0.20)))
+        P.append(("決選", "kp120 d.25", dict(S, gait="walk", duty=0.85, d_step=0.25)))
+        P.append(("決選", "kp360 d.10", dict(S, gait="walk", duty=0.85, g_c=0.10,
+                                             kp3=[180.0, 360.0, 360.0],
+                                             kd3=[3.0, 3.0, 3.0],
+                                             z_sag=mm.STATIC_SAG * 120.0 / 360.0)))
+        P.append(("決選", "kp480 d.10", dict(S, gait="walk", duty=0.85, g_c=0.12,
+                                             kp3=[240.0, 480.0, 480.0],
+                                             kd3=[4.0, 4.0, 4.0],
+                                             z_sag=mm.STATIC_SAG * 120.0 / 480.0)))
+
     if name == "drift":
         # `walk_fast` 的慢漂不隨 x_off 變（見 plan=yaw），但**隨 d_step 變號**：
         # 20 s 掃描裡 0.08→+8.6°、0.10→+8.2°、0.13→−19.4°、0.16→−35.6°。
@@ -370,7 +408,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--plan", default="full",
                     choices=("full", "trim", "params", "abad", "base", "yaw", "drift",
-                             "omega_trim", "g1", "duty_kp", "duty_kp2", "gc_winner"))
+                             "omega_trim", "g1", "duty_kp", "duty_kp2", "gc_winner", "kp120_limit", "finals"))
     ap.add_argument("--secs", type=float, default=20.0)
     ap.add_argument("--seeds", type=int, default=6, help="每格的擾動數")
     ap.add_argument("--procs", type=int, default=None,

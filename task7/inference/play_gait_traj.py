@@ -104,6 +104,9 @@ def main() -> int:
     ap.add_argument("--video", action="store_true")
     ap.add_argument("--fps", type=int, default=25)
     ap.add_argument("--no-crosscheck", action="store_false", dest="crosscheck")
+    ap.add_argument("--fixed-cam", action="store_true", dest="fixed_cam",
+                    help="★ 攝影機不跟著機身 —— 原地踏步要看的就是牠有沒有留在原地，"
+                         "跟拍會把漂移藏起來")
     a = ap.parse_args()
 
     D = json.loads(a.traj.read_text(encoding="utf-8"))
@@ -152,6 +155,9 @@ def main() -> int:
     cam = mujoco.MjvCamera()
     mujoco.mjv_defaultCamera(cam)
     cam.distance, cam.elevation, cam.azimuth = 2.6, -12, 135
+    if a.fixed_cam:
+        cam.lookat[:] = [float(d.qpos[0]), float(d.qpos[1]), 0.3]
+        cam.distance = 3.2
     frames = []
 
     bid = {l: m.body(n).id for l, n in FOOT_BODY.items()}
@@ -182,7 +188,8 @@ def main() -> int:
         if d.qpos[2] < 0.25 and fell_at is None:
             fell_at = i * D["dt"]
         if ren is not None and i % max(1, int(round(1 / D["dt"] / a.fps))) == 0:
-            cam.lookat[:] = d.qpos[:3]
+            if not a.fixed_cam:
+                cam.lookat[:] = d.qpos[:3]
             ren.update_scene(d, camera=cam)
             frames.append(ren.render())
 
@@ -205,7 +212,7 @@ def main() -> int:
 
     if ren is not None:
         import imageio.v2 as iio
-        out = a.traj.with_suffix(".mp4")
+        out = a.traj.with_suffix(".fixed.mp4" if a.fixed_cam else ".mp4")
         iio.mimsave(str(out), frames, fps=a.fps, codec="libx264")
         print(f"\n🎬 {out}　{len(frames)} 幀")
     return 1 if fell_at else 0

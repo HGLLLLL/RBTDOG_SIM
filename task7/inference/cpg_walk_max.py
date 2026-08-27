@@ -80,6 +80,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import mujoco
 
 import cpg_max
+import gait_baseline as gb
 import leg_kin
 import max_model as mm
 
@@ -123,8 +124,9 @@ OUT_DIR = Path(__file__).resolve().parents[1] / "outputs"
 #     偏航    ：全距 3.6–11.7°，而整個掃描範圍變化約 18°   → 雜訊佔 20–60%。**不可用。**
 #   這就是為什麼配平只能看俯仰。現在有數字可以引用，不必再靠印象。
 GAITS = {
-    "walk": dict(phase=cpg_max.PHASE_WALK, duty=0.80, omega=1.4, mu_x=1.80,
-                 x_off=-0.040, d_step=0.10, g_c=0.08),
+    # ★ walk 是**基準步態**，參數凍結在 `gait_baseline.py`，判準來源也寫在那裡。
+    #   要改它必須連同 `docs/基準步態凍結_D1Max_walk_2026-08-27.md` 一起改。
+    "walk": gb.walk_gait(),
     # ★ walk_fast 的配平點與 walk **不一樣**（2026-08-26 用 12 擾動重掃才看到）。
     #   平均俯仰過零：walk −41 mm、walk_fast **−46 mm**。之前兩組共用 −40 是有偏差的
     #   （walk_fast 在 −40 的平均俯仰是 −0.12°±0.01，−46 是 +0.05°±0.00）。
@@ -135,8 +137,8 @@ GAITS = {
     "trot": dict(phase=cpg_max.PHASE_TROT, duty=0.50, omega=3.0, mu_x=1.80,
                  x_off=-0.050, d_step=0.10, g_c=0.08),
 }
-MU_Y = 1.5        # → fy = 0，直線走路不需要橫擺（task6 §1-2；不歸零是側偏的主因）
-D_STEP_Y = 0.12   # 橫擺尺度。ABAD 力臂約 0.41 m（D1 EDU 只有 0.22），比 task6 寬鬆
+MU_Y = gb.MU_Y        # → fy = 0，直線走路不需要橫擺（task6 §1-2；不歸零是側偏的主因）
+D_STEP_Y = gb.D_STEP_Y  # 橫擺尺度。ABAD 力臂約 0.41 m（D1 EDU 只有 0.22），比 task6 寬鬆
 SETTLE_S = 1.5    # 開走前先站穩。這台 41 kg，比 task6 的 0.8 s 需要更久
 
 

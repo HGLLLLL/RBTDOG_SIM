@@ -1,0 +1,35 @@
+M8 —— 靜態撓度量測與單腿擺動（★★ 承重）　stage=1
+
+⚠️⚠️ 確認：狗趴在地上、16 顆洩力、**吊帶掛在 292 mm 以下且鬆弛**、地面淨空、第二個終端機備著 estop。
+
+✅ 結構檢查通過
+✅ 16 顆全部洩力中
+✅ mc_ctrl PID=2425 狀態=S
+✅ 機身姿態 roll +2.3° pitch -2.5°
+
+站姿足端基準（輪軸心相對 ABAD 原點，m）　膝分支 {'fl': -1, 'fr': -1, 'bl': 1, 'br': 1}
+  fl: x+0.0700 y+0.1060 z-0.4457
+  fr: x+0.0700 y-0.1060 z-0.4457
+  bl: x-0.0700 y+0.1060 z-0.4457
+  br: x-0.0700 y-0.1060 z-0.4457
+✅ 前後膝反號（後腿往前彎，原廠預設）
+
+總時長 26.0 秒　17 段
+  RAMP_UP(2.0) → GO_crouch(1.5) → HOLD_crouch(1.5) → GO_stand(1.5) → HOLD_stand(2.0) → KPRAMP_250(1.0) → SAG_kp250(2.0) → KPRAMP_180(1.0) → SAG_kp180(2.0) → KPRAMP_120(1.0) → SAG_kp120(2.0) → KPRAMP_back(1.0) → HOLD_stand2(1.0) → BACK_crouch(1.5) → HOLDB_crouch(1.5) → BACK_LIE(1.5) → RAMP_DOWN(2.0)
+✅ 凍結時間 26.0s 在上限 38s 之內
+
+            區段         最大位移         峰值命令速度             哪個關節
+     GO_crouch    0.592 rad        0.62 rad/s    fl2_hip_pitch
+      GO_stand    1.200 rad        1.26 rad/s   fl3_knee_pitch
+   BACK_crouch    1.200 rad        1.26 rad/s   fl3_knee_pitch
+      BACK_LIE    0.592 rad        0.62 rad/s    fl2_hip_pitch
+✅ 所有區段的命令速度都在 2.0 rad/s 以內
+✅ 所有路徑點都在機構限位內
+
+力矩門檻：ABAD 50 / HIP 50 / KNEE 70 N·m，硬上限 120
+傾角保護 ±15°（現在 roll +2.3 pitch -2.5）
+輪子：移動中純阻尼 kd=0.5；HOLD 段鎖定 kp=20.0
+
+[乾跑] 沒有帶 --confirm，到此為止。沒有凍結、沒有寫入。
+
+📄 /home/robot/m_logs/M8_20260827_112504.log

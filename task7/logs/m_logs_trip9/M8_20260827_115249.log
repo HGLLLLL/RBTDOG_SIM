@@ -1,0 +1,38 @@
+M8 —— 靜態撓度量測與單腿擺動（★★ 承重）　stage=3
+
+⚠️⚠️ 確認：狗趴在地上、16 顆洩力、**吊帶掛在 292 mm 以下且鬆弛**、地面淨空、第二個終端機備著 estop。
+
+✅ 結構檢查通過
+✅ 16 顆全部洩力中
+✅ mc_ctrl PID=2425 狀態=S
+✅ 機身姿態 roll +2.0° pitch -2.8°
+
+站姿足端基準（輪軸心相對 ABAD 原點，m）　膝分支 {'fl': -1, 'fr': -1, 'bl': 1, 'br': 1}
+  fl: x+0.0700 y+0.1060 z-0.4457
+  fr: x+0.0700 y-0.1060 z-0.4457
+  bl: x-0.0700 y+0.1060 z-0.4457
+  br: x-0.0700 y-0.1060 z-0.4457
+✅ 前後膝反號（後腿往前彎，原廠預設）
+
+總時長 29.2 秒　22 段
+  RAMP_UP(2.0) → GO_crouch(1.5) → HOLD_crouch(1.5) → GO_stand(1.5) → HOLD_stand(2.0) → PRE_fr(1.2) → PREHOLD_fr(1.5) → LIFT_fr_80(0.8) → SWING_fr_80(1.5) → DROP_fr_80(0.8) → LIFT_fr_150(0.8) → SWING_fr_150(1.5) → DROP_fr_150(0.8) → LIFT_fr_220(0.8) → SWING_fr_220(1.5) → DROP_fr_220(0.8) → POST_fr(1.2) → SETTLE_fr(1.0) → BACK_crouch(1.5) → HOLDB_crouch(1.5) → BACK_LIE(1.5) → RAMP_DOWN(2.0)
+✅ 凍結時間 29.2s 在上限 38s 之內
+
+            區段         最大位移         峰值命令速度             哪個關節
+     GO_crouch    0.586 rad        0.61 rad/s    fl2_hip_pitch
+      GO_stand    1.200 rad        1.26 rad/s   fl3_knee_pitch
+        PRE_fr    0.421 rad        0.55 rad/s   fr3_knee_pitch
+    LIFT_fr_80    0.523 rad        1.03 rad/s   fr3_knee_pitch
+    DROP_fr_80    0.523 rad        1.03 rad/s   fr3_knee_pitch
+   LIFT_fr_150    0.844 rad        1.66 rad/s   fr3_knee_pitch
+   DROP_fr_150    0.844 rad        1.66 rad/s   fr3_knee_pitch
+   LIFT_fr_220    1.099 rad        2.16 rad/s   fr3_knee_pitch  ⚠️
+   DROP_fr_220    1.099 rad        2.16 rad/s   fr3_knee_pitch  ⚠️
+       POST_fr    0.421 rad        0.55 rad/s   fr3_knee_pitch
+   BACK_crouch    1.200 rad        1.26 rad/s   fl3_knee_pitch
+      BACK_LIE    0.586 rad        0.61 rad/s    fl2_hip_pitch
+
+❌ 有區段超過 --vcmd-max 2.0 rad/s：
+   LIFT_fr_220：fr3_knee_pitch 掃 1.099 rad / 0.8s → 2.16 rad/s
+   DROP_fr_220：fr3_knee_pitch 掃 1.099 rad / 0.8s → 2.16 rad/s
+   把對應的 --t-shift / --t-lift 放長。

@@ -196,7 +196,11 @@ def run(args) -> dict:
         # 偏航率（°/s）。★ G4 的判準：要顯著優於開迴路的 −0.5 ~ −0.9 °/s。
         "yaw_rate": None,
     })
-    res["yaw_rate"] = res["yaw"] / args.secs
+    # ⚠️ 一定要用 `yaw_total`（逐步累積、不包裹）而不是 `yaw`（首尾相減）。
+    #    下 wz 指令時機器人會繞圈，20 秒就轉超過一整圈 —— 首尾相減會包裹，
+    #    實測會給出「−135.4°」而真值是「+224.6°」，**連符號都是反的**，
+    #    看起來就像「偏航指令接反了」。
+    res["yaw_rate"] = res["yaw_total"] / args.secs
 
     src = "基準固定動作" if args.dummy else Path(args.params).name
     cw.report(res, f"[推論] {src}  cmd=(vx {args.vx:.2f}, wz {args.wz:+.2f})  "

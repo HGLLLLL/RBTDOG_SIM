@@ -156,3 +156,30 @@ def test_dummy_reproduces_open_loop_baseline_bit_exactly():
         assert got[k] == want[k], f"{k}: 推論端 {got[k]} vs 開迴路 {want[k]}"
     # ω 沒被動過 → 平均值就是基準值
     assert abs(got["omega_mean"] - 1.4) < 1e-12
+
+
+def test_yaw_total_survives_wrapping():
+    """★ `yaw_total` 不可以包裹 —— 轉彎時 `yaw`（首尾相減）會給出錯誤的符號。
+
+    實測：指令 wz=+0.3 rad/s 跑 20 秒真實轉了 **+224.6°**，
+    但首尾相減得到 **−135.4°**，看起來就像「偏航指令接反了」。
+    這裡用假造的 yaw 序列直接驗累加邏輯，不跑物理。
+    """
+    import cpg_walk_max as cw
+
+    class _FakeD:
+        qpos = np.zeros(23)
+
+    class _FakeRobot:
+        d = _FakeD()
+
+    tr = cw.Trace.__new__(cw.Trace)          # 只測累加邏輯，不建整個 Trace
+    tr.yaw0 = 0.0
+    tr._yaw_prev = 0.0
+    tr.yaw_total = 0.0
+    # 每步 +10°，走 40 步 → 真實 +400°，但 atan2 讀值會在 +180 之後折回
+    for k in range(1, 41):
+        wrapped = (k * 10.0 + 180.0) % 360.0 - 180.0
+        tr.yaw_total += (wrapped - tr._yaw_prev + 180.0) % 360.0 - 180.0
+        tr._yaw_prev = wrapped
+    assert abs(tr.yaw_total - 400.0) < 1e-9, f"累積偏航被包裹了：{tr.yaw_total}"

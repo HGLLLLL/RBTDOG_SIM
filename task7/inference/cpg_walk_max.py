@@ -354,6 +354,14 @@ class Trace:
         self.lift = [[] for _ in range(4)]
         self.pitch, self.roll, self.height, self.support, self.phases = [], [], [], [], []
         self.fell = None
+        # ★ 累積偏航（不包裹）。`yaw_deg` 用 atan2，值域 (−180, 180]，
+        #   首尾相減在**轉彎**時會包裹而給出完全錯誤的值 ——
+        #   實測：指令 wz=+0.3 rad/s 跑 20 秒（真實轉了 +224.6°），
+        #   首尾相減得到 **−135.4°**，符號還是反的，看起來像「偏航指令接反了」。
+        #   開迴路直走時兩者相同（總偏航 < 60°，不會包裹），所以這個坑一直沒露出來。
+        #   逐步累加折回 ±180 的增量就不會包裹。
+        self.yaw_total = 0.0
+        self._yaw_prev = self.yaw0
 
     def record(self, theta: np.ndarray):
         """在 `robot.step()` 之後呼叫一次。`theta` 是當下的 CPG 相位 (4,)。"""
@@ -362,6 +370,10 @@ class Trace:
         self.path_len += float(np.linalg.norm(xy - self.prev_xy))
         self.prev_xy = xy
         self.xy_hist[i] = xy
+
+        yaw_now = cpg_max.yaw_deg(d.qpos[3:7])
+        self.yaw_total += (yaw_now - self._yaw_prev + 180.0) % 360.0 - 180.0
+        self._yaw_prev = yaw_now
 
         grav = cpg_max.w2b(d.qpos[3:7], np.array([0.0, 0.0, -1.0]))
         if grav[2] > mm.FALL_GRAV_Z and self.fell is None:
@@ -431,7 +443,10 @@ class Trace:
             "speed_travel": speed_travel,             # ★ 搖擺抵銷後的行進速度
             "net_disp": net,                          # 起點到終點的直線距離
             "speed_net": net / self.secs,             # 走弧線時會低於 speed_travel
+            # ⚠️ `yaw` 是首尾相減，**只在總偏航 < 180° 時可用**（開迴路直走的情況）。
+            #    轉彎時一定要看 `yaw_total`，否則會包裹成錯誤的值甚至錯誤的符號。
             "yaw": cpg_max.yaw_deg(d.qpos[3:7]) - self.yaw0,
+            "yaw_total": self.yaw_total,        # ★ 逐步累積、不包裹。轉彎時看這個
             # 淨滾動距離：回答「牠是在走還是在滾」。輪軸 +y，前進對應輪角減少。
             "net_roll": float(-np.mean(d.qpos[mm.WHEEL_QPOS_IDX] - self.w0)
                               * mm.WHEEL_RADIUS),

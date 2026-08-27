@@ -125,7 +125,11 @@ def _agg(rs: list[dict]) -> dict:
         "n_fell": sum(1 for r in rs if r["fell"] is not None),
         "yaw_span": span("yaw"),
         "speed_path_span": span("speed_path"),
+        # ★ 表格印的是 speed_travel（以步態週期為步長），不是 speed_path。
+        #   speed_path 把機身左右搖擺算成前進，實測高估約 68%。
+        "speed_travel": med("speed_travel"), "speed_travel_rng": rng("speed_travel"),
         "speed_path": med("speed_path"), "speed_path_rng": rng("speed_path"),
+        "speed_net": med("speed_net"),
         "speed": med("speed"),
         "yaw": med("yaw"), "yaw_rng": rng("yaw"),
         # 每秒偏航率：不同 secs 的格唯一能互比的量。慢漂是不是真的，看這個。
@@ -145,17 +149,17 @@ def _agg(rs: list[dict]) -> dict:
     }
 
 
-HDR = (f"{'值':>10} |{'跌倒':>6}{'路徑速度m/s':>14}{'彈跳mm':>13}{'支撐腳':>12}"
-       f"{'離地mm':>8}{'平均俯仰°':>15}{'偏航°(中位/全距)':>20}{'偏航°/s':>16}{'超限%':>7}{'飽和%':>7}")
+HDR = (f"{'值':>10} |{'跌倒':>6}{'★行進速度m/s':>15}{'彈跳mm':>13}{'支撐腳':>12}"
+       f"{'直線速度':>11}{'離地mm':>8}{'平均俯仰°':>15}{'偏航°(中位/全距)':>20}{'偏航°/s':>16}{'超限%':>7}{'飽和%':>7}")
 
 
 def _row(label: str, a: dict) -> str:
     fell = f"{a['n_fell']}/{a['n']}"
     return (f"{label:>10} |{fell:>6}"
-            f"{a['speed_path']:>8.3f}±{a['speed_path_rng']:>4.3f}"
+            f"{a['speed_travel']:>9.3f}±{a['speed_travel_rng']:>4.3f}"
             f"{a['bounce']:>7.1f}±{a['bounce_rng']:>4.1f}"
             f"{a['support']:>7.2f}±{a['support_rng']:>3.2f}"
-            f"{a['min_lift']:>8.1f}"
+            f"{a['speed_net']:>11.3f}{a['min_lift']:>8.1f}"
             f"{a['pitch_mean']:>+9.2f}±{a['pitch_mean_rng']:>4.2f}"
             f"{a['yaw']:>+13.1f}/{a['yaw_rng']:>5.1f}"
             f"{a['yaw_rate']:>+9.3f}±{a['yaw_rate_rng']:>5.3f}"
@@ -213,6 +217,17 @@ def build_plan(name: str, secs: float, nseed: int) -> list[dict]:
             P.append(("慢漂vs配平/walk_fast 60s", f"{v:.3f}",
                       dict(gait="walk_fast", secs=60.0, x_off=v)))
 
+    if name == "omega_trim":
+        # 全掃描顯示 **ω 才是速度的主槓桿**（1.0→1.8 是 0.076→0.293 m/s，3.9 倍），
+        # 而舊的 speed_path 度量把它壓成只有 +23% —— 度量錯，槓桿就看不見。
+        # ω=1.8 在 60 s 給到 0.316 m/s（全部設定裡最快）但**還沒配平**（俯仰 +0.23°）。
+        # 配平點一定要用它自己的 ω 重掃 —— 這是同一條教訓的第三次。
+        # ⚠️ 第一次掃 −0.075~−0.040 全是正俯仰，方向掃反了：ω 變大時配平點
+        #    是往**靠近 0** 的方向移動（1.4 → −41 mm，1.8 → −25 mm），不是往更負。
+        for v in (-0.040, -0.035, -0.030, -0.025, -0.020, -0.015, -0.010):
+            P.append(("x_off @ ω1.8 60s", f"{v:.3f}",
+                      dict(gait="walk", secs=60.0, omega=1.8, x_off=v)))
+
     if name == "drift":
         # `walk_fast` 的慢漂不隨 x_off 變（見 plan=yaw），但**隨 d_step 變號**：
         # 20 s 掃描裡 0.08→+8.6°、0.10→+8.2°、0.13→−19.4°、0.16→−35.6°。
@@ -252,7 +267,7 @@ def build_plan(name: str, secs: float, nseed: int) -> list[dict]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--plan", default="full",
-                    choices=("full", "trim", "params", "abad", "base", "yaw", "drift"))
+                    choices=("full", "trim", "params", "abad", "base", "yaw", "drift", "omega_trim"))
     ap.add_argument("--secs", type=float, default=20.0)
     ap.add_argument("--seeds", type=int, default=6, help="每格的擾動數")
     ap.add_argument("--procs", type=int, default=None,

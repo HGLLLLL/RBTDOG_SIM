@@ -121,24 +121,55 @@ def test_full_plan_covers_the_handoff_next_steps():
         assert need in sweeps, f"掃描計畫漏了 {need}"
 
 
+def _fake(**over):
+    """`_agg` 需要的完整欄位。
+
+    ⚠️ 這裡故意用 `rollout` 的**真實鍵集**當來源，而不是手寫一份。
+       手寫過一次，結果 `rollout` 加了 `speed_travel` 之後測試才發現漏欄位 ——
+       假資料與真資料脫節，測到的就不是同一個東西。
+    """
+    base = dict(fell=None, speed=0.2, speed_path=0.25, speed_travel=0.15,
+                speed_net=0.14, net_disp=3.0, yaw=0.0, bounce=0.02,
+                min_lift=0.09, support=3.0, pitch_mean=0.0, pitch_cycle=1.0,
+                height=0.48, lateral=0.0, net_roll=0.0, path_len=5.0, dist=2.9,
+                lim_pct=0.0, tau_pct=0.0, reach_pct=0.0, _secs=20.0)
+    base.update(over)
+    return base
+
+
+def test_fake_covers_every_key_agg_reads():
+    """假資料一漏欄位，_agg 就 KeyError —— 讓這件事在這裡爆，不是在掃到一半時爆。"""
+    cs._agg([_fake()])          # 不丟 KeyError 就算過
+
+
 def test_agg_reports_range_not_just_median():
     """★ 全距是這支存在的理由。少了它就退化成「單次數字」，等於沒改。"""
-    rs = [dict(fell=None, speed_path=0.2 + 0.1 * i, speed=0.2, yaw=10.0 * i,
-               bounce=0.02, min_lift=0.09, support=3.0, pitch_mean=-0.1,
-               pitch_cycle=1.0, height=0.48, lateral=0.0, net_roll=0.0,
-               lim_pct=0.0, tau_pct=0.0, reach_pct=0.0) for i in range(3)]
-    a = cs._agg(rs)
-    assert a["speed_path_rng"] == pytest.approx(0.2)
+    a = cs._agg([_fake(speed_travel=0.2 + 0.1 * i, yaw=10.0 * i) for i in range(3)])
+    assert a["speed_travel_rng"] == pytest.approx(0.2)
     assert a["yaw_rng"] == pytest.approx(20.0)
     assert a["n"] == 3 and a["n_fell"] == 0
 
 
 def test_agg_counts_falls():
-    rs = [dict(fell=None if i else 3.2, speed_path=0.2, speed=0.2, yaw=0.0,
-               bounce=0.02, min_lift=0.09, support=3.0, pitch_mean=0.0,
-               pitch_cycle=1.0, height=0.48, lateral=0.0, net_roll=0.0,
-               lim_pct=0.0, tau_pct=0.0, reach_pct=0.0) for i in range(4)]
-    assert cs._agg(rs)["n_fell"] == 1
+    assert cs._agg([_fake(fell=None if i else 3.2) for i in range(4)])["n_fell"] == 1
+
+
+def test_agg_yaw_rate_uses_each_cell_own_secs():
+    """不同 secs 的格要能互比 —— 用總偏航直接比會把 60 s 那格算成漂三倍。"""
+    a = cs._agg([_fake(yaw=-30.0, _secs=60.0)])
+    b = cs._agg([_fake(yaw=-10.0, _secs=20.0)])
+    assert a["yaw_rate"] == pytest.approx(-0.5)
+    assert b["yaw_rate"] == pytest.approx(-0.5)
+
+
+def test_rollout_result_has_every_key_agg_needs():
+    """★ 真正的防線：拿一次**真的** rollout 餵進 _agg。
+
+    假資料只能證明 _agg 自洽；這條證明它跟 `rollout` 實際吐出來的東西對得上。
+    """
+    r = cw.rollout(gait="walk", secs=2.0, quiet=True)
+    r["_secs"] = 2.0
+    cs._agg([r])
 
 
 def test_jitter_is_physically_negligible():

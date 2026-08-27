@@ -87,9 +87,18 @@ OUT_DIR = Path(__file__).resolve().parents[1] / "outputs"
 
 # ---- 步態預設（每組都是掃出來的實測點，見結果文件的表）----
 #
-#   walk        ★ 建議用這組。最直、彈跳最小。0.19 m/s
-#   walk_fast   同樣的相位與佔空比，加大步幅。0.29 m/s
+#   walk        ★ 建議用這組。最直、彈跳最小。**行進 0.148 m/s**
+#   walk_fast   同樣的相位與佔空比，加大步幅。**行進 0.263 m/s**
 #   trot        ❌ **不要用。** 見下。
+#
+# ⚠️⚠️ 2026-08-26 速度數字全部下修 —— **不是步態變慢了，是舊的度量是錯的**。
+#      舊文件引用的 `speed_path` 是**逐控制步**累加的路徑長，把機身每一步的
+#      左右搖擺一起算成前進。實測 walk 在幾乎不偏航時（20 s、偏航 +7.9°）：
+#          帳面 x 0.143 ｜ ★行進 0.148 ｜ 路徑 0.249   ← 路徑高估 68%
+#      cos(7.9°)=0.99，那 68% 不可能來自轉彎。改用 `speed_travel`
+#      （以一個步態週期為步長，週期內搖擺自己抵銷）。它與帳面 x 在直線時一致，
+#      而且**與時間長度無關**（walk 20 s 0.148、180 s 0.150，即使已轉了 −51°）。
+#      → 之前所有引用「路徑速度 0.24~0.32 m/s」的地方，實際行進速度是 0.15~0.27。
 #
 # ⚠️ 佔空比是這台的硬條件：實測 duty ≤ 0.70 **一定跌倒**（24 秒內）。
 #    0.75 勉強能走但彈跳 52 mm，0.80 才收斂到 28 mm。task6 的 D1 EDU 連 duty=0.50
@@ -108,11 +117,20 @@ OUT_DIR = Path(__file__).resolve().parents[1] / "outputs"
 #    判準是**平均俯仰過零**（偏航太吵，在 −0.035↔−0.025 之間會從 −1.1° 跳到 −18.3°，
 #    那是混沌不是趨勢）。歷次：無摩擦 −42 → 併入輪摩擦 0.15 後 −30
 #    → 2026-08-26 併入實測腿關節摩擦 1.5 後 **−40**。
+#
+# ★ 12 擾動重掃（2026-08-26，`cpg_sweep_max.py --plan trim`）把這條判準**量化**了：
+#     平均俯仰：全距 0.01–0.02°，而整個掃描範圍變化 0.84° → 雜訊只佔 2%。**可用。**
+#     偏航    ：全距 3.6–11.7°，而整個掃描範圍變化約 18°   → 雜訊佔 20–60%。**不可用。**
+#   這就是為什麼配平只能看俯仰。現在有數字可以引用，不必再靠印象。
 GAITS = {
     "walk": dict(phase=cpg_max.PHASE_WALK, duty=0.80, omega=1.4, mu_x=1.80,
                  x_off=-0.040, d_step=0.10, g_c=0.08),
+    # ★ walk_fast 的配平點與 walk **不一樣**（2026-08-26 用 12 擾動重掃才看到）。
+    #   平均俯仰過零：walk −41 mm、walk_fast **−46 mm**。之前兩組共用 −40 是有偏差的
+    #   （walk_fast 在 −40 的平均俯仰是 −0.12°±0.01，−46 是 +0.05°±0.00）。
+    #   配平點會隨 d_step 移動，不是只隨摩擦移動。
     "walk_fast": dict(phase=cpg_max.PHASE_WALK, duty=0.80, omega=1.4, mu_x=1.80,
-                      x_off=-0.040, d_step=0.13, g_c=0.08),
+                      x_off=-0.046, d_step=0.13, g_c=0.08),
     # trot 的 x_off 沒有重掃 —— 它的指標是混沌的，掃了也選不出東西。
     "trot": dict(phase=cpg_max.PHASE_TROT, duty=0.50, omega=3.0, mu_x=1.80,
                  x_off=-0.050, d_step=0.10, g_c=0.08),
@@ -361,6 +379,11 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
     # 兩個都留：speed 看「往目標方向前進多少」，speed_path 看「腿到底走多快」。
     path_len = 0.0
     prev_xy = np.array([float(d.qpos[0]), float(d.qpos[1])])
+    # ★ 逐步的 xy 全留著。`path_len` 是**逐控制步**累加的，會把機身每一步的左右搖擺
+    #   一起算成「走過的距離」—— 實測在幾乎不偏航時（20 s、偏航 +7.9°）
+    #   帳面 x 速度只有 path_len 速率的 0.58 倍，而 cos(7.9°)=0.99。
+    #   那 42% 的差距全部是搖擺，不是前進。要分開就得能用**一個步態週期**當步長重算。
+    xy_hist = np.empty((n, 2))
     fell = None
 
     for i in range(n):
@@ -373,6 +396,7 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
         xy = np.array([float(d.qpos[0]), float(d.qpos[1])])
         path_len += float(np.linalg.norm(xy - prev_xy))
         prev_xy = xy
+        xy_hist[i] = xy
 
         grav = cpg_max.w2b(d.qpos[3:7], np.array([0.0, 0.0, -1.0]))
         if grav[2] > mm.FALL_GRAV_Z and fell is None:
@@ -414,6 +438,20 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
     lock = [float(np.degrees(cpg_max.circ_std(
         ph[:, k] - ph[:, 0] - (phase[k] - phase[0])))) for k in range(4)]
 
+    # ---- 行進速度：三個都留，因為三個回答的是不同問題 ----
+    #   speed        帳面。x 位移 / 時間。**一偏航就嚴重低估。**
+    #   speed_path   逐控制步的路徑長 / 時間。**把機身搖擺算成前進，嚴重高估**（+42%）。
+    #   speed_travel ★ 以**一個步態週期**為步長重算的路徑長 / 時間。
+    #                週期內的搖擺自己抵銷掉，弧線仍然算得到 —— 這個才是「走多快」。
+    #
+    # ⚠️ 別再引用 speed_path 當行進速度。實測 walk 20 s：
+    #    帳面 0.144、path 0.249、travel **0.148** —— path 高估了 68%。
+    #    交接文件裡「路徑速度 0.24~0.27 m/s」引用的是 path，不是行進速度。
+    stride = np.linalg.norm(xy_hist[per:] - xy_hist[:-per], axis=1) if n > per else None
+    speed_travel = (float(stride.sum()) / (len(stride) * per) / mm.CTRL_DT
+                    if stride is not None and len(stride) else float("nan"))
+    net = float(np.linalg.norm(xy_hist[-1] - xy_hist[0]))
+
     res = {
         "gait": gait, "omega": omega, "mu_x": mu_x, "x_off": x_off,
         "g_c": g_c, "d_step": d_step, "duty": duty, "z_sag": z_sag,
@@ -429,7 +467,10 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
         "lateral": float(d.qpos[1]) - y0,
         "speed": (float(d.qpos[0]) - x0) / secs,
         "path_len": path_len,
-        "speed_path": path_len / secs,      # 走弧線時這個才是「腿走多快」
+        "speed_path": path_len / secs,      # ⚠️ 含機身搖擺，高估。別當行進速度引用
+        "speed_travel": speed_travel,       # ★ 以步態週期為步長，搖擺抵銷掉後的行進速度
+        "net_disp": net,                    # 起點到終點的直線距離
+        "speed_net": net / secs,            # 直線位移率。走弧線時會低於 speed_travel
         "yaw": cpg_max.yaw_deg(d.qpos[3:7]) - yaw0,
         # 淨滾動距離：回答「牠是在走還是在滾」。輪軸 +y，前進對應輪角減少。
         "net_roll": float(-np.mean(d.qpos[mm.WHEEL_QPOS_IDX] - w0) * mm.WHEEL_RADIUS),
@@ -450,8 +491,9 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
         print(f"[姿態] 週期俯仰 {res['pitch_cycle']:.2f}°  平均俯仰 {res['pitch_mean']:+.2f}°  "
               f"平均側傾 {res['roll_mean']:+.2f}°  彈跳 {res['bounce'] * 1000:.1f} mm  "
               f"機身高 {res['height'] * 1000:.1f} mm  支撐腳 {res['support']:.2f}")
-        print(f"[位移] 前進 {res['dist']:+.2f} m（帳面 {res['speed']:.2f} m/s，"
-              f"路徑 {res['speed_path']:.2f} m/s）  "
+        print(f"[位移] 前進 {res['dist']:+.2f} m（帳面 {res['speed']:.2f}，"
+              f"★行進 {res['speed_travel']:.2f}，路徑 {res['speed_path']:.2f} m/s"
+              f"｜路徑含機身搖擺，勿當行進速度引用）  "
               f"側偏 {res['lateral']:+.2f} m  偏航 {res['yaw']:+.1f}°  "
               f"淨滾動 {res['net_roll'] * 1000:+.0f} mm  "
               f"跌倒={'是 @%.1fs' % fell if fell is not None else '否'}")

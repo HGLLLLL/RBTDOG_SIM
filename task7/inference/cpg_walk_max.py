@@ -148,30 +148,46 @@ SETTLE_S = 1.5    # 開走前先站穩。這台 41 kg，比 task6 的 0.8 s 需�
 #    1.6 GB 以上（glibc arena 不還給 OS），平行掃就直接把 16 GB 的機器 OOM 掉
 #    —— 2026-08-26 就是這樣把開發機弄當的。
 #
-# 模型本身在整場掃描裡是**不變的**，會被改寫的只有下面兩個欄位。所以快取一份，
+# 模型本身在整場掃描裡是**不變的**，會被改寫的只有下面幾個欄位。所以快取一份，
 # 每次建 Robot 時**先還原成原始值再套用覆寫** —— 少了「還原」這步，上一次
 # `--friction 0.3` 的設定會靜默滲進下一次跑，而且四個診斷指標全是乾淨的。
-_MODEL = None
-_PRISTINE = None
+#
+# ★ 快取是**按場景路徑分開**的。MJX 對照要同時用兩個場景（原始網格 / 圓柱），
+#   共用單一快取會讓第二個場景**靜默拿到第一個場景的模型** ——
+#   那樣 G1 對照就變成「同一個模型跟自己比」，看起來完美通過。
+_CACHE: dict = {}
 
 
-def _model():
+def _model(scene: str = None):
     """取得共用模型，並把可被改寫的欄位還原成 MJCF 的原值。"""
-    global _MODEL, _PRISTINE
-    if _MODEL is None:
-        _MODEL = mm.make_model()
-        _PRISTINE = (_MODEL.geom_friction.copy(), _MODEL.dof_frictionloss.copy())
-    _MODEL.geom_friction[:] = _PRISTINE[0]
-    _MODEL.dof_frictionloss[:] = _PRISTINE[1]
-    return _MODEL
+    path = scene or mm.SCENE
+    if path not in _CACHE:
+        m = mujoco.MjModel.from_xml_path(path)
+        _CACHE[path] = (m, m.geom_friction.copy(), m.dof_frictionloss.copy(),
+                        int(m.opt.iterations), int(m.opt.ls_iterations))
+    m, gf, fl, it, ls = _CACHE[path]
+    m.geom_friction[:] = gf
+    m.dof_frictionloss[:] = fl
+    m.opt.iterations, m.opt.ls_iterations = it, ls
+    return m
 
 
 class Robot:
     """MuJoCo 模型 + 迴圈內 PD。所有 rollout 共用，確保控制律只有一份。"""
 
     def __init__(self, friction: float = None, wheel_friction: float = None,
-                 leg_friction: float = None, abad_friction: float = None):
-        self.m = _model()
+                 leg_friction: float = None, abad_friction: float = None,
+                 scene: str = None, actuator_mode: str = "torque_pd",
+                 solver_iters: tuple = None):
+        assert actuator_mode in ("torque_pd", "position"), \
+            f"actuator_mode 只能是 torque_pd / position，收到 {actuator_mode!r}"
+        self.m = _model(scene)
+        self.actuator_mode = actuator_mode
+        if solver_iters is not None:
+            # MuJoCo 預設 100/50。MJX 沒有提早收斂，迭代數是**固定成本**，
+            # 訓練模型必須調低。已實測對 walk 的影響可忽略
+            # （travel 0.1471→0.1467、bounce 16.7→17.1、support 3.204→3.206）。
+            self.m.opt.iterations, self.m.opt.ls_iterations = solver_iters
         if friction is not None:
             self.m.geom_friction[:, 0] = friction
         # ⚠️ 守衛是 `is not None` 不是 `> 0`。MJCF 現在自帶 frictionloss=0.15（實機實測），
@@ -189,6 +205,13 @@ class Robot:
         #   要能問「步態到底吃不吃這個數字」就得單獨掃它。
         if abad_friction is not None:
             self.m.dof_frictionloss[mm.LEG_QVEL_IDX[::3]] = abad_friction
+        # position 模式要求模型的致動器本身是 affine 的位置伺服。
+        # ⚠️ biastype 不是 affine 時 `ctrl` 會被當**力矩**直接施加，機器人當場塌掉，
+        #    而且不會有任何錯誤訊息（task4 地形版踩過）。
+        if actuator_mode == "position":
+            bt = self.m.actuator_biastype[mm.LEG_ACT_IDX]
+            assert np.all(bt == mujoco.mjtBias.mjBIAS_AFFINE), \
+                f"position 模式需要 affine 致動器，實得 biastype={bt}"
         self.d = mujoco.MjData(self.m)
         self.foot_bid = mm.foot_body_ids(self.m)
         self.jnt_rng = mm.leg_joint_ranges(self.m)
@@ -215,12 +238,29 @@ class Robot:
     def step(self, q_des: np.ndarray, wheel_mode: str = "damp"):
         """套用一個 50 Hz 控制週期：內部跑 n_sub 次 500 Hz 的 PD + mj_step。"""
         d, m = self.d, self.m
+        if self.actuator_mode == "position" and wheel_mode != "damp":
+            raise ValueError("position 模式的輪子由模型的 velocity 致動器固定成阻尼，"
+                             f"不支援 wheel_mode={wheel_mode!r}")
         lo, hi = self.jnt_rng[:, 0], self.jnt_rng[:, 1]
         # 診斷：指令有沒有超出關節限位。超限不會被靜默吃掉（沒有 ctrlrange），
         # 但會被關節限位約束硬擋住 —— 症狀一樣是「命令了卻沒動到」。
         self.n_lim += int(np.sum((q_des < lo - 1e-9) | (q_des > hi + 1e-9)))
         self.n_cmd += 12
         q_des = np.clip(q_des, lo, hi)
+
+        if self.actuator_mode == "position":
+            # 模型內建的 position 致動器**每個物理步**自己算 PD，也就是 500 Hz ——
+            # 剛好等於原廠 controller_dt。我們只要把目標角放進 ctrl。
+            # 輪子用 velocity 致動器、目標速度恆 0 ＝ 純阻尼，與 torque_pd 的 damp 等價。
+            d.ctrl[mm.LEG_ACT_IDX] = q_des
+            d.ctrl[mm.WHEEL_ACT_IDX] = 0.0
+            for _ in range(self.n_sub):
+                mujoco.mj_step(m, d)
+                # 飽和診斷改用致動器**實際出力**（position 模式下我們算不到 tau）。
+                self.n_tau += int(np.sum(
+                    np.abs(d.actuator_force[mm.LEG_ACT_IDX]) > self.tau_max - 1e-6))
+                self.n_tau_tot += 12
+            return
 
         for _ in range(self.n_sub):
             q = d.qpos[mm.LEG_QPOS_IDX]
@@ -333,7 +373,8 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
             duty: float = None, friction: float = None, wheel_mode: str = "damp",
             wheel_friction: float = None, leg_friction: float = None,
             abad_friction: float = None, z_sag: float = None, video: bool = False,
-            quiet: bool = False) -> dict:
+            scene: str = None, actuator_mode: str = "torque_pd",
+            solver_iters: tuple = None, quiet: bool = False) -> dict:
     """開迴路步態 rollout。未指定的參數取 `GAITS[gait]` 的預設值。"""
     cfg = GAITS[gait]
     phase = cfg["phase"]
@@ -346,7 +387,8 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
     z_sag = mm.STATIC_SAG if z_sag is None else z_sag
 
     r = Robot(friction=friction, wheel_friction=wheel_friction,
-              leg_friction=leg_friction, abad_friction=abad_friction)
+              leg_friction=leg_friction, abad_friction=abad_friction,
+              scene=scene, actuator_mode=actuator_mode, solver_iters=solver_iters)
     ks = leg_kin.knee_sign_of(mm.HOME)
     f0 = leg_kin.home_foot(mm.HOME)
     step = cpg_max.make_cpg_step(phase)
@@ -455,6 +497,9 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
     net = float(np.linalg.norm(xy_hist[-1] - xy_hist[0]))
 
     res = {
+        # 讓對照數據自己帶著身分 —— 掃描 JSON 事後才判讀得出哪一列是哪個模型。
+        "actuator_mode": actuator_mode,
+        "scene": scene or mm.SCENE,
         "gait": gait, "omega": omega, "mu_x": mu_x, "x_off": x_off,
         "g_c": g_c, "d_step": d_step, "duty": duty, "z_sag": z_sag,
         "peak_lift": [float(np.percentile(l, 99)) for l in lift],

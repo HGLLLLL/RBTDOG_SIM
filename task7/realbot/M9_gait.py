@@ -124,7 +124,7 @@ def main() -> int:
     ap.add_argument("--mu-x", type=float, default=1.80, dest="mu_x")
     ap.add_argument("--mu-y", type=float, default=1.50, dest="mu_y")
     ap.add_argument("--z-sag", type=float, default=None, dest="z_sag",
-                    help="預設 0.0325×120/kp（撓度 ∝ 1/kp，實機兩點）")
+                    help="★ 預設 **0.036×250/kp**（實機錨點）。不是模擬的 STATIC_SAG")
     ap.add_argument("--ramp", type=float, default=3.0, help="站姿↔步態的淡入淡出秒數")
 
     # ---- 增益
@@ -164,7 +164,10 @@ def main() -> int:
     if a.march:
         a.d_step = 0.0
     if a.z_sag is None:
-        a.z_sag = 0.0325 * 120.0 / a.kp
+        # ★★ 實機錨點（M8 S3）：kp250 → 36 mm、kp120 → 72 mm，正比於 1/kp。
+        #   **不要用 max_model.STATIC_SAG（0.0325）** —— 那是模擬值，
+        #   而模擬在 z 方向高估順從性 1.8–2.1 倍，用它會補太少。
+        a.z_sag = 0.036 * 250.0 / a.kp
 
     logp = shm_io.start_log("M9")
     mode = f"播放 {os.path.basename(a.traj)}" if a.traj else "狗上即時 CPG"

@@ -88,7 +88,8 @@ def main() -> int:
     ap.add_argument("--x-off", type=float, default=B["x_off"], dest="x_off")
     ap.add_argument("--g-c", type=float, default=B["g_c"], dest="g_c")
     ap.add_argument("--z-sag", type=float, default=None, dest="z_sag",
-                    help="預設 = STATIC_SAG × 120/kp（撓度與 kp 成反比，實測兩點）")
+                    help="★ 預設 = **0.036 × 250/kp**（實機錨點，不是模擬的 STATIC_SAG）。"
+                         "M8 S3 實測 kp250→36mm、kp120→72mm，兩點都對得上")
     ap.add_argument("--ramp", type=float, default=3.0,
                     help="從站姿淡入步態的秒數（也用於淡出）")
     ap.add_argument("--vcmd-max", type=float, default=14.0, dest="vcmd_max",
@@ -100,10 +101,13 @@ def main() -> int:
     if a.march:
         a.d_step = 0.0
 
-    # ★ z_sag 與 kp 綁定（`max_model` 註解早就寫了「改增益就必須重掃這個值」）。
-    #   實機兩點：kp=120 → 72 mm、kp=250 → 36 mm，正比於 1/kp。
+    # ★★ z_sag 的錨點換成**實機量測**，不是模擬值。
+    #   2026-08-27 M8 S3 實測擺動離地損失：kp=250 → 36 mm、kp=120 → 72 mm，
+    #   正比於 1/kp。`max_model.STATIC_SAG = 0.0325` 是**模擬**值，
+    #   而模擬在 z 方向系統性高估順從性 1.8–2.1 倍 —— 用它會補太少。
+    #   驗算：0.036 × 250/120 = 0.075，對上實機的 72 mm ✅（兩點都錨住）
     if a.z_sag is None:
-        a.z_sag = mm.STATIC_SAG * 120.0 / a.kp
+        a.z_sag = 0.036 * 250.0 / a.kp
 
     knee_sign = leg_kin.knee_sign_of(mm.HOME)
     f0 = leg_kin.home_foot(mm.HOME)

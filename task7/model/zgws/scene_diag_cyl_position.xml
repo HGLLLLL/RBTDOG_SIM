@@ -8,8 +8,8 @@
   官方原始場景檔沒有收進版控（它們依賴 height_field.png 等外部資產），
   需要時從發布包取，見 SOURCE.md。
 -->
-<mujoco model="zgws flat scene (zgws_mjx)">
-  <include file="zgws_mjx.xml"/>
+<mujoco model="zgws flat scene (zgws_diag_cyl_position)">
+  <include file="zgws_diag_cyl_position.xml"/>
 
   <statistic center="0 0 0.3" extent="1.2"/>
 

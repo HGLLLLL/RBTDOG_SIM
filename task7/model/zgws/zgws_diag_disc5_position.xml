@@ -2,12 +2,11 @@
   ⚠️ 這個檔案是產生的，不要手改。
   產生器：task7/model/zgws/make_mjx_model.py（跑它會逐字元覆蓋本檔）
   來源：  task7/model/zgws/zgws.xml（官方 MATRiX v0.1.2 原檔）
-  組合：  碰撞=primitive(disc_5)  致動器=position  solver=6/6
+  組合：  碰撞=primitive(disc_5)  致動器=position  solver=MJCF 預設
   ⚠️ 它與 zgws.xml **不是同一個物理模型**。差異的量化對照見
      task7/docs/MJX模型對照_2026-08-27.md，引用數字要標明是哪一個。
 -->
 <mujoco model="zgws_primitive_position">
-  <option iterations="6" ls_iterations="6" />
   <compiler angle="radian" meshdir="assets/" />
   <worldbody>
     <body name="base_link" pos="0 0 0.8">

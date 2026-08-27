@@ -208,10 +208,19 @@ class Robot:
         # position 模式要求模型的致動器本身是 affine 的位置伺服。
         # ⚠️ biastype 不是 affine 時 `ctrl` 會被當**力矩**直接施加，機器人當場塌掉，
         #    而且不會有任何錯誤訊息（task4 地形版踩過）。
+        bt = self.m.actuator_biastype[mm.LEG_ACT_IDX]
         if actuator_mode == "position":
-            bt = self.m.actuator_biastype[mm.LEG_ACT_IDX]
             assert np.all(bt == mujoco.mjtBias.mjBIAS_AFFINE), \
                 f"position 模式需要 affine 致動器，實得 biastype={bt}"
+        else:
+            # ★ 反向也要擋。把力矩寫進「位置伺服」的 ctrl，等於在命令
+            #   「目標角 = 42 rad」—— 機器人會瘋掉，但**不會有任何錯誤訊息**，
+            #   而且超限／飽和／IK縮限三個診斷指標仍然是 0.00%
+            #   （它們量的是我們算出來的東西，不是模型怎麼解讀它）。
+            #   2026-08-27 的 G1 第一版就是這樣得到「換形狀害 5/12 跌倒」的假結論。
+            assert np.all(bt == mujoco.mjtBias.mjBIAS_NONE), (
+                f"torque_pd 模式需要純力矩致動器（biastype=none），實得 {bt}。"
+                "這個模型的致動器是位置伺服，力矩會被當成目標角。")
         self.d = mujoco.MjData(self.m)
         self.foot_bid = mm.foot_body_ids(self.m)
         self.jnt_rng = mm.leg_joint_ranges(self.m)

@@ -49,6 +49,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import cpg_walk_max as cw
+import max_model as mm
 
 OUT_DIR = Path(__file__).resolve().parents[1] / "outputs"
 
@@ -228,6 +229,38 @@ def build_plan(name: str, secs: float, nseed: int) -> list[dict]:
             P.append(("x_off @ ω1.8 60s", f"{v:.3f}",
                       dict(gait="walk", secs=60.0, omega=1.8, x_off=v)))
 
+    if name == "g1":
+        # ★ MJX 訓練模型的落差量測。**每一段只與前一段差一項**：
+        #
+        #   A  網格   + 外部PD    + solver 預設   ← 基準（既有全部結論的來源）
+        #   C1 網格   + 位置伺服  + solver 預設   ← 只換「PD 由誰算」
+        #   C2 圓柱   + 位置伺服  + solver 預設   ← 再換碰撞形狀（含關掉自碰撞）
+        #   C3 圓柱   + 位置伺服  + solver 6/6    ← 訓練實際要用的模型
+        #
+        # ⚠️ 第一版把「換模型檔」與「換 actuator_mode」綁在同一步，結果 B1 是
+        #    **把力矩寫進位置伺服的 ctrl**（等於命令「目標角 = 42 rad」），
+        #    量出 5/12 跌倒、彈跳 185 mm，差點得到「換形狀害步態垮掉」的假結論。
+        #    模型檔與致動器模式**不是獨立的兩個旋鈕** —— 模式必須跟著模型檔走。
+        #    `Robot.__init__` 現在兩個方向都有 biastype 斷言，這種配置會當場擋下。
+        #
+        # ⚠️ 四段共用 gait="walk"，所以 `_run` 加的 x_off 擾動序列一致、可逐 seed 對照。
+        _MD = Path(mm.SCENE).parent
+        P.append(("G1/模型", "A 網格+外部PD", dict(S, gait="walk")))
+        P.append(("G1/模型", "C1 網格+位置伺服",
+                  dict(S, gait="walk", scene=str(_MD / "scene_diag_mesh_position.xml"),
+                       actuator_mode="position")))
+        P.append(("G1/模型", "C2a 圓柱輪",
+                  dict(S, gait="walk", scene=str(_MD / "scene_diag_cyl_position.xml"),
+                       actuator_mode="position")))
+        P.append(("G1/模型", "C2b 球輪",
+                  dict(S, gait="walk", scene=str(_MD / "scene_diag_sph_position.xml"),
+                       actuator_mode="position")))
+        P.append(("G1/模型", "C2c 圓盤5mm",
+                  dict(S, gait="walk", scene=str(_MD / "scene_diag_disc5_position.xml"),
+                       actuator_mode="position")))
+        P.append(("G1/模型", "C3 訓練模型",
+                  dict(S, gait="walk", scene=mm.SCENE_MJX, actuator_mode="position")))
+
     if name == "drift":
         # `walk_fast` 的慢漂不隨 x_off 變（見 plan=yaw），但**隨 d_step 變號**：
         # 20 s 掃描裡 0.08→+8.6°、0.10→+8.2°、0.13→−19.4°、0.16→−35.6°。
@@ -267,7 +300,8 @@ def build_plan(name: str, secs: float, nseed: int) -> list[dict]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--plan", default="full",
-                    choices=("full", "trim", "params", "abad", "base", "yaw", "drift", "omega_trim"))
+                    choices=("full", "trim", "params", "abad", "base", "yaw", "drift",
+                             "omega_trim", "g1"))
     ap.add_argument("--secs", type=float, default=20.0)
     ap.add_argument("--seeds", type=int, default=6, help="每格的擾動數")
     ap.add_argument("--procs", type=int, default=None,

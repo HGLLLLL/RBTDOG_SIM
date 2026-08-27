@@ -84,13 +84,13 @@ def test_exec_rate_catches_front_legs_not_stepping():
     （離地 93–111 mm 四腿很平均、支撐腳 3.20、速度正常、三個診斷 0.00%）。
     這條測試釘住「這個缺陷會被量到」——它現在是已知狀態，不是回歸失敗。
     ⚠️ 若哪天基準改好了（前腳執行率上去），**這條要跟著改**，
-       而且必須連同 `docs/前腳不跨步的根因_2026-08-27.md` 一起更新。
+       而且必須連同 `docs/CPG步態_完整結果_2026-08-27.md` 一起更新。
     """
     r = cw.rollout(gait="walk", secs=12.0, quiet=True)
     assert r["exec_rear"] > 1.0, f"後腳執行率不該低：{r['exec_rear']}"
     assert r["exec_front"] < 0.2, (
         f"前腳執行率變成 {r['exec_front']:.2f} —— 若這是刻意改好的，"
-        "請更新本測試與 docs/前腳不跨步的根因_2026-08-27.md")
+        "請更新本測試與 docs/CPG步態_完整結果_2026-08-27.md")
     # 世界前跨與「腿自走」必須分開：前腳世界有 30 mm 但腿自己只走 2–5 mm
     assert r["step_world"][0] > 20.0 and r["step_self"][0] < 10.0
 

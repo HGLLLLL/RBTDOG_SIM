@@ -20,13 +20,15 @@ REF="$HERE/../reference/hang_torque_ref.json"
 FILES=(
   "$HERE/shm_io.py"
   "$HERE/coord.py"
-  "$HERE/kin.py"             # ★ 狗上的純標準函式庫 IK/FK（M8 要用）
+  "$HERE/kin.py"             # ★ 狗上的純標準函式庫 IK/FK（M8/M9 要用）
+  "$HERE/cpg.py"             # ★ 狗上的純標準函式庫 CPG（M9 --live 要用）
   "$HERE/M0_probe.py"
   "$HERE/M2_wheel_spin.py"   # 單顆輪的對照實驗（2026-08-25 已知good）
   "$HERE/M5_leg_pose.py"
   "$HERE/M6_load_probe.py"   # 承重狀態唯讀擷取（零風險）
   "$HERE/M7_standup.py"      # ★★ 站起來（承重，風險最高）
   "$HERE/M8_swing.py"        # ★★ 單腿擺動（承重，三輪支撐）
+  "$HERE/M9_gait.py"         # ★★★ 步態（承重、連續、動態觸地）
   "$HERE/M_faultwatch.py"
   "$HERE/M_freezetest.py"    # ★ mc_ctrl 凍結時長的零風險觀察
   "$HERE/estop_max.sh"      # ★ 急停。第二個終端機一定要備著

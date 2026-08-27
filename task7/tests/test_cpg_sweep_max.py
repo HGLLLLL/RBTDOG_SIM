@@ -132,7 +132,12 @@ def _fake(**over):
                 speed_net=0.14, net_disp=3.0, yaw=0.0, bounce=0.02,
                 min_lift=0.09, support=3.0, pitch_mean=0.0, pitch_cycle=1.0,
                 height=0.48, lateral=0.0, net_roll=0.0, path_len=5.0, dist=2.9,
-                lim_pct=0.0, tau_pct=0.0, reach_pct=0.0, _secs=20.0)
+                lim_pct=0.0, tau_pct=0.0, reach_pct=0.0, _secs=20.0,
+                # ★ 執行率（2026-08-27 加）。`step_self` 是 list，_agg 會對它取 mean，
+                #   所以假資料也必須是 list 而不是純量 —— 型別不同一樣會靜默算錯。
+                exec_front=0.03, exec_rear=1.21,
+                step_world=[32.0, 34.0, 153.0, 157.0],
+                step_self=[2.0, 5.0, 138.0, 147.0])
     base.update(over)
     return base
 

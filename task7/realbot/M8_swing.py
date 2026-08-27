@@ -98,6 +98,15 @@ from M7_standup import (KD_DEF, KP_DEF, TAU_HARD, WHEEL_KD_DEF, WHEEL_KD_HOLD,
 
 LEGS12 = [lg + k for lg in coord.LEGS for k in coord.LEG_KINDS]
 
+# 要鎖輪 + 要取樣的區段字首。
+# ★ LIFT/DROP/PRE/POST 也鎖 —— 模擬顯示輪子純阻尼時「移重心」會被輪子滾掉
+#   （同樣 shift 純阻尼實際離地 −1.2 mm、鎖輪 13.1 mm）。
+#   輪足構型要移重心，必須先把輪子釘住。
+# ★ S4 的 FWD_/BACKX_ 也要取樣 —— **峰值落後發生在移動中，不在停住時**。
+#   只取樣 HOLD 會量到「讓它慢慢追上之後的穩態」，那是錯的量。
+HOLDISH = ("HOLD", "SAG_", "SWING_", "PREHOLD_", "SETTLE_",
+           "PRE_", "POST_", "LIFT", "DROP", "FWD_", "BACKX_")
+
 # 力矩門檻。★ 三腿承重時單腿分攤變大，所以比 M7 的（45/40/65）再放寬一點，
 #   但仍遠低於馬達規格 150。M7 實測四腿站立峰值只有 27 → 這裡留了 2.4 倍。
 TMAX = {"1_hip_roll": 50.0, "2_hip_pitch": 50.0, "3_knee_pitch": 70.0}
@@ -137,6 +146,16 @@ def shift_feet(ref: dict, dx: float, dy: float, dz: float = 0.0) -> dict:
     """
     return {lg: (ref[lg][0] - dx, ref[lg][1] - dy, ref[lg][2] + dz)
             for lg in coord.LEGS}
+
+
+def move_feet(ref: dict, leg: str, dx: float, dz: float = 0.0) -> dict:
+    """只把某一條腿的足端往前移 dx（並可同時抬 dz），其餘不動。
+
+    ★ +x 是機身的前方，四條腿都一樣（`kin.SIDE` 的 sx 是 ABAD→HIP 的偏移方向，
+      不是運動方向 —— 別拿它去變號）。
+    """
+    return {lg: (ref[lg][0] + (dx if lg == leg else 0.0), ref[lg][1],
+                 ref[lg][2] + (dz if lg == leg else 0.0)) for lg in coord.LEGS}
 
 
 def lift_feet(ref: dict, leg: str, dz: float) -> dict:
@@ -209,6 +228,37 @@ def build_segments(a, q_lie: dict, ref: dict, ks: dict):
             segs.append((f"POST_{lg}", a.t_shift, p_shift, stand_pose, None))
             segs.append((f"SETTLE_{lg}", a.settle, stand_pose, stand_pose, None))
 
+    if a.stage == 4:
+        # S4：擺動腿的**前跨**量測。抬起來 → 往前移 Δx → 量實際走了多少。
+        #
+        # ★★ 為什麼是「固定 Δx、掃秒數」而不是「掃 Δx」：
+        #   模擬顯示前腳落後有一個固定成分（自走 ≈ 指令 − 109 mm，斜率 1.04），
+        #   但那 109 mm 是**擺動相 107 ms 之內的動態落後**，不是穩態誤差。
+        #   移完停住讓它慢慢追，量到的會是穩態值 —— 那是錯的量。
+        #   所以固定 Δx，掃移動秒數 → 得到「落後 vs 速度」，那才是步態要的。
+        #
+        # ⚠️ 步態擺動相的關節命令速度是 **6.59 rad/s**，是 --vcmd-max 2.0 的 3.3 倍。
+        #   預設掃 1.5 / 1.0 / 0.5 秒（0.47 / 0.71 / 1.41 rad/s）全在護欄內，
+        #   從慢往快逼近。要再快必須自己明確調高 --vcmd-max 並承擔。
+        for lg in a.legs:
+            sx = -a.shift_x if lg in coord.FRONT_LEGS else +a.shift_x
+            sy = -a.shift_y if lg in ("fl", "bl") else +a.shift_y
+            shifted = shift_feet(ref, sx, sy)
+            p_shift, _ = pose_from_feet(shifted, ks)
+            p_up, _ = pose_from_feet(lift_feet(shifted, lg, a.gc_x), ks)
+            p_fwd, _ = pose_from_feet(move_feet(shifted, lg, a.dx, a.gc_x), ks)
+            segs.append((f"PRE_{lg}", a.t_shift, None, p_shift, None))
+            segs.append((f"PREHOLD_{lg}", a.hold_shift, p_shift, p_shift, None))
+            segs.append((f"LIFTX_{lg}", a.t_lift, p_shift, p_up, None))
+            for dur in a.t_fwd_scan:
+                tag = f"{lg}_{dur*1000:.0f}"
+                segs.append((f"FWD_{tag}", dur, p_up, p_fwd, None))
+                segs.append((f"HOLDX_{tag}", a.hold_lift, p_fwd, p_fwd, None))
+                segs.append((f"BACKX_{tag}", dur, p_fwd, p_up, None))
+            segs.append((f"DROPX_{lg}", a.t_lift, p_up, p_shift, None))
+            segs.append((f"POST_{lg}", a.t_shift, p_shift, stand_pose, None))
+            segs.append((f"SETTLE_{lg}", a.settle, stand_pose, stand_pose, None))
+
     segs += [("BACK_crouch", a.t2, stand_pose, crouch, None),
              ("HOLDB_crouch", a.hold_mid, crouch, crouch, None),
              ("BACK_LIE", a.t1, crouch, q_lie, None),
@@ -228,9 +278,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description="M8 —— 靜態撓度量測與單腿擺動（承重，原地）")
-    ap.add_argument("--stage", type=int, choices=(0, 1, 2, 3), default=1,
+    ap.add_argument("--stage", type=int, choices=(0, 1, 2, 3, 4), default=1,
                     help="★ 各階獨立不累加。0=只站起來 1=撓度掃描 "
-                         "2=重心橫移 3=單腿擺動")
+                         "2=重心橫移 3=單腿抬高 4=單腿前跨")
     ap.add_argument("--legs", nargs="*", default=list(coord.LEGS),
                     help="S3 要抬哪幾條腿（預設四條）")
     ap.add_argument("--confirm", action="store_true", help="不帶就是乾跑")
@@ -244,6 +294,14 @@ def main() -> int:
                          "0.08 是 CPG 基準（模擬預測幾乎不離地），"
                          "後兩個是為了拿到斜率")
     ap.add_argument("--shift", type=float, default=0.04, help="S2 機身平移量 m")
+    ap.add_argument("--dx", type=float, default=0.12,
+                    help="★ S4 的前跨指令 m。步態在 d_step=0.10 時是 0.118")
+    ap.add_argument("--gc-x", type=float, default=0.15, dest="gc_x",
+                    help="S4 前跨時的抬腿高度 m（實測 0.15 → 真實離地約 84 mm）")
+    ap.add_argument("--t-fwd-scan", nargs="*", type=float, dest="t_fwd_scan",
+                    default=[1.5, 1.0, 0.5],
+                    help="★ S4 的前跨秒數（由慢到快）。步態擺動相是 0.107 秒，"
+                         "那需要 6.59 rad/s —— 遠超 --vcmd-max，不要一步跳過去")
     ap.add_argument("--shift-x", type=float, default=0.03, dest="shift_x",
                     help="S3 抬腿前的機身縱向位移 m")
     ap.add_argument("--shift-y", type=float, default=0.14, dest="shift_y",
@@ -460,12 +518,6 @@ def main() -> int:
                 shm.write_cmd(wi, position=st_w[wi]["position"],
                               velocity=0.0, effort=0.0, kp=0.0, kd=a.wheel_kd)
 
-    # 要鎖輪 + 要取樣的區段字首。
-    # ★ LIFT/DROP/PRE/POST 也鎖 —— 模擬顯示輪子純阻尼時，
-    #   「移重心」會被輪子滾掉：同樣 shift(30,100) 純阻尼實際離地 −1.2 mm、
-    #   鎖輪 13.1 mm。輪足構型移重心必須先把輪子釘住。
-    HOLDISH = ("HOLD", "SAG_", "SWING_", "PREHOLD_", "SETTLE_",
-               "PRE_", "POST_", "LIFT_", "DROP_")
 
     try:
         os.kill(pid, signal.SIGSTOP)

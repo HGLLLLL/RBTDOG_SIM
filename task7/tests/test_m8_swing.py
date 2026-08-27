@@ -36,6 +36,7 @@ class Args:
     def __init__(self, **kw):
         d = dict(stage=1, legs=list(coord.LEGS), kp=250.0, kd=5.0,
                  kp_scan=[250.0, 180.0, 120.0], gc_scan=[0.08, 0.15, 0.22],
+                 dx=0.12, gc_x=0.15, t_fwd_scan=[1.5, 1.0, 0.5],
                  shift=0.04, shift_x=0.03, shift_y=0.14, ramp=2.0, t1=1.5, t2=1.5,
                  t_shift=1.2, t_lift=1.0, hold=2.0, hold_mid=1.5, hold_shift=1.5,
                  hold_lift=1.5, settle=1.0, kp_ramp=1.0)
@@ -257,3 +258,78 @@ def test_default_t_lift_keeps_the_tallest_lift_under_vcmd_max():
     r8 = {r[0]: r[3] for r in
           m8.seg_speeds([(n, d, p0, p1) for n, d, p0, p1, _ in segs8], m8.LEGS12)}
     assert r8["LIFT_fr_220"] > 2.0
+
+
+# ══════════════════════════════════════════ S4：擺動腿的前跨量測
+def test_s4_fits_the_budget_one_or_two_legs():
+    for legs, secs in ((["fr"], 32.4), (["fr", "bl"], 49.8)):
+        total = sum(s[1] for s in plan(stage=4, legs=legs)[1])
+        assert total == pytest.approx(secs, abs=0.1)
+        assert total < WEIGHT_BEARING_CAP
+
+
+def test_s4_is_independent_of_the_other_stages():
+    names = {s[0] for s in plan(stage=4, legs=["fr"])[1]}
+    assert any(n.startswith("FWD_") for n in names)
+    assert not any(n.startswith(("SAG_", "SWING_", "GO_SHIFT")) for n in names)
+
+
+def test_move_feet_is_forward_for_every_leg():
+    """★ +x 是機身前方，四條腿都一樣。
+
+    kin.SIDE 的 sx 是 ABAD→HIP 的偏移方向，**不是運動方向** ——
+    拿它去變號會讓後腿往後跨，而那在資料上看起來只是「後腿執行率是負的」。
+    """
+    ref = m8.foot_ref()
+    for lg in coord.LEGS:
+        out = m8.move_feet(ref, lg, +0.12)
+        assert out[lg][0] == pytest.approx(ref[lg][0] + 0.12), lg
+        for other in coord.LEGS:
+            if other != lg:
+                assert out[other] == ref[other]
+
+
+def test_s4_waypoints_need_no_ik_clamping():
+    ref, ks = m8.foot_ref(), m8.knee_signs()
+    for lg in coord.LEGS:
+        for dx in (0.06, 0.12, 0.20, 0.30):
+            _, n = m8.pose_from_feet(m8.move_feet(ref, lg, dx, 0.15), ks)
+            assert n == 0, f"{lg} dx={dx} 被縮限"
+
+
+def test_s4_default_scan_stays_inside_the_speed_guard():
+    """預設的 1.5/1.0/0.5 秒都要在 --vcmd-max 2.0 之內。"""
+    _, segs = plan(stage=4, legs=["fr"])
+    rows = {r[0]: r[3] for r in
+            m8.seg_speeds([(n, d, p0, p1) for n, d, p0, p1, _ in segs], m8.LEGS12)}
+    for ms in (1500, 1000, 500):
+        assert rows[f"FWD_fr_{ms}"] < 2.0, f"{ms} ms 那格超標"
+        assert rows[f"BACKX_fr_{ms}"] < 2.0
+
+
+def test_gait_swing_speed_is_far_beyond_the_guard():
+    """★★ 這是 S4 設計的理由，寫成測試免得被忘記。
+
+    步態 duty 0.85 / ω1.4 的擺動相只有 107 ms，同樣的前跨要 6.59 rad/s ——
+    是 --vcmd-max 2.0 的 3.3 倍。所以 S4 只能「固定 Δx、掃秒數」由慢往快逼近，
+    不能一步跳到步態速度。
+    """
+    import M7_standup as m7
+    ref, ks = m8.foot_ref(), m8.knee_signs()
+    t_swing = (1 - 0.85) / 1.4
+    worst = 0.0
+    for lg in coord.LEGS:
+        up, _ = m8.pose_from_feet(m8.lift_feet(ref, lg, 0.15), ks)
+        fwd, _ = m8.pose_from_feet(m8.move_feet(ref, lg, 0.12, 0.15), ks)
+        worst = max(worst, max(abs(up[j] - fwd[j]) for j in m8.LEGS12))
+    v_gait = m7.SMOOTHSTEP_VPEAK * worst / t_swing
+    assert v_gait > 6.0, f"步態擺動速度只有 {v_gait:.2f} rad/s？重新檢查假設"
+    assert v_gait > 3 * 2.0
+
+
+def test_fwd_and_backx_are_sampled_and_wheel_locked():
+    """★ 峰值落後在移動中發生 —— FWD/BACKX 不取樣就量不到它。"""
+    assert any("FWD_".startswith(p) or p == "FWD_" for p in m8.HOLDISH)
+    assert "FWD_" in m8.HOLDISH and "BACKX_" in m8.HOLDISH
+    for nm in ("FWD_fr_500", "BACKX_fr_500", "LIFTX_fr", "DROPX_fr", "HOLDX_fr_500"):
+        assert nm.startswith(m8.HOLDISH), f"{nm} 不會被取樣"

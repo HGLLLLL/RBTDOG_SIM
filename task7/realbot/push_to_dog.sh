@@ -20,12 +20,15 @@ REF="$HERE/../reference/hang_torque_ref.json"
 FILES=(
   "$HERE/shm_io.py"
   "$HERE/coord.py"
+  "$HERE/kin.py"             # ★ 狗上的純標準函式庫 IK/FK（M8 要用）
   "$HERE/M0_probe.py"
   "$HERE/M2_wheel_spin.py"   # 單顆輪的對照實驗（2026-08-25 已知good）
   "$HERE/M5_leg_pose.py"
   "$HERE/M6_load_probe.py"   # 承重狀態唯讀擷取（零風險）
   "$HERE/M7_standup.py"      # ★★ 站起來（承重，風險最高）
+  "$HERE/M8_swing.py"        # ★★ 單腿擺動（承重，三輪支撐）
   "$HERE/M_faultwatch.py"
+  "$HERE/M_freezetest.py"    # ★ mc_ctrl 凍結時長的零風險觀察
   "$HERE/estop_max.sh"      # ★ 急停。第二個終端機一定要備著
 )
 
@@ -38,6 +41,28 @@ else
   echo "   先跑：/home/huang/miniforge3/envs/rbtdog/bin/python task7/inference/hang_rehearsal.py"
   read -r -p "   仍要繼續傳檔嗎？[y/N] " ans
   [[ "$ans" == "y" || "$ans" == "Y" ]] || exit 1
+fi
+
+# ★ 漏檔偵測。2026-08-27 加：`kin.py` / `M8_swing.py` 寫好之後忘了加進清單，
+#   而漏檔的症狀是「ImportError」或更糟的「跑到舊版」—— 正是本腳本要防的事。
+#   有些檔**故意不傳**（本機端工具、需要 numpy 的、已完成的階段），列在下面。
+NOT_PUSHED=(push_to_dog.sh pull_from_dog.sh shm_decode.py recon_d1max.sh
+            recon2_d1max.sh M1_zero_write.py M3_wheel_tour.py M4_pose_capture.py)
+missing=()
+for f in "$HERE"/*.py "$HERE"/*.sh; do
+  b="$(basename "$f")"
+  in_list=0
+  for g in "${FILES[@]}"; do [[ "$(basename "$g")" == "$b" ]] && in_list=1 && break; done
+  for g in "${NOT_PUSHED[@]}"; do [[ "$g" == "$b" ]] && in_list=1 && break; done
+  [[ $in_list -eq 0 ]] && missing+=("$b")
+done
+if [[ ${#missing[@]} -gt 0 ]]; then
+  echo "⚠️ realbot/ 裡有檔案既不在傳送清單、也不在「故意不傳」清單："
+  printf '     %s\n' "${missing[@]}"
+  echo "   → 是新寫的就把它加進 FILES；是本機端工具就加進 NOT_PUSHED。"
+  read -r -p "   仍要繼續嗎？[y/N] " ans
+  [[ "$ans" == "y" || "$ans" == "Y" ]] || exit 1
+  echo
 fi
 
 echo "目標：$DOG:~/"

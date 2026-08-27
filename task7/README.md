@@ -65,10 +65,26 @@
 | 路徑 | 內容 |
 |---|---|
 | `model/zgws/` | ★ 官方 MJCF（**已填實測輪摩擦**）+ 平地場景 + 取網格腳本 + `SOURCE.md` |
+| `model/zgws/make_mjx_model.py` | ★ **MJX 訓練模型產生器**。官方 MJCF 的碰撞網格 98,569 頂點，MJX 會 OOM；產物 `zgws_mjx.xml` 零 STL 相依 |
 | `model/max.urdf` | 官方 URDF。與 MJCF 質量分佈不同，見 `model/zgws/SOURCE.md` |
 | `reference/matrix_zgws/` | 原廠設定檔原件 + 可信度說明 |
 | `logs/` | 六趟實機的原始輸出（含 SHM 二進位快照） |
-| `inference/`、`tests/` | CPG 步態（由另一條線維護） |
+| `inference/`、`tests/` | CPG 步態與 CPG-RL（由另一條線維護，見下） |
+| `notebooks/cpg_rl_max_colab.ipynb` | ★ **CPG-RL 訓練 notebook**，丟 Colab GPU 直接跑 |
+
+### CPG 步態 / CPG-RL（純模擬，2026-08-27）
+
+| 路徑 | 內容 |
+|---|---|
+| `inference/gait_baseline.py` | ★ **基準步態的唯一真實來源**（`walk`，180 s × 12 擾動 0 跌倒） |
+| `inference/cpg_walk_max.py` | 開迴路 CPG rollout ＋ `Trace`（統計，與推論端共用） |
+| `inference/cpg_sweep_max.py` | 多擾動掃描器（含記憶體守衛） |
+| `inference/obs_max.py` | ★ **68 維觀測層的唯一定義**，Colab 與本機共用 |
+| `inference/local_infer_max.py` | 載 RL 權重，在**原始網格模型**上回放／錄影／量指標 |
+| `docs/基準步態凍結_D1Max_walk_2026-08-27.md` | 凍結參數與判準來源 |
+| `docs/MJX模型對照_2026-08-27.md` | 訓練模型 vs 原始模型的落差（±2% 內）與三個踩過的坑 |
+| `docs/CPG-RL_D1Max_設計_2026-08-27.md` | ★ **這條線的入口**：觀測層、reward、DR、驗收關卡 |
+| `docs/現場操作卡_IMU平放複核.md` | ⚠️ **上實機前必做**（唯讀、零風險） |
 
 ## 下一步
 

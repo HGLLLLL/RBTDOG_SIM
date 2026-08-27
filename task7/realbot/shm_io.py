@@ -25,6 +25,10 @@ SHM_DIR = "/dev/shm"
 SIZE = 1024 * 1024
 
 BASE = 752
+# `imu_central` 的數值起點（acc[3], gyro[3], quat[4]，全部 f64、順序 xyzw）。
+# 與 joint_cmd / joint_state 的 BASE=752 不同 —— 那兩塊是 16 筆記錄的容器，
+# 這塊只有單一記錄。
+IMU_BASE = 824
 TICK_OFF = 0        # ★ 記錄開頭的 u64 是「這一幀的時戳／心跳」，見下
 NAME_OFF, NAME_LEN = 8, 64
 DATA_OFF = 72
@@ -110,6 +114,22 @@ class Shm:
                 rec[k] = _F8.unpack_from(self.mm, p)[0]
             out.append(rec)
         return out
+
+    def imu(self) -> dict:
+        """`imu_central` 的一筆讀值：`{acc[3], gyro[3], quat[4]}`。唯讀，不需 root。
+
+        ⚠️ **四元數的順序是 `xyzw`，而且這件事尚未被實驗證實。**
+        2026-08-25 的判讀依據是「取樣當下加速度顯示重力在 +Z、x/y ≈ 0，所以機身水平；
+        用 xyzw 解得 roll −0.12° / pitch −1.61°（與加速度自洽），
+        用 wxyz 解得 roll −30.6°（矛盾）」—— 那是一次**剛好水平的巧合取樣**，
+        不是刻意做的平放實驗。
+
+        順序若錯，CPG-RL 的 obs 前三維（重力向量）會整個翻掉，而且**不會報錯** ——
+        症狀是「狗一走就往某個方向倒」，現場會被誤判成 RL 沒訓練好。
+        上實機前先跑 `task7/docs/現場操作卡_IMU平放複核.md`。
+        """
+        vals = [_F8.unpack_from(self.mm, IMU_BASE + i * 8)[0] for i in range(10)]
+        return {"acc": vals[0:3], "gyro": vals[3:6], "quat": vals[6:10]}
 
     def verify_layout(self, stride: int) -> None:
         """名稱順序對不上就直接拒絕往下走 —— 結構若改版，後面每個欄位都會寫錯關節。"""
@@ -199,6 +219,17 @@ def read_joint_state() -> list[dict]:
     """
     with Shm("joint_state") as s:
         return s.states()
+
+
+def read_imu() -> dict:
+    """回傳 `{acc[3], gyro[3], quat[4]}`（quat 順序 **xyzw**）。唯讀，不需 root。
+
+    一次性讀取用。高頻迴圈請自己持有 `Shm("imu_central")` 並呼叫 `.imu()`。
+    ⚠️ 四元數順序尚未實驗證實，見 `Shm.imu` 的說明與
+       `task7/docs/現場操作卡_IMU平放複核.md`。
+    """
+    with Shm("imu_central") as s:
+        return s.imu()
 
 
 def read_joint_cmd() -> list[dict]:

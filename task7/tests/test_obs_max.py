@@ -105,3 +105,54 @@ def test_obs_excludes_base_linear_velocity(level_data):
     d.qvel[0:3] = 0.0
     assert not np.any(np.isclose(o, 0.37, atol=1e-6)), "obs 裡出現了機身線速度"
     assert not np.any(np.isclose(o, -0.11, atol=1e-6)), "obs 裡出現了機身線速度"
+
+
+def test_local_infer_uses_mesh_scene_by_default():
+    """預設必須跑**原始網格模型**，不是訓練用的圓盤模型。
+
+    訓練模型是為了 MJX 才簡化的。驗收如果也跑簡化模型，
+    等於用同一個近似去驗證那個近似 —— 落差永遠量不到。
+    """
+    import local_infer_max
+    assert local_infer_max.DEFAULT_SCENE == mm.SCENE
+
+
+def test_local_infer_omega_range_matches_notebook():
+    """ω 的映射範圍必須與 notebook 第 4 格同值。
+
+    不同值的話 policy 輸出的同一個數字會被解成不同的頻率，而且**不會報錯**——
+    症狀是「權重在 Colab 好好的，拿回本機就走不動」。
+    """
+    import json
+    import local_infer_max
+    nb = json.loads((Path(__file__).resolve().parents[1]
+                     / "notebooks" / "cpg_rl_max_colab.ipynb").read_text())
+    src = "\n".join("".join(c["source"]) for c in nb["cells"] if c["cell_type"] == "code")
+    want = f"OMEGA_MIN, OMEGA_MAX = {local_infer_max.OMEGA_MIN}, {local_infer_max.OMEGA_MAX}"
+    assert want in src, f"notebook 裡找不到 `{want}`"
+
+
+def test_dummy_reproduces_open_loop_baseline_bit_exactly():
+    """★ `--dummy` 跑出來的指標必須與開迴路基準**逐位相同**。
+
+    基準步態在這個動作空間裡是一個固定動作（mux/muy/ω 用 atanh 反推），
+    所以整條推論鏈（obs → act_to_cmd → CPG → 解析 IK → PD）有標準答案可對。
+    這比「跑起來沒炸就算過」強得多：任何一個係數、順序、範圍接錯都會在這裡露餡。
+    """
+    import argparse
+    import contextlib
+    import io
+
+    import cpg_walk_max as cw
+    import local_infer_max
+
+    args = argparse.Namespace(params="", dummy=True, secs=6.0, vx=0.15, wz=0.0,
+                              video=False, scene=None)
+    with contextlib.redirect_stdout(io.StringIO()):
+        got = local_infer_max.run(args)
+        want = cw.rollout(gait="walk", secs=6.0, quiet=True)
+    for k in ("speed_travel", "bounce", "pitch_mean", "support", "yaw",
+              "net_roll", "min_lift", "height", "fell"):
+        assert got[k] == want[k], f"{k}: 推論端 {got[k]} vs 開迴路 {want[k]}"
+    # ω 沒被動過 → 平均值就是基準值
+    assert abs(got["omega_mean"] - 1.4) < 1e-12

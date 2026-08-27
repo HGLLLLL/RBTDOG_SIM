@@ -324,6 +324,147 @@ class Robot:
         return 100.0 * self.n_tau / max(1, self.n_tau_tot)
 
 
+class Trace:
+    """逐步取樣 + 統計 —— **開迴路 rollout 與 RL 推論共用同一份定義**。
+
+    ⚠️ 不要在別處複製第二份統計。兩份遲早分岔，而分岔之後
+       「RL 比開迴路快 x%」這種結論就不可信了：那個百分比會同時包含
+       真實差異與兩份統計程式的差異，事後分不開。
+
+    統計只取**後半段**（前半當暖身）。判定規則寫在各欄位旁邊。
+    """
+
+    def __init__(self, robot: "Robot", n_steps: int, secs: float, omega: float,
+                 phase: np.ndarray):
+        self.r, self.n, self.secs = robot, n_steps, secs
+        self.omega = omega
+        self.phase = np.asarray(phase)
+        self.half = n_steps // 2
+        self.i = 0
+        d = robot.d
+        self.x0, self.y0 = float(d.qpos[0]), float(d.qpos[1])
+        self.yaw0 = cpg_max.yaw_deg(d.qpos[3:7])
+        self.w0 = d.qpos[mm.WHEEL_QPOS_IDX].copy()
+        # 路徑長：步態一偏航就走弧線，「x 位移 / 時間」會**嚴重低估**實際走多快。
+        self.path_len = 0.0
+        self.prev_xy = np.array([self.x0, self.y0])
+        # ★ 逐步的 xy 全留著。`path_len` 是**逐控制步**累加的，會把機身每一步的
+        #   左右搖擺一起算成「走過的距離」。要分開就得能用**一個步態週期**當步長重算。
+        self.xy_hist = np.empty((n_steps, 2))
+        self.lift = [[] for _ in range(4)]
+        self.pitch, self.roll, self.height, self.support, self.phases = [], [], [], [], []
+        self.fell = None
+
+    def record(self, theta: np.ndarray):
+        """在 `robot.step()` 之後呼叫一次。`theta` 是當下的 CPG 相位 (4,)。"""
+        d, r, i = self.r.d, self.r, self.i
+        xy = np.array([float(d.qpos[0]), float(d.qpos[1])])
+        self.path_len += float(np.linalg.norm(xy - self.prev_xy))
+        self.prev_xy = xy
+        self.xy_hist[i] = xy
+
+        grav = cpg_max.w2b(d.qpos[3:7], np.array([0.0, 0.0, -1.0]))
+        if grav[2] > mm.FALL_GRAV_Z and self.fell is None:
+            self.fell = i * mm.CTRL_DT
+        if i >= self.half:
+            hs = r.foot_heights()
+            for k in range(4):
+                self.lift[k].append(hs[k])
+            # 支撐腳數用**實際接觸力**判定，不用「離地高度 < 5 mm」。
+            # 高度門檻在會彈跳的步態上會騙人：機身整體騰空時腳離地面很近卻沒受力，
+            # 一樣被算成支撐腳。改用接觸力就沒有這個模糊地帶。
+            self.support.append(int(np.sum(r.foot_forces() > 1.0)))
+            self.pitch.append(np.degrees(np.arcsin(np.clip(-grav[0], -1.0, 1.0))))
+            self.roll.append(np.degrees(np.arcsin(np.clip(grav[1], -1.0, 1.0))))
+            self.height.append(float(d.qpos[2]))
+            self.phases.append(np.asarray(theta).copy())
+        self.i += 1
+
+    def summarize(self, n_reach: int = 0, extra: dict = None) -> dict:
+        d, r = self.r.d, self.r
+        pit = np.asarray(self.pitch)
+        hgt = np.asarray(self.height)
+        per = max(1, int(round((1.0 / self.omega) / mm.CTRL_DT)))
+        # secs 太短時取樣不足一個週期，退回整段 p2p —— np.mean([]) 會回 nan
+        # 而且只發 RuntimeWarning，不會擋下來。
+        cyc = [np.max(pit[s:s + per]) - np.min(pit[s:s + per])
+               for s in range(0, len(pit) - per, per)] or [float(pit.max() - pit.min())]
+
+        # 相位鎖定：實際相位差 vs 目標相位差，用圓形統計
+        # （±180° 的包裹會讓一般標準差虛胖，看起來像沒鎖定其實鎖得很好）。
+        #
+        # ⚠️ 這是一個**在開迴路下必然漂亮的指標**，不要拿它當步態品質的證據。
+        #    CPG 是純前饋的，機身狀態不回授進振盪器，所以相位差恆等於設定值、σ 恆為 0，
+        #    就算機器人已經翻倒在地也一樣是 0。
+        #    ★ 接上 RL 之後它才**開始有資訊量** —— policy 會逐步改 ω，
+        #      相位差就不再恆定，這時 σ 才真的在量「步態有沒有散掉」。
+        ph = np.asarray(self.phases)
+        lock = [float(np.degrees(cpg_max.circ_std(
+            ph[:, k] - ph[:, 0] - (self.phase[k] - self.phase[0])))) for k in range(4)]
+
+        # ---- 行進速度：三個都留，因為三個回答的是不同問題 ----
+        #   speed        帳面。x 位移 / 時間。**一偏航就嚴重低估。**
+        #   speed_path   逐控制步的路徑長 / 時間。**把機身搖擺算成前進，嚴重高估**（+68%）。
+        #   speed_travel ★ 以**一個步態週期**為步長重算的路徑長 / 時間。
+        #                週期內的搖擺自己抵銷掉，弧線仍然算得到 —— 這個才是「走多快」。
+        xy = self.xy_hist
+        stride = (np.linalg.norm(xy[per:] - xy[:-per], axis=1)
+                  if self.n > per else None)
+        speed_travel = (float(stride.sum()) / (len(stride) * per) / mm.CTRL_DT
+                        if stride is not None and len(stride) else float("nan"))
+        net = float(np.linalg.norm(xy[-1] - xy[0]))
+
+        res = {
+            "peak_lift": [float(np.percentile(l, 99)) for l in self.lift],
+            "min_lift": float(min(np.percentile(l, 99) for l in self.lift)),
+            "pitch_cycle": float(np.mean(cyc)),
+            "pitch_mean": float(pit.mean()),
+            "roll_mean": float(np.mean(self.roll)),
+            "bounce": float(hgt.max() - hgt.min()),
+            "height": float(hgt.mean()),
+            "support": float(np.mean(self.support)),
+            "dist": float(d.qpos[0]) - self.x0,
+            "lateral": float(d.qpos[1]) - self.y0,
+            "speed": (float(d.qpos[0]) - self.x0) / self.secs,
+            "path_len": self.path_len,
+            "speed_path": self.path_len / self.secs,  # ⚠️ 含機身搖擺，別當行進速度引用
+            "speed_travel": speed_travel,             # ★ 搖擺抵銷後的行進速度
+            "net_disp": net,                          # 起點到終點的直線距離
+            "speed_net": net / self.secs,             # 走弧線時會低於 speed_travel
+            "yaw": cpg_max.yaw_deg(d.qpos[3:7]) - self.yaw0,
+            # 淨滾動距離：回答「牠是在走還是在滾」。輪軸 +y，前進對應輪角減少。
+            "net_roll": float(-np.mean(d.qpos[mm.WHEEL_QPOS_IDX] - self.w0)
+                              * mm.WHEEL_RADIUS),
+            "fell": self.fell,
+            "lim_pct": r.lim_pct,
+            "tau_pct": r.tau_pct,
+            "reach_pct": 100.0 * n_reach / max(1, self.n * 4),
+            "phase_lock": lock,
+        }
+        res.update(extra or {})
+        return res
+
+
+def report(res: dict, header: str) -> None:
+    """把 `Trace.summarize` 的結果印成四行 —— 開迴路與 RL 推論用同一份格式。"""
+    pk = [v * 1000 for v in res["peak_lift"]]
+    print(header)
+    print("[離地] " + "  ".join(f"{L}={v:.1f}" for L, v in zip(mm.LEGS, pk))
+          + f"  mm（最小 {res['min_lift'] * 1000:.1f}）")
+    print(f"[姿態] 週期俯仰 {res['pitch_cycle']:.2f}°  平均俯仰 {res['pitch_mean']:+.2f}°  "
+          f"平均側傾 {res['roll_mean']:+.2f}°  彈跳 {res['bounce'] * 1000:.1f} mm  "
+          f"機身高 {res['height'] * 1000:.1f} mm  支撐腳 {res['support']:.2f}")
+    print(f"[位移] 前進 {res['dist']:+.2f} m（帳面 {res['speed']:.2f}，"
+          f"★行進 {res['speed_travel']:.2f}，路徑 {res['speed_path']:.2f} m/s"
+          f"｜路徑含機身搖擺，勿當行進速度引用）  "
+          f"側偏 {res['lateral']:+.2f} m  偏航 {res['yaw']:+.1f}°  "
+          f"淨滾動 {res['net_roll'] * 1000:+.0f} mm  "
+          f"跌倒={'是 @%.1fs' % res['fell'] if res['fell'] is not None else '否'}")
+    print(f"[診斷] 超限 {res['lim_pct']:.2f}%  力矩飽和 {res['tau_pct']:.2f}%  "
+          f"IK縮限 {res['reach_pct']:.2f}%  "
+          f"相位鎖定σ " + "/".join(f"{v:.1f}" for v in res["phase_lock"]) + "°")
+
+
 def stand(secs: float = 4.0, x_off: float = 0.0, friction: float = None,
           wheel_mode: str = "damp", quiet: bool = False) -> dict:
     """靜態站立驗證（動態落地版，不是正向運動學）。
@@ -376,6 +517,7 @@ def stand(secs: float = 4.0, x_off: float = 0.0, friction: float = None,
     return res
 
 
+
 def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
             mu_x: float = None, mu_y: float = MU_Y, x_off: float = None,
             g_c: float = None, d_step: float = None, d_step_y: float = D_STEP_Y,
@@ -420,24 +562,11 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
 
     c = cpg_max.cpg_init(phase)
     n = int(secs / mm.CTRL_DT)
-    half = n // 2                     # 前半段當暖身，統計只取後半段
-    lift = [[] for _ in range(4)]
-    pitch, roll, height, support, phases = [], [], [], [], []
     d = r.d
-    x0, y0 = float(d.qpos[0]), float(d.qpos[1])
-    yaw0 = cpg_max.yaw_deg(d.qpos[3:7])
-    w0 = d.qpos[mm.WHEEL_QPOS_IDX].copy()
-    # 路徑長：步態一偏航就走弧線，「x 位移 / 時間」會**嚴重低估**實際走多快
-    # （實測 trot 偏航 −70° 時，帳面 0.20 m/s、實際路徑速率 0.44 m/s，差一倍以上）。
-    # 兩個都留：speed 看「往目標方向前進多少」，speed_path 看「腿到底走多快」。
-    path_len = 0.0
-    prev_xy = np.array([float(d.qpos[0]), float(d.qpos[1])])
-    # ★ 逐步的 xy 全留著。`path_len` 是**逐控制步**累加的，會把機身每一步的左右搖擺
-    #   一起算成「走過的距離」—— 實測在幾乎不偏航時（20 s、偏航 +7.9°）
-    #   帳面 x 速度只有 path_len 速率的 0.58 倍，而 cos(7.9°)=0.99。
-    #   那 42% 的差距全部是搖擺，不是前進。要分開就得能用**一個步態週期**當步長重算。
-    xy_hist = np.empty((n, 2))
-    fell = None
+    # ★ 取樣與統計都在 Trace 裡，與 RL 推論端 (local_infer_max.py) 共用同一份定義。
+    #   不要在推論端複製第二份：兩份遲早分岔，分岔之後
+    #   「RL 比開迴路快 x%」會同時包含真實差異與兩份程式的差異，事後分不開。
+    tr = Trace(r, n, secs, omega, phase)
 
     for i in range(n):
         c = step(c, np.full(4, mu_x), np.full(4, mu_y), np.full(4, omega), mm.CTRL_DT)
@@ -445,27 +574,7 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
                                           ks, z_sag)
         n_reach += nc
         r.step(q_des, wheel_mode)
-
-        xy = np.array([float(d.qpos[0]), float(d.qpos[1])])
-        path_len += float(np.linalg.norm(xy - prev_xy))
-        prev_xy = xy
-        xy_hist[i] = xy
-
-        grav = cpg_max.w2b(d.qpos[3:7], np.array([0.0, 0.0, -1.0]))
-        if grav[2] > mm.FALL_GRAV_Z and fell is None:
-            fell = i * mm.CTRL_DT
-        if i >= half:
-            hs = r.foot_heights()
-            for k in range(4):
-                lift[k].append(hs[k])
-            # 支撐腳數用**實際接觸力**判定，不用「離地高度 < 5 mm」。
-            # 高度門檻在會彈跳的步態上會騙人：機身整體騰空時腳離地面很近卻沒受力，
-            # 一樣被算成支撐腳。改用接觸力就沒有這個模糊地帶。
-            support.append(int(np.sum(r.foot_forces() > 1.0)))
-            pitch.append(np.degrees(np.arcsin(np.clip(-grav[0], -1.0, 1.0))))
-            roll.append(np.degrees(np.arcsin(np.clip(grav[1], -1.0, 1.0))))
-            height.append(float(d.qpos[2]))
-            phases.append(c["theta"].copy())
+        tr.record(c["theta"])
 
         if ren is not None and i % 2 == 0:
             cam.lookat[:] = [d.qpos[0], d.qpos[1], 0.30]
@@ -473,89 +582,17 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
             ren.update_scene(d, cam)
             frames.append(ren.render())
 
-    pit = np.asarray(pitch)
-    hgt = np.asarray(height)
-    per = max(1, int(round((1.0 / omega) / mm.CTRL_DT)))
-    # secs 太短時取樣不足一個週期，退回整段 p2p —— np.mean([]) 會回 nan 而且只發
-    # RuntimeWarning，不會擋下來。
-    cyc = [np.max(pit[s:s + per]) - np.min(pit[s:s + per])
-           for s in range(0, len(pit) - per, per)] or [float(pit.max() - pit.min())]
-
-    # 相位鎖定：實際相位差 vs 目標相位差，用圓形統計（±180° 包裹會讓一般標準差虛胖）。
-    #
-    # ⚠️ 這是一個**在開迴路下必然漂亮的指標**，不要拿它當步態品質的證據。
-    #    CPG 是純前饋的，機身狀態不回授進振盪器，所以相位差恆等於設定值、σ 恆為 0，
-    #    就算機器人已經翻倒在地也一樣是 0。留著它是為了將來接上回授（RL / 觸地重置）
-    #    之後才有比較基準 —— 那時它才開始有資訊量。
-    ph = np.asarray(phases)
-    lock = [float(np.degrees(cpg_max.circ_std(
-        ph[:, k] - ph[:, 0] - (phase[k] - phase[0])))) for k in range(4)]
-
-    # ---- 行進速度：三個都留，因為三個回答的是不同問題 ----
-    #   speed        帳面。x 位移 / 時間。**一偏航就嚴重低估。**
-    #   speed_path   逐控制步的路徑長 / 時間。**把機身搖擺算成前進，嚴重高估**（+42%）。
-    #   speed_travel ★ 以**一個步態週期**為步長重算的路徑長 / 時間。
-    #                週期內的搖擺自己抵銷掉，弧線仍然算得到 —— 這個才是「走多快」。
-    #
-    # ⚠️ 別再引用 speed_path 當行進速度。實測 walk 20 s：
-    #    帳面 0.144、path 0.249、travel **0.148** —— path 高估了 68%。
-    #    交接文件裡「路徑速度 0.24~0.27 m/s」引用的是 path，不是行進速度。
-    stride = np.linalg.norm(xy_hist[per:] - xy_hist[:-per], axis=1) if n > per else None
-    speed_travel = (float(stride.sum()) / (len(stride) * per) / mm.CTRL_DT
-                    if stride is not None and len(stride) else float("nan"))
-    net = float(np.linalg.norm(xy_hist[-1] - xy_hist[0]))
-
-    res = {
-        # 讓對照數據自己帶著身分 —— 掃描 JSON 事後才判讀得出哪一列是哪個模型。
+    res = tr.summarize(n_reach, extra={
         "actuator_mode": actuator_mode,
         "scene": scene or mm.SCENE,
         "gait": gait, "omega": omega, "mu_x": mu_x, "x_off": x_off,
         "g_c": g_c, "d_step": d_step, "duty": duty, "z_sag": z_sag,
-        "peak_lift": [float(np.percentile(l, 99)) for l in lift],
-        "min_lift": float(min(np.percentile(l, 99) for l in lift)),
-        "pitch_cycle": float(np.mean(cyc)),
-        "pitch_mean": float(pit.mean()),
-        "roll_mean": float(np.mean(roll)),
-        "bounce": float(hgt.max() - hgt.min()),
-        "height": float(hgt.mean()),
-        "support": float(np.mean(support)),
-        "dist": float(d.qpos[0]) - x0,
-        "lateral": float(d.qpos[1]) - y0,
-        "speed": (float(d.qpos[0]) - x0) / secs,
-        "path_len": path_len,
-        "speed_path": path_len / secs,      # ⚠️ 含機身搖擺，高估。別當行進速度引用
-        "speed_travel": speed_travel,       # ★ 以步態週期為步長，搖擺抵銷掉後的行進速度
-        "net_disp": net,                    # 起點到終點的直線距離
-        "speed_net": net / secs,            # 直線位移率。走弧線時會低於 speed_travel
-        "yaw": cpg_max.yaw_deg(d.qpos[3:7]) - yaw0,
-        # 淨滾動距離：回答「牠是在走還是在滾」。輪軸 +y，前進對應輪角減少。
-        "net_roll": float(-np.mean(d.qpos[mm.WHEEL_QPOS_IDX] - w0) * mm.WHEEL_RADIUS),
-        "fell": fell,
-        "lim_pct": r.lim_pct,
-        "tau_pct": r.tau_pct,
-        "reach_pct": 100.0 * n_reach / max(1, n * 4),
-        "phase_lock": lock,
-    }
+    })
 
     if not quiet:
-        pk = [v * 1000 for v in res["peak_lift"]]
-        print(f"[步態] {gait}  ω={omega} μx={mu_x} μy={mu_y} duty={duty} "
-              f"x_off={x_off * 1000:+.0f}mm D_STEP={d_step} G_C={g_c} "
-              f"撓度補償={z_sag * 1000:.1f}mm 輪={wheel_mode}")
-        print("[離地] " + "  ".join(f"{L}={v:.1f}" for L, v in zip(mm.LEGS, pk))
-              + f"  mm（最小 {res['min_lift'] * 1000:.1f}）")
-        print(f"[姿態] 週期俯仰 {res['pitch_cycle']:.2f}°  平均俯仰 {res['pitch_mean']:+.2f}°  "
-              f"平均側傾 {res['roll_mean']:+.2f}°  彈跳 {res['bounce'] * 1000:.1f} mm  "
-              f"機身高 {res['height'] * 1000:.1f} mm  支撐腳 {res['support']:.2f}")
-        print(f"[位移] 前進 {res['dist']:+.2f} m（帳面 {res['speed']:.2f}，"
-              f"★行進 {res['speed_travel']:.2f}，路徑 {res['speed_path']:.2f} m/s"
-              f"｜路徑含機身搖擺，勿當行進速度引用）  "
-              f"側偏 {res['lateral']:+.2f} m  偏航 {res['yaw']:+.1f}°  "
-              f"淨滾動 {res['net_roll'] * 1000:+.0f} mm  "
-              f"跌倒={'是 @%.1fs' % fell if fell is not None else '否'}")
-        print(f"[診斷] 超限 {res['lim_pct']:.2f}%  力矩飽和 {res['tau_pct']:.2f}%  "
-              f"IK縮限 {res['reach_pct']:.2f}%  "
-              f"相位鎖定σ " + "/".join(f"{v:.1f}" for v in lock) + "°")
+        report(res, f"[步態] {gait}  ω={omega} μx={mu_x} μy={mu_y} duty={duty} "
+                    f"x_off={x_off * 1000:+.0f}mm D_STEP={d_step} G_C={g_c} "
+                    f"撓度補償={z_sag * 1000:.1f}mm 輪={wheel_mode}")
 
     if frames:
         import imageio.v2 as iio
@@ -564,6 +601,7 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
         iio.mimsave(str(out), frames, fps=25, codec="libx264")
         print("[影片]", out)
     return res
+
 
 
 if __name__ == "__main__":

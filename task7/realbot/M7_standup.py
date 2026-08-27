@@ -47,7 +47,24 @@
 ⚠️ **「只做到 crouch」在力矩上幾乎沒有比較安全**（35.4 vs 42.45）。
    它降低的是**塌下來的高度**（0.29 m vs 0.51 m），不是力矩。
 
+════════════════════════════════════════════════════════════════════
+兩道乾跑就會擋下來的保護（2026-08-27 加）
+════════════════════════════════════════════════════════════════════
+
+1. **「走多遠」檢查（`--vcmd-max`，預設 2.0 rad/s）**
+   M7 只管「幾秒到」，不管「離多遠」—— `t1`/`t2` 是固定秒數，起點卻是狗當下
+   的姿勢。正常趴姿最遠的關節只要轉 0.4 rad；**若狗是 knee_back（後膝往反
+   方向彎），後膝要掃 5.2 rad ＝ 300°**，同樣秒數 → 命令速度 13 倍，中途整條
+   腿會打直掃過地面，而且一定撞到 `--vmax`。承重中的中止是「凍結原地」，
+   會卡在腿甩到一半的位置。→ 乾跑就列表擋下，並告訴你要喬姿勢還是放長 t1。
+
+2. **輪子到位後鎖定（`--no-wheel-lock` 可關）**
+   照原廠：移動中純阻尼讓它滾、到 HOLD 區段就 latch 鎖住。見下面 WHEEL_* 的註解。
+
 用法：
+    # 乾跑（一定先做）—— 看「趴平(實測)」欄的 bl3/br3 是否與 fl3/fr3 反號
+    python3 M7_standup.py --to crouch
+
     # T1：趴 → crouch → 趴（塌下來的高度較低，先做這個）
     sudo python3 M7_standup.py --to crouch --confirm
 
@@ -71,18 +88,57 @@ from M5_leg_pose import Keepalive, mc_ctrl_pid, proc_state, smoothstep
 
 # 實機讀到的原廠站立增益（2026-08-26 15:47）
 KP_DEF, KD_DEF = 250.0, 5.0
-# 輪子：**純阻尼**，不做位置控制。
-# ⚠️ 原廠是位置保持，但它用的是**解纏後的誤差**（實測驗證：kp×原始誤差 = 121 N·m、
-#    kp×解纏誤差 = −5.04、實測 −5.07）。天真地用原始誤差會下 121 N·m，
-#    是輪子上限 40 的三倍而且方向相反。我們不冒這個險，用純阻尼讓它自由滾。
-#    實測起身過程輪子會滾到 1.14 rad —— **輪子必須能滾，鎖死的話腿伸不開。**
-WHEEL_KD_DEF = 0.5
+# 輪子：**移動中純阻尼、到位後鎖定** —— 照原廠的兩段式（2026-08-27 改）。
+#
+# 移動中純阻尼（kp=0）：實測起身過程後兩輪各滾約 100 mm，
+#   **輪子必須能滾，鎖死的話腿伸不開。**
+#   （實測 kd 0.1~1.0 對腿峰值力矩幾乎無影響：膝 23.1 vs 23.2 N·m。）
+#
+# ★ 到位後鎖定（kp=20）：原廠在 12.99 s 站穩後就是這樣做的 —— des 鎖在
+#   當下的實測角（latch，之後是常數），鎖完 9 秒內四輪只再動 0.3~2.1 mm。
+#   不鎖的代價（MuJoCo，站穩後 15 秒）：
+#       平地        kd=0.1 飄 0.8 mm ／ 鎖定 1.2 mm   → 無差別
+#       2° 斜坡     kd=0.1 飄 2170 mm、kd=0.5 飄 411 mm ／ **鎖定 21 mm**
+#   斜地不鎖＝狗會像溜冰一樣慢慢滑走，而且 M7 的中止是「凍結腿」，擋不住這個。
+#
+# ⚠️ 曾經擔心的 ±π 繞回問題 —— **已驗證是 driver 自己解纏，我們不必處理**：
+#   `fl4` @ t=6.37s，des=+3.0543 q=−3.1401，原始誤差 +6.1944 rad
+#     用原始誤差預測 τ = +123.73；用解纏誤差預測 τ = −1.93；**實測 −1.93**。
+#   kp>0 的 1328 筆逐筆比對：解纏 RMS 殘差 0.96，原始 65.6（362 筆有繞回）。
+#   → 直接寫「當下實測角」當 des 是安全的，driver 會處理繞回。
+WHEEL_KD_DEF = 0.5          # 移動中
+WHEEL_KP_HOLD = 20.0        # 到位後鎖定（原廠值）
+WHEEL_KD_HOLD = 0.1         # 到位後鎖定（原廠值）
 
 # 力矩門檻 = 實機分段峰值 × 1.5
 TMAX = {"1_hip_roll": 45.0, "2_hip_pitch": 40.0, "3_knee_pitch": 65.0}
 TAU_HARD = 120.0        # 絕對硬上限（馬達規格 150）
 
 LEGS12 = [lg + k for lg in coord.LEGS for k in coord.LEG_KINDS]
+
+# M5 的 `smoothstep` 是**餘弦插值** f(u)=½(1−cos πu)，不是三次式 3u²−2u³。
+# 峰值速度 = f'(½) × 平均速度 = **π/2 ≈ 1.5708**（三次式才是 1.5）。
+# ⚠️ 我第一版寫成 1.5，被 test_smoothstep_peak_factor_matches_numeric_derivative
+#    抓出來 —— 差 4.7%，會讓「走多遠」檢查低估命令速度。
+SMOOTHSTEP_VPEAK = math.pi / 2
+
+
+def seg_speeds(segs, joints=None):
+    """每個區段「最遠的那個關節要轉多少、峰值命令速度多快」。
+
+    segs 是 (名稱, 秒數, 起點姿勢dict, 終點姿勢dict) 的序列。
+    回傳 [(名稱, 關節, 位移rad, 峰值速度rad/s, 秒數), ...]，與 segs 同序。
+
+    ★ 存在理由：M7 只管「幾秒到」，不管「離多遠」—— t1/t2 是固定秒數，
+      起點卻是狗當下的姿勢。起點離路徑點越遠，同樣秒數就要走越快。
+    """
+    joints = list(joints or LEGS12)
+    out = []
+    for nm, dur, p0, p1 in segs:
+        dq = {j: abs(p1[j] - p0[j]) for j in joints}
+        j = max(dq, key=dq.get)
+        out.append((nm, j, dq[j], SMOOTHSTEP_VPEAK * dq[j] / max(dur, 1e-6), dur))
+    return out
 
 
 def read_imu_rp():
@@ -104,7 +160,21 @@ def main() -> int:
     ap.add_argument("--confirm", action="store_true", help="不帶就是乾跑")
     ap.add_argument("--kp", type=float, default=KP_DEF)
     ap.add_argument("--kd", type=float, default=KD_DEF)
-    ap.add_argument("--wheel-kd", type=float, default=WHEEL_KD_DEF, dest="wheel_kd")
+    ap.add_argument("--wheel-kd", type=float, default=WHEEL_KD_DEF, dest="wheel_kd",
+                    help="移動中的輪阻尼。實測 0.1~1.0 對站起來幾乎無差別")
+    ap.add_argument("--wheel-kp", type=float, default=WHEEL_KP_HOLD, dest="wheel_kp",
+                    help="★ 到位後鎖輪的 kp（原廠 20）")
+    ap.add_argument("--wheel-kd-hold", type=float, default=WHEEL_KD_HOLD,
+                    dest="wheel_kd_hold", help="鎖定期間的輪 kd（原廠 0.1）")
+    ap.add_argument("--wheel-tau-max", type=float, default=8.0, dest="wheel_tau_max",
+                    help="鎖定期間的輪力矩保護（原廠實測鎖定後 <1.6）")
+    ap.add_argument("--no-wheel-lock", action="store_false", dest="wheel_lock",
+                    help="★ 到位後也不鎖輪（M7 舊行為）。平地可以，斜地會滑走")
+    ap.add_argument("--vcmd-max", type=float, default=2.0, dest="vcmd_max",
+                    help="★ 乾跑檢查：命令速度上限 rad/s。起點離路徑點太遠會超過")
+    ap.add_argument("--allow-high-start", action="store_true", dest="allow_high_start",
+                    help="★ 起點比第一個路徑點還高（吊帶撐著）仍照跑。"
+                         "★★ 那一趟不是承重測試")
     ap.add_argument("--ramp", type=float, default=2.0, help="kp 斜坡秒數（原廠是一步跳）")
     ap.add_argument("--t1", type=float, default=1.5, help="趴 ↔ crouch 的移動秒數")
     ap.add_argument("--t2", type=float, default=1.5, help="crouch ↔ stand 的移動秒數")
@@ -209,19 +279,6 @@ def main() -> int:
             return 1
     print("\n✅ 所有路徑點都在機構限位內")
 
-    print(f"\n力矩門檻（實機分段峰值 ×1.5）："
-          f"ABAD {TMAX['1_hip_roll']:.0f} / HIP {TMAX['2_hip_pitch']:.0f}"
-          f" / KNEE {TMAX['3_knee_pitch']:.0f} N·m，硬上限 {TAU_HARD:.0f}")
-    print(f"傾角保護 ±{a.tilt_max:.0f}°（現在 roll {roll0:+.1f} pitch {pitch0:+.1f}）")
-
-    if not a.confirm:
-        print("\n[乾跑] 沒有帶 --confirm，到此為止。沒有凍結、沒有寫入。")
-        print(f"\n📄 {logp}")
-        return 0
-    if os.geteuid() != 0:
-        print("❌ 需要 root：請加 sudo")
-        return 1
-
     # ---------------------------------------------------------------- 時序
     segs = []          # (名稱, 秒數, 起點姿勢, 終點姿勢)
     prev = q_lie
@@ -245,6 +302,78 @@ def main() -> int:
     T_END = tt
     print(f"\n總時長 {T_END:.1f} 秒：" + " → ".join(f"{n}({d:.1f}s)" for n, d, _, _ in segs))
 
+    # ---- ★ 「走多遠」檢查（2026-08-27 加）
+    # M7 只管「幾秒到」，不管「離多遠」—— t1/t2 是固定秒數，起點卻是狗當下的姿勢。
+    # 起點離路徑點越遠，同樣的秒數就要走越快：
+    #   正常趴姿（後膝往前彎）  最遠的關節只要轉 0.4 rad → 0.4 rad/s，溫和
+    #   knee_back（後膝反向）  後膝要掃 5.2 rad → 5.2 rad/s，快 13 倍
+    # 5.2 rad = 300°，那條腿會從完全折起甩到反方向折，**中途整條腿打直掃過地面**，
+    # 而且一定撞到 --vmax 保護；承重中的中止是「凍結原地」，
+    # 會卡在腿甩到一半、打直的那個最不穩的位置。
+    # smoothstep 的峰值速度 = 1.5 × 平均速度。
+    print(f"\n{'區段':>13s} {'最大位移':>12s} {'峰值命令速度':>14s} {'哪個關節':>16s}")
+    rows = seg_speeds(segs)
+    too_fast = [r for r in rows if r[3] > a.vcmd_max]
+    for nm, j, dq_, vc, d_ in rows:
+        print(f"{nm:>13s} {dq_:8.3f} rad {vc:11.2f} rad/s {j:>16s}"
+              f"{'  ⚠️' if vc > a.vcmd_max else ''}")
+    if too_fast:
+        need = max(SMOOTHSTEP_VPEAK * x[2] / a.vcmd_max for x in too_fast)
+        print(f"\n❌ 有區段的命令速度超過 --vcmd-max {a.vcmd_max} rad/s —— 拒跑。")
+        for nm, j, dq_, vc, d_ in too_fast:
+            print(f"   {nm}：{j} 要掃 {dq_:.3f} rad（{math.degrees(dq_):.0f}°），"
+                  f"{d_:.1f} 秒走完 → 峰值 {vc:.2f} rad/s")
+        print(f"\n   運轉中的保護是 --vmax {a.vmax} rad/s，這樣一定會中途中止，")
+        print("   而承重中的中止是**凍結原地** —— 會卡在腿甩到一半的位置。")
+        print("\n   兩個處理方式：")
+        print("   (1) ★ 先確認膝模式 —— 上面「趴平(實測)」那欄，`bl3`/`br3` 應該")
+        print("       和 `fl3`/`fr3` **反號**（後腿往前彎，原廠預設）。")
+        print("       同號＝狗現在是 knee_back，先用 M5 把姿勢喬回來再跑 M7。")
+        print(f"   (2) 姿勢確實就是要這樣走的話，把 --t1/--t2 放長到 ≥{need:.1f} 秒。")
+        return 1
+    print(f"✅ 所有區段的命令速度都在 {a.vcmd_max} rad/s 以內")
+
+    # ---- ★ 「起點比第一個路徑點還高」檢查（2026-08-27 加，T1 實際踩到才補的）
+    # 膝越彎（|角度|越大）機身越低。若起點的膝**比 crouch 還直**，代表狗被吊帶
+    # 撐在比 crouch 更高的位置 —— 那麼整段「站起來」其實是「把腿收上來」，
+    # 腿完全沒有承重，這一趟量到的力矩沒有意義。
+    # 2026-08-27 T1 就是這樣：起始膝 ∓2.10（吊帶約 314 mm）< crouch 的 ∓2.40（292 mm），
+    # HOLD_crouch 膝力矩只有 3.67 N·m，原廠實測是 27.3–29.8。
+    w0 = WPT[0][1]
+    too_high = [(j, abs(q_lie[j]), abs(w0[j])) for j in LEGS12
+                if j.endswith(coord.KIND_KNEE) and abs(q_lie[j]) < abs(w0[j]) - 0.02]
+    if too_high:
+        print(f"\n❌ **起點比 {WPT[0][0]} 還高 —— 吊帶把狗撐起來了。**")
+        print(f"{'膝關節':16s} {'起點|角度|':>11s} {WPT[0][0]+'|角度|':>13s}")
+        for j, a_, b_ in too_high:
+            print(f"{j:16s} {a_:11.3f} {b_:13.3f}   ← 比目標還直")
+        print("\n   膝越彎（|角度|越大）機身越低。起點的膝比目標還直，")
+        print(f"   代表狗現在被吊在**比 {WPT[0][0]} 更高**的位置 ——")
+        print("   這一趟會變成「把腿收上來」，**腿完全不承重，量到的力矩沒有意義**。")
+        print("\n   處理：**把吊帶調低**，讓狗真的趴到地上（膝應接近 ±2.80），")
+        print("   或至少低於目標姿勢。調完重跑乾跑確認。")
+        print("\n   （確定要在這個高度跑，加 --allow-high-start）")
+        if not a.allow_high_start:
+            return 1
+        print("\n   ⚠️ --allow-high-start：照跑，但這一趟不是承重測試。")
+
+    print(f"\n力矩門檻（實機分段峰值 ×1.5）："
+          f"ABAD {TMAX['1_hip_roll']:.0f} / HIP {TMAX['2_hip_pitch']:.0f}"
+          f" / KNEE {TMAX['3_knee_pitch']:.0f} N·m，硬上限 {TAU_HARD:.0f}")
+    print(f"傾角保護 ±{a.tilt_max:.0f}°（現在 roll {roll0:+.1f} pitch {pitch0:+.1f}）")
+    print(f"輪子：移動中純阻尼 kd={a.wheel_kd}；" + (
+        f"到位後鎖定 kp={a.wheel_kp} kd={a.wheel_kd_hold}"
+        f"（原廠做法，力矩保護 {a.wheel_tau_max:.0f}）"
+        if a.wheel_lock else "★ 全程不鎖 —— 地面若有斜度會慢慢滑走 ⚠️"))
+
+    if not a.confirm:
+        print("\n[乾跑] 沒有帶 --confirm，到此為止。沒有凍結、沒有寫入。")
+        print(f"\n📄 {logp}")
+        return 0
+    if os.geteuid() != 0:
+        print("❌ 需要 root：請加 sudo")
+        return 1
+
     idx = {j: shm_io.idx_of(j) for j in LEGS12}
     widx = {w: shm_io.idx_of(w) for w in shm_io.WHEELS}
     shm = shm_io.Shm("joint_cmd", write=True)
@@ -257,15 +386,25 @@ def main() -> int:
     samples: list = []
     kp_now = 0.0
     des_now = dict(q_lie)
+    wlock = None            # 目前鎖定的輪角（None = 純阻尼）
+    wlock_seg = None        # 已為哪個區段 latch 過
+    wtau_hot = 0
 
-    def write_frame(des, kp):
+    def write_frame(des, kp, wlock=None):
+        """wlock=None → 輪子純阻尼（移動中）；wlock={輪名: 馬達角} → 鎖在該角度。"""
         for j in LEGS12:
             shm.write_cmd(idx[j], position=coord.to_motor(j, des[j]),
                           velocity=0.0, effort=0.0, kp=kp, kd=a.kd)
+        st_w = None if wlock else state_ro.states()
         for w, wi in widx.items():
-            # 純阻尼：kp=0，只給 kd。輪子必須能自由滾（實測起身時會滾 1.14 rad）
-            shm.write_cmd(wi, position=state_ro.states()[wi]["position"],
-                          velocity=0.0, effort=0.0, kp=0.0, kd=a.wheel_kd)
+            if wlock:
+                # 到位後：鎖在進入該區段當下的角度（原廠 12.99 s 的 latch 做法）
+                shm.write_cmd(wi, position=wlock[w], velocity=0.0, effort=0.0,
+                              kp=a.wheel_kp, kd=a.wheel_kd_hold)
+            else:
+                # 移動中純阻尼：kp=0，只給 kd。輪子必須能自由滾（實測會滾約 100 mm）
+                shm.write_cmd(wi, position=st_w[wi]["position"],
+                              velocity=0.0, effort=0.0, kp=0.0, kd=a.wheel_kd)
 
     try:
         os.kill(pid, signal.SIGSTOP)
@@ -293,6 +432,30 @@ def main() -> int:
             des_now = {j: p0[j] + u * (p1[j] - p0[j]) for j in LEGS12}
 
             stt = state_ro.states()
+
+            # ---- ★ 輪子：到 HOLD 區段就 latch 鎖住，離開就放回純阻尼
+            if a.wheel_lock and nm.startswith("HOLD_"):
+                if wlock_seg != nm:
+                    wlock = {w: stt[wi]["position"] for w, wi in widx.items()}
+                    wlock_seg = nm
+                    print(f"       ↳ 輪子鎖定於 {nm}（kp={a.wheel_kp:g}）")
+            else:
+                wlock, wlock_seg = None, None
+            if wlock:
+                for w, wi in widx.items():
+                    if abs(stt[wi]["effort"]) > a.wheel_tau_max:
+                        wtau_hot += 1
+                        if wtau_hot >= a.tau_hits:
+                            abort = (f"{w} 鎖定中力矩 {stt[wi]['effort']:+.2f} 連續"
+                                     f" {wtau_hot} 筆超過 {a.wheel_tau_max}")
+                        break
+                else:
+                    wtau_hot = 0
+            else:
+                wtau_hot = 0
+            if abort:
+                break
+
             we = (0.0, ""); wt = (0.0, "")
             tick = {}
             for j in LEGS12:
@@ -347,7 +510,7 @@ def main() -> int:
             if abort:
                 break
 
-            write_frame(des_now, kp_now)
+            write_frame(des_now, kp_now, wlock)
             shm.write_tick(state_ro.read_tick(shm_io.STATE_STRIDE))
 
             if t - last >= 0.25:
@@ -366,8 +529,17 @@ def main() -> int:
     # ---------------------------------------------------------------- 收尾
     # ★★ 承重時中止**不能放手**。凍結目標角、維持增益、原地撐住。
     held_des, held_kp = dict(des_now), (kp_now if abort else 0.0)
+    # ★ 凍結時也把輪子鎖住。腿凍結擋不住「輪子在斜地慢慢滑走」——
+    #   那是兩個獨立的自由度，中止當下 latch 在哪就鎖在哪。
+    held_wlock = None
+    if a.wheel_lock and held_kp > 0:
+        try:
+            st_now = state_ro.states()
+            held_wlock = {w: st_now[wi]["position"] for w, wi in widx.items()}
+        except Exception as e:
+            print(f"⚠️ 中止時讀不到輪角，輪子維持純阻尼：{e}")
     keeper = Keepalive(shm, state_ro,
-                       (lambda: write_frame(held_des, held_kp)), a.hz,
+                       (lambda: write_frame(held_des, held_kp, held_wlock)), a.hz,
                        "凍結目標角、維持增益" if abort else "零增益保持")
     keeper.start()
 

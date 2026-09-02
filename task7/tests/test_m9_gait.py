@@ -197,6 +197,36 @@ def test_wheels_are_never_position_held_during_the_gait():
     assert "wheel_kp" not in src.split("def main")[1].split("--wheel-kd")[0]
 
 
+def test_gain_guard_compares_wheel_kd_not_just_kp_and_kd():
+    """★★ 「說兩次」的防呆必須涵蓋**三個**增益。
+
+    2026-09-03 發現的缺口：原本只比 `kp`/`kd`。而輪阻尼送給狗的是**命令列**的值
+    （預設 0.5），不是軌跡檔裡的值 —— 所以「用 `--wheel-kd 3.0` 產了檔、
+    跑的時候忘了帶那個旗標」會**靜默用回 0.5**，而 0.5 正是「前腳不跨步」那組
+    （模擬前腳執行率 0.03 vs 3.0 的 0.79）。
+    症狀是「模擬明明好了、實機還是老樣子」，**而所有診斷指標都乾淨**。
+    """
+    # 用**真的要送上狗的那個軌跡檔**測，不是自己捏的字典。
+    traj = json.loads((ROOT / "outputs/gait/walk_kp120_first.json")
+                      .read_text(encoding="utf-8"))
+    assert traj["wheel_kd"] == 0.5 and traj["kp"] == 120.0 and traj["kd"] == 1.0
+
+    # 三個都對上 → 放行
+    assert m9.gain_mismatches(traj, 120.0, 1.0, 0.5) == []
+
+    # ★ 這一格就是缺口本身：kp/kd 都對，只有 wheel_kd 沒帶到 → 必須擋下來
+    assert [k for k, _, _ in m9.gain_mismatches(traj, 120.0, 1.0, 3.0)] == ["wheel_kd"]
+
+    # 檔案裡缺欄位也算不一致（不可以當成「沒寫就用預設」放行）
+    assert m9.gain_mismatches({k: v for k, v in traj.items() if k != "wheel_kd"},
+                              120.0, 1.0, 0.5)
+
+    # 錯誤訊息要給得出可以直接貼上去的完整指令（含 --wheel-kd），
+    # 不然操作者站在狗前面還要自己拼旗標。
+    src = Path(m9.__file__).read_text(encoding="utf-8")
+    assert "--wheel-kd" in src.split("if bad:", 1)[1].split("return 1", 1)[0]
+
+
 def test_live_uses_home_pose_not_stand():
     """★★ 迴歸：CPG 的基準足端是 **home**（hip 0.8/膝 −1.5），不是 stand（0.6/−1.2）。
 
@@ -468,10 +498,15 @@ def test_gain_mismatch_error_prints_the_correct_command():
     軌跡檔說一次、命令列說一次，這樣拿錯檔案會被擋住）——
     **不可以改成自動採用檔案值**，那等於把唯一一道防呆拿掉。
     要改的是訊息，不是行為。
+
+    ⚠️ 2026-09-03：訊息改成逐項列出（因為要涵蓋第三個增益 `wheel_kd`），
+    所以錨點從「軌跡檔的增益」換成組指令的那一行。判準本身沒有變。
     """
     src = Path(m9.__file__).read_text(encoding="utf-8")
-    blk = src.split("軌跡檔的增益", 1)[1].split("return 1", 1)[0]
-    assert "--kp {D['kp']:g} --kd {D['kd']:g}" in blk, "要印出正確的 --kp/--kd"
+    blk = src.split("if bad:", 1)[1].split("return 1", 1)[0]
+    assert "--kp {D['kp']:g}" in blk and "--kd {D['kd']:g}" in blk, \
+        "要印出正確的 --kp/--kd"
+    assert "--wheel-kd {D.get('wheel_kd', 0.5):g}" in blk, "也要印出 --wheel-kd"
     assert "--confirm" in blk, "真跑的指令也要給"
     # 行為不可以變成自動採用
     assert 'a.kp = D["kp"]' not in src and "a.kp = D['kp']" not in src

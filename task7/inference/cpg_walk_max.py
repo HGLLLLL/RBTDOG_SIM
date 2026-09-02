@@ -182,7 +182,8 @@ def _model(scene: str = None):
 class Robot:
     """MuJoCo 模型 + 迴圈內 PD。所有 rollout 共用，確保控制律只有一份。"""
 
-    def __init__(self, friction: float = None, wheel_friction: float = None,
+    def __init__(self, kd_wheel: float = None,
+                 friction: float = None, wheel_friction: float = None,
                  leg_friction: float = None, abad_friction: float = None,
                  scene: str = None, actuator_mode: str = "torque_pd",
                  solver_iters: tuple = None, kp3=None, kd3=None):
@@ -245,7 +246,14 @@ class Robot:
         self.n_lim = 0          # 其中超出 jnt_range 的個數
         self.n_tau = 0          # PD 力矩飽和的個數（以 500 Hz 內迴圈計）
         self.n_tau_tot = 0
+        # 逐關節的力矩峰值（未飽和前的控制律輸出）。★ 只有 n_tau 這種「飽和計數」
+        # 看不出「哪一顆快撐不住」——實機的門檻是逐關節的，模擬也要逐關節才對得上。
+        self.tau_peak = np.zeros(12)
         self.wheel_hold = None  # None = 只做阻尼
+        # 輪子阻尼係數。★ 拉高它是「把輪足當點足」最接近的做法，而且是實機能安全
+        #   轉的旋鈕 —— `wheel_mode="hold"` 鎖的是**絕對輪角**，那比點足更強
+        #   （是個會把輪子拉回特定角度的彈簧），實機實測會偏航失控 +39°/12s。
+        self.kd_wheel = mm.KD_WHEEL if kd_wheel is None else float(kd_wheel)
 
     def reset_standing(self, q12: np.ndarray, height: float):
         """把機器人放在指定高度、指定關節角，機身水平、速度歸零。"""
@@ -287,6 +295,7 @@ class Robot:
             q = d.qpos[mm.LEG_QPOS_IDX]
             qd = d.qvel[mm.LEG_QVEL_IDX]
             tau = self.kp * (q_des - q) - self.kd * qd
+            np.maximum(self.tau_peak, np.abs(tau), out=self.tau_peak)
             self.n_tau += int(np.sum(np.abs(tau) > self.tau_max))
             self.n_tau_tot += 12
             d.ctrl[mm.LEG_ACT_IDX] = np.clip(tau, -self.tau_max, self.tau_max)
@@ -298,7 +307,7 @@ class Robot:
             elif wheel_mode == "free":
                 wtau = np.zeros(4)
             else:                                    # damp
-                wtau = -mm.KD_WHEEL * wv
+                wtau = -self.kd_wheel * wv
             d.ctrl[mm.WHEEL_ACT_IDX] = np.clip(wtau, -mm.TAU_MAX_WHEEL, mm.TAU_MAX_WHEEL)
 
             mujoco.mj_step(m, d)
@@ -620,7 +629,8 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
             g_c: float = None, d_step: float = None, d_step_y: float = D_STEP_Y,
             duty: float = None, friction: float = None, wheel_mode: str = "damp",
             wheel_friction: float = None, leg_friction: float = None,
-            abad_friction: float = None, z_sag: float = None, video: bool = False,
+            abad_friction: float = None, kd_wheel: float = None,
+            z_sag: float = None, video: bool = False,
             scene: str = None, actuator_mode: str = "torque_pd",
             solver_iters: tuple = None, kp3=None, kd3=None,
             quiet: bool = False) -> dict:
@@ -635,7 +645,7 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
     d_step = cfg["d_step"] if d_step is None else d_step
     z_sag = mm.STATIC_SAG if z_sag is None else z_sag
 
-    r = Robot(friction=friction, wheel_friction=wheel_friction,
+    r = Robot(friction=friction, wheel_friction=wheel_friction, kd_wheel=kd_wheel,
               leg_friction=leg_friction, abad_friction=abad_friction,
               scene=scene, actuator_mode=actuator_mode, solver_iters=solver_iters,
               kp3=kp3, kd3=kd3)
@@ -689,12 +699,13 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
         "kd3": list(np.asarray(mm.KD3 if kd3 is None else kd3, float)),
         "gait": gait, "omega": omega, "mu_x": mu_x, "x_off": x_off,
         "g_c": g_c, "d_step": d_step, "duty": duty, "z_sag": z_sag,
+        "kd_wheel": r.kd_wheel,
     })
 
     if not quiet:
         report(res, f"[步態] {gait}  ω={omega} μx={mu_x} μy={mu_y} duty={duty} "
                     f"x_off={x_off * 1000:+.0f}mm D_STEP={d_step} G_C={g_c} "
-                    f"撓度補償={z_sag * 1000:.1f}mm 輪={wheel_mode}")
+                    f"撓度補償={z_sag * 1000:.1f}mm 輪={wheel_mode} kd_wheel={r.kd_wheel}")
 
     if frames:
         import imageio.v2 as iio
@@ -730,6 +741,9 @@ if __name__ == "__main__":
     ap.add_argument("--abad-friction", type=float, default=None, dest="abad_friction",
                     help="只覆寫四個 ABAD 的 frictionloss（套在 --leg-friction 之後）；"
                          "MJCF 預設 1.85 是下界不是量測值，用這個掃它的敏感度")
+    ap.add_argument("--kd-wheel", type=float, default=None, dest="kd_wheel",
+                    help="★ 輪子阻尼係數（kp 恆 0）。預設 max_model.KD_WHEEL=0.5。"
+                         "拉高它 = 把輪足當點足，但必須同時重掃 x_off，兩者是耦合的")
     ap.add_argument("--z-sag", type=float, default=None, dest="z_sag")
     ap.add_argument("--video", action="store_true")
     ap.add_argument("--sweep", type=str, default=None,

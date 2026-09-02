@@ -259,6 +259,22 @@ def build_sitdown(a, q_gait_end: dict, q_lie: dict):
             ("RAMP_DOWN", a.ramp_kp, q_lie, q_lie)]
 
 
+def gain_mismatches(D: dict, kp: float, kd: float, wheel_kd: float) -> list:
+    """軌跡檔的增益 vs 命令列的增益，回傳 `[(欄位, 檔案值 or None, 命令列值)]`。
+
+    「說兩次」防呆的比對本體。**抽成函式是為了可測** —— `main()` 在讀軌跡檔之前
+    就會先開 `/dev/shm`，所以這道防呆在狗以外的機器上跑不到，只能單獨測它。
+
+    ⚠️ **三個增益都要比。** 輪阻尼送給狗的是命令列的值（預設 0.5），不是檔案裡的
+    值；漏比它的話，「用 `--wheel-kd 3.0` 產的檔、跑的時候忘了帶旗標」會**靜默
+    用回 0.5**，而 0.5 正是「前腳不跨步」那組。症狀是「模擬明明好了、實機還是
+    老樣子」，**而所有診斷指標都乾淨**。
+    """
+    return [(k, D.get(k), v) for k, v in
+            (("kp", kp), ("kd", kd), ("wheel_kd", wheel_kd))
+            if D.get(k) is None or abs(D[k] - v) > 1e-9]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -394,19 +410,37 @@ def main() -> int:
         gait_names = D["joints"]
         gait_q = D["q"]
         n_gait = D["n"]
-        if abs(D["kp"] - a.kp) > 1e-9 or abs(D["kd"] - a.kd) > 1e-9:
-            # ★ 這是刻意的「說兩次」設計：軌跡檔說一次、操作者在命令列說一次，
-            #   兩邊要對得上，這樣「拿錯檔案」會被擋下來。**不要改成自動採用檔案值**
-            #   —— 那等於把唯一一道防呆拿掉。
-            #   但錯誤訊息要直接給出可以貼上去的指令，不要讓人在狗前面猜。
-            print(f"❌ 軌跡檔的增益（kp {D['kp']} kd {D['kd']}）與 --kp/--kd "
-                  f"（{a.kp}/{a.kd}）不一致。")
-            print("   ⚠️ z_sag 與 kp 綁定，混用等於補償值錯的 —— 拒跑。")
+        # ★ 這是刻意的「說兩次」設計：軌跡檔說一次、操作者在命令列說一次，
+        #   兩邊要對得上，這樣「拿錯檔案」會被擋下來。**不要改成自動採用檔案值**
+        #   —— 那等於把唯一一道防呆拿掉。
+        #   但錯誤訊息要直接給出可以貼上去的指令，不要讓人在狗前面猜。
+        #
+        # ⚠️⚠️ **三個增益都要比，不能只比 kp/kd**（2026-09-03 補）。
+        #   輪阻尼送給狗的是**命令列的值**（預設 0.5），不是檔案裡的值。
+        #   漏比它的後果：用 `--wheel-kd 3.0` 產的檔、跑的時候忘了帶那個旗標，
+        #   狗會**靜默用回 0.5** —— 而 0.5 正是「前腳不跨步」那組
+        #   （模擬 0.03 vs 3.0 的 0.79）。症狀是「模擬明明好了、實機還是老樣子」，
+        #   **而所有診斷指標都乾淨**。見 `docs/C_後膝負擔與鎖輪實驗_2026-09-02.md`。
+        bad = gain_mismatches(D, a.kp, a.kd, a.wheel_kd)
+        # 輪子的位置增益必須是 0。檔案若寫了別的值，M9 也不會照做（第 544 行硬寫 0），
+        # 那種「檔案說一套、實際做一套」比不一致更危險 —— 直接擋。
+        if abs(D.get("wheel_kp", 0.0)) > 1e-9:
+            print(f"❌ 軌跡檔的 wheel_kp = {D['wheel_kp']}，但 M9 一律送 0。")
+            print("   設定檔的 FSM_RL_Wheel_Kp=60 是配「每步重給目標角」的 RL，")
+            print("   開迴路套上去實測偏航失控 +39°/12s —— 拒跑。")
+            return 1
+        if bad:
+            for k, got, want in bad:
+                shown = "（檔案裡沒有這一項）" if got is None else f"{got:g}"
+                print(f"❌ 軌跡檔的 {k} = {shown}，與 --{k.replace('_', '-')} "
+                      f"（{want:g}）不一致。")
+            print("   ⚠️ z_sag 與 kp 綁定、wheel_kd 與 x_off 耦合 —— 混用等於跑到"
+                  "另一組步態，拒跑。")
+            cmd = (f"--traj {os.path.basename(a.traj)} --kp {D['kp']:g}"
+                   f" --kd {D['kd']:g} --wheel-kd {D.get('wheel_kd', 0.5):g}")
             print(f"\n   → 這個檔案要這樣跑：")
-            print(f"     python3 M9_gait.py --traj {os.path.basename(a.traj)}"
-                  f" --kp {D['kp']:g} --kd {D['kd']:g}")
-            print(f"     sudo python3 M9_gait.py --traj {os.path.basename(a.traj)}"
-                  f" --kp {D['kp']:g} --kd {D['kd']:g} --confirm")
+            print(f"     python3 M9_gait.py {cmd}")
+            print(f"     sudo python3 M9_gait.py {cmd} --confirm")
             print("   （確認過那組增益就是你要的再跑）")
             return 1
         p = D["params"]

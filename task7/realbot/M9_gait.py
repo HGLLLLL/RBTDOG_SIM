@@ -395,9 +395,19 @@ def main() -> int:
         gait_q = D["q"]
         n_gait = D["n"]
         if abs(D["kp"] - a.kp) > 1e-9 or abs(D["kd"] - a.kd) > 1e-9:
+            # ★ 這是刻意的「說兩次」設計：軌跡檔說一次、操作者在命令列說一次，
+            #   兩邊要對得上，這樣「拿錯檔案」會被擋下來。**不要改成自動採用檔案值**
+            #   —— 那等於把唯一一道防呆拿掉。
+            #   但錯誤訊息要直接給出可以貼上去的指令，不要讓人在狗前面猜。
             print(f"❌ 軌跡檔的增益（kp {D['kp']} kd {D['kd']}）與 --kp/--kd "
                   f"（{a.kp}/{a.kd}）不一致。")
             print("   ⚠️ z_sag 與 kp 綁定，混用等於補償值錯的 —— 拒跑。")
+            print(f"\n   → 這個檔案要這樣跑：")
+            print(f"     python3 M9_gait.py --traj {os.path.basename(a.traj)}"
+                  f" --kp {D['kp']:g} --kd {D['kd']:g}")
+            print(f"     sudo python3 M9_gait.py --traj {os.path.basename(a.traj)}"
+                  f" --kp {D['kp']:g} --kd {D['kd']:g} --confirm")
+            print("   （確認過那組增益就是你要的再跑）")
             return 1
         p = D["params"]
         print(f"\n軌跡檔：{'原地踏步' if p['march'] else '前進'}　"

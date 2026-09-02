@@ -458,3 +458,20 @@ def test_sitdown_after_enter_uses_standup_gains_not_gait_gains():
     tail = src.split("SIT_crouch", 1)[1]
     assert "max(held_kp, STANDUP_KP), STANDUP_KD" in tail
     assert "max(held_kp, a.kp)" not in tail
+
+
+def test_gain_mismatch_error_prints_the_correct_command():
+    """★ 護欄擋下來的時候，要直接給出可以貼上去的指令。
+
+    2026-09-02 現場實例：操作卡漏了 `--kp 120 --kd 1.0`，人站在狗前面
+    看到「不一致」但不知道該打什麼。護欄本身是對的（刻意的「說兩次」防呆，
+    軌跡檔說一次、命令列說一次，這樣拿錯檔案會被擋住）——
+    **不可以改成自動採用檔案值**，那等於把唯一一道防呆拿掉。
+    要改的是訊息，不是行為。
+    """
+    src = Path(m9.__file__).read_text(encoding="utf-8")
+    blk = src.split("軌跡檔的增益", 1)[1].split("return 1", 1)[0]
+    assert "--kp {D['kp']:g} --kd {D['kd']:g}" in blk, "要印出正確的 --kp/--kd"
+    assert "--confirm" in blk, "真跑的指令也要給"
+    # 行為不可以變成自動採用
+    assert 'a.kp = D["kp"]' not in src and "a.kp = D['kp']" not in src

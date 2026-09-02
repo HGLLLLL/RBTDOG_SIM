@@ -269,20 +269,81 @@ def test_spike_must_be_larger_than_both_neighbours():
     assert n == 0
 
 
-def test_commit_peak_never_touches_the_abort_path():
-    """★★ 保護不可以依賴這個過濾器。
+def test_fast_abort_path_uses_raw_tau_never_the_filtered_count():
+    """★★ 兩條中止路徑對「過濾」的取捨相反，這個測試釘住那條界線。
 
-    中止對單筆免疫靠的是「連續 N 筆」計數（`--tau-hits` / `TAU_HARD` 的 2 筆），
-    不是 `commit_peak`。把過濾器搬進中止路徑會讓保護晚一拍 —— 釘住這件事。
+    **快速路徑**（`--tau-hits` 連續 N 筆、`TAU_HARD` 連續 2 筆）必須用**原始
+    `tau`** —— 它要在持續超載發生的當下就跳，而 `commit_peak` 的鄰居判定要等
+    下一筆，延遲一拍。它靠「連續」本身就對單筆雜訊免疫，不需要過濾。
+
+    **慢速路徑**（`--tau-total` 整趟累計）反過來：本來就累積好幾秒才觸發，
+    慢一拍無所謂；而不過濾的話幾筆感測跳點就會把累計值灌上去
+    （trip13 的 `fl1` 未濾 3 筆、濾後只剩 1 筆）。
     """
     src = Path(m9.__file__).read_text(encoding="utf-8")
     body = src.split("def main()", 1)[1]
-    for line in body.splitlines():
-        if "commit_peak" in line:
-            assert "abort" not in line
-    # 中止仍然是「連續筆數」制
+    # 快速路徑的三行條件都必須直接比 abs(tau)
+    assert "if abs(tau) > TAU_HARD:" in body
+    assert "elif abs(tau) > lim:" in body
     assert "tau_hot[j] >= a.tau_hits" in body
     assert "tau_hot[j] >= 2" in body
+    # 慢速路徑用的是 commit_peak 累計的 over[]，不是 over_raw[]
+    assert "over[j] >= a.tau_total" in body
+    assert "over_raw[j] >= a.tau_total" not in body
+
+
+def test_slow_abort_path_counts_only_filtered_exceedances():
+    """★★ 慢速路徑必須用濾掉跳點後的計數，否則感測跳點會誤觸發。
+
+    trip13 的 `fl1_hip_roll` 有兩筆假的 84.5 / 80.9（都在 50 門檻之上、
+    都是孤立反號）。不過濾的話它們會佔掉 `--tau-total` 額度的 40%。
+    """
+    peak = {"fl1_hip_roll": 0.0}
+    spikes = {"fl1_hip_roll": 0}
+    over = {"fl1_hip_roll": 0}
+    win = []
+    # 真實形狀：+3.8 → −84.5（跳點）→ +7.0
+    for x in [(3.76, 4.0), (3.66, 4.0), (-84.50, 4.0), (6.97, 8.0), (2.13, 4.0)]:
+        win.append(x)
+        if len(win) > 3:
+            win.pop(0)
+        m9.commit_peak(win, peak, spikes, "fl1_hip_roll", over)
+    assert spikes["fl1_hip_roll"] == 1
+    assert over["fl1_hip_roll"] == 0, "跳點不可以計入 --tau-total"
+
+
+def test_slow_abort_path_does_count_real_impact_peaks():
+    """★ 反例：真的衝擊尖峰**必須**被算進去，否則這條路徑等於沒有。
+
+    trip13 `bl3_knee_pitch` 的真實形狀（t=12.70 附近）：連續好幾筆同號、
+    乾淨衰減 —— 不是孤立反號，過濾器不該碰它。
+    """
+    peak = {"bl3_knee_pitch": 0.0}
+    spikes = {"bl3_knee_pitch": 0}
+    over = {"bl3_knee_pitch": 0}
+    win = []
+    for x in [(-32.10, 104.0), (-80.03, 76.5), (-69.79, 76.0),
+              (-56.89, 77.7), (-47.58, 83.0)]:
+        win.append(x)
+        if len(win) > 3:
+            win.pop(0)
+        m9.commit_peak(win, peak, spikes, "bl3_knee_pitch", over)
+    assert spikes["bl3_knee_pitch"] == 0
+    # 只有 −80.03 超過膝門檻 70 —— −69.79 是 69.79，**差 0.21 就不算**。
+    # ★ 這正是為什麼單看「超標筆數」還不夠：真實的衝擊尖峰有一整串接近門檻的
+    #   樣本，計數對門檻極度敏感。要判讀嚴重程度還是得看峰值。
+    assert over["bl3_knee_pitch"] == 1
+    assert peak["bl3_knee_pitch"] == pytest.approx(-80.03)
+
+
+def test_tau_total_default_separates_the_four_real_trips():
+    """★ 預設值要能分開「已知安全」與「已知超載」的實測資料。
+
+    實測累計筆數（濾後）：trip10 = 0、trip11 = 0、trip12 = 1、
+    trip13 = 13（bl3）/ 5（fr3）。預設 5 落在 1 與 5 之間，且靠近後者。
+    """
+    src = Path(m9.__file__).read_text(encoding="utf-8")
+    assert 'default=5, dest="tau_total"' in src
 
 
 def test_report_peaks_never_raises():

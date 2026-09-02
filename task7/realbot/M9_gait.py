@@ -84,8 +84,12 @@ STANDUP_KP, STANDUP_KD = 250.0, 5.0
 SPIKE_FLOOR = 5.0
 
 
-def commit_peak(win: list, peak: dict, spikes: dict, j: str) -> None:
+def commit_peak(win: list, peak: dict, spikes: dict, j: str,
+                over: dict | None = None) -> None:
     """把三點視窗的**中間**那筆提交進 `peak[j]`，先擋掉孤立反號跳點。
+
+    `over` 有給的話，順便累計「濾掉跳點後仍然超過門檻」的筆數
+    —— 那是 `--tau-total` 這條慢速中止路徑的輸入，見 main() 的說明。
 
     ════════════════════════════════════════════════════════════════
     為什麼要延遲一筆
@@ -109,10 +113,21 @@ def commit_peak(win: list, peak: dict, spikes: dict, j: str) -> None:
 
     所以改成看前後鄰居。而鄰居要等下一筆才有 —— 這就是延遲一筆的原因。
 
-    ⚠️ **這只影響 `peak[]`（回報用），不影響中止判斷。**
-    中止本來就對單筆免疫：`--tau-hits` 要連續 3 筆、`TAU_HARD` 要連續 2 筆。
-    **不要把這個過濾器搬進中止路徑** —— 那會讓保護晚一拍，而且真實的連續超標
-    也會被「第一筆」的延遲吃掉。
+    ════════════════════════════════════════════════════════════════
+    ⚠️ 這個過濾器可以用在哪條中止路徑（2026-09-02 追加，讀完再改）
+    ════════════════════════════════════════════════════════════════
+
+    **快速路徑（`--tau-hits` 連續 N 筆、`TAU_HARD` 連續 2 筆）：不可以用。**
+    那條路要在「持續超載」發生的當下就跳，延遲一筆就是延遲一拍；
+    而且真實的連續超標會被「第一筆還沒判完」吃掉。
+    它本來就對單筆免疫（要連續），不需要這個過濾器。
+
+    **慢速路徑（`--tau-total` 整趟累計）：可以，而且必須用。**
+    那條路本來就要累積好幾秒才觸發，慢一拍毫無影響；
+    反過來說，不過濾的話兩三筆感測跳點就會把累計值灌上去（trip13 的 `fl1`
+    就有 2 筆假的 84.5 / 80.9 都在 50 門檻之上）。
+
+    ★ **同一個過濾器，在兩條路徑上的取捨相反 —— 不要一體適用。**
     """
     if len(win) < 3:
         return
@@ -121,11 +136,15 @@ def commit_peak(win: list, peak: dict, spikes: dict, j: str) -> None:
             and abs(t1) > max(abs(t0), abs(t2))):
         spikes[j] += 1
         return
+    if over is not None and abs(t1) > TMAX[j[2:]]:
+        over[j] += 1
     if abs(t1) <= 1.5 * cap1 + 1.0 and abs(t1) > abs(peak[j]):
         peak[j] = t1
 
 
-def report_peaks(tau_win: dict, peak: dict, spikes: dict) -> None:
+def report_peaks(tau_win: dict, peak: dict, spikes: dict,
+                 over: dict | None = None,
+                 over_raw: dict | None = None) -> None:
     """收尾補提交最後一筆，然後印峰值表。
 
     ★★ **這段跑在 `keeper.start()` 之後。** `Keepalive` 是 daemon 執行緒 ——
@@ -146,11 +165,21 @@ def report_peaks(tau_win: dict, peak: dict, spikes: dict) -> None:
             if abs(t_) <= 1.5 * cap_ + 1.0 and abs(t_) > abs(peak[j]):
                 peak[j] = t_
 
-    print(f"\n{'關節':16s} {'峰值τ':>9s} {'門檻':>7s} {'用掉':>7s} {'剔除跳點':>9s}")
+    over = over or {}
+    over_raw = over_raw or {}
+    print(f"\n{'關節':16s} {'峰值τ':>9s} {'門檻':>7s} {'用掉':>7s}"
+          f" {'★超標筆數':>10s} {'(未濾)':>7s} {'剔除跳點':>9s}")
     for j in LEGS12:
         lim = TMAX[j[2:]]
+        o = over.get(j, 0)
         print(f"{j:16s} {peak[j]:+9.2f} {lim:7.0f} {100*abs(peak[j])/lim:6.0f}%"
-              f" {spikes.get(j, 0):9d}")
+              f" {o:10d} {over_raw.get(j, 0):7d} {spikes.get(j, 0):9d}"
+              + ("  ⚠️" if o else ""))
+    n_over = sum(over.values())
+    if n_over:
+        print(f"  ⚠️⚠️ 有 {n_over} 筆超過門檻。**這一欄以前沒有，trip13 就是因此漏看的** ——")
+        print(f"     當時 bl3 整趟 13 筆超標（峰值 114%），但收工表只印峰值，")
+        print(f"     而最長連續只有 2 筆、沒到中止門檻，所以畫面上完全看不出來。")
     n_spike = sum(spikes.values())
     if n_spike:
         print(f"  ★ 共剔除 {n_spike} 筆孤立反號跳點（單筆、與前後兩筆都反號且更大）。"
@@ -211,6 +240,12 @@ def main() -> int:
     ap.add_argument("--wheel-kd", type=float, default=0.5, dest="wheel_kd",
                     help="★ 輪子純阻尼，kp 恆為 0。設定檔的 FSM_RL_Wheel_Kp=60 "
                          "是配「每步重給目標角」的 RL，開迴路套上去偏航失控 +39°/12s")
+    ap.add_argument("--tau-total", type=int, default=5, dest="tau_total",
+                    help="★★ 慢速力矩保護：整趟**累計**超過門檻的筆數（已濾掉孤立"
+                         "跳點）達到這個數就中止。0 = 關閉。"
+                         "預設 5 —— trip10/11/12 全部 ≤1，trip13（ω1.0）的 "
+                         "bl3 是 13、fr3 是 5。⚠️ 這條和 --tau-hits（連續筆數）"
+                         "是兩條獨立的路徑：連續的防持續超載，累計的防衝擊尖峰")
 
     # ---- 時序
     ap.add_argument("--ramp-kp", type=float, default=2.0, dest="ramp_kp")
@@ -423,6 +458,8 @@ def main() -> int:
     # ★★ `peak` 專用的三點視窗，見 commit_peak()。**只影響回報，不影響中止。**
     tau_win: dict = {j: [] for j in LEGS12}
     spikes = {j: 0 for j in LEGS12}
+    over = {j: 0 for j in LEGS12}       # 濾掉跳點後仍超標的筆數 → --tau-total
+    over_raw = {j: 0 for j in LEGS12}   # 未濾的，只用於回報（好和 over 對照）
     samples: list = []
     recent: list = []
     kp_now = 0.0
@@ -520,12 +557,17 @@ def main() -> int:
                 w.append((tau, cap))
                 if len(w) > 3:
                     w.pop(0)
-                commit_peak(w, peak, spikes, j)
+                commit_peak(w, peak, spikes, j, over)
                 if abs(err) > we[0]:
                     we = (abs(err), j)
                 if abs(tau) > wt[0]:
                     wt = (abs(tau), j)
                 lim = TMAX[j[2:]]
+                if abs(tau) > lim:
+                    over_raw[j] += 1
+                # ── 快速路徑：連續 N 筆。**一個字都沒改。**
+                #    它防的是「持續超載」，而且刻意不做任何過濾 ——
+                #    過濾要等下一筆，那會讓保護晚一拍。
                 if abs(tau) > TAU_HARD:
                     tau_hot[j] += 1
                     if tau_hot[j] >= 2:
@@ -536,6 +578,20 @@ def main() -> int:
                         abort = f"{j} 力矩連續 {tau_hot[j]} 筆超過 {lim}（{tau:+.1f}）"
                 else:
                     tau_hot[j] = 0
+                # ── ★★ 慢速路徑（2026-09-02 新增）：整趟累計筆數。
+                #    trip13（ω1.0）暴露的缺陷：觸地衝擊尖峰只有 5~25 ms 寬，
+                #    `bl3_knee_pitch` 整趟 13 筆超過 70（峰值 80.0 = 114%），
+                #    但**最長連續只有 2 筆** —— 差一筆就被快速路徑攔下。
+                #    而且那 13 筆是每個步態週期一兩筆、散在 16 秒裡，
+                #    任何 20 筆視窗內最多也只有 2 筆 ——
+                #    ★ 滑動視窗規則同樣分不出來，只有**整趟累計**分得出來：
+                #      trip10/11/12 全部 ≤1（而且那 1 筆還是跳點），trip13 是 13。
+                #    ⚠️ 這條用**濾掉跳點後**的計數（`over`，由 commit_peak 累計）。
+                #      過濾器要等下一筆，但這條本來就是累積好幾秒才觸發的，
+                #      慢一拍無所謂 —— 和快速路徑的取捨不同，不要混為一談。
+                if a.tau_total and over[j] >= a.tau_total:
+                    abort = (f"{j} 整趟累計 {over[j]} 筆超過 {lim}"
+                             f"（峰值 {peak[j]:+.1f}）—— 衝擊尖峰型超載")
                 if abs(err) > a.emax:
                     abort = f"{j} 追蹤誤差 {err:+.3f} 超過 {a.emax}"
                 if abs(v) > a.vmax:
@@ -608,7 +664,7 @@ def main() -> int:
     else:
         print("✅ 序列完整跑完")
 
-    report_peaks(tau_win, peak, spikes)
+    report_peaks(tau_win, peak, spikes, over, over_raw)
 
     el = min(t, T_END) if n_tick else 0.0
     hz = n_tick / el if el > 0 else 0.0
@@ -670,7 +726,7 @@ def main() -> int:
     out = {"schema": "m9_gait/1", "time": time.strftime("%Y-%m-%d %H:%M:%S"),
            "args": vars(a), "aborted": bool(abort), "abort_reason": abort or None,
            "q_lie": q_lie, "gait_dt": gait_dt, "n_gait": n_gait,
-           "t_gait0": t_gait0, "peak": peak, "spikes": spikes,
+           "t_gait0": t_gait0, "peak": peak, "spikes": spikes, "over": over, "over_raw": over_raw,
            "loop": {"ticks": n_tick, "hz": round(hz, 1),
                     "worst_gap_s": round(worst_gap, 4)},
            "samples": samples[:60000]}

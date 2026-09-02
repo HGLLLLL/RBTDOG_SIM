@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1840" height="1499" viewBox="0 0 1840 1499"><rect width="1840" height="1499" fill="white"/>
+<text x="46" y="42" font-family="Noto Serif CJK TC" font-size="23" font-weight="bold" text-anchor="start" fill="#1a1a1a">智元三款四足機器狗：感測器可讀資料與格式</text>
+<text x="46" y="68" font-family="Noto Serif CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">底層欄位為實機共享記憶體解碼並驗證；高層 SDK 回呼與 ROS 話題為官方文件；★ 標記處為實機量測值</text>
+<rect x="174" y="90" width="508" height="76" rx="3" fill="#dcdad5" stroke="#2b2b2b" stroke-width="1.4"/>
+<text x="190" y="120" font-family="Noto Serif CJK TC" font-size="21" font-weight="bold" text-anchor="start" fill="#1a1a1a">D1 EDU</text>
+<text x="289.0" y="120" font-family="Noto Serif CJK TC" font-size="15" font-weight="normal" text-anchor="start" fill="#6b6b6b">輪足・小狗</text>
+<text x="190" y="147" font-family="Noto Serif CJK TC" font-size="15" font-weight="normal" text-anchor="start" fill="#1a1a1a">16 軸（12 腿＋4 輪）　20.6 kg</text>
+<rect x="708" y="90" width="508" height="76" rx="3" fill="#dcdad5" stroke="#2b2b2b" stroke-width="1.4"/>
+<text x="724" y="120" font-family="Noto Serif CJK TC" font-size="21" font-weight="bold" text-anchor="start" fill="#1a1a1a">D1 Max</text>
+<text x="823.0" y="120" font-family="Noto Serif CJK TC" font-size="15" font-weight="normal" text-anchor="start" fill="#6b6b6b">輪足・中狗</text>
+<text x="724" y="147" font-family="Noto Serif CJK TC" font-size="15" font-weight="normal" text-anchor="start" fill="#1a1a1a">16 軸（12 腿＋4 輪）　41 kg</text>
+<rect x="1242" y="90" width="508" height="76" rx="3" fill="#dcdad5" stroke="#2b2b2b" stroke-width="1.4"/>
+<text x="1258" y="120" font-family="Noto Serif CJK TC" font-size="21" font-weight="bold" text-anchor="start" fill="#1a1a1a">D1 MaxPro</text>
+<text x="1394.5" y="120" font-family="Noto Serif CJK TC" font-size="15" font-weight="normal" text-anchor="start" fill="#6b6b6b">點足・大狗</text>
+<text x="1258" y="147" font-family="Noto Serif CJK TC" font-size="15" font-weight="normal" text-anchor="start" fill="#1a1a1a">12 軸　68 kg</text>
+<line x1="46" y1="180" x2="1794" y2="180" stroke="#2b2b2b" stroke-width="1.4"/>
+<text x="46" y="210" font-family="Noto Serif CJK TC" font-size="16.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">（甲）</text>
+<text x="46" y="236" font-family="Noto Serif CJK TC" font-size="17.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">關節狀態</text>
+<text x="46" y="260" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">16／12 軸</text>
+<rect x="174" y="188" width="508" height="147" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="1.2"/>
+<text x="188" y="215" font-family="Noto Sans Mono CJK TC" font-size="15.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">/dev/shm/spline_shm</text>
+<text x="668" y="215" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="end" fill="#6b6b6b">★ 實機驗證</text>
+<text x="188" y="236" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">共享記憶體・唯讀</text>
+<text x="194" y="259" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">16 軸　position / velocity / effort</text>
+<text x="194" y="282" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">float32　packed struct</text>
+<text x="194" y="305" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">（無溫度、無電壓）</text>
+<rect x="708" y="188" width="508" height="170" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="1.2"/>
+<text x="722" y="215" font-family="Noto Sans Mono CJK TC" font-size="15.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">/dev/shm/joint_state</text>
+<text x="1202" y="215" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="end" fill="#6b6b6b">★ 實機驗證</text>
+<text x="722" y="236" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">共享記憶體・1 kHz・唯讀不需 root</text>
+<text x="728" y="259" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">16 軸 × 5 欄位　全部 float64</text>
+<text x="728" y="282" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">position  velocity  effort</text>
+<text x="728" y="305" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">temp_C    voltage_V</text>
+<text x="728" y="328" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">base=752  stride=120  name[64]</text>
+<rect x="1242" y="188" width="508" height="147" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="1.2"/>
+<text x="1256" y="215" font-family="Noto Sans Mono CJK TC" font-size="15.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">OnJointStateData ／ rt/lowstate</text>
+<text x="1256" y="236" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">高層 SDK 回呼 ／ ROS 1 話題</text>
+<text x="1262" y="259" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">12 軸　names / positions /</text>
+<text x="1262" y="282" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">        velocities / efforts</text>
+<text x="1262" y="305" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">（底層 SDK 須安裝 ROS 1）</text>
+<text x="174" y="378" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#6b6b6b">task6 實機唯讀偵察確認可用</text>
+<text x="708" y="378" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#6b6b6b">★ 每關節溫度／電壓是三台唯一　★ 實測 1 kHz</text>
+<text x="1242" y="378" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#6b6b6b">底層須 ROS 1，本專案未實測</text>
+<line x1="46" y1="390" x2="1794" y2="390" stroke="#2b2b2b" stroke-width="1.4"/>
+<text x="46" y="420" font-family="Noto Serif CJK TC" font-size="16.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">（乙）</text>
+<text x="46" y="446" font-family="Noto Serif CJK TC" font-size="17.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">IMU</text>
+<text x="46" y="470" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">姿態／慣性</text>
+<rect x="174" y="398" width="508" height="170" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="1.2"/>
+<text x="188" y="425" font-family="Noto Sans Mono CJK TC" font-size="15.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">/dev/shm/imu_shm</text>
+<text x="668" y="425" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="end" fill="#6b6b6b">★ 實機驗證</text>
+<text x="188" y="446" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">48 bytes・packed</text>
+<text x="194" y="469" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">ts       size_t   奈秒</text>
+<text x="194" y="492" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">acc[3]   float32  m/s²</text>
+<text x="194" y="515" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">gyro[3]  float32  rad/s</text>
+<text x="194" y="538" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">q[4]     float32  w,x,y,z</text>
+<rect x="708" y="398" width="508" height="170" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="1.2"/>
+<text x="722" y="425" font-family="Noto Sans Mono CJK TC" font-size="15.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">/dev/shm/imu_central</text>
+<text x="1202" y="425" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="end" fill="#6b6b6b">★ 實機驗證</text>
+<text x="722" y="446" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">共享記憶體・數值自 byte 824 起</text>
+<text x="728" y="469" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">acc[3]   float64  m/s²</text>
+<text x="728" y="492" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">gyro[3]  float64  rad/s</text>
+<text x="728" y="515" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">quat[4]  float64  ★ xyzw</text>
+<text x="728" y="538" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">＝ 10 個 f64・6 軸＋四元數</text>
+<rect x="1242" y="398" width="508" height="147" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="1.2"/>
+<text x="1256" y="425" font-family="Noto Sans Mono CJK TC" font-size="15.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">OnImuData（含里程計）</text>
+<text x="1256" y="446" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">高層 SDK 回呼</text>
+<text x="1262" y="469" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">acc / gyro / 四元數</text>
+<text x="1262" y="492" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">另有里程計（odometry）</text>
+<text x="1262" y="515" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">—</text>
+<rect x="708" y="578" width="508" height="147" rx="3" fill="#f2f1ee" stroke="#2b2b2b" stroke-width="1.2"/>
+<text x="722" y="605" font-family="Noto Sans Mono CJK TC" font-size="15.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">OnImuData ／ OnMcData</text>
+<text x="722" y="626" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">高層 SDK・預設關閉，須自行開啟</text>
+<text x="728" y="649" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">OnImuData  acc/gyro/quat_x,y,z,w   0–100 Hz</text>
+<text x="728" y="672" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">OnMcData   quat[4]・世界座標位置/速度/</text>
+<text x="728" y="695" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">           角速度・機體速度・ns 時戳　50 Hz</text>
+<text x="174" y="588" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#6b6b6b">6 軸 IMU ＋ 四元數（wxyz）</text>
+<text x="1242" y="588" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#6b6b6b">6 軸 IMU ＋ 四元數 ＋ 里程計</text>
+<rect x="708" y="751" width="508" height="104" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="722" y="776" font-family="Noto Serif CJK TC" font-size="14" font-weight="bold" text-anchor="start" fill="#1a1a1a">⚠ 四元數順序官方自相矛盾 —— 我們採 xyzw</text>
+<text x="722" y="798" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">ImuData 欄位名 xyzw、MotionData 註解寫 wxyz。</text>
+<text x="722" y="817" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">★ M7/M8 十餘趟 roll/pitch 均合理，且重力對齊後支撐腳歸零</text>
+<text x="722" y="838" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">旁證充分，惟刻意平放的 xyzw／wxyz 對照尚未執行</text>
+<line x1="46" y1="881" x2="1794" y2="881" stroke="#2b2b2b" stroke-width="1.4"/>
+<text x="46" y="911" font-family="Noto Serif CJK TC" font-size="16.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">（丙）</text>
+<text x="46" y="937" font-family="Noto Serif CJK TC" font-size="17.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">外部感測</text>
+<text x="46" y="961" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">光達／影像</text>
+<rect x="174" y="889" width="508" height="107" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="1.2"/>
+<text x="188" y="926" font-family="Noto Serif CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">光達／點雲</text>
+<text x="342" y="926" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#1a1a1a">✗　無</text>
+<text x="188" y="951" font-family="Noto Serif CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">影像</text>
+<text x="342" y="951" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#1a1a1a">✓　RTSP</text>
+<text x="188" y="976" font-family="Noto Serif CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">超音波・RTK</text>
+<text x="342" y="976" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#1a1a1a">✗　無</text>
+<rect x="708" y="889" width="508" height="207" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="1.2"/>
+<text x="722" y="926" font-family="Noto Serif CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">光達／點雲</text>
+<text x="876" y="926" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#1a1a1a">✓　前後各 1 顆 96 線（Airy）</text>
+<text x="876" y="951" font-family="Noto Sans Mono CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#1a1a1a">/front_lidar  /rear_lidar</text>
+<text x="876" y="976" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#1a1a1a">PointCloud2　10 Hz　best_effort</text>
+<text x="722" y="1001" font-family="Noto Serif CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">光達內建 IMU</text>
+<text x="876" y="1001" font-family="Noto Sans Mono CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#1a1a1a">/front_lidar/imu  /rear_lidar/imu</text>
+<text x="722" y="1026" font-family="Noto Serif CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">影像</text>
+<text x="876" y="1026" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#1a1a1a">✓　RTSP 前後 800 萬畫素廣角</text>
+<text x="722" y="1051" font-family="Noto Serif CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">超音波 ×2</text>
+<text x="876" y="1051" font-family="Noto Sans Mono CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#1a1a1a">/uss_driver/uss_{left,right}/range  10 Hz</text>
+<text x="722" y="1076" font-family="Noto Serif CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">RTK</text>
+<text x="876" y="1076" font-family="Noto Sans Mono CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#1a1a1a">/rtk_pvh</text>
+<rect x="1242" y="889" width="508" height="107" rx="3" fill="#ffffff" stroke="#2b2b2b" stroke-width="1.2"/>
+<text x="1256" y="926" font-family="Noto Serif CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">光達／點雲</text>
+<text x="1410" y="926" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#1a1a1a">✓　96 線</text>
+<text x="1256" y="951" font-family="Noto Serif CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">影像</text>
+<text x="1410" y="951" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#1a1a1a">✓　RTSP</text>
+<text x="1256" y="976" font-family="Noto Serif CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">導航／建圖</text>
+<text x="1410" y="976" font-family="Noto Serif CJK TC" font-size="13" font-weight="normal" text-anchor="start" fill="#1a1a1a">✓　官方提供</text>
+<rect x="708" y="1108" width="508" height="193" rx="3" fill="#f2f1ee" stroke="#2b2b2b" stroke-width="1.2"/>
+<text x="722" y="1135" font-family="Noto Sans Mono CJK TC" font-size="15.5" font-weight="bold" text-anchor="start" fill="#1a1a1a">感測器安裝位置</text>
+<text x="722" y="1156" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">相對 BASE 原點（m）・URDF＋手冊交叉核對</text>
+<text x="728" y="1179" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">IMU_ICM42688 運控   (0, 0, 0.0362)</text>
+<text x="728" y="1202" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">IMU_LUA300C  車規   (0, 0, 0.0569)</text>
+<text x="728" y="1225" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">光達 前/後          (±0.4043, 0, −0.0377)</text>
+<text x="728" y="1248" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">相機 前/後          (±0.4123, 0,  0.0378)</text>
+<text x="728" y="1271" font-family="Noto Sans Mono CJK TC" font-size="13.5" font-weight="normal" text-anchor="start" fill="#1a1a1a">超音波              (0.1792, ∓0.1002, 0.05)</text>
+<text x="722" y="1321" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">⚠ URDF 的 IMU_LUA300C 寫 0.00569，手冊是 56.9 mm —— URDF 少一個零</text>
+<line x1="46" y1="1343" x2="1794" y2="1343" stroke="#2b2b2b" stroke-width="1.4"/>
+<text x="46" y="1369" font-family="Noto Serif CJK TC" font-size="14" font-weight="bold" text-anchor="start" fill="#1a1a1a">圖 5・三款機型的感測器可讀資料。</text>
+<text x="46" y="1393" font-family="Noto Serif CJK TC" font-size="14" font-weight="normal" text-anchor="start" fill="#1a1a1a">（甲）關節：三台都讀得到角度／角速度／力矩。D1 Max 是唯一附每關節溫度與電壓的，且底層 joint_state 實測更新率 1 kHz、唯讀不需 root。</text>
+<text x="46" y="1417" font-family="Noto Serif CJK TC" font-size="14" font-weight="normal" text-anchor="start" fill="#1a1a1a">（乙）IMU：三台都是 6 軸（加速度 3＋角速度 3）＋四元數。D1 EDU 底層是 float32、D1 Max 底層是 float64；D1 Max 機上其實有兩顆 IMU（運控用 ICM42688、車規級 LUA300C）。</text>
+<text x="46" y="1441" font-family="Noto Serif CJK TC" font-size="14" font-weight="normal" text-anchor="start" fill="#1a1a1a">（丙）外部感測：D1 EDU 沒有光達；D1 Max 與 MaxPro 都是 96 線，但 D1 Max 是前後各一顆並附超音波與 RTK。</text>
+<text x="46" y="1473" font-family="Noto Serif CJK TC" font-size="12.5" font-weight="normal" text-anchor="start" fill="#6b6b6b">註：四元數順序在 D1 EDU 與 D1 Max 上都踩過坑 —— 官方文件互相矛盾。D1 Max 目前採 xyzw，十餘趟實機旁證一致，但刻意平放的 xyzw／wxyz 對照實驗尚未執行。</text>
+</svg>

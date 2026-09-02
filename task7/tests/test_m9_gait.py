@@ -387,3 +387,74 @@ def test_report_peaks_commits_the_final_sample():
     win = {j: [(10.0, 10.0), (44.0, 40.0)] for j in m9.LEGS12}
     m9.report_peaks(win, peak, {j: 0 for j in m9.LEGS12})
     assert peak["fl3_knee_pitch"] == pytest.approx(44.0)
+
+
+# ────────────────────────────────────────────────────────────────────────
+# phase_gains：站起來用 M7 驗證過的 250，只有步態用 --kp
+# ────────────────────────────────────────────────────────────────────────
+
+def test_standup_never_uses_the_gait_gain():
+    """★★ 安全：`--kp 120` 不可以讓狗用沒測過的增益從趴姿站起來。
+
+    M7 只在 kp=250 驗證過承重站立（四趟）。承重站起來是整個序列風險最高的
+    一段，不該拿它試新增益。原本 `STANDUP_KP = 250` 定義了卻從沒被用過 ——
+    在 kp 一直是 250 的時候沒差，一旦要學原廠降到 120 就變成安全問題。
+    """
+    for nm in ("GO_crouch", "HOLD_crouch", "GO_stand",
+               "HOLDB_crouch", "BACK_LIE"):
+        kp, kd = m9.phase_gains(nm, 0.5, 120.0, 1.0)
+        assert kp == pytest.approx(m9.STANDUP_KP), nm
+        assert kd == pytest.approx(m9.STANDUP_KD), nm
+
+
+def test_only_the_gait_phase_uses_the_gait_gain():
+    kp, kd = m9.phase_gains("GAIT", 0.5, 120.0, 1.0)
+    assert (kp, kd) == pytest.approx((120.0, 1.0))
+
+
+def test_gain_change_is_ramped_never_stepped():
+    """★★ 承重中 kp 不可以階躍下降 —— 撐機身的力矩會瞬間砍半，狗會掉下去。
+
+    降的那一段（`HOLD_stand`）狗是靜止的；升的那一段（`BACK_crouch`）是往上收。
+    **兩個方向都往安全的那一邊。**
+    """
+    prev = m9.phase_gains("GO_stand", 1.0, 120.0, 1.0)[0]
+    seen = [prev]
+    for r in [i / 20 for i in range(21)]:
+        seen.append(m9.phase_gains("HOLD_stand", r, 120.0, 1.0)[0])
+    seen.append(m9.phase_gains("GAIT", 0.0, 120.0, 1.0)[0])
+    assert seen[0] == pytest.approx(250.0) and seen[-1] == pytest.approx(120.0)
+    assert max(abs(b - a) for a, b in zip(seen, seen[1:])) < 15.0, "有階躍"
+    # 出步態：BACK_crouch 前半升回 250
+    up = [m9.phase_gains("BACK_crouch", r / 20, 120.0, 1.0)[0] for r in range(21)]
+    assert up[0] == pytest.approx(120.0) and up[-1] == pytest.approx(250.0)
+    assert max(abs(b - a) for a, b in zip(up, up[1:])) < 15.0, "有階躍"
+
+
+def test_damping_ratio_stays_sane_through_the_transition():
+    """★ kd 要跟 kp 同比例走。先降 kp 再降 kd 會短暫過阻尼，反之欠阻尼。"""
+    for r in [i / 20 for i in range(21)]:
+        kp, kd = m9.phase_gains("HOLD_stand", r, 120.0, 1.0)
+        # 站立是 250/5.0（比 0.020）、步態是 120/1.0（比 0.0083）——
+        # 過程中不可以跑到區間外
+        assert 0.0083 - 1e-6 <= kd / kp <= 0.0200 + 1e-6, (r, kp, kd)
+
+
+def test_kp_equals_250_behaves_exactly_as_before():
+    """★ 迴歸：kp=250 時（前四趟的設定）排程必須和舊行為完全一致。"""
+    for nm in ("RAMP_UP", "GO_crouch", "HOLD_stand", "GAIT", "BACK_crouch",
+               "BACK_LIE", "RAMP_DOWN"):
+        for r in (0.0, 0.5, 1.0):
+            kp, kd = m9.phase_gains(nm, r, 250.0, 5.0)
+            want = 250.0 * (r if nm == "RAMP_UP"
+                            else (1 - r) if nm == "RAMP_DOWN" else 1.0)
+            assert kp == pytest.approx(want), (nm, r)
+            assert kd == pytest.approx(5.0)
+
+
+def test_sitdown_after_enter_uses_standup_gains_not_gait_gains():
+    """★★ 按 Enter 坐回趴姿是**承重動作** —— 用 kp=120 撐不住。"""
+    src = Path(m9.__file__).read_text(encoding="utf-8")
+    tail = src.split("SIT_crouch", 1)[1]
+    assert "max(held_kp, STANDUP_KP), STANDUP_KD" in tail
+    assert "max(held_kp, a.kp)" not in tail

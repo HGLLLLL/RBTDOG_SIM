@@ -187,6 +187,60 @@ def report_peaks(tau_win: dict, peak: dict, spikes: dict,
               f"\n    原始值都還在 JSON 的 `samples` 裡，沒有被改掉。")
 
 
+def phase_gains(nm: str, r: float, gait_kp: float, gait_kd: float) -> tuple:
+    """回傳 (kp, kd)。kd 用**和 kp 相同的插值比例**，
+    這樣切換過程中阻尼比 kd/kp 不會亂跑（先降 kp 再降 kd 會短暫過阻尼，反之欠阻尼）。"""
+    kp = phase_kp(nm, r, gait_kp)
+    if gait_kp <= 0 or abs(gait_kp - STANDUP_KP) < 1e-9:
+        return kp, (gait_kd if nm == "GAIT" else STANDUP_KD)
+    f = (kp - STANDUP_KP) / (gait_kp - STANDUP_KP)          # 0=站立值 1=步態值
+    f = 0.0 if f < 0 else (1.0 if f > 1 else f)
+    return kp, STANDUP_KD + (gait_kd - STANDUP_KD) * f
+
+
+def phase_kp(nm: str, r: float, gait_kp: float) -> float:
+    """各階段用哪個 kp。`r` = 這一段走了幾成（0~1）。
+
+    ════════════════════════════════════════════════════════════════
+    ★★ 為什麼站起來和步態要用不同的 kp（2026-09-02 修）
+    ════════════════════════════════════════════════════════════════
+
+    原本整支程式（含站起來、承重、坐回去）全部跑 `a.kp` ——
+    `STANDUP_KP = 250` 定義了卻**從來沒被用過**，是死碼。
+
+    在 kp 一直是 250 的時候這沒差。但 2026-09-02 的 M6 錄製顯示
+    **原廠是按模式切換增益的**：
+
+        靜止站立      ABAD/HIP/KNEE 全部 250 / kd 5.0
+        任何動作      ABAD 60 / HIP 120 / KNEE 120 / kd 1.0
+
+    我們要學原廠、把步態降到 kp=120，於是這個死碼就變成安全問題：
+    **`--kp 120` 會讓狗用沒測過的增益從趴姿站起來**，
+    而 M7 只在 kp=250 驗證過站立（四趟）。承重站起來是整個序列風險最高的一段，
+    不該拿它來試新增益。
+
+    所以：**站起來／坐回去用 `STANDUP_KP`（M7 驗證過的 250），
+    只有 `GAIT` 那段用 `--kp`。**
+
+    ⚠️ 切換不能是階躍 —— 承重中 kp 突然砍半，撐住機身的力矩也砍半，
+    狗會掉下去（靜態撓度 8.9 mm @250 → 約 18 mm @120）。
+    所以在 `HOLD_stand`（進步態前的靜止段）把 kp 從 250 平滑降到步態值，
+    在 `BACK_crouch` 的前半把它升回來。**降的時候狗是靜止的，升的時候是往上收，
+    兩個方向都是安全的那一邊。**
+    """
+    if nm == "RAMP_UP":
+        return STANDUP_KP * r
+    if nm == "RAMP_DOWN":
+        return STANDUP_KP * max(0.0, 1.0 - r)
+    if nm == "HOLD_stand":                 # 進步態前：250 → 步態值
+        return STANDUP_KP + (gait_kp - STANDUP_KP) * min(1.0, r)
+    if nm == "BACK_crouch":                # 出步態後：前半段升回 250
+        return gait_kp + (STANDUP_KP - gait_kp) * min(1.0, r / 0.5)
+    if nm == "GAIT":
+        return gait_kp
+    return STANDUP_KP
+
+
 def build_standup(a, q_lie: dict, q_gait0: dict):
     """趴 → crouch → 步態起點。回傳 (名稱, 秒數, 起點, 終點)。"""
     crouch = dict(coord.POSES["crouch"])
@@ -462,17 +516,17 @@ def main() -> int:
     over_raw = {j: 0 for j in LEGS12}   # 未濾的，只用於回報（好和 over 對照）
     samples: list = []
     recent: list = []
-    kp_now = 0.0
+    kp_now, kd_now = 0.0, STANDUP_KD
     des_now = dict(q_lie)
     worst_gap = 0.0
     worst_gap_t = 0.0
     n_tick = 0
     t_prev = None
 
-    def write_frame(des, kp):
+    def write_frame(des, kp, kd):
         for j in LEGS12:
             shm.write_cmd(idx[j], position=coord.to_motor(j, des[j]),
-                          velocity=0.0, effort=0.0, kp=kp, kd=a.kd)
+                          velocity=0.0, effort=0.0, kp=kp, kd=kd)
         st_w = state_ro.states()
         for w, wi in widx.items():
             # ★ 輪子全程純阻尼（kp=0）。步態需要輪子能自由滾。
@@ -517,20 +571,16 @@ def main() -> int:
 
             if t < t_gait0 or t >= t_gait0 + T_gait:
                 s0, s1, nm, p0, p1 = next(b for b in bounds if b[0] <= t < b[1])
-                u = smoothstep((t - s0) / max(s1 - s0, 1e-6))
-                if nm == "RAMP_UP":
-                    kp_now = a.kp * ((t - s0) / max(s1 - s0, 1e-6))
-                elif nm == "RAMP_DOWN":
-                    kp_now = a.kp * max(0.0, 1 - (t - s0) / max(s1 - s0, 1e-6))
-                else:
-                    kp_now = a.kp
+                r = (t - s0) / max(s1 - s0, 1e-6)      # 這一段走了幾成
+                u = smoothstep(r)
+                kp_now, kd_now = phase_gains(nm, r, a.kp, a.kd)
                 des_now = {j: p0[j] + u * (p1[j] - p0[j]) for j in LEGS12}
             else:
                 # ★ 步態：50 Hz 的目標**線性內插**到寫入頻率。
                 #   模擬是零階保持（每 nsub 個物理步換一次），內插只會更平順；
                 #   差異很小但要知道兩邊不完全相同。
                 nm = "GAIT"
-                kp_now = a.kp
+                kp_now, kd_now = a.kp, a.kd
                 x = (t - t_gait0) / gait_dt
                 i0 = int(x)
                 if i0 >= n_gait - 1:
@@ -622,7 +672,7 @@ def main() -> int:
             if abort:
                 break
 
-            write_frame(des_now, kp_now)
+            write_frame(des_now, kp_now, kd_now)
             shm.write_tick(state_ro.read_tick(shm_io.STATE_STRIDE))
 
             if t - last >= 0.25:
@@ -641,7 +691,8 @@ def main() -> int:
 
     # ---------------------------------------------------------------- 收尾
     held_des, held_kp = dict(des_now), (kp_now if abort else 0.0)
-    keeper = Keepalive(shm, state_ro, (lambda: write_frame(held_des, held_kp)), a.hz,
+    held_kd = kd_now if abort else STANDUP_KD
+    keeper = Keepalive(shm, state_ro, (lambda: write_frame(held_des, held_kp, held_kd)), a.hz,
                        "凍結目標角、維持增益" if abort else "零增益保持")
     keeper.start()
 
@@ -700,14 +751,16 @@ def main() -> int:
             s = time.monotonic()
             while (e := time.monotonic() - s) < dur:
                 u = smoothstep(e / dur)
+                # ★ 坐回趴姿是承重動作 —— 用 M7 驗證過的站立增益，
+                #   不是步態那組（步態可能是 kp=120 的軟增益，撐不住）。
                 write_frame({j: cur[j] + u * (tgt[j] - cur[j]) for j in LEGS12},
-                            max(held_kp, a.kp))
+                            max(held_kp, STANDUP_KP), STANDUP_KD)
                 shm.write_tick(state_ro.read_tick(shm_io.STATE_STRIDE))
                 time.sleep(1.0 / a.hz)
             cur = dict(tgt)
         s = time.monotonic()
         while (e := time.monotonic() - s) < a.ramp_kp:
-            write_frame(cur, a.kp * max(0.0, 1 - e / a.ramp_kp))
+            write_frame(cur, STANDUP_KP * max(0.0, 1 - e / a.ramp_kp), STANDUP_KD)
             shm.write_tick(state_ro.read_tick(shm_io.STATE_STRIDE))
             time.sleep(1.0 / a.hz)
         for i in range(len(shm_io.JOINTS)):

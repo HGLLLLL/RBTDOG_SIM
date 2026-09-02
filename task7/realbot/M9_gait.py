@@ -79,6 +79,84 @@ TMAX = {"1_hip_roll": 50.0, "2_hip_pitch": 50.0, "3_knee_pitch": 70.0}
 # 站起來用的增益與路徑（照抄 M7 已實機驗證的）
 STANDUP_KP, STANDUP_KD = 250.0, 5.0
 
+# 判定「孤立反號跳點」時忽略的小訊號。低於這個值的力矩本來就會在 0 附近抖，
+# 反號沒有意義，也不可能是峰值。
+SPIKE_FLOOR = 5.0
+
+
+def commit_peak(win: list, peak: dict, spikes: dict, j: str) -> None:
+    """把三點視窗的**中間**那筆提交進 `peak[j]`，先擋掉孤立反號跳點。
+
+    ════════════════════════════════════════════════════════════════
+    為什麼要延遲一筆
+    ════════════════════════════════════════════════════════════════
+
+    2026-09-02 第 1 趟（trip10）收工印出 `fl3_knee_pitch 峰值 -51.52`，
+    嚇了一跳 —— 那是**假的**。去 JSON 看它前後兩筆：
+
+        t=16.110  tau +27.77  v -0.908
+        t=16.115  tau -51.52  v -1.838   ← 只有這一筆反號，v 也一起跳
+        t=16.120  tau +28.01  v -1.048
+
+    整趟 74,400 個樣本裡只有 2 筆這種東西（0.003%）。剔掉之後 12 顆關節
+    全部落在模擬的 81–114%，`fl3` 的真值是 +37.5（模擬 36.4）。
+
+    ★★ **原本的 `kp·|err| + kd·|v|` 判別式擋不住它** —— 因為判別式用的就是
+    **同一筆被汙染的 `v`**：`v` 被灌大 → 上限被灌大（34.3，×1.5+1 = 52.5）
+    → 51.52 剛好通過。**髒資料自己給自己開了門。**
+    這是「多印一個可互相對照的量」那套方法的一個盲區：兩個量來自同一筆讀值時，
+    它們不獨立，對照不出東西來。**鄰居才是獨立的。**
+
+    所以改成看前後鄰居。而鄰居要等下一筆才有 —— 這就是延遲一筆的原因。
+
+    ⚠️ **這只影響 `peak[]`（回報用），不影響中止判斷。**
+    中止本來就對單筆免疫：`--tau-hits` 要連續 3 筆、`TAU_HARD` 要連續 2 筆。
+    **不要把這個過濾器搬進中止路徑** —— 那會讓保護晚一拍，而且真實的連續超標
+    也會被「第一筆」的延遲吃掉。
+    """
+    if len(win) < 3:
+        return
+    (t0, _), (t1, cap1), (t2, _) = win[-3:]
+    if (abs(t1) > SPIKE_FLOOR and t1 * t0 < 0 and t1 * t2 < 0
+            and abs(t1) > max(abs(t0), abs(t2))):
+        spikes[j] += 1
+        return
+    if abs(t1) <= 1.5 * cap1 + 1.0 and abs(t1) > abs(peak[j]):
+        peak[j] = t1
+
+
+def report_peaks(tau_win: dict, peak: dict, spikes: dict) -> None:
+    """收尾補提交最後一筆，然後印峰值表。
+
+    ★★ **這段跑在 `keeper.start()` 之後。** `Keepalive` 是 daemon 執行緒 ——
+    主執行緒一拋例外，process 就結束、心跳跟著停，指令區約 0.5 秒後被清零，
+    **狗會在站姿失力**。所以這裡的任何一行都不允許炸。
+
+    抽成函式的唯一理由就是**讓它可以被測試**（`test_report_peaks_never_raises`）——
+    原本內嵌在 `main()` 裡，只有真跑到最後才會第一次執行，
+    等於把「第一次執行」排在狗承重的時候。
+    """
+    # 最後一筆永遠當不成「中間點」，補提交（沒有下一筆，只能做上限檢查）。
+    # ⚠️ 中止時最後一筆正是最可疑的那筆，所以照樣不能無條件收 —— 但也不能丟，
+    #    丟了會把「真的撞上去」的峰值藏起來。用上限檢查是兩害相權。
+    for j in LEGS12:
+        w = tau_win.get(j) or []
+        if w:
+            t_, cap_ = w[-1]
+            if abs(t_) <= 1.5 * cap_ + 1.0 and abs(t_) > abs(peak[j]):
+                peak[j] = t_
+
+    print(f"\n{'關節':16s} {'峰值τ':>9s} {'門檻':>7s} {'用掉':>7s} {'剔除跳點':>9s}")
+    for j in LEGS12:
+        lim = TMAX[j[2:]]
+        print(f"{j:16s} {peak[j]:+9.2f} {lim:7.0f} {100*abs(peak[j])/lim:6.0f}%"
+              f" {spikes.get(j, 0):9d}")
+    n_spike = sum(spikes.values())
+    if n_spike:
+        print(f"  ★ 共剔除 {n_spike} 筆孤立反號跳點（單筆、與前後兩筆都反號且更大）。"
+              f"\n    正常量級是每趟 0~3 筆；**上到十位數就不是感測雜訊，要查 SHM 解碼**。"
+              f"\n    原始值都還在 JSON 的 `samples` 裡，沒有被改掉。")
+
 
 def build_standup(a, q_lie: dict, q_gait0: dict):
     """趴 → crouch → 步態起點。回傳 (名稱, 秒數, 起點, 終點)。"""
@@ -342,6 +420,9 @@ def main() -> int:
     abort = ""
     peak = {j: 0.0 for j in LEGS12}
     tau_hot = {j: 0 for j in LEGS12}
+    # ★★ `peak` 專用的三點視窗，見 commit_peak()。**只影響回報，不影響中止。**
+    tau_win: dict = {j: [] for j in LEGS12}
+    spikes = {j: 0 for j in LEGS12}
     samples: list = []
     recent: list = []
     kp_now = 0.0
@@ -435,8 +516,11 @@ def main() -> int:
                 err = q - des_now[j]
                 tick[j] = (round(q, 4), round(des_now[j], 4), round(tau, 2), round(v, 3))
                 cap = kp_now * abs(err) + a.kd * abs(v)
-                if abs(tau) <= 1.5 * cap + 1.0 and abs(tau) > abs(peak[j]):
-                    peak[j] = tau
+                w = tau_win[j]
+                w.append((tau, cap))
+                if len(w) > 3:
+                    w.pop(0)
+                commit_peak(w, peak, spikes, j)
                 if abs(err) > we[0]:
                     we = (abs(err), j)
                 if abs(tau) > wt[0]:
@@ -524,10 +608,7 @@ def main() -> int:
     else:
         print("✅ 序列完整跑完")
 
-    print(f"\n{'關節':16s} {'峰值τ':>9s} {'門檻':>7s} {'用掉':>7s}")
-    for j in LEGS12:
-        lim = TMAX[j[2:]]
-        print(f"{j:16s} {peak[j]:+9.2f} {lim:7.0f} {100*abs(peak[j])/lim:6.0f}%")
+    report_peaks(tau_win, peak, spikes)
 
     el = min(t, T_END) if n_tick else 0.0
     hz = n_tick / el if el > 0 else 0.0
@@ -589,7 +670,7 @@ def main() -> int:
     out = {"schema": "m9_gait/1", "time": time.strftime("%Y-%m-%d %H:%M:%S"),
            "args": vars(a), "aborted": bool(abort), "abort_reason": abort or None,
            "q_lie": q_lie, "gait_dt": gait_dt, "n_gait": n_gait,
-           "t_gait0": t_gait0, "peak": peak,
+           "t_gait0": t_gait0, "peak": peak, "spikes": spikes,
            "loop": {"ticks": n_tick, "hz": round(hz, 1),
                     "worst_gap_s": round(worst_gap, 4)},
            "samples": samples[:60000]}

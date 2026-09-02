@@ -216,3 +216,113 @@ def test_live_uses_home_pose_not_stand():
         for j, kd in enumerate(coord.LEG_KINDS):
             assert coord.POSES["home"][mm2[l] + kd] == pytest.approx(
                 float(mm.HOME[k, j]), abs=1e-12)
+
+
+# ────────────────────────────────────────────────────────────────────────
+# commit_peak：孤立反號跳點
+# ────────────────────────────────────────────────────────────────────────
+
+def _feed(seq):
+    """把 (tau, cap) 序列餵進 commit_peak，回傳 (peak, 剔除筆數)。"""
+    peak, spikes, win = {"j": 0.0}, {"j": 0}, []
+    for x in seq:
+        win.append(x)
+        if len(win) > 3:
+            win.pop(0)
+        m9.commit_peak(win, peak, spikes, "j")
+    return peak["j"], spikes["j"]
+
+
+def test_isolated_sign_flipped_spike_is_rejected():
+    """★★ 迴歸：trip10 的 `fl3_knee_pitch -51.52`。
+
+    真實資料（2026-09-02 t=16.11 附近）：只有中間那筆反號，而且**同一筆的 v
+    也一起跳**，把 `kp|e|+kd|v|` 上限灌大到 34.3 —— ×1.5+1 = 52.5 > 51.52，
+    所以舊的上限判別式**放它過**。鄰居才擋得住。
+    """
+    peak, n = _feed([(27.77, 27.8), (-51.52, 34.3), (28.01, 33.1), (29.90, 31.0)])
+    assert n == 1
+    # 跳點沒有變成峰值。取 28.01 而不是 29.90 —— 最後一筆永遠當不成「中間點」，
+    # 那筆由 main() 收尾時補提交（見 M9_gait.py 的「最後一筆」註解）。
+    assert peak == pytest.approx(28.01)
+
+
+def test_a_real_sign_change_across_two_samples_is_kept():
+    """★ 反例：真的換向（連續兩筆同號）**不可以**被剔除。
+
+    擺動相結束、腿開始承重時力矩本來就會換號。誤殺這個會把真峰值藏起來。
+    """
+    peak, n = _feed([(30.0, 30.0), (-40.0, 40.0), (-42.0, 42.0), (-35.0, 35.0)])
+    assert n == 0
+    assert peak == pytest.approx(-42.0)
+
+
+def test_small_signal_chatter_near_zero_is_not_treated_as_a_spike():
+    """★ 反例：0 附近的抖動天天反號，不該被算成跳點（也不可能是峰值）。"""
+    peak, n = _feed([(1.0, 5.0), (-2.0, 5.0), (1.5, 5.0), (-1.2, 5.0)])
+    assert n == 0
+
+
+def test_spike_must_be_larger_than_both_neighbours():
+    """★ 反例：反號但**比鄰居小**的，是正常過零，不是跳點。"""
+    peak, n = _feed([(30.0, 30.0), (-8.0, 30.0), (25.0, 30.0)])
+    assert n == 0
+
+
+def test_commit_peak_never_touches_the_abort_path():
+    """★★ 保護不可以依賴這個過濾器。
+
+    中止對單筆免疫靠的是「連續 N 筆」計數（`--tau-hits` / `TAU_HARD` 的 2 筆），
+    不是 `commit_peak`。把過濾器搬進中止路徑會讓保護晚一拍 —— 釘住這件事。
+    """
+    src = Path(m9.__file__).read_text(encoding="utf-8")
+    body = src.split("def main()", 1)[1]
+    for line in body.splitlines():
+        if "commit_peak" in line:
+            assert "abort" not in line
+    # 中止仍然是「連續筆數」制
+    assert "tau_hot[j] >= a.tau_hits" in body
+    assert "tau_hot[j] >= 2" in body
+
+
+def test_report_peaks_never_raises():
+    """★★ `report_peaks()` 跑在 `keeper.start()` 之後，而 Keepalive 是 daemon ——
+    這裡一拋例外，process 就結束、心跳停、指令區約 0.5 秒後被清零，
+    **狗會在站姿失力**。所以要把各種畸形輸入都打過一遍。
+    """
+    full = {j: [] for j in m9.LEGS12}
+    cases = [
+        # (tau_win, peak, spikes, 說明)
+        ({j: [] for j in m9.LEGS12}, {j: 0.0 for j in m9.LEGS12},
+         {j: 0 for j in m9.LEGS12}),                       # 一筆都沒跑到就中止
+        ({j: [(1.0, 1.0)] for j in m9.LEGS12}, {j: 0.0 for j in m9.LEGS12},
+         {j: 0 for j in m9.LEGS12}),                       # 只有一筆
+        ({j: [(5.0, 5.0), (-70.0, 90.0)] for j in m9.LEGS12},
+         {j: -12.5 for j in m9.LEGS12}, {j: 3 for j in m9.LEGS12}),
+        ({}, {j: 0.0 for j in m9.LEGS12}, {}),             # 視窗/計數整個沒建起來
+        (full, {j: 0.0 for j in m9.LEGS12}, {j: 0 for j in m9.LEGS12}),
+    ]
+    for win, peak, spikes in cases:
+        m9.report_peaks(win, peak, spikes)                 # 不炸就是通過
+
+
+def test_report_peaks_prints_every_joint(capsys):
+    """峰值表要 12 顆全印 —— 少印一顆＝現場少一個判準。"""
+    m9.report_peaks({j: [] for j in m9.LEGS12},
+                    {j: 0.0 for j in m9.LEGS12},
+                    {j: 0 for j in m9.LEGS12})
+    out = capsys.readouterr().out
+    for j in m9.LEGS12:
+        assert j in out
+
+
+def test_report_peaks_commits_the_final_sample():
+    """★ 最後一筆永遠當不成「中間點」，必須由 report_peaks 補提交。
+
+    漏掉它 = 「中止當下那一筆」的力矩不會出現在峰值表裡，
+    而中止時最想看的就是那一筆。
+    """
+    peak = {j: 0.0 for j in m9.LEGS12}
+    win = {j: [(10.0, 10.0), (44.0, 40.0)] for j in m9.LEGS12}
+    m9.report_peaks(win, peak, {j: 0 for j in m9.LEGS12})
+    assert peak["fl3_knee_pitch"] == pytest.approx(44.0)

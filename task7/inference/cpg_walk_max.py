@@ -535,6 +535,12 @@ class Trace:
             "net_roll": float(-np.mean(d.qpos[mm.WHEEL_QPOS_IDX] - self.w0)
                               * mm.WHEEL_RADIUS),
             "fell": self.fell,
+            # 逐關節力矩峰值（12 個，腿序 FR/FL/RR/RL × abad/hip/knee）。
+            # ★ 後膝峰值是掃參數時的硬門檻之一（實機 60.7 / 門檻 70），
+            #   而它不會出現在任何一個「乾淨」的診斷指標裡 —— 必須自己帶出來。
+            "tau_peak": [float(v) for v in r.tau_peak],
+            "knee_peak_front": float(max(r.tau_peak[2], r.tau_peak[5])),
+            "knee_peak_rear": float(max(r.tau_peak[8], r.tau_peak[11])),
             "lim_pct": r.lim_pct,
             "tau_pct": r.tau_pct,
             "reach_pct": 100.0 * n_reach / max(1, self.n * 4),
@@ -571,7 +577,7 @@ def report(res: dict, header: str) -> None:
           f"相位鎖定σ " + "/".join(f"{v:.1f}" for v in res["phase_lock"]) + "°")
 
 
-def stand(secs: float = 4.0, x_off: float = 0.0, friction: float = None,
+def stand(secs: float = 4.0, x_off=0.0, friction: float = None,
           wheel_mode: str = "damp", quiet: bool = False) -> dict:
     """靜態站立驗證（動態落地版，不是正向運動學）。
 
@@ -579,6 +585,7 @@ def stand(secs: float = 4.0, x_off: float = 0.0, friction: float = None,
     量位置伺服的靜態撓度、四輪受力分佈、以及走起來之前的實際機身高度。
     """
     r = Robot(friction=friction)
+    x_off = np.broadcast_to(np.asarray(x_off, dtype=float), (4,)).copy()
     ks = leg_kin.knee_sign_of(mm.HOME)
     f0 = leg_kin.home_foot(mm.HOME)
     q_des = cpg_max.stand_targets(ks, f0, x_off)
@@ -612,7 +619,7 @@ def stand(secs: float = 4.0, x_off: float = 0.0, friction: float = None,
            "settled": abs(h - mm.NOMINAL_HEIGHT_KIN) < 0.10}
 
     if not quiet:
-        print(f"[站立] x_off={x_off * 1000:+.0f} mm  摩擦={friction or '預設1.0'}  輪={wheel_mode}")
+        print(f"[站立] x_off={_x_off_label(x_off)}  摩擦={friction or '預設1.0'}  輪={wheel_mode}")
         print(f"  機身高度  {h * 1000:.1f} mm（純運動學 {mm.NOMINAL_HEIGHT_KIN * 1000:.1f} mm，"
               f"位置伺服靜態撓度 {(mm.NOMINAL_HEIGHT_KIN - h) * 1000:+.1f} mm）")
         print(f"  俯仰      {pitch:+.2f}°   最大關節追蹤誤差 {np.degrees(res['sag']):.2f}°")
@@ -624,22 +631,43 @@ def stand(secs: float = 4.0, x_off: float = 0.0, friction: float = None,
 
 
 
+def _x_off_label(x_off: np.ndarray) -> str:
+    """報告用的 x_off 字串。四腿相同印一個值，前後分離時印「前/後」。
+
+    ★ 印出實際生效的值而不是命令列參數 —— 前後分離之後「命令列給了什麼」與
+    「四條腿各自吃到什麼」不再是同一件事，只印前者就會像 M9 那個
+    `wheel_kd` 靜默走回預設值的坑一樣，症狀是「模擬跟預期不一樣但看不出原因」。
+    """
+    if np.ptp(x_off) == 0:
+        return f"{x_off[0] * 1000:+.0f}mm"
+    return (f"前{x_off[0] * 1000:+.0f}/後{x_off[2] * 1000:+.0f}mm"
+            f"（x_c={0.5 * (x_off[0] + x_off[2]) * 1000:+.0f} "
+            f"x_d={0.5 * (x_off[0] - x_off[2]) * 1000:+.0f}）")
+
+
 def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
             mu_x: float = None, mu_y: float = MU_Y, x_off: float = None,
             g_c: float = None, d_step: float = None, d_step_y: float = D_STEP_Y,
             duty: float = None, friction: float = None, wheel_mode: str = "damp",
             wheel_friction: float = None, leg_friction: float = None,
             abad_friction: float = None, kd_wheel: float = None,
-            z_sag: float = None, video: bool = False,
+            z_sag: float = None, phase=None,
+            y_off: float = 0.0,
+            sway_x: float = 0.0, sway_y: float = 0.0,
+            sway_lead_x: float = 0.0, sway_lead_y: float = 0.0,
+            video: bool = False,
             scene: str = None, actuator_mode: str = "torque_pd",
             solver_iters: tuple = None, kp3=None, kd3=None,
             quiet: bool = False) -> dict:
     """開迴路步態 rollout。未指定的參數取 `GAITS[gait]` 的預設值。"""
     cfg = GAITS[gait]
-    phase = cfg["phase"]
+    # `phase` 可覆寫：前後鏡像對稱測試要把相位序列前後對調（見 diag/fore_aft_symmetry.py）。
+    # ⚠️ 只改初始相位是無效的，耦合矩陣必須一起換 —— `make_cpg_step` 就是為此存在。
+    phase = cfg["phase"] if phase is None else np.asarray(phase, dtype=float)
     omega = cfg["omega"] if omega is None else omega
     mu_x = cfg["mu_x"] if mu_x is None else mu_x
     x_off = cfg["x_off"] if x_off is None else x_off
+    x_off = np.broadcast_to(np.asarray(x_off, dtype=float), (4,)).copy()
     duty = cfg["duty"] if duty is None else duty
     g_c = cfg["g_c"] if g_c is None else g_c
     d_step = cfg["d_step"] if d_step is None else d_step
@@ -651,6 +679,11 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
               kp3=kp3, kd3=kd3)
     ks = leg_kin.knee_sign_of(mm.HOME)
     f0 = leg_kin.home_foot(mm.HOME)
+    # ★ `y_off`：站姿寬度（外展為正，左右鏡像）。文獻上四足 trot 的兩個關鍵足端軌跡
+    #   參數是「高度與寬度」，而我們的寬度一直是寫死的 212 mm ——
+    #   ABAD 有 ±30~40° 的行程完全沒用到。y_off 只動基準足端，不動步態的其他部分。
+    if y_off:
+        f0 = f0 + np.stack([np.zeros(4), mm.SIDE_Y * y_off, np.zeros(4)], -1)
     step = cpg_max.make_cpg_step(phase)
     n_reach = 0
 
@@ -679,9 +712,17 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
 
     for i in range(n):
         c = step(c, np.full(4, mu_x), np.full(4, mu_y), np.full(4, omega), mm.CTRL_DT)
-        tgt = cpg_max.foot_targets(c, f0, x_off, g_c, d_step, d_step_y, duty, z_sag)
+
+        # body sway（COG adjustment）：把質心送進當下的支撐三角形。見 `cpg_max.body_sway`。
+        # `sway_x = sway_y = 0` 時 `sway` 是 None，走的是與改動前**逐位元相同**的路徑。
+        sway = None
+        if sway_x or sway_y:
+            sway = cpg_max.body_sway(cpg_max.gait_phase(c["theta"], phase),
+                                     sway_x, sway_y, sway_lead_x, sway_lead_y)
+        tgt = cpg_max.foot_targets(c, f0, x_off, g_c, d_step, d_step_y, duty,
+                                   z_sag, sway)
         q_des, nc = cpg_max.joint_targets(c, f0, x_off, g_c, d_step, d_step_y, duty,
-                                          ks, z_sag)
+                                          ks, z_sag, sway)
         n_reach += nc
         r.step(q_des, wheel_mode)
         tr.record(c["theta"], tgt[:, 0])
@@ -697,14 +738,16 @@ def rollout(gait: str = "trot", secs: float = 20.0, omega: float = None,
         "scene": scene or mm.SCENE,
         "kp3": list(np.asarray(mm.KP3 if kp3 is None else kp3, float)),
         "kd3": list(np.asarray(mm.KD3 if kd3 is None else kd3, float)),
-        "gait": gait, "omega": omega, "mu_x": mu_x, "x_off": x_off,
+        "gait": gait, "omega": omega, "mu_x": mu_x,
+        # 四腿相同時存回純量 —— 既有的掃描輸出與判讀腳本都當它是純量。
+        "x_off": float(x_off[0]) if np.ptp(x_off) == 0 else [float(v) for v in x_off],
         "g_c": g_c, "d_step": d_step, "duty": duty, "z_sag": z_sag,
         "kd_wheel": r.kd_wheel,
     })
 
     if not quiet:
         report(res, f"[步態] {gait}  ω={omega} μx={mu_x} μy={mu_y} duty={duty} "
-                    f"x_off={x_off * 1000:+.0f}mm D_STEP={d_step} G_C={g_c} "
+                    f"x_off={_x_off_label(x_off)} D_STEP={d_step} G_C={g_c} "
                     f"撓度補償={z_sag * 1000:.1f}mm 輪={wheel_mode} kd_wheel={r.kd_wheel}")
 
     if frames:
@@ -744,12 +787,26 @@ if __name__ == "__main__":
     ap.add_argument("--kd-wheel", type=float, default=None, dest="kd_wheel",
                     help="★ 輪子阻尼係數（kp 恆 0）。預設 max_model.KD_WHEEL=0.5。"
                          "拉高它 = 把輪足當點足，但必須同時重掃 x_off，兩者是耦合的")
+    ap.add_argument("--x-c", type=float, default=None, dest="x_c",
+                    help="★ 前後分離的配平量（＝支撐多邊形中心相對機身的位移）。"
+                         "與 --x-d 一起用，兩者都給才會覆蓋 --x-off。"
+                         "⚠️ 前後姿態對稱 ⟺ x_c=0，見 cpg_max.x_off_split")
+    ap.add_argument("--x-d", type=float, default=None, dest="x_d",
+                    help="★ 前後分離的軸距量（足端 wheelbase 變化 2·x_d，不動配平）")
     ap.add_argument("--z-sag", type=float, default=None, dest="z_sag")
     ap.add_argument("--video", action="store_true")
     ap.add_argument("--sweep", type=str, default=None,
                     help="掃描一個參數，例如 --sweep omega=1.2,1.4,1.6")
     a = vars(ap.parse_args())
     sweep = a.pop("sweep")
+    x_c, x_d = a.pop("x_c"), a.pop("x_d")
+    if (x_c is None) != (x_d is None):
+        ap.error("--x-c 與 --x-d 必須成對給 —— 只給一個會靜默沿用另一軸的預設，"
+                 "那正是「參數沒生效但畫面看起來正常」的坑")
+    if x_c is not None:
+        if a["x_off"] is not None:
+            ap.error("--x-off 與 --x-c/--x-d 只能擇一（前者是後者 x_d=0 的特例）")
+        a["x_off"] = cpg_max.x_off_split(x_c, x_d)
     if sweep:
         key, vals = sweep.split("=")
         a.pop("stand")
@@ -764,7 +821,10 @@ if __name__ == "__main__":
                   f"{r['pitch_cycle']:>9.2f}{r['support']:>6.2f}"
                   f"{r['height'] * 1000:>7.1f}{r['lim_pct']:>7.2f}{r['tau_pct']:>7.2f}")
     elif a.pop("stand"):
-        stand(secs=min(a["secs"], 5.0), x_off=a["x_off"] or 0.0,
+        # ⚠️ 不能寫 `a["x_off"] or 0.0` —— x_off 現在可能是 ndarray，
+        #    對陣列取 truthiness 會直接丟 ValueError。
+        stand(secs=min(a["secs"], 5.0),
+              x_off=0.0 if a["x_off"] is None else a["x_off"],
               friction=a["friction"], wheel_mode=a["wheel_mode"])
     else:
         rollout(**a)

@@ -63,8 +63,16 @@ def crosscheck(D: dict) -> int:
     B = D["baseline_ref"]
     knee_sign = leg_kin.knee_sign_of(mm.HOME)
     f0 = leg_kin.home_foot(mm.HOME)
-    step = cpg_max.make_cpg_step(cpg_max.PHASE_WALK)
-    c = cpg_max.cpg_init(cpg_max.PHASE_WALK)
+    # ★ 相位序列與 body sway 必須照檔案裡記的重建 —— 寫死 PHASE_WALK 的話，
+    #   LS 的檔會被判成「格式錯誤」（實測差 0.75 rad），而真正錯的是這支檢查程式。
+    #   舊檔沒有 seq 欄位 → 預設 ds，行為與改動前相同。
+    phase = {"ds": cpg_max.PHASE_WALK, "ls": cpg_max.PHASE_WALK_LS,
+             "trot": cpg_max.PHASE_TROT}[D.get("seq", p.get("seq", "ds"))]
+    x_off_legs = cpg_max.x_off_split(p["x_off"], p.get("x_d", 0.0))
+    sway_p = (p.get("sway_x", 0.0), p.get("sway_y", 0.0),
+              p.get("sway_lead_x", 0.0), p.get("sway_lead_y", 0.0))
+    step = cpg_max.make_cpg_step(phase)
+    c = cpg_max.cpg_init(phase)
     mux = np.full(4, B["mu_x"])
     muy = np.full(4, B["mu_y"])
     om = np.full(4, p["omega"])
@@ -75,9 +83,12 @@ def crosscheck(D: dict) -> int:
 
     worst = 0.0
     for i in range(D["n"]):
-        q_g, _ = cpg_max.joint_targets(c, f0, p["x_off"], p["g_c"], p["d_step"],
+        sway = None
+        if sway_p[0] or sway_p[1]:
+            sway = cpg_max.body_sway(cpg_max.gait_phase(c["theta"], phase), *sway_p)
+        q_g, _ = cpg_max.joint_targets(c, f0, x_off_legs, p["g_c"], p["d_step"],
                                        B["d_step_y"], p["duty"], knee_sign,
-                                       p["z_sag"])
+                                       p["z_sag"], sway)
         if i < n_ramp:
             u = i / max(n_ramp, 1)
         elif i < n_ramp + n_gait:
@@ -90,7 +101,19 @@ def crosscheck(D: dict) -> int:
         worst = max(worst, float(np.abs(want - np.array(D["q"][i])).max()))
         c = step(c, mux, muy, om, dt)
 
-    print(f"★ 交叉比對「直接跑 CPG」vs 軌跡檔：最大差 {worst:.3e} rad")
+    # ⚠️⚠️ z_sag 不匹配時，位移／傾角／彈跳**不可當成實機預測**。
+    #   z_sag 是「補償該系統的位置伺服撓度」：實機 kp=120 撓 72 mm（→ z_sag 0.075）、
+    #   模擬只撓 32.5 mm（→ STATIC_SAG 0.0325）。兩邊各用各的值時**實際離地相同**，
+    #   但把實機的檔拿到模擬裡播，抬腿命令會多補 42 mm → 模擬離地 112 mm 而非 70 mm，
+    #   動態被整個放大。實測差距：原地踏步漂移 214 mm（模擬 z_sag）vs 1654 mm（實機 z_sag）。
+    #   → 這一關要驗的是**格式與腿序**（上面那個交叉比對），不是物理。
+    if abs(p["z_sag"] - mm.STATIC_SAG) > 1e-6:
+        print(f"\n⚠️ 這個檔的 z_sag = {p['z_sag']:.4f}（實機錨點），"
+              f"模擬的撓度對應 {mm.STATIC_SAG:.4f}。")
+        print(f"   在模擬裡播會多抬 {(p['z_sag'] - mm.STATIC_SAG) * 1000:.0f} mm，"
+              f"**下面的位移／傾角／彈跳不可當實機預測**。")
+        print(f"   要看模擬預測請用 cpg_walk_max.rollout(z_sag=None)（＝ STATIC_SAG）。")
+    print(f"\n★ 交叉比對「直接跑 CPG」vs 軌跡檔：最大差 {worst:.3e} rad")
     if worst > 1e-5:
         print("❌ 對不上 —— 檔案格式或腿序有問題，**不要送上狗**。")
         return 1

@@ -29,10 +29,30 @@ FILES=(
   "$HERE/M7_standup.py"      # ★★ 站起來（承重，風險最高）
   "$HERE/M8_swing.py"        # ★★ 單腿擺動（承重，三輪支撐）
   "$HERE/M9_gait.py"         # ★★★ 步態（承重、連續、動態觸地）
+  "$HERE/M10_wheel_kd_chatter.py"  # ★ 輪阻尼抖振測試（trip17 分辨實驗，墊高零風險）
   "$HERE/M_faultwatch.py"
   "$HERE/M_freezetest.py"    # ★ mc_ctrl 凍結時長的零風險觀察
   "$HERE/estop_max.sh"      # ★ 急停。第二個終端機一定要備著
 )
+
+# ★ 軌跡檔（`M9_gait.py --traj` 要用）。2026-09-03 加：清單原本只有 .py/.sh，
+#   用 --traj 上機時軌跡檔得另外手動 scp —— 而「手動漏一個檔」正是本腳本要防的事。
+#   預設推 outputs/ 底下所有 *_ls.json；要指定就 TRAJ="a.json b.json"。
+#   ⚠️ 軌跡檔也走同一套 sha256 比對：檔案內容錯了比腳本錯更難察覺，
+#      因為 M9 會照跑，只是跑成另一組步態。
+TRAJ_DIR="$HERE/../outputs"
+if [[ -n "${TRAJ:-}" ]]; then
+  for t in $TRAJ; do
+    [[ -f "$t" ]] && FILES+=("$t") || { echo "❌ 找不到軌跡檔 $t"; exit 1; }
+  done
+else
+  shopt -s nullglob
+  # A_/B_ 開頭 = 要上機的軌跡檔（sweep_*.json 是掃描輸出，不推）。
+  # ⚠️ 過時的軌跡檔一律移去 outputs/stale/ —— 留在這裡就會被推上狗，
+  #    而「狗上有兩個很像的檔」正是現場拿錯檔的溫床。
+  for t in "$TRAJ_DIR"/[AB]_*.json; do FILES+=("$t"); done
+  shopt -u nullglob
+fi
 
 # 力矩對照表住在 ../reference/，但狗上只有一層，要跟腳本放在一起。
 if [[ -f "$REF" ]]; then

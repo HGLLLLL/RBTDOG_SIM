@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -79,6 +80,9 @@ def main() -> int:
     ap.add_argument("--kp", type=float, default=250.0,
                     help="★ 腿關節增益。250 = 原廠站立、我們 2026-08-27 實機驗證 13 趟")
     ap.add_argument("--kd", type=float, default=5.0)
+    ap.add_argument("--kp-abad", type=float, default=60.0, dest="kp_abad",
+                    help="★ 步態段 ABAD 的 kp。原廠與模擬都是 [60,120,120]；"
+                         "會寫進檔案頂層由 M9 比對")
     ap.add_argument("--wheel-kd", type=float, default=0.5, dest="wheel_kd",
                     help="輪子純阻尼。⚠️ kp 必須是 0 —— 設定檔的 FSM_RL_Wheel_Kp=60 "
                          "是配「每步重給目標角」的 RL，開迴路套上去會偏航失控 +39°/12s")
@@ -86,6 +90,20 @@ def main() -> int:
     ap.add_argument("--duty", type=float, default=B["duty"])
     ap.add_argument("--d-step", type=float, default=B["d_step"], dest="d_step")
     ap.add_argument("--x-off", type=float, default=B["x_off"], dest="x_off")
+    ap.add_argument("--seq", choices=("ds", "ls", "trot"), default="ds",
+                    help="★★ 相位序列。ds = 舊的 diagonal sequence（2026-09-03 前"
+                         "註解一直誤標成 lateral）；ls = 文獻上靜態穩定裕度最好的"
+                         " lateral sequence。⚠️ 會寫進軌跡檔並由 M9 比對")
+    ap.add_argument("--x-d", type=float, default=0.0, dest="x_d",
+                    help="前後差動足端偏移（前腿 +x_d、後腿 −x_d）＝軸距量")
+    ap.add_argument("--sway-x", type=float, default=0.0, dest="sway_x",
+                    help="★ body sway 縱向幅度 m。⚠️ 必須配 --sway-lead-x，留 0 會變擾動")
+    ap.add_argument("--sway-y", type=float, default=0.0, dest="sway_y",
+                    help="★ body sway 橫向幅度 m")
+    ap.add_argument("--sway-lead-x", type=float, default=0.0, dest="sway_lead_x",
+                    help="★ 縱向相位提前（週期比例）。縱向是二倍頻，與橫向**不能共用**")
+    ap.add_argument("--sway-lead-y", type=float, default=0.0, dest="sway_lead_y",
+                    help="★ 橫向相位提前")
     ap.add_argument("--g-c", type=float, default=B["g_c"], dest="g_c")
     ap.add_argument("--z-sag", type=float, default=None, dest="z_sag",
                     help="★ 預設 = **0.036 × 250/kp**（實機錨點，不是模擬的 STATIC_SAG）。"
@@ -111,15 +129,19 @@ def main() -> int:
 
     knee_sign = leg_kin.knee_sign_of(mm.HOME)
     f0 = leg_kin.home_foot(mm.HOME)
-    step = cpg_max.make_cpg_step(cpg_max.PHASE_WALK)
-    c = cpg_max.cpg_init(cpg_max.PHASE_WALK)
+    phase = {"ds": cpg_max.PHASE_WALK, "ls": cpg_max.PHASE_WALK_LS,
+             "trot": cpg_max.PHASE_TROT}[a.seq]
+    step = cpg_max.make_cpg_step(phase)
+    c = cpg_max.cpg_init(phase)
+    # 逐腿 x_off（--x-d 0 時等於四腿共用）。站姿與步態必須用同一個。
+    x_off_legs = cpg_max.x_off_split(a.x_off, a.x_d)
 
     mux = np.full(4, B["mu_x"])
     muy = np.full(4, B["mu_y"])
     om = np.full(4, a.omega)
     dt = mm.CTRL_DT
 
-    q_stand = cpg_max.stand_targets(knee_sign, f0, a.x_off)
+    q_stand = cpg_max.stand_targets(knee_sign, f0, x_off_legs)
 
     n_gait = int(round(a.secs / dt))
     n_ramp = int(round(a.ramp / dt))
@@ -128,8 +150,14 @@ def main() -> int:
     Q = np.zeros((n_tot, 12))
     n_clamp_tot = 0
     for i in range(n_tot):
-        q_g, ncl = cpg_max.joint_targets(c, f0, a.x_off, a.g_c, a.d_step,
-                                         B["d_step_y"], a.duty, knee_sign, a.z_sag)
+        sway = None
+        if a.sway_x or a.sway_y:
+            sway = cpg_max.body_sway(cpg_max.gait_phase(c["theta"], phase),
+                                     a.sway_x, a.sway_y,
+                                     a.sway_lead_x, a.sway_lead_y)
+        q_g, ncl = cpg_max.joint_targets(c, f0, x_off_legs, a.g_c, a.d_step,
+                                         B["d_step_y"], a.duty, knee_sign,
+                                         a.z_sag, sway)
         n_clamp_tot += ncl
         if i < n_ramp:
             s = blend(i / max(n_ramp, 1))
@@ -141,9 +169,13 @@ def main() -> int:
         c = step(c, mux, muy, om, dt)
 
     # ------------------------------------------------------------- 檢查
-    print(f"步態：{'原地踏步' if a.march else '前進'}　"
-          f"duty {a.duty} ω {a.omega} d_step {a.d_step} x_off {a.x_off} "
-          f"g_c {a.g_c} z_sag {a.z_sag:.4f}")
+    order = [mm.LEGS[i] for i in cpg_max.swing_order(phase)]
+    print(f"步態：{'原地踏步' if a.march else '前進'}　序列 {a.seq.upper()}"
+          f"（擺動順序 {' → '.join(order)}）")
+    print(f"　　　duty {a.duty} ω {a.omega} d_step {a.d_step} "
+          f"x_off {a.x_off} x_d {a.x_d} g_c {a.g_c} z_sag {a.z_sag:.4f}")
+    print(f"　　　sway ({a.sway_x * 1000:.0f}, {a.sway_y * 1000:.0f}) mm  "
+          f"lead ({a.sway_lead_x:.2f}, {a.sway_lead_y:.2f})")
     print(f"增益：腿 kp {a.kp} kd {a.kd}　輪 kp 0 kd {a.wheel_kd}（純阻尼）")
     print(f"長度：淡入 {a.ramp}s + 步態 {a.secs}s + 淡出 {a.ramp}s "
           f"= {n_tot * dt:.1f}s，{n_tot} 幀 @ {1/dt:.0f} Hz")
@@ -173,9 +205,25 @@ def main() -> int:
     print(f"\n最大命令速度 {v_peak:.2f} rad/s（{j_peak}）"
           f"　上限 {a.vcmd_max}")
     if v_peak > a.vcmd_max:
-        print(f"❌ 超過 --vcmd-max。降 --omega 或加大 --duty。")
+        # ⚠️ 舊訊息寫「或加大 --duty」是**反的**：duty 越大擺動相時間越短
+        #    （(1−duty)/ω），同樣的抬腿量要更快走完 → 命令速度**更高**。
+        print(f"❌ 超過 --vcmd-max。命令速度 ∝ (g_c + z_sag)·ω/(1−duty)：")
+        print(f"   降 --omega（現在 {a.omega}）→ 線性下降")
+        print(f"   降 --g-c（現在 {a.g_c}）→ 但 g_c 就是實際離地量，別降到失去離地")
+        print(f"   ⚠️ **不要加大 --duty**，那會讓擺動相更短、命令速度更高")
+        print(f"   ⚠️ z_sag 現在是 {a.z_sag:.4f}（= 0.036×250/kp，kp={a.kp:g}）——"
+              f"kp 越低補償越大、命令幅度越大")
         return 1
     print(f"✅ 在上限內")
+    # ★ M9 另外要求 `--vmax >= 命令速度 × 1.2`（量測速度保護不能太貼命令速度，
+    #   否則正常擺動就會誤中止）。這個數字在本機就算得出來，別讓它到現場才擋人。
+    need_vmax = v_peak * 1.2
+    print(f"\n★ 上機時 M9 需要 --vmax ≥ {need_vmax:.2f}"
+          f"（= 命令速度 × 1.2）。M9 預設 16.0 —— "
+          f"{'夠' if need_vmax <= 16.0 else f'**不夠，要帶 --vmax {math.ceil(need_vmax)}**'}")
+    print(f"  參考：馬達 190 RPM = 19.9 rad/s，"
+          f"{math.ceil(need_vmax) if need_vmax > 16 else 16} 是它的"
+          f"{(math.ceil(need_vmax) if need_vmax > 16 else 16) / 19.9 * 100:.0f}%")
 
     # 每個關節的行程
     print(f"\n{'關節':16s} {'最小':>9s} {'最大':>9s} {'行程':>9s} {'最大速度':>10s}")
@@ -191,6 +239,13 @@ def main() -> int:
         "n": n_tot,
         "kp": a.kp, "kd": a.kd,
         "wheel_kp": 0.0, "wheel_kd": a.wheel_kd,
+        # ★ 這些**必須放頂層** —— M9 的「說兩次」比對讀的是頂層鍵。
+        #   放進 params 巢狀裡的話比對抓不到，等於防呆有缺口。
+        "seq": a.seq, "kp_abad": a.kp_abad,
+        "x_off": a.x_off, "x_d": a.x_d, "g_c": a.g_c,
+        "z_sag": a.z_sag,
+        "sway_x": a.sway_x, "sway_y": a.sway_y,
+        "sway_lead_x": a.sway_lead_x, "sway_lead_y": a.sway_lead_y,
         "params": {k: (v if not isinstance(v, Path) else str(v))
                    for k, v in vars(a).items()},
         "baseline_ref": dict(gait_baseline.BASELINE),

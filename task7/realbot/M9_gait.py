@@ -22,6 +22,14 @@
                 ★ **第一趟用這個** —— 每個關節角上機前都檢查過、
                   而且用 `play_gait_traj.py` 在 MuJoCo 完整播過。
   --live        狗上即時算 CPG（`realbot/cpg.py`）。
+  --interactive ★★ 三段互動（2026-09-03）：
+                  站起來 →〔Enter〕→ 往前走 →〔Enter〕→ 原地停 →〔Enter〕→ crouch 後趴下
+                步態改成**在狗上即時算**（走多久由現場決定），乾跑的所有檢查照舊。
+                ⚠️ 等待期間**不能用 input()** —— 主迴圈一旦阻塞超過 500 ms，
+                   controller 會判定指令過期把指令區清成 0，承重中的狗就塌了。
+                   所以用 `KeyWatch`（select 輪詢，不阻塞）。
+                ⚠️ 三個等待都有逾時（--hold-max），逾時是**自動往下走**不是中止 ——
+                   人一分心狗就一直承重站著，而腿的發熱從沒量過。
                 ★ 之後要接**偏航閉迴路**只能走這條路 ——
                   文件記載唯一擋住「能直線走遠」的是偏航慢漂 −0.5~−0.8°/s，
                   播放固定檔案永遠解不了。
@@ -69,6 +77,38 @@ import kin
 import shm_io
 from M5_leg_pose import Keepalive, mc_ctrl_pid, proc_state, smoothstep
 from M7_standup import TAU_HARD, read_imu_rp
+
+# 起身／坐下的輪阻尼。0.5 = trip16 實機驗證值；M7 只掃過 0.1–1.0。
+WHEEL_KD_SAFE = 0.5
+
+
+class ChatterWatch:
+    """輪子抖振偵測（2026-09-03 trip17 事故後加）。
+
+    事故簽名：輪速 ~64 Hz 正負翻轉、|v| 峰 14 rad/s（正常滾動是單向、< 2 rad/s）。
+    判準：**高幅度的符號翻轉**連續累積 —— 每次相鄰兩筆 v 反號且兩者 |v| 都 > V_MIN
+    記一分，同方向或低速就衰減。分數到門檻＝抖振。
+    正常走路輪子單向滾，不會累積；雜訊（47%）幅度小，過不了 V_MIN。
+    """
+
+    V_MIN = 4.0        # rad/s。trip16 正常峰值 1.33、事故時 10–14
+    LIMIT = 12         # 約 0.1 秒的持續抖振（200 Hz 下 ~24 筆、翻轉一半）
+
+    def __init__(self):
+        self.prev: dict = {}
+        self.score: dict = {}
+
+    def feed(self, name: str, v: float) -> bool:
+        """回傳 True = 抖振確立。"""
+        pv = self.prev.get(name, 0.0)
+        self.prev[name] = v
+        sc = self.score.get(name, 0)
+        if v * pv < 0 and abs(v) > self.V_MIN and abs(pv) > self.V_MIN:
+            sc += 2
+        else:
+            sc = max(0, sc - 1)
+        self.score[name] = sc
+        return sc >= self.LIMIT
 
 LEGS12 = [lg + k for lg in coord.LEGS for k in coord.LEG_KINDS]
 
@@ -192,7 +232,8 @@ def phase_gains(nm: str, r: float, gait_kp: float, gait_kd: float) -> tuple:
     這樣切換過程中阻尼比 kd/kp 不會亂跑（先降 kp 再降 kd 會短暫過阻尼，反之欠阻尼）。"""
     kp = phase_kp(nm, r, gait_kp)
     if gait_kp <= 0 or abs(gait_kp - STANDUP_KP) < 1e-9:
-        return kp, (gait_kd if nm == "GAIT" else STANDUP_KD)
+        return kp, (gait_kd if nm in ("GAIT", "GAIT_IN", "GAIT_OUT")
+                    else STANDUP_KD)
     f = (kp - STANDUP_KP) / (gait_kp - STANDUP_KP)          # 0=站立值 1=步態值
     f = 0.0 if f < 0 else (1.0 if f > 1 else f)
     return kp, STANDUP_KD + (gait_kd - STANDUP_KD) * f
@@ -238,7 +279,251 @@ def phase_kp(nm: str, r: float, gait_kp: float) -> float:
         return gait_kp + (STANDUP_KP - gait_kp) * min(1.0, r / 0.5)
     if nm == "GAIT":
         return gait_kp
+    # ── 互動模式（--interactive）的階段。
+    #   ★ 這裡的關鍵是「降 kp 的時候狗必須是靜止的」——固定時間表版本靠
+    #     `HOLD_stand` 那一段做，但互動版的 READY 是**不定長**的（等人按鍵），
+    #     不能拿它做增益過渡，否則人等多久 kp 就停在中間值多久。
+    #     所以另外切出 KP_DOWN / KP_UP 兩段固定長度、狗靜止的過渡。
+    if nm == "KP_DOWN":                    # READY 之後：250 → 步態值
+        return STANDUP_KP + (gait_kp - STANDUP_KP) * min(1.0, r)
+    if nm == "KP_UP":                      # 停下之後：步態值 → 250
+        return gait_kp + (STANDUP_KP - gait_kp) * min(1.0, r)
+    if nm in ("GAIT_IN", "GAIT_OUT"):
+        return gait_kp
     return STANDUP_KP
+
+
+class KeyWatch:
+    """非阻塞地等一次 Enter。
+
+    ⚠️⚠️ **這就是互動模式最危險的地方。** 主迴圈必須以 `--hz`（200 Hz）持續寫
+    `joint_cmd` 並把 `joint_state` 的時戳抄過去；一旦阻塞超過
+    `joint_cmd_timeout`（500 ms），controller 判定指令過期會**把指令區清成 0**
+    —— 承重狀態下那就是狗直接塌下去。所以**絕對不能用 `input()`**。
+
+    這裡用 `select` 以 0 逾時輪詢 stdin，每次主迴圈 tick 呼叫一次，不阻塞。
+    用 Enter 而不是單鍵，是為了不動 termios —— 改 raw mode 之後若程式異常結束，
+    使用者的終端機會壞掉，而現場正需要那個終端機下急停指令。
+    """
+
+    def __init__(self, enabled: bool = True):
+        self.enabled = enabled and sys.stdin.isatty()
+
+    def pressed(self) -> bool:
+        """有沒有按下 Enter（消費掉一整行）。非阻塞。"""
+        if not self.enabled:
+            return False
+        try:
+            import select
+            r, _, _ = select.select([sys.stdin], [], [], 0)
+            if not r:
+                return False
+            sys.stdin.readline()
+            return True
+        except Exception:
+            return False
+
+
+class GaitStream:
+    """即時算 CPG 的步態流 —— 互動模式用，長度不定。
+
+    ★ 為什麼不能直接播軌跡檔：檔案是固定長度的，而「走到我喊停」長度不定。
+    ★ 為什麼不能每個 200 Hz tick 都推進 CPG：**那會改變積分步長**
+      （CPG 是以 50 Hz 的 `CTRL_DT` 驗證的），跑出來就不是離線驗過的那個步態了。
+      所以這裡維持 **50 Hz 推進 + 線性內插到寫入頻率**，與 `--traj` 路徑相同。
+
+    `tests/test_m9_gait.py::test_gait_stream_matches_offline_trajectory`
+    拿離線軌跡當外部對照逐幀比對。
+    """
+
+    GAIT_DT = 0.02          # 50 Hz，與 max_model.CTRL_DT 相同
+
+    def __init__(self, p: dict, f0: dict, ks: dict):
+        self.p = p
+        self.f0, self.ks = f0, ks
+        self.phase = cpg.PHASES[p.get("seq", "ds")]
+        self.x_off = cpg.x_off_split(p["x_off"], p.get("x_d", 0.0))
+        self.sway_p = (p.get("sway_x", 0.0), p.get("sway_y", 0.0),
+                       p.get("sway_lead_x", 0.0), p.get("sway_lead_y", 0.0))
+        self.c = cpg.init(self.phase)
+        self.mux = {l: p["mu_x"] for l in cpg.LEGS}
+        self.muy = {l: p["mu_y"] for l in cpg.LEGS}
+        self.om = {l: p["omega"] for l in cpg.LEGS}
+        self.step = cpg.make_step(self.phase)
+        self.n_clamp = 0
+        self.t_next = 0.0
+        self.q_prev = self.q_next = self._compute()
+
+    def _compute(self) -> dict:
+        sway = None
+        if self.sway_p[0] or self.sway_p[1]:
+            sway = cpg.body_sway(cpg.gait_phase(self.c["theta"], self.phase),
+                                 *self.sway_p)
+        q, ncl = cpg.joint_targets(self.c, self.f0, self.ks, self.x_off,
+                                   self.p["g_c"], self.p["d_step"],
+                                   self.p["d_step_y"], self.p["duty"],
+                                   self.p["z_sag"], sway)
+        self.n_clamp += ncl
+        return q
+
+    def sample(self, t: float) -> dict:
+        """步態開始後 t 秒的 12 個關節目標。t 必須單調不減。"""
+        while t >= self.t_next:
+            self.q_prev = self.q_next
+            self.c = self.step(self.c, self.mux, self.muy, self.om, self.GAIT_DT)
+            self.q_next = self._compute()
+            self.t_next += self.GAIT_DT
+        f = 1.0 - (self.t_next - t) / self.GAIT_DT
+        f = 0.0 if f < 0.0 else (1.0 if f > 1.0 else f)
+        return {j: self.q_prev[j] + f * (self.q_next[j] - self.q_prev[j])
+                for j in self.q_prev}
+
+
+class InteractivePlan:
+    """互動式三段流程的狀態機：站起來 →〔Enter〕→ 走 →〔Enter〕→ 停 →〔Enter〕→ 趴下。
+
+    與固定時間表（`bounds`）的差別只在「階段怎麼推進」，**保護邏輯完全共用** ——
+    這條線最痛的教訓就是同一件事兩份實作，所以主迴圈只有一個。
+
+    階段（`dur=None` 代表等按鈕）：
+
+        RAMP_UP → GO_crouch → HOLD_crouch → GO_stand
+        ★ READY      站著等 Enter ①
+        GAIT_IN → GAIT（等 Enter ②）→ GAIT_OUT
+        ★ STOPPED    站著等 Enter ③
+        BACK_crouch → HOLDB_crouch → BACK_LIE → RAMP_DOWN
+
+    ⚠️ 三個等待階段都有各自的逾時（`hold_max`），步態有 `walk_max`。
+      沒有逾時的話，人一分心狗就一直承重站著 —— 而**腿吃 41 kg 的發熱從沒量過**
+      （M7/M8 最長只撐 34.6 秒）。逾時不是中止，是自動走到下一階段。
+    """
+
+    WAIT = {"READY", "GAIT", "STOPPED"}
+
+    def __init__(self, a, q_lie: dict, q_stand: dict, gs: "GaitStream"):
+        self.a, self.gs = a, gs
+        self.q_lie, self.q_stand = q_lie, q_stand
+        crouch = dict(coord.POSES["crouch"])
+        # (名稱, 時長 or None, 起點, 終點)
+        # ⚠️ 坐下段刻意**不叫** BACK_crouch —— 那個名字在 `phase_kp` 有
+        #   「從步態 kp 升回 250」的專屬分支，而互動版在 KP_UP 已經升完了，
+        #   沿用會讓 kp 先階躍掉回 120 再升回去。
+        self.segs = [
+            ("RAMP_UP", a.ramp_kp, q_lie, q_lie),
+            ("GO_crouch", a.t1, q_lie, crouch),
+            ("HOLD_crouch", a.hold_mid, crouch, crouch),
+            ("GO_stand", a.t2, crouch, q_stand),
+            ("READY", None, q_stand, q_stand),          # ① 等 Enter（kp 250）
+            ("KP_DOWN", a.kp_shift, q_stand, q_stand),  # 靜止中 250 → 步態 kp
+            ("GAIT_IN", a.ramp, q_stand, None),
+            ("GAIT", None, None, None),                 # ② 等 Enter
+            ("GAIT_OUT", a.ramp, None, q_stand),
+            ("KP_UP", a.kp_shift, q_stand, q_stand),    # 靜止中 步態 kp → 250
+            ("STOPPED", None, q_stand, q_stand),        # ③ 等 Enter
+            ("SIT_crouch", a.t2, q_stand, crouch),
+            ("SIT_hold", a.hold_mid, crouch, crouch),
+            ("SIT_LIE", a.t1, crouch, q_lie),
+            ("RAMP_DOWN", a.ramp_kp, q_lie, q_lie),
+        ]
+        self.i = 0
+        self.t_seg = 0.0          # 目前階段的起始時刻
+        self.t_gait0 = None       # 步態（含淡入）的起始時刻
+        self.u_out0 = 1.0         # 進 GAIT_OUT 時的步態混合比例（見 _des）
+        self.notes: list = []     # 給 log 的階段轉換紀錄
+
+    @property
+    def name(self) -> str:
+        return self.segs[self.i][0]
+
+    def _limit(self) -> float:
+        """目前等待階段的逾時秒數。"""
+        return self.a.walk_max if self.name == "GAIT" else self.a.hold_max
+
+    def _advance(self, t: float, why: str, dur=None) -> None:
+        """推進到下一階段。
+
+        ⚠️ `dur` 有值（＝定長階段自然結束）時，新階段的起點要用
+        **`t_seg + dur`** 而不是當下的 `t` —— 用 `t` 的話每次推進都把誤差歸零，
+        單一 tick 就跨不過第二個階段，狀態機會愈落愈後。
+        等待階段沒有預定長度，才用當下的 `t`。
+        """
+        self.notes.append((round(t, 2), self.name, why))
+        print(f"\n  ▸ {self.name} 結束（{why}），進入 {self.segs[self.i + 1][0]}\n")
+        self.i += 1
+        self.t_seg = t if dur is None else self.t_seg + dur
+        if self.segs[self.i][0] == "GAIT_IN":
+            self.t_gait0 = t
+
+    def update(self, t: float, key: bool):
+        """回傳 (階段名, 12 關節目標, kp, kd, 是否結束)。
+
+        ⚠️ 用**迴圈**推進，不是一次只推一階 —— 主迴圈若卡頓一下（實測最長間隔
+        13–31 ms，但 controller 逾時是 500 ms），單一 tick 可能跨過整個短階段。
+        一次只推一階的話狀態機會愈落愈後，而畫面上完全看不出來。
+        """
+        for _ in range(len(self.segs) + 1):        # 上限：最多跨完整條流程
+            nm = self.name
+            el = t - self.t_seg
+            dur = self.segs[self.i][1]
+            if nm in self.WAIT:
+                if key:
+                    key = False                    # 一次按鍵只推一個等待階段
+                    self._advance(t, "按下 Enter")
+                    continue
+                if el >= self._limit():
+                    self._advance(t, f"逾時 {self._limit():.0f} s（自動繼續）")
+                    continue
+                break
+            # ★ 起步淡入期間也要能喊停 —— 使用者的語意是「隨時」，而
+            #   `GAIT_IN` 不在等待集合裡，原本會被當成非等待階段忽略掉按鍵，
+            #   等於**起步後有 --ramp 秒按不了停**。
+            #   直接跳到 GAIT_OUT，並從**當下的混合比例**開始降（不是從 1.0），
+            #   否則會先跳回全步態再淡出 —— 那是反方向的突變。
+            if key and nm == "GAIT_IN":
+                self.u_out0 = smoothstep(min(el / dur, 1.0))
+                i_out = next(k for k, sg in enumerate(self.segs)
+                             if sg[0] == "GAIT_OUT")
+                self.notes.append((round(t, 2), nm, "淡入中按停"))
+                print(f"\n  ▸ {nm} 中途按停（混合比例 {self.u_out0:.2f}），"
+                      f"直接進入 GAIT_OUT\n")
+                self.i = i_out
+                self.t_seg = t
+                # 淡出時間按比例縮短：只淡入到 0.4 就沒必要花整個 ramp 淡出
+                self.segs[i_out] = ("GAIT_OUT",
+                                    max(0.5, self.a.ramp * self.u_out0),
+                                    None, self.q_stand)
+                key = False
+                continue
+            if el >= dur:
+                if self.i + 1 >= len(self.segs):   # 最後一段跑完 = 收工
+                    nm, dur = self.segs[self.i][0], self.segs[self.i][1]
+                    return (nm, self._des(t, 1.0), *self._gains(nm, 1.0), True)
+                self._advance(t, "時間到", dur)
+                continue
+            break
+        else:
+            print("  ⚠️ 階段推進超過上限 —— 檢查是不是有 0 秒的階段")
+
+        nm = self.name
+        dur = self.segs[self.i][1]
+        r = 1.0 if dur in (None, 0) else min((t - self.t_seg) / dur, 1.0)
+        return (nm, self._des(t, r), *self._gains(nm, r), False)
+
+    def _des(self, t: float, r: float) -> dict:
+        nm, dur, p0, p1 = self.segs[self.i]
+        if nm in ("GAIT_IN", "GAIT", "GAIT_OUT"):
+            qg = self.gs.sample(t - self.t_gait0)
+            if nm == "GAIT":
+                return qg
+            u = (smoothstep(r) if nm == "GAIT_IN"
+                 else self.u_out0 * smoothstep(1.0 - r))
+            return {j: (1 - u) * self.q_stand[j] + u * qg[j] for j in qg}
+        u = smoothstep(r)
+        return {j: p0[j] + u * (p1[j] - p0[j]) for j in p0}
+
+    def _gains(self, nm: str, r: float):
+        kp, kd = phase_gains(nm, r, self.a.kp, self.a.kd)
+        return kp, kd, phase_kp(nm, r, self.a.kp_abad)
 
 
 def build_standup(a, q_lie: dict, q_gait0: dict):
@@ -260,19 +545,43 @@ def build_sitdown(a, q_gait_end: dict, q_lie: dict):
 
 
 def gain_mismatches(D: dict, kp: float, kd: float, wheel_kd: float) -> list:
-    """軌跡檔的增益 vs 命令列的增益，回傳 `[(欄位, 檔案值 or None, 命令列值)]`。
+    """（相容用）只比三個增益。新程式請用 `param_mismatches`。"""
+    return param_mismatches(D, {"kp": kp, "kd": kd, "wheel_kd": wheel_kd})
+
+
+# 「說兩次」要比對的欄位。★ 只要它**會改變送給馬達的角度或力矩**，就必須在這裡。
+#   數值欄位比值，字串欄位（seq）比字面。
+_NUM_FIELDS = ("kp", "kp_abad", "kd", "wheel_kd", "x_off", "x_d", "g_c", "z_sag",
+               "sway_x", "sway_y", "sway_lead_x", "sway_lead_y")
+_STR_FIELDS = ("seq",)
+
+
+def param_mismatches(D: dict, want: dict) -> list:
+    """軌跡檔的參數 vs 命令列的參數，回傳 `[(欄位, 檔案值 or None, 命令列值)]`。
 
     「說兩次」防呆的比對本體。**抽成函式是為了可測** —— `main()` 在讀軌跡檔之前
     就會先開 `/dev/shm`，所以這道防呆在狗以外的機器上跑不到，只能單獨測它。
 
-    ⚠️ **三個增益都要比。** 輪阻尼送給狗的是命令列的值（預設 0.5），不是檔案裡的
-    值；漏比它的話，「用 `--wheel-kd 3.0` 產的檔、跑的時候忘了帶旗標」會**靜默
-    用回 0.5**，而 0.5 正是「前腳不跨步」那組。症狀是「模擬明明好了、實機還是
-    老樣子」，**而所有診斷指標都乾淨**。
+    ⚠️ **每一個會改變輸出角度的參數都要比。** 歷史教訓：
+    最早只比 `kp`/`kd`，漏了 `wheel_kd` —— 用 `--wheel-kd 3.0` 產的檔、跑的時候
+    忘了帶旗標就**靜默用回 0.5**，而 0.5 正是「前腳不跨步」那組；症狀是
+    「模擬明明好了、實機還是老樣子」，**而所有診斷指標都乾淨**。
+    2026-09-03 新增的 `seq`（DS/LS 相位序列）與 `sway_*` 是同一類：
+    忘了帶 `--seq ls` 會靜默跑回 diagonal sequence，外觀幾乎一樣但那是另一個步態。
+
+    `want` 裡沒有的欄位不比（例如純播放模式不需要比 live 專屬的參數）。
     """
-    return [(k, D.get(k), v) for k, v in
-            (("kp", kp), ("kd", kd), ("wheel_kd", wheel_kd))
-            if D.get(k) is None or abs(D[k] - v) > 1e-9]
+    bad = []
+    for k, v in want.items():
+        if v is None:
+            continue
+        got = D.get(k)
+        if k in _STR_FIELDS:
+            if got is None or str(got) != str(v):
+                bad.append((k, got, v))
+        elif got is None or abs(float(got) - float(v)) > 1e-9:
+            bad.append((k, got, v))
+    return bad
 
 
 def main() -> int:
@@ -297,6 +606,25 @@ def main() -> int:
     ap.add_argument("--g-c", type=float, default=0.12, dest="g_c",
                     help="★ 不要調小！g_c=0.04 時實際離地只有 4.5 mm，"
                          "腳被地面拖著走 —— 那是文件裡的災難情境")
+    ap.add_argument("--seq", choices=("ds", "ls", "trot"), default="ds",
+                    help="★★ 相位序列。**ds 是舊的（diagonal sequence）**，"
+                         "ls 才是文獻上靜態穩定裕度最好的 lateral sequence。"
+                         "2026-09-03 前註解一直把 ds 誤標成 ls，見 docs/E_*。"
+                         "⚠️ 忘了帶會靜默跑回 ds —— 已納入「說兩次」比對")
+    ap.add_argument("--x-d", type=float, default=0.0, dest="x_d",
+                    help="前後差動的足端偏移（前腿 +x_d、後腿 −x_d）＝軸距量。"
+                         "0 就是四腿共用 --x-off。姿態前後對稱 ⟺ --x-off 為 0")
+    ap.add_argument("--sway-x", type=float, default=0.0, dest="sway_x",
+                    help="★ body sway 縱向幅度 m（後腿擺動時機身往前）。"
+                         "建議組 0.015。⚠️ 必須配 --sway-lead-x")
+    ap.add_argument("--sway-y", type=float, default=0.0, dest="sway_y",
+                    help="★ body sway 橫向幅度 m（左腿擺動時機身往右）。建議組 0.010")
+    ap.add_argument("--sway-lead-x", type=float, default=0.0, dest="sway_lead_x",
+                    help="★ 縱向相位提前（週期比例）。建議組 0.90。"
+                         "⚠️ 留 0 會讓 sway 變成純擾動 —— 機身要在腿抬起**之前**移好")
+    ap.add_argument("--sway-lead-y", type=float, default=0.0, dest="sway_lead_y",
+                    help="★ 橫向相位提前。建議組 0.20。縱向是二倍頻，"
+                         "所以兩軸的 lead **不能共用一個值**")
     ap.add_argument("--d-step-y", type=float, default=0.12, dest="d_step_y")
     ap.add_argument("--mu-x", type=float, default=1.80, dest="mu_x")
     ap.add_argument("--mu-y", type=float, default=1.50, dest="mu_y")
@@ -304,8 +632,29 @@ def main() -> int:
                     help="★ 預設 **0.036×250/kp**（實機錨點）。不是模擬的 STATIC_SAG")
     ap.add_argument("--ramp", type=float, default=3.0, help="站姿↔步態的淡入淡出秒數")
 
+    # ---- ★ 互動模式（2026-09-03）
+    ap.add_argument("--interactive", action="store_true",
+                    help="★★ 三段互動：站起來→〔Enter〕→往前走→〔Enter〕→原地停→"
+                         "〔Enter〕→crouch 後趴下。步態改成**狗上即時算 CPG**"
+                         "（走多久由現場決定），乾跑的所有檢查照舊")
+    ap.add_argument("--hold-max", type=float, default=25.0, dest="hold_max",
+                    help="★ 每個等待階段的逾時（秒）。逾時不是中止，是自動往下走。"
+                         "⚠️ 等待中狗是承重站著的，而**腿吃 41 kg 的發熱從沒量過**")
+    ap.add_argument("--walk-max", type=float, default=20.0, dest="walk_max",
+                    help="★ 步態段的逾時（秒）。忘了按 Enter 時的保險")
+    ap.add_argument("--kp-shift", type=float, default=1.5, dest="kp_shift",
+                    help="增益過渡秒數（250↔步態 kp）。★ 這段狗是靜止的 —— "
+                         "承重中 kp 階躍砍半會讓機身掉下去")
+
     # ---- 增益
     ap.add_argument("--kp", type=float, default=250.0)
+    ap.add_argument("--kp-abad", type=float, default=60.0, dest="kp_abad",
+                    help="★★ 步態段 ABAD 的 kp（hip/knee 用 --kp）。"
+                         "原廠 RL 與**所有模擬驗證**都是 [60,120,120]，"
+                         "但 2026-09-03 之前 M9 把 --kp 套到全部 12 關節 —— "
+                         "實機 ABAD 因此比模擬硬一倍，重現實驗證實這正是"
+                         "「前腳不跨＋劇烈搖擺」兩趟失敗的根因（俯仰 4.7→11.4°、"
+                         "執行率 0.40→0.00）。站起來／坐下不受影響（原廠站立 ABAD 也是 250）")
     ap.add_argument("--kd", type=float, default=5.0)
     ap.add_argument("--wheel-kd", type=float, default=0.5, dest="wheel_kd",
                     help="★ 輪子純阻尼，kp 恆為 0。設定檔的 FSM_RL_Wheel_Kp=60 "
@@ -330,7 +679,11 @@ def main() -> int:
 
     # ---- 保護（⚠️ 和 M7/M8 不同）
     ap.add_argument("--emax", type=float, default=0.60,
-                    help="追蹤誤差 rad。步態擺動相本來就會落後（實機 52 mm ≈ 0.3 rad）")
+                    help="追蹤誤差 rad。⚠️ 預設 0.6 是照 **kp=250** 的擺動落後訂的"
+                         "（M8 實測 52 mm ≈ 0.3 rad）；**kp=120 的設計落後就是 0.6**"
+                         "（M8：108 mm）—— 2026-09-03 三趟步態全在 0.60~0.62 被它誤殺，"
+                         "每一步的膝都規律地衝 0.45~0.55。kp=120 的步態請帶 --emax 0.8。"
+                         "真正的安全靠力矩三條路（連續/累計/硬上限），不靠這條")
     ap.add_argument("--vmax", type=float, default=16.0,
                     help="★ 量測關節速度 rad/s。**基準步態（ω=1.4）的命令峰值實測 "
                          "13.1 rad/s** —— M7/M8 的 4.0 會在第一個擺動相就誤中止。"
@@ -421,7 +774,14 @@ def main() -> int:
         #   狗會**靜默用回 0.5** —— 而 0.5 正是「前腳不跨步」那組
         #   （模擬 0.03 vs 3.0 的 0.79）。症狀是「模擬明明好了、實機還是老樣子」，
         #   **而所有診斷指標都乾淨**。見 `docs/C_後膝負擔與鎖輪實驗_2026-09-02.md`。
-        bad = gain_mismatches(D, a.kp, a.kd, a.wheel_kd)
+        # ★ 只比「檔案裡有記」的欄位 —— 舊檔沒有 seq/sway，不該因此拒跑；
+        #   但只要檔案記了，命令列就必須對上（否則等於跑到另一組步態）。
+        want = {"kp": a.kp, "kd": a.kd, "wheel_kd": a.wheel_kd}
+        for k in ("seq", "kp_abad", "x_off", "x_d", "g_c", "z_sag",
+                  "sway_x", "sway_y", "sway_lead_x", "sway_lead_y"):
+            if k in D:
+                want[k] = getattr(a, k)
+        bad = param_mismatches(D, want)
         # 輪子的位置增益必須是 0。檔案若寫了別的值，M9 也不會照做（第 544 行硬寫 0），
         # 那種「檔案說一套、實際做一套」比不一致更危險 —— 直接擋。
         if abs(D.get("wheel_kp", 0.0)) > 1e-9:
@@ -457,20 +817,28 @@ def main() -> int:
         #    抓出來的（我第一版寫成 stand）。
         f0 = cpg.home_foot(coord.POSES["home"])
         ks = cpg.knee_signs(coord.POSES["home"])
-        stp = cpg.make_step(cpg.PHASE_WALK)
-        cst = cpg.init(cpg.PHASE_WALK)
+        phase = cpg.PHASES[a.seq]
+        stp = cpg.make_step(phase)
+        cst = cpg.init(phase)
         mux = {l: a.mu_x for l in cpg.LEGS}
         muy = {l: a.mu_y for l in cpg.LEGS}
         om = {l: a.omega for l in cpg.LEGS}
-        q_stand_g = cpg.stand_targets(f0, ks, a.x_off)
+        # 逐腿 x_off（--x-d 0 時等於四腿共用 --x-off）。站姿與步態必須用同一個。
+        x_off_legs = cpg.x_off_split(a.x_off, a.x_d)
+        q_stand_g = cpg.stand_targets(f0, ks, x_off_legs)
         n_ramp = int(round(a.ramp / gait_dt))
         n_body = int(round(a.secs / gait_dt))
         n_gait = n_ramp + n_body + n_ramp
         gait_q = []
         n_clamp = 0
         for i in range(n_gait):
-            qg, ncl = cpg.joint_targets(cst, f0, ks, a.x_off, a.g_c, a.d_step,
-                                        a.d_step_y, a.duty, a.z_sag)
+            sway = None
+            if a.sway_x or a.sway_y:
+                sway = cpg.body_sway(cpg.gait_phase(cst["theta"], phase),
+                                     a.sway_x, a.sway_y,
+                                     a.sway_lead_x, a.sway_lead_y)
+            qg, ncl = cpg.joint_targets(cst, f0, ks, x_off_legs, a.g_c, a.d_step,
+                                        a.d_step_y, a.duty, a.z_sag, sway)
             n_clamp += ncl
             if i < n_ramp:
                 s = smoothstep(i / max(n_ramp, 1))
@@ -483,10 +851,27 @@ def main() -> int:
         if n_clamp:
             print(f"\n❌ IK 縮限 {n_clamp} 次 —— 靜默的縮限會讓步態突然變鈍。")
             return 1
-        print(f"\n即時 CPG：{'原地踏步' if a.march else '前進'}　duty {a.duty} "
-              f"ω {a.omega} d_step {a.d_step} x_off {a.x_off} g_c {a.g_c} "
-              f"z_sag {a.z_sag:.4f}")
+        print(f"\n即時 CPG：{'原地踏步' if a.march else '前進'}　序列 {a.seq.upper()}"
+              f"（擺動順序 {' → '.join(cpg.swing_order(phase))}）")
+        print(f"  duty {a.duty} ω {a.omega} d_step {a.d_step} "
+              f"x_off {a.x_off} x_d {a.x_d} g_c {a.g_c} z_sag {a.z_sag:.4f}")
+        print(f"  sway ({a.sway_x * 1000:.0f}, {a.sway_y * 1000:.0f}) mm  "
+              f"lead ({a.sway_lead_x:.2f}, {a.sway_lead_y:.2f})")
         print("✅ 全程無 IK 縮限")
+
+    # ★ 互動模式要的步態參數來源。**與上面所有乾跑檢查用的是同一組** ——
+    #   分成兩份就會出現「檢查的是 A、跑的是 B」，那正是這條線最痛的一類問題。
+    if a.traj:
+        _B = D["baseline_ref"]
+        p_src = dict(D["params"])
+        mu_x_src, mu_y_src = _B["mu_x"], _B["mu_y"]
+        d_step_y_src = _B["d_step_y"]
+    else:
+        p_src = dict(seq=a.seq, x_off=a.x_off, x_d=a.x_d, g_c=a.g_c,
+                     d_step=a.d_step, duty=a.duty, omega=a.omega, z_sag=a.z_sag,
+                     sway_x=a.sway_x, sway_y=a.sway_y,
+                     sway_lead_x=a.sway_lead_x, sway_lead_y=a.sway_lead_y)
+        mu_x_src, mu_y_src, d_step_y_src = a.mu_x, a.mu_y, a.d_step_y
 
     idxmap = [gait_names.index(j) for j in LEGS12]
     G = [[row[k] for k in idxmap] for row in gait_q]     # 一律轉成 LEGS12 序
@@ -499,11 +884,28 @@ def main() -> int:
     T_pre = sum(s[1] for s in pre)
     T_gait = n_gait * gait_dt
     T_post = sum(s[1] for s in post)
-    T_END = T_pre + T_gait + T_post
-    print(f"\n總時長 {T_END:.1f} 秒 = 站起來 {T_pre:.1f} + 步態 {T_gait:.1f} "
-          f"+ 坐回去 {T_post:.1f}")
+    if a.interactive:
+        # ★ 互動模式沒有固定長度，能算的是**最壞情況**（三個等待都吃滿逾時）。
+        #   承重上限管的是腿的發熱，所以必須用最壞情況去比，不能用「預計」。
+        # ⚠️ 互動版的階段序列**沒有 HOLD_stand**（READY 取代了它的位置），
+        #   所以不能直接用 T_pre —— 那會多算 a.hold 秒。預算和實際跑的必須是同一件事。
+        T_pre_i = T_pre - a.hold
+        T_END = (T_pre_i + a.hold_max + a.kp_shift + a.ramp + a.walk_max
+                 + a.ramp + a.kp_shift + a.hold_max + T_post)
+        print(f"\n互動模式　最壞情況 {T_END:.1f} 秒：")
+        print(f"  站起來 {T_pre_i:.1f} ＋ 等①{a.hold_max:.0f} ＋ 降增益 {a.kp_shift:.1f}"
+              f" ＋ 淡入 {a.ramp:.1f} ＋ 走 {a.walk_max:.0f} ＋ 淡出 {a.ramp:.1f}"
+              f" ＋ 升增益 {a.kp_shift:.1f} ＋ 等③{a.hold_max:.0f} ＋ 趴下 {T_post:.1f}")
+        print(f"  （等②就是「走」那段；三個等待逾時都是自動往下走，不是中止）")
+    else:
+        T_END = T_pre + T_gait + T_post
+        print(f"\n總時長 {T_END:.1f} 秒 = 站起來 {T_pre:.1f} + 步態 {T_gait:.1f} "
+              f"+ 坐回去 {T_post:.1f}")
     if T_END > a.max_secs:
         print(f"❌ 超過 --max-secs {a.max_secs:.0f}（承重時間，非 mc_ctrl 限制）")
+        if a.interactive:
+            print(f"   → 調小 --hold-max / --walk-max，或明確放寬 --max-secs。")
+            print(f"   ⚠️ 放寬前先想清楚：M7/M8 最長只撐 34.6 秒，發熱沒量過。")
         return 1
     print(f"✅ 在承重上限 {a.max_secs:.0f} 秒之內")
 
@@ -530,7 +932,8 @@ def main() -> int:
         return 1
     print("✅ 步態全程在機構限位內")
 
-    print(f"\n增益：腿 kp {a.kp} kd {a.kd}　輪 **kp 0** kd {a.wheel_kd}（純阻尼，全程不鎖）")
+    print(f"\n增益：步態 ABAD {a.kp_abad:g} / HIP·KNEE {a.kp:g}　kd {a.kd}"
+          f"（站立段一律 {STANDUP_KP:g}）　輪 **kp 0** kd {a.wheel_kd}（純阻尼）")
     print(f"保護：力矩 ABAD {TMAX['1_hip_roll']:.0f} / HIP {TMAX['2_hip_pitch']:.0f}"
           f" / KNEE {TMAX['3_knee_pitch']:.0f}、硬上限 {TAU_HARD:.0f}")
     print(f"      誤差 {a.emax} rad、速度 {a.vmax} rad/s、傾角 ±{a.tilt_max:.0f}°、"
@@ -561,21 +964,47 @@ def main() -> int:
     samples: list = []
     recent: list = []
     kp_now, kd_now = 0.0, STANDUP_KD
+    kp_abad_now = 0.0
+    chatter = ChatterWatch()
+    dead_hits = 0
     des_now = dict(q_lie)
     worst_gap = 0.0
     worst_gap_t = 0.0
+    plan_done = False
+    last_state_tick = -1
+    n_stale = 0
     n_tick = 0
     t_prev = None
 
-    def write_frame(des, kp, kd):
+    def write_frame(des, kp, kd, wheel_kd, kp_abad):
         for j in LEGS12:
+            # ★ ABAD 與 hip/knee 分開的 kp —— 模擬與原廠都是 [60,120,120]
+            kj = kp_abad if j.endswith("1_hip_roll") else kp
             shm.write_cmd(idx[j], position=coord.to_motor(j, des[j]),
-                          velocity=0.0, effort=0.0, kp=kp, kd=kd)
+                          velocity=0.0, effort=0.0, kp=kj, kd=kd)
         st_w = state_ro.states()
         for w, wi in widx.items():
             # ★ 輪子全程純阻尼（kp=0）。步態需要輪子能自由滾。
             shm.write_cmd(wi, position=st_w[wi]["position"],
-                          velocity=0.0, effort=0.0, kp=0.0, kd=a.wheel_kd)
+                          velocity=0.0, effort=0.0, kp=0.0, kd=wheel_kd)
+
+    def wheel_kd_of(nm: str) -> float:
+        """★★ 輪阻尼按階段排程（2026-09-03 trip17 事故後加）。
+
+        `--wheel-kd 3.0` 在起身時讓四顆輪 ~64 Hz 抖振（v 峰 14 rad/s、
+        力矩 ±15 N·m 高頻交變、刺耳聲）—— 對照 trip16 同階段 kd=0.5 是
+        1.33 rad/s / 幾乎不翻轉。三個只在實機存在的因素疊加：
+        velocity 欄位雜訊 47%、輪慣量小 + driver 1 kHz 離散阻尼、
+        起身時輪必須**承重滾動**（原廠起身後輪各滾 ~100 mm）。
+
+        → 起身／坐下**一律用 WHEEL_KD_SAFE（0.5，trip16 實機驗證）**，
+          `--wheel-kd` 只作用在步態段（GAIT_IN/GAIT/GAIT_OUT）。
+        ⚠️ kd=3.0 連步態段行不行都還是未知 —— 走路的支撐腳同樣是承重+滾動。
+          上機前先做吊掛抖振測試分辨（driver 迴路不穩 vs 地面黏滑）。
+        """
+        if nm in ("GAIT", "GAIT_IN", "GAIT_OUT"):
+            return a.wheel_kd
+        return min(a.wheel_kd, WHEEL_KD_SAFE)
 
     bounds, tt = [], 0.0
     for nm, dur, p0, p1 in pre:
@@ -587,6 +1016,24 @@ def main() -> int:
         bounds.append((tt, tt + dur, nm, p0, p1))
         tt += dur
 
+    plan = kw = None
+    if a.interactive:
+        # ★ 步態改成即時算：走多久由現場決定，固定長度的 G 播不完也停不下來。
+        #   參數從既有來源取，**與上面所有乾跑檢查用的是同一組**。
+        gp = dict(p_src, mu_x=mu_x_src, mu_y=mu_y_src, d_step_y=d_step_y_src)
+        gs = GaitStream(gp, cpg.home_foot(coord.POSES["home"]),
+                        cpg.knee_signs(coord.POSES["home"]))
+        plan = InteractivePlan(a, q_lie, q_gait0, gs)
+        kw = KeyWatch()
+        if not kw.enabled:
+            print("❌ 互動模式需要 tty（不要用 nohup／背景執行）—— 沒有 tty 就按不了 Enter。")
+            return 1
+
+    # ★ RT 迴圈期間關掉 Python циклic GC —— 兩趟實跑都在 t=19.37 出現 45 ms 停頓
+    #   （同一時刻＝同一分配數＝gen2 回收，不是負載）。迴圈裡只有 append、無循環引用，
+    #   關掉不會漏記憶體；finally 會重新打開並補收一次。
+    import gc
+    gc.disable()
     try:
         os.kill(pid, signal.SIGSTOP)
         frozen = True
@@ -613,11 +1060,15 @@ def main() -> int:
             if abort:
                 break
 
-            if t < t_gait0 or t >= t_gait0 + T_gait:
+            if a.interactive:
+                nm, des_now, kp_now, kd_now, kp_abad_now, plan_done = plan.update(
+                    t, kw.pressed())
+            elif t < t_gait0 or t >= t_gait0 + T_gait:
                 s0, s1, nm, p0, p1 = next(b for b in bounds if b[0] <= t < b[1])
                 r = (t - s0) / max(s1 - s0, 1e-6)      # 這一段走了幾成
                 u = smoothstep(r)
                 kp_now, kd_now = phase_gains(nm, r, a.kp, a.kd)
+                kp_abad_now = phase_kp(nm, r, a.kp_abad)
                 des_now = {j: p0[j] + u * (p1[j] - p0[j]) for j in LEGS12}
             else:
                 # ★ 步態：50 Hz 的目標**線性內插**到寫入頻率。
@@ -625,6 +1076,7 @@ def main() -> int:
                 #   差異很小但要知道兩邊不完全相同。
                 nm = "GAIT"
                 kp_now, kd_now = a.kp, a.kd
+                kp_abad_now = a.kp_abad
                 x = (t - t_gait0) / gait_dt
                 i0 = int(x)
                 if i0 >= n_gait - 1:
@@ -635,10 +1087,20 @@ def main() -> int:
                                for k, j in enumerate(LEGS12)}
 
             stt = state_ro.states()
+            # ★★ 資料新鮮度（2026-09-03 16:47 假中止的根因）：
+            #   停頓後的追趕 tick 會重複讀到**同一幀** joint_state，
+            #   「連續 N 筆」保護把一筆實體樣本數成 N 筆 → 假中止。
+            #   driver 是 1 kHz、我們 200 Hz，正常時每 tick 必有新幀；
+            #   幀沒前進就跳過保護計數（指令與心跳照寫）。
+            tick_state = state_ro.read_tick(shm_io.STATE_STRIDE)
+            stale = (tick_state == last_state_tick)
+            last_state_tick = tick_state
             we = (0.0, "")
             wt = (0.0, "")
             tick = {}
             for j in LEGS12:
+                if stale:
+                    break
                 sg = coord.SIGN[j[2:]][j[:2]]
                 r = stt[idx[j]]
                 q = coord.to_ctrl(j, r["position"])
@@ -646,7 +1108,8 @@ def main() -> int:
                 tau = sg * r["effort"]
                 err = q - des_now[j]
                 tick[j] = (round(q, 4), round(des_now[j], 4), round(tau, 2), round(v, 3))
-                cap = kp_now * abs(err) + a.kd * abs(v)
+                kj = kp_abad_now if j.endswith("1_hip_roll") else kp_now
+                cap = kj * abs(err) + a.kd * abs(v)
                 w = tau_win[j]
                 w.append((tau, cap))
                 if len(w) > 3:
@@ -695,29 +1158,60 @@ def main() -> int:
                 if abort:
                     break
 
+            # ★ 馬達失力偵測（trip17：急停後 M9 還印「狗還撐著」——那是錯的）。
+            #   簽名：控制律上限 kp|e|+kd|v| 很大、實測 |τ| 卻趨近 0，全腿一致。
+            #   單腿單筆可能是 effort 垃圾（已知 0.11%），所以要求多數腿連續多筆。
+            if kp_now > 50 and not abort and len(tick) == 12:
+                n_dead = sum(1 for j in LEGS12
+                             if (lambda q_, d_, t_, v_, k_:
+                                 k_ * abs(q_ - d_) > 20 and
+                                 abs(t_) < 0.1 * k_ * abs(q_ - d_))(
+                                 *tick[j],
+                                 kp_abad_now if j.endswith("1_hip_roll") else kp_now))
+                # ★ 門檻 4 腿：實測急停後重力讓多數關節停在目標附近，
+                #   持續顯示失力簽名的只有四個膝（4–7 腿擺盪）。6 腿永遠湊不滿。
+                dead_hits = dead_hits + 1 if n_dead >= 4 else 0
+                if dead_hits >= 40:      # 200 Hz 下 0.2 秒
+                    abort = ("馬達沒有在執行指令（誤差大但力矩≈0，多腿一致）"
+                             "—— 可能已按硬體急停或馬達進保護。"
+                             "★ 凍結目標角此時**沒有支撐作用**，狗是靠機構卡著")
             roll, pitch = read_imu_rp()
-            if not abort and max(abs(roll), abs(pitch)) > a.tilt_max:
+            if not stale and not abort and max(abs(roll), abs(pitch)) > a.tilt_max:
                 abort = f"機身傾角 roll {roll:+.1f}° pitch {pitch:+.1f}° 超過 ±{a.tilt_max}°"
 
             # ★★ 輪子的 position/velocity 一定要記 ——
             #    2026-08-27 發現 M8 只記了 effort，導致實機資料無法做
             #    「觸地滾動 vs 懸空空轉」的拆解，而那是判斷
             #    「前後腿有沒有在互相對抗」的唯一方法。
-            wrec = {w: (round(stt[wi]["position"], 4),
+            for w, wi in widx.items():
+                if stale:
+                    break
+                if not abort and chatter.feed(w, stt[wi]["velocity"]):
+                    abort = (f"{w} 輪抖振（高頻正負翻轉、|v|>{ChatterWatch.V_MIN}）"
+                             f"—— wheel_kd={wheel_kd_of(nm):g} 在此階段不穩定")
+            wrec = None if stale else {w: (round(stt[wi]["position"], 4),
                         round(stt[wi]["velocity"], 3),
                         round(stt[wi]["effort"], 2)) for w, wi in widx.items()}
-            rec = {"t": round(t, 3), "phase": nm, "kp": round(kp_now, 1),
-                   "roll": round(roll, 2), "pitch": round(pitch, 2),
-                   "j": tick, "w": wrec}
-            recent.append(rec)
-            if len(recent) > 60:
-                recent.pop(0)
-            samples.append(rec)
+            if not stale:
+                rec = {"t": round(t, 3), "phase": nm, "kp": round(kp_now, 1),
+                       "roll": round(roll, 2), "pitch": round(pitch, 2),
+                       "j": tick, "w": wrec}
+                recent.append(rec)
+                if len(recent) > 60:
+                    recent.pop(0)
+                samples.append(rec)
             if abort:
                 break
 
-            write_frame(des_now, kp_now, kd_now)
-            shm.write_tick(state_ro.read_tick(shm_io.STATE_STRIDE))
+            if stale:
+                n_stale += 1
+            write_frame(des_now, kp_now, kd_now, wheel_kd_of(nm), kp_abad_now)
+            shm.write_tick(tick_state)
+            # ★ 收工判斷放在寫完這一幀之後 —— 直接 break 會少寫最後一幀，
+            #   而最後一幀正是「kp 已降到 0」的那一幀。
+            if plan_done:
+                print(f"\n✅ 互動流程走完（{t:.1f} s）")
+                break
 
             if t - last >= 0.25:
                 wv = max(abs(x[1]) for x in wrec.values())
@@ -726,6 +1220,11 @@ def main() -> int:
                 last = t
             nxt += 1.0 / a.hz
             dly = nxt - time.monotonic()
+            # ★ 停頓後重新對時 —— 否則會以 <1ms 間隔爆發追趕（實測 12 連發），
+            #   每一發都讀同一幀資料。掉拍就掉拍，不補。
+            if dly < -3.0 / a.hz:
+                nxt = time.monotonic() + 1.0 / a.hz
+                dly = -1.0
             if dly > 0:
                 time.sleep(dly)
     except KeyboardInterrupt:
@@ -734,9 +1233,14 @@ def main() -> int:
         abort = f"未預期的例外：{type(e).__name__}: {e}"
 
     # ---------------------------------------------------------------- 收尾
+    gc.enable()
+    gc.collect()
     held_des, held_kp = dict(des_now), (kp_now if abort else 0.0)
     held_kd = kd_now if abort else STANDUP_KD
-    keeper = Keepalive(shm, state_ro, (lambda: write_frame(held_des, held_kp, held_kd)), a.hz,
+    held_kp_abad = kp_abad_now if abort else 0.0
+    keeper = Keepalive(shm, state_ro,
+                       (lambda: write_frame(held_des, held_kp, held_kd,
+                                            WHEEL_KD_SAFE, held_kp_abad)), a.hz,
                        "凍結目標角、維持增益" if abort else "零增益保持")
     keeper.start()
 
@@ -763,6 +1267,8 @@ def main() -> int:
 
     el = min(t, T_END) if n_tick else 0.0
     hz = n_tick / el if el > 0 else 0.0
+    if n_stale:
+        print(f"\n舊幀跳過 {n_stale} 次（停頓後的追趕 tick，保護與紀錄未受污染）")
     print(f"\n迴圈：{n_tick} 次 / {el:.2f}s = {hz:.0f} Hz（目標 {a.hz:.0f}）"
           f"　最長單次間隔 {worst_gap*1000:.0f} ms @ t={worst_gap_t:.2f}s")
     if worst_gap > 0.5:
@@ -798,13 +1304,15 @@ def main() -> int:
                 # ★ 坐回趴姿是承重動作 —— 用 M7 驗證過的站立增益，
                 #   不是步態那組（步態可能是 kp=120 的軟增益，撐不住）。
                 write_frame({j: cur[j] + u * (tgt[j] - cur[j]) for j in LEGS12},
-                            max(held_kp, STANDUP_KP), STANDUP_KD)
+                            max(held_kp, STANDUP_KP), STANDUP_KD,
+                            WHEEL_KD_SAFE, max(held_kp, STANDUP_KP))
                 shm.write_tick(state_ro.read_tick(shm_io.STATE_STRIDE))
                 time.sleep(1.0 / a.hz)
             cur = dict(tgt)
         s = time.monotonic()
         while (e := time.monotonic() - s) < a.ramp_kp:
-            write_frame(cur, STANDUP_KP * max(0.0, 1 - e / a.ramp_kp), STANDUP_KD)
+            _k = STANDUP_KP * max(0.0, 1 - e / a.ramp_kp)
+            write_frame(cur, _k, STANDUP_KD, WHEEL_KD_SAFE, _k)
             shm.write_tick(state_ro.read_tick(shm_io.STATE_STRIDE))
             time.sleep(1.0 / a.hz)
         for i in range(len(shm_io.JOINTS)):

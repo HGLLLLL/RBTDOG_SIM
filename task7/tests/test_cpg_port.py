@@ -223,3 +223,99 @@ def test_stdlib_cpg_is_fast_enough_for_50hz():
     ms = (time.perf_counter() - t0) / n * 1000
     # 本機 ~0.04 ms。留 10 倍餘裕當上限，避免哪天寫成 O(n²) 沒人發現。
     assert ms < 0.5, f"每個控制週期 {ms:.3f} ms —— 太慢，狗上會來不及"
+
+
+# ═══════════════════════════════════════ 2026-09-03 新增：LS 序列 + body sway
+def test_ls_phase_table_matches_the_numpy_version():
+    """`PHASE_WALK_LS` 兩份必須是同一組數字（腿名 ↔ 索引對得上）。"""
+    for l, k in K.items():
+        assert cpg.PHASE_WALK_LS[l] == pytest.approx(
+            float(cpg_max.PHASE_WALK_LS[k]), abs=TOL), f"腿 {l} 的 LS 相位不一致"
+
+
+def test_swing_order_matches_between_ports():
+    """兩份的「實際擺動順序」必須一致 —— 這是 DS/LS 被搞混的那個量。"""
+    for name in ("PHASE_WALK", "PHASE_WALK_LS", "PHASE_TROT"):
+        ph_np = getattr(cpg_max, name)
+        ph_py = getattr(cpg, name)
+        got_np = [MM2SHM[mmod.LEGS[i]] for i in cpg_max.swing_order(ph_np)]
+        assert got_np == cpg.swing_order(ph_py), f"{name} 的擺動順序兩份不一致"
+
+
+def test_x_off_split_matches():
+    for x_c, x_d in ((-0.020, 0.0), (-0.075, -0.045), (0.0, 0.06)):
+        a = cpg_max.x_off_split(x_c, x_d)
+        b = cpg.x_off_split(x_c, x_d)
+        for l, k in K.items():
+            assert b[l] == pytest.approx(float(a[k]), abs=TOL), f"腿 {l}"
+
+
+def test_gait_phase_and_body_sway_match():
+    """★ τ 與 sway 兩份逐點比對，含 τ 繞回 0 的邊界。"""
+    for name in ("PHASE_WALK", "PHASE_WALK_LS"):
+        ph_np, ph_py = getattr(cpg_max, name), getattr(cpg, name)
+        rng = random.Random(7)
+        for _ in range(200):
+            th = {l: rng.uniform(0, 2 * math.pi) for l in cpg.LEGS}
+            th_np = np.array([th[MM2SHM[l]] for l in mmod.LEGS])
+            t_np = cpg_max.gait_phase(th_np, ph_np)
+            t_py = cpg.gait_phase(th, ph_py)
+            assert t_py == pytest.approx(t_np, abs=TOL)
+            for lx, ly in ((0.0, 0.0), (0.90, 0.20), (0.5, 0.75)):
+                s_np = cpg_max.body_sway(t_np, 0.015, 0.010, lx, ly)
+                s_py = cpg.body_sway(t_py, 0.015, 0.010, lx, ly)
+                assert s_py[0] == pytest.approx(float(s_np[0]), abs=TOL)
+                assert s_py[1] == pytest.approx(float(s_np[1]), abs=TOL)
+
+
+def test_recommended_gait_matches_end_to_end():
+    """★★ 端到端比對**下午要上機的那一組**：LS ＋ 逐腿 x_off ＋ body sway。
+
+    這是最重要的一項 —— 實機跑的就是這條路徑。
+    """
+    f0_np, ks_np, f0_py, ks_py = _f0_ks()
+    dt = mmod.CTRL_DT
+    P = dict(x_c=-0.020, x_d=0.0, g_c=0.07, d_step=0.10, d_step_y=0.12,
+             duty=0.80, mu_x=1.80, mu_y=1.50, omega=1.4, z_sag=0.036 * 250 / 120,
+             sway_x=0.015, sway_y=0.010, lead_x=0.90, lead_y=0.20)
+    xo_np = cpg_max.x_off_split(P["x_c"], P["x_d"])
+    xo_py = cpg.x_off_split(P["x_c"], P["x_d"])
+    step_np = cpg_max.make_cpg_step(cpg_max.PHASE_WALK_LS)
+    c_np = cpg_max.cpg_init(cpg_max.PHASE_WALK_LS)
+    step_py = cpg.make_step(cpg.PHASE_WALK_LS)
+    c_py = cpg.init(cpg.PHASE_WALK_LS)
+    mux_np, muy_np = np.full(4, P["mu_x"]), np.full(4, P["mu_y"])
+    om_np = np.full(4, P["omega"])
+    mux_py = {l: P["mu_x"] for l in cpg.LEGS}
+    muy_py = {l: P["mu_y"] for l in cpg.LEGS}
+    om_py = {l: P["omega"] for l in cpg.LEGS}
+    names = [MM2SHM[l] + kd for l in mmod.LEGS for kd in coord.LEG_KINDS]
+    worst = 0.0
+    for _ in range(int(20.0 / dt)):
+        sw_np = cpg_max.body_sway(cpg_max.gait_phase(c_np["theta"],
+                                                     cpg_max.PHASE_WALK_LS),
+                                  P["sway_x"], P["sway_y"], P["lead_x"], P["lead_y"])
+        sw_py = cpg.body_sway(cpg.gait_phase(c_py["theta"], cpg.PHASE_WALK_LS),
+                              P["sway_x"], P["sway_y"], P["lead_x"], P["lead_y"])
+        q_np, n_np = cpg_max.joint_targets(c_np, f0_np, xo_np, P["g_c"],
+                                           P["d_step"], P["d_step_y"], P["duty"],
+                                           ks_np, P["z_sag"], sw_np)
+        q_py, n_py = cpg.joint_targets(c_py, f0_py, ks_py, xo_py, P["g_c"],
+                                       P["d_step"], P["d_step_y"], P["duty"],
+                                       P["z_sag"], sw_py)
+        assert n_np == n_py
+        for i, nm in enumerate(names):
+            worst = max(worst, abs(float(q_np[i]) - q_py[nm]))
+        c_np = step_np(c_np, mux_np, muy_np, om_np, dt)
+        c_py = step_py(c_py, mux_py, muy_py, om_py, dt)
+    assert worst < 1e-11, f"建議組 20 秒逐幀最大差 {worst:.3e} rad"
+
+
+def test_stand_targets_match_with_per_leg_x_off():
+    f0_np, ks_np, f0_py, ks_py = _f0_ks()
+    names = [MM2SHM[l] + kd for l in mmod.LEGS for kd in coord.LEG_KINDS]
+    for x_c, x_d in ((-0.020, 0.0), (-0.075, -0.045)):
+        a = cpg_max.stand_targets(ks_np, f0_np, cpg_max.x_off_split(x_c, x_d))
+        b = cpg.stand_targets(f0_py, ks_py, cpg.x_off_split(x_c, x_d))
+        for i, nm in enumerate(names):
+            assert b[nm] == pytest.approx(float(a[i]), abs=TOL), nm

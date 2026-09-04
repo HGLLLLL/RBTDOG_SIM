@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import math
+import time
 import subprocess
 import sys
 from pathlib import Path
@@ -193,7 +194,9 @@ def test_wheels_are_never_position_held_during_the_gait():
     """★ 輪子全程 kp=0。設定檔的 FSM_RL_Wheel_Kp=60 是配「每步重給目標角」的 RL，
     開迴路套上去實測偏航失控 +39°/12s。"""
     src = Path(m9.__file__).read_text(encoding="utf-8")
-    assert "kp=0.0, kd=a.wheel_kd" in src
+    # 2026-09-03 起輪 kd 按階段排程（wheel_kd_of），但 kp 恆 0 這件事不變
+    assert "kp=0.0, kd=wheel_kd" in src
+    assert "def wheel_kd_of" in src
     assert "wheel_kp" not in src.split("def main")[1].split("--wheel-kd")[0]
 
 
@@ -510,3 +513,456 @@ def test_gain_mismatch_error_prints_the_correct_command():
     assert "--confirm" in blk, "真跑的指令也要給"
     # 行為不可以變成自動採用
     assert 'a.kp = D["kp"]' not in src and "a.kp = D['kp']" not in src
+
+
+# ══════════════════════════ 2026-09-03：LS 序列 + body sway 的實機路徑
+def test_live_cpg_matches_traj_for_the_recommended_gait(tmp_path):
+    """★★ **下午要上機的那一組**：LS ＋ body sway，`--live` 與 `--traj` 逐幀吻合。
+
+    既有的同型測試只涵蓋 DS、無 sway。新參數如果只進了其中一條路徑，
+    症狀會是「離線驗過的軌跡與狗上即時算的不一樣」，而兩邊各自都自洽。
+    """
+    pytest.importorskip("numpy")
+    gen = ROOT / "inference" / "gen_gait_traj.py"
+    out = tmp_path / "ls.json"
+    r = subprocess.run(
+        [sys.executable, str(gen), "--march", "--secs", "4", "--omega", "0.5",
+         "--seq", "ls", "--kp", "120", "--kd", "1.0", "--wheel-kd", "3.0",
+         "--x-off", "-0.020", "--g-c", "0.07",
+         "--sway-x", "0.015", "--sway-y", "0.010",
+         "--sway-lead-x", "0.90", "--sway-lead-y", "0.20",
+         "--ramp", "1.0", "--out", str(out)],
+        capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    D = json.loads(out.read_text(encoding="utf-8"))
+    p = D["params"]
+    assert D["seq"] == "ls" and D["sway_x"] == 0.015, "頂層參數沒寫進檔案 → M9 比對不到"
+
+    phase = cpg.PHASES["ls"]
+    f0 = cpg.home_foot(coord.POSES["home"])
+    ks = cpg.knee_signs(coord.POSES["home"])
+    stp = cpg.make_step(phase)
+    c = cpg.init(phase)
+    mux = {l: D["baseline_ref"]["mu_x"] for l in cpg.LEGS}
+    muy = {l: D["baseline_ref"]["mu_y"] for l in cpg.LEGS}
+    om = {l: p["omega"] for l in cpg.LEGS}
+    dt = D["dt"]
+    x_off_legs = cpg.x_off_split(p["x_off"], p["x_d"])
+    q_stand = cpg.stand_targets(f0, ks, x_off_legs)
+    n_ramp = int(round(p["ramp"] / dt))
+    n_body = int(round(p["secs"] / dt))
+    worst = 0.0
+    for i in range(D["n"]):
+        sway = cpg.body_sway(cpg.gait_phase(c["theta"], phase),
+                             p["sway_x"], p["sway_y"],
+                             p["sway_lead_x"], p["sway_lead_y"])
+        qg, ncl = cpg.joint_targets(c, f0, ks, x_off_legs, p["g_c"], p["d_step"],
+                                    D["baseline_ref"]["d_step_y"], p["duty"],
+                                    p["z_sag"], sway)
+        assert ncl == 0
+        if i < n_ramp:
+            u = i / max(n_ramp, 1)
+        elif i < n_ramp + n_body:
+            u = 1.0
+        else:
+            u = 1.0 - (i - n_ramp - n_body) / max(n_ramp, 1)
+        u = 0.0 if u < 0 else (1.0 if u > 1 else u)
+        s = 0.5 * (1.0 - math.cos(math.pi * u))
+        for k, j in enumerate(D["joints"]):
+            worst = max(worst, abs((1 - s) * q_stand[j] + s * qg[j] - D["q"][i][k]))
+        c = stp(c, mux, muy, om, dt)
+    assert worst < 2e-6, f"live vs traj（建議組）最大差 {worst:.3e} rad"
+
+
+def test_param_mismatch_catches_forgotten_seq_and_sway():
+    """★ 忘了帶 `--seq ls` / `--sway-*` 必須被擋下來。
+
+    這正是 `wheel_kd` 那個坑的同型：忘了帶旗標 → 靜默跑回預設值 →
+    「模擬明明好了、實機還是老樣子」，而所有診斷指標都乾淨。
+    """
+    D = {"kp": 120.0, "kd": 1.0, "wheel_kd": 3.0, "seq": "ls",
+         "x_off": -0.020, "g_c": 0.07, "sway_x": 0.015, "sway_y": 0.010,
+         "sway_lead_x": 0.90, "sway_lead_y": 0.20}
+    ok = dict(D)
+    assert m9.param_mismatches(D, ok) == []
+    # 忘了 --seq ls（預設 ds）
+    assert [k for k, _, _ in m9.param_mismatches(D, dict(ok, seq="ds"))] == ["seq"]
+    # 忘了 --sway-lead-x（預設 0）—— 幅度對了但相位沒提前，等於跑成純擾動
+    assert [k for k, _, _ in
+            m9.param_mismatches(D, dict(ok, sway_lead_x=0.0))] == ["sway_lead_x"]
+    # 檔案裡沒有那一項也要報（舊檔配新旗標）
+    assert [k for k, _, _ in
+            m9.param_mismatches({k: v for k, v in D.items() if k != "seq"},
+                                ok)] == ["seq"]
+
+
+# ══════════════════════════ 互動模式（--interactive）的兩個元件
+def test_gait_stream_matches_offline_trajectory(tmp_path):
+    """★★ `GaitStream`（即時算）必須與 `gen_gait_traj`（離線）逐幀吻合。
+
+    互動模式不能播固定長度的軌跡檔（走多久由現場決定），所以步態要在狗上即時算。
+    這是那條路徑的**唯一保證** —— 算出別的東西的話，離線驗過的一切都不算數。
+
+    ⚠️ 特別驗「50 Hz 推進 + 內插」這件事：若改成每個寫入 tick 都推進 CPG，
+    積分步長就變了，跑出來不是同一個步態。
+    """
+    pytest.importorskip("numpy")
+    gen = ROOT / "inference" / "gen_gait_traj.py"
+    out = tmp_path / "s.json"
+    r = subprocess.run(
+        [sys.executable, str(gen), "--secs", "6", "--omega", "1.4",
+         "--seq", "ls", "--kp", "120", "--kd", "1.0", "--wheel-kd", "3.0",
+         "--x-off", "-0.020", "--g-c", "0.048", "--d-step", "0.10",
+         "--sway-x", "0.015", "--sway-y", "0.010",
+         "--sway-lead-x", "0.90", "--sway-lead-y", "0.20",
+         "--ramp", "1.0", "--out", str(out)],
+        capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    D = json.loads(out.read_text(encoding="utf-8"))
+    p = dict(D["params"], mu_x=D["baseline_ref"]["mu_x"],
+             mu_y=D["baseline_ref"]["mu_y"], d_step_y=D["baseline_ref"]["d_step_y"])
+
+    f0 = cpg.home_foot(coord.POSES["home"])
+    ks = cpg.knee_signs(coord.POSES["home"])
+    gs = m9.GaitStream(p, f0, ks)
+    dt = D["dt"]
+    n_ramp = int(round(p["ramp"] / dt))
+    worst = 0.0
+    # 只比 ramp 之後（s=1.0，檔案裡就是純步態）
+    for i in range(n_ramp, D["n"] - n_ramp):
+        q = gs.sample(i * dt)
+        for k, j in enumerate(D["joints"]):
+            worst = max(worst, abs(q[j] - D["q"][i][k]))
+    assert gs.n_clamp == 0
+    assert worst < 2e-6, f"GaitStream vs 離線軌跡最大差 {worst:.3e} rad"
+
+
+def test_gait_stream_interpolates_between_50hz_frames():
+    """★ 兩個 50 Hz 幀之間必須是線性內插，不是零階保持也不是提前推進 CPG。"""
+    p = dict(seq="ls", x_off=-0.020, x_d=0.0, g_c=0.048, d_step=0.10,
+             d_step_y=0.12, duty=0.80, mu_x=1.80, mu_y=1.50, omega=1.4,
+             z_sag=0.075, sway_x=0.015, sway_y=0.010,
+             sway_lead_x=0.90, sway_lead_y=0.20)
+    f0 = cpg.home_foot(coord.POSES["home"])
+    ks = cpg.knee_signs(coord.POSES["home"])
+    gs = m9.GaitStream(p, f0, ks)
+    a = gs.sample(0.0)
+    mid = gs.sample(0.01)
+    b = gs.sample(0.02)
+    for j in a:
+        assert mid[j] == pytest.approx(0.5 * (a[j] + b[j]), abs=1e-12), j
+    # 單調不減的 t 可以連續取樣，不會跳步
+    gs2 = m9.GaitStream(p, f0, ks)
+    for i in range(200):
+        gs2.sample(i * 0.005)
+    assert gs2.sample(1.0) == pytest.approx(
+        {j: v for j, v in m9.GaitStream(p, f0, ks).sample(1.0).items()}, abs=1e-12)
+
+
+def test_keywatch_never_blocks_without_tty():
+    """★ 沒有 tty（例如 nohup／腳本背景執行）時必須直接回 False，不能卡住。
+
+    卡住 = 心跳停 = controller 500 ms 後清零 = 承重中的狗塌下去。
+    """
+    kw = m9.KeyWatch(enabled=True)
+    t0 = time.monotonic()
+    for _ in range(50):
+        kw.pressed()
+    assert time.monotonic() - t0 < 0.2, "KeyWatch 會阻塞 —— 那會讓心跳停掉"
+    assert m9.KeyWatch(enabled=False).pressed() is False
+
+
+# ══════════════════════════ InteractivePlan：三段流程的狀態機
+def _plan(**kw):
+    """建一個 InteractivePlan（用假的 GaitStream，只驗時序與增益）。"""
+    import types
+    a = types.SimpleNamespace(
+        ramp_kp=2.0, t1=1.5, t2=1.5, hold=2.0, hold_mid=1.5, ramp=3.0,
+        kp=120.0, kp_abad=60.0, kd=1.0, hold_max=25.0, walk_max=20.0, kp_shift=1.5)
+    for k, v in kw.items():
+        setattr(a, k, v)
+    q_lie = {j: 0.0 for j in m9.LEGS12}
+    q_stand = {j: 1.0 for j in m9.LEGS12}
+
+    class FakeGS:
+        def sample(self, t):
+            return {j: 2.0 for j in m9.LEGS12}
+    return m9.InteractivePlan(a, q_lie, q_stand, FakeGS()), a, q_lie, q_stand
+
+
+def test_interactive_phase_order():
+    """★ 階段順序，以及三個等待點的位置。"""
+    plan, a, _, _ = _plan()
+    names = [x[0] for x in plan.segs]
+    assert names == ["RAMP_UP", "GO_crouch", "HOLD_crouch", "GO_stand",
+                     "READY", "KP_DOWN", "GAIT_IN", "GAIT", "GAIT_OUT",
+                     "KP_UP", "STOPPED", "SIT_crouch", "SIT_hold", "SIT_LIE",
+                     "RAMP_DOWN"]
+    # 等待階段（dur=None）正好三個，就是使用者要按的三次
+    assert [n for n, d, *_ in plan.segs if d is None] == ["READY", "GAIT", "STOPPED"]
+
+
+def test_interactive_enter_advances_only_at_wait_phases():
+    """按鍵只在等待階段生效；其他階段按了要被忽略（不能跳過站起來）。"""
+    plan, a, _, _ = _plan()
+    t = 0.0
+    # RAMP_UP 期間狂按 —— 不能推進
+    for _ in range(10):
+        nm, *_ = plan.update(t, True)
+        t += 0.005
+    assert nm == "RAMP_UP"
+    # 走到 READY
+    t = a.ramp_kp + a.t1 + a.hold_mid + a.t2 + 0.01
+    nm, *_ = plan.update(t, False)
+    assert nm == "READY"
+    nm, *_ = plan.update(t + 0.01, True)          # 按下 → 進 KP_DOWN
+    assert nm == "KP_DOWN"
+
+
+def test_interactive_wait_times_out_and_continues():
+    """★ 等待逾時是「自動往下走」，不是中止 —— 人分心時狗不能一直承重站著。"""
+    plan, a, _, _ = _plan(hold_max=5.0)
+    t = a.ramp_kp + a.t1 + a.hold_mid + a.t2 + 0.01
+    nm, *_ = plan.update(t, False)
+    assert nm == "READY"
+    nm, *_ = plan.update(t + 5.01, False)
+    assert nm == "KP_DOWN", "逾時之後沒有自動往下走"
+
+
+def test_interactive_kp_never_steps_while_loaded():
+    """★★ 承重期間 kp 不可以階躍。
+
+    走完整條流程逐 tick 檢查相鄰兩幀的 kp 變化量。
+    kp 從 250 砍到 120 是 −52%，靜態撓度 8.9→18 mm，機身會掉下去。
+    """
+    plan, a, _, _ = _plan(hold_max=1.0, walk_max=1.0)
+    t, prev_kp, worst, where = 0.0, None, 0.0, ""
+    dt = 1.0 / 200
+    for _ in range(int(60 / dt)):
+        nm, des, kp, kd, kpa, done = plan.update(t, False)
+        if prev_kp is not None:
+            d = abs(kp - prev_kp)
+            if d > worst:
+                worst, where = d, nm
+        prev_kp = kp
+        t += dt
+        if done:
+            break
+    # 每個 tick 最多變 (250-120)/kp_shift/200 ≈ 0.43；抓 2.0 當門檻
+    assert worst < 2.0, f"kp 在 {where} 有階躍：單 tick 變化 {worst:.1f}"
+
+
+def test_interactive_ends_at_lie_with_zero_kp():
+    """流程走完必須回到趴姿、kp 歸零 —— 否則狗會帶著增益留在原地。"""
+    plan, a, q_lie, _ = _plan(hold_max=1.0, walk_max=1.0)
+    t, dt = 0.0, 1.0 / 200
+    last = None
+    for _ in range(int(60 / dt)):
+        last = plan.update(t, False)
+        t += dt
+        if last[-1]:
+            break
+    nm, des, kp, kd, kpa, done = last
+    assert done, "流程沒有結束"
+    assert nm == "RAMP_DOWN"
+    assert kp == pytest.approx(0.0, abs=1e-9), f"收工時 kp = {kp}"
+    for j in m9.LEGS12:
+        assert des[j] == pytest.approx(q_lie[j], abs=1e-9), f"{j} 沒回到趴姿"
+
+
+def test_interactive_gait_out_returns_to_stand_pose():
+    """★ 淡出結束必須落在站姿 —— 接下來 SIT_crouch 是從站姿起算的。"""
+    plan, a, _, q_stand = _plan(hold_max=0.5, walk_max=0.5)
+    t, dt = 0.0, 1.0 / 200
+    seen = None
+    for _ in range(int(60 / dt)):
+        nm, des, kp, kd, kpa, done = plan.update(t, False)
+        if nm == "KP_UP" and seen is None:
+            seen = des          # 進 KP_UP 的第一幀 = 淡出剛結束
+        t += dt
+        if done:
+            break
+    assert seen is not None, "沒有走到 KP_UP"
+    for j in m9.LEGS12:
+        assert seen[j] == pytest.approx(q_stand[j], abs=1e-6), f"{j} 沒回到站姿"
+
+
+def test_interactive_can_stop_during_gait_ramp_in():
+    """★ 起步淡入期間按 Enter 也要能停 —— 使用者要的是「隨時」。
+
+    而且淡出必須從**當下的混合比例**接續，不能先跳回全步態再淡出。
+    """
+    plan, a, _, q_stand = _plan(hold_max=1.0, walk_max=5.0)
+    t, dt = 0.0, 1.0 / 200
+    # 走到 GAIT_IN 中段
+    while plan.name != "GAIT_IN":
+        plan.update(t, False)
+        t += dt
+    for _ in range(int(1.2 / dt)):          # 淡入 3 秒，走 1.2 秒
+        nm, des_before, *_ = plan.update(t, False)
+        t += dt
+    assert plan.name == "GAIT_IN"
+    u_before = (des_before[m9.LEGS12[0]] - q_stand[m9.LEGS12[0]]) / \
+               (2.0 - q_stand[m9.LEGS12[0]])          # FakeGS 回 2.0
+    nm, des_after, *_ = plan.update(t, True)
+    assert nm == "GAIT_OUT", "淡入期間按 Enter 沒有生效"
+    # 接續：按下前後那一幀不能跳
+    for j in m9.LEGS12:
+        assert des_after[j] == pytest.approx(des_before[j], abs=0.02), \
+            f"{j} 在按停瞬間跳了 {des_after[j] - des_before[j]:+.3f}"
+    assert plan.u_out0 == pytest.approx(u_before, abs=0.05)
+    # 淡出結束仍要落在站姿
+    t_end = t + plan.segs[plan.i][1] + dt
+    while plan.name == "GAIT_OUT":
+        nm, des, *_ = plan.update(t, False)
+        t += dt
+        if t > t_end + 1.0:
+            break
+    assert plan.name == "KP_UP"
+
+
+def test_interactive_stop_during_gait_still_ramps_out():
+    """走路中按 Enter 是「開始減速」不是急停 —— 淡出時間仍然完整。"""
+    plan, a, _, _ = _plan(hold_max=1.0, walk_max=20.0)
+    t, dt = 0.0, 1.0 / 200
+    while plan.name != "GAIT":
+        plan.update(t, False)
+        t += dt
+    t_press = t + 2.0
+    while t < t_press:
+        plan.update(t, False)
+        t += dt
+    nm, *_ = plan.update(t, True)
+    assert nm == "GAIT_OUT"
+    assert plan.segs[plan.i][1] == pytest.approx(a.ramp), "淡出時間被縮短了"
+
+
+# ══════════════════════════ trip17 事故（2026-09-03）後加的兩個偵測器
+def test_chatter_watch_fires_on_oscillation_not_rolling():
+    """★ 抖振（高幅正負翻轉）要抓；正常滾動與雜訊不可誤報。
+
+    門檻對過六趟實機資料：事故 t=2.23s 觸發（比使用者按急停早 1.7 秒）、
+    五趟正常資料最長連續 0 筆。
+    """
+    cw = m9.ChatterWatch()
+    # 事故型：±10 rad/s 交替
+    fired = False
+    for i in range(40):
+        fired = cw.feed("w", 10.0 if i % 2 == 0 else -10.0) or fired
+    assert fired, "事故等級的抖振沒被抓到"
+    # 正常滾動：單向 10 rad/s
+    cw2 = m9.ChatterWatch()
+    assert not any(cw2.feed("w", 10.0) for _ in range(200))
+    # 雜訊：小幅翻轉（velocity 欄位雜訊 47%，但幅度小）
+    cw3 = m9.ChatterWatch()
+    assert not any(cw3.feed("w", (1.5 if i % 2 == 0 else -1.5)) for i in range(200))
+    # 偶發單次反向（換方向）後繼續單向 —— 分數要衰減回去
+    cw4 = m9.ChatterWatch()
+    seq = [8.0] * 20 + [-8.0] * 20 + [8.0] * 20
+    assert not any(cw4.feed("w", v) for v in seq)
+
+
+def test_wheel_kd_safe_constant():
+    """起身／坐下的輪阻尼上限 0.5 —— trip16 實機驗證值；3.0 會抖振（trip17）。"""
+    assert m9.WHEEL_KD_SAFE == 0.5
+
+
+# ══════════════════════════ M10（輪阻尼抖振測試）—— 可離機測的部分
+def test_m10_imports_and_reuses_m9_detectors():
+    """★ M10 必須重用 M9 的 ChatterWatch/KeyWatch —— 同一套偵測器兩份實作
+    是這條線最痛的一類問題（門檻對過六趟實機資料的是 M9 那份）。"""
+    import M10_wheel_kd_chatter as m10
+    assert m10.ChatterWatch is m9.ChatterWatch
+    assert m10.KeyWatch is m9.KeyWatch
+    # 保護門檻：kd·|v| 上限要低於輪力矩上限 33
+    assert m10.TAU_IMPLIED_MAX < 33.0
+
+
+def test_m10_requires_ascending_kds():
+    """逐級由小到大 —— 一抖就停，順序反了會漏掉安全級。"""
+    src = Path(__import__("M10_wheel_kd_chatter").__file__).read_text(encoding="utf-8")
+    assert 'kds == sorted(kds)' in src
+
+
+# ══════════════ ABAD 逐關節 kp（2026-09-03 兩趟步態失敗的根因修正）
+def test_abad_kp_schedule_matches_factory_and_sim():
+    """★★ 步態段 ABAD=60、hip/knee=120；站立段一律 250 —— 與原廠及模擬一致。
+
+    修正前 M9 把 --kp 套到 12 顆全關節：實機 ABAD 比所有模擬驗證硬一倍，
+    重現實驗證實那正是「前腳不跨＋搖擺 11°」的根因。
+    """
+    for nm, r, want_hipknee, want_abad in (
+            ("GO_stand", 0.5, 250.0, 250.0),     # 站立段：原廠 ABAD 也是 250
+            ("READY", 0.5, 250.0, 250.0),
+            ("KP_DOWN", 1.0, 120.0, 60.0),       # 過渡終點
+            ("GAIT", 0.5, 120.0, 60.0),          # ★ 步態＝模擬驗證的 [60,120,120]
+            ("KP_UP", 1.0, 250.0, 250.0)):
+        assert m9.phase_kp(nm, r, 120.0) == pytest.approx(want_hipknee), nm
+        assert m9.phase_kp(nm, r, 60.0) == pytest.approx(want_abad), nm
+
+
+def test_abad_kp_transition_is_continuous():
+    """KP_DOWN 全程 ABAD 從 250 平滑到 60，不許階躍（承重中階躍會掉機身）。"""
+    prev = None
+    for i in range(101):
+        v = m9.phase_kp("KP_DOWN", i / 100, 60.0)
+        if prev is not None:
+            assert abs(v - prev) < 3.0, f"r={i/100} 跳了 {abs(v-prev):.1f}"
+        prev = v
+    assert m9.phase_kp("KP_DOWN", 0.0, 60.0) == pytest.approx(250.0)
+    assert m9.phase_kp("KP_DOWN", 1.0, 60.0) == pytest.approx(60.0)
+
+
+def test_interactive_plan_returns_abad_kp():
+    plan, a, _, _ = _plan(hold_max=0.5, walk_max=0.5)
+    t, dt = 0.0, 1.0 / 200
+    seen = {}
+    for _ in range(int(60 / dt)):
+        nm, des, kp, kd, kpa, done = plan.update(t, False)
+        seen.setdefault(nm, (kp, kpa))
+        t += dt
+        if done:
+            break
+    assert seen["GAIT"] == (120.0, 60.0)
+    assert seen["READY"] == (250.0, 250.0)
+
+
+def test_param_mismatch_catches_forgotten_kp_abad():
+    """忘了帶 --kp-abad（或用舊檔）要被「說兩次」抓到。"""
+    D = {"kp": 120.0, "kd": 1.0, "wheel_kd": 0.5, "kp_abad": 60.0}
+    ok = {"kp": 120.0, "kd": 1.0, "wheel_kd": 0.5, "kp_abad": 60.0}
+    assert m9.param_mismatches(D, ok) == []
+    assert [k for k, _, _ in m9.param_mismatches(D, dict(ok, kp_abad=120.0))] == ["kp_abad"]
+
+
+def test_m9_rt_loop_hardening_markers():
+    """★ 16:47 假中止的三個修正必須都在：GC 關閉、舊幀防護、追趕重同步。
+
+    事故：t=19.37 決定性 45ms 停頓（兩趟同時刻＝GC）→ 12 個 <1ms 追趕 tick
+    讀同一幀 → 「連續 3 筆」把一筆實體樣本數成 3 筆 → 假中止。
+    這在本機無法整合測試（要 /dev/shm），只能釘住原始碼標記。
+    """
+    src = Path(m9.__file__).read_text(encoding="utf-8")
+    assert "gc.disable()" in src and "gc.enable()" in src
+    assert "stale = (tick_state == last_state_tick)" in src
+    assert "nxt = time.monotonic() + 1.0 / a.hz" in src, "停頓後沒有重新對時"
+    # 保護計數與紀錄都必須在 stale 防護之後
+    assert src.index("stale = (tick_state") < src.index("chatter.feed")
+
+
+def test_all_write_frame_calls_have_five_args():
+    """★★ 16:47 之後的鐵律：`write_frame` 簽名改了就要掃**全部**呼叫點。
+
+    漏掉的後果是塌狗等級：Keepalive 的 payload 每 tick TypeError，
+    吞 50 次後執行緒自殺 → 心跳停 → controller 500ms 清零 → 承重中的狗失力。
+    用 AST 驗所有呼叫都是 5 個引數，不靠人眼。
+    """
+    import ast as _ast
+    tree = _ast.parse(Path(m9.__file__).read_text(encoding="utf-8"))
+    calls = [n for n in _ast.walk(tree)
+             if isinstance(n, _ast.Call)
+             and isinstance(n.func, _ast.Name) and n.func.id == "write_frame"]
+    assert len(calls) >= 4, "呼叫點數量異常 —— 有人改結構了，重新檢查這個測試"
+    for c in calls:
+        assert len(c.args) + len(c.keywords) == 5, \
+            f"write_frame 在第 {c.lineno} 行只有 {len(c.args)} 個引數"

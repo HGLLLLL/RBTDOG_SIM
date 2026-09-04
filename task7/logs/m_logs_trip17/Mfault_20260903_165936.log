@@ -1,0 +1,165 @@
+M_faultwatch —— D1 Max 故障取證（唯讀）
+開始 2026-09-03 16:59:36   10 Hz   最長 1800s
+CSV → /home/robot/m_logs/Mfault_20260903_165936.csv
+Ctrl-C 可隨時結束並印摘要
+
+✅ 結構檢查通過
+
+[16:59:36.367  t=   0.00s] 取樣      0  最高溫 32°C  最低電壓 48.0V  error=[1]
+[17:00:06.367  t=  30.00s] 取樣    300  最高溫 32°C  最低電壓 48.0V  error=[1]
+[17:00:14.168  t=  37.80s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fl4_foot, fr1_hip_roll, fr2_hip_pitch 等 16 顆
+[17:00:14.268  t=  37.90s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:14.368  t=  38.00s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:14.468  t=  38.10s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:14.569  t=  38.20s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:14.668  t=  38.30s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:14.768  t=  38.40s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:14.868  t=  38.50s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:14.969  t=  38.60s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:15.068  t=  38.70s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:15.168  t=  38.80s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:15.268  t=  38.90s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:15.368  t=  39.00s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:15.468  t=  39.10s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:15.568  t=  39.20s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:15.668  t=  39.30s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:15.768  t=  39.40s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:15.868  t=  39.50s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:15.968  t=  39.60s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:16.068  t=  39.70s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:16.169  t=  39.80s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:26.668  t=  50.30s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:26.768  t=  50.40s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:26.868  t=  50.50s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:26.968  t=  50.60s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:27.068  t=  50.70s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:27.168  t=  50.80s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:27.269  t=  50.90s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:27.368  t=  51.00s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:27.468  t=  51.10s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:27.568  t=  51.20s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:27.668  t=  51.30s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:27.768  t=  51.40s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:27.868  t=  51.50s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:27.968  t=  51.60s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:28.068  t=  51.70s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:28.168  t=  51.80s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:35.469  t=  59.10s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:35.569  t=  59.20s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:35.669  t=  59.30s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:35.768  t=  59.40s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:35.869  t=  59.50s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:35.969  t=  59.60s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:36.068  t=  59.70s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:36.168  t=  59.80s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:36.269  t=  59.90s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:36.369  t=  60.00s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:36.369  t=  60.00s] 取樣    600  最高溫 33°C  最低電壓 48.0V  error=[1]
+[17:00:36.468  t=  60.10s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:36.569  t=  60.20s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:36.669  t=  60.30s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:36.769  t=  60.40s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:36.868  t=  60.50s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:36.969  t=  60.60s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:00:47.970  t=  71.60s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:48.069  t=  71.70s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:48.168  t=  71.80s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:48.269  t=  71.90s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:48.369  t=  72.00s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:48.469  t=  72.10s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:48.569  t=  72.20s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:48.669  t=  72.30s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:48.769  t=  72.40s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:48.871  t=  72.50s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:48.969  t=  72.60s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:49.069  t=  72.70s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:49.170  t=  72.80s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:49.269  t=  72.90s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:49.373  t=  73.01s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:49.470  t=  73.10s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:49.569  t=  73.20s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:49.669  t=  73.30s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:49.769  t=  73.40s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:49.868  t=  73.50s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:00:49.969  t=  73.60s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:01:06.368  t=  90.00s] 取樣    900  最高溫 33°C  最低電壓 48.0V  error=[1]
+[17:01:27.268  t= 110.90s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fl4_foot, fr1_hip_roll, fr2_hip_pitch 等 16 顆
+[17:01:30.968  t= 114.60s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fl4_foot, fr1_hip_roll, fr2_hip_pitch 等 16 顆
+[17:01:31.068  t= 114.70s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:01:31.168  t= 114.80s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:01:31.268  t= 114.90s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:01:31.370  t= 115.00s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:01:31.468  t= 115.10s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:01:31.568  t= 115.20s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:01:31.668  t= 115.30s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:01:31.768  t= 115.40s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:01:31.868  t= 115.50s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:01:31.968  t= 115.60s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:01:32.068  t= 115.70s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:01:32.168  t= 115.80s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:01:32.269  t= 115.90s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:01:32.368  t= 116.00s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:01:32.468  t= 116.10s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:01:32.568  t= 116.20s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:01:32.668  t= 116.30s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:01:32.768  t= 116.40s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:01:32.868  t= 116.50s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:01:32.968  t= 116.60s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:01:36.367  t= 120.00s] 取樣   1200  最高溫 33°C  最低電壓 48.0V  error=[1]
+[17:01:43.067  t= 126.70s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:43.167  t= 126.80s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:43.267  t= 126.90s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:43.367  t= 127.00s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:43.467  t= 127.10s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:43.567  t= 127.20s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:43.667  t= 127.30s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:43.767  t= 127.40s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:43.867  t= 127.50s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:43.967  t= 127.60s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:44.067  t= 127.70s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:44.167  t= 127.80s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:44.267  t= 127.90s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:44.367  t= 128.00s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:44.467  t= 128.10s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:44.567  t= 128.20s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:01:53.068  t= 136.70s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:01:53.168  t= 136.80s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:53.268  t= 136.90s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:53.368  t= 137.00s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:53.468  t= 137.10s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:53.569  t= 137.20s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:53.668  t= 137.30s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:53.768  t= 137.40s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:53.868  t= 137.50s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:53.968  t= 137.60s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:54.068  t= 137.70s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:54.168  t= 137.80s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:54.268  t= 137.90s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:54.368  t= 138.00s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:54.468  t= 138.10s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:01:54.569  t= 138.20s] joint_cmd 增益變化：fl1_hip_roll, fr1_hip_roll, bl1_hip_roll, br1_hip_roll
+[17:02:05.469  t= 149.10s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:02:05.568  t= 149.20s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:02:05.668  t= 149.30s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:02:05.768  t= 149.40s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:02:05.868  t= 149.50s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:02:05.968  t= 149.60s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:02:06.068  t= 149.70s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:02:06.168  t= 149.80s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:02:06.269  t= 149.90s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:02:06.369  t= 150.00s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:02:06.369  t= 150.00s] 取樣   1500  最高溫 33°C  最低電壓 48.0V  error=[1]
+[17:02:06.470  t= 150.10s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:02:06.568  t= 150.20s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:02:06.668  t= 150.30s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:02:06.768  t= 150.40s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:02:06.868  t= 150.50s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:02:06.968  t= 150.60s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:02:07.068  t= 150.70s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:02:07.168  t= 150.80s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:02:07.269  t= 150.90s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:02:07.368  t= 151.00s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:02:07.468  t= 151.10s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fr1_hip_roll, fr2_hip_pitch, fr3_knee_pitch 等 12 顆
+[17:02:25.269  t= 168.90s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fl4_foot, fr1_hip_roll, fr2_hip_pitch 等 16 顆
+[17:02:36.369  t= 180.00s] 取樣   1800  最高溫 33°C  最低電壓 48.0V  error=[1]
+[17:03:06.369  t= 210.00s] 取樣   2100  最高溫 33°C  最低電壓 48.0V  error=[1]

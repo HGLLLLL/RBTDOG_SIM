@@ -18,15 +18,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import rl_env_max as re  # noqa: E402
 
 
-CAL_CMD = (0.15, 0.0)     # 校準用固定指令：直走 0.15 m/s（隨機指令會讓 vx/yaw 兩項在基準上失真）
+def cal_cmd(preset: str):
+    """校準用固定指令：直走。v2.2 指令範圍 0.15–0.40 → 用 0.30（接近基準 0.34）；舊 preset 用 0.15。"""
+    lo, hi = re.weights_of(preset)["CMD_VX"]
+    return (0.30 if hi > 0.36 else 0.15, 0.0)
 
 
 def calibrate(preset: str, steps: int = 500, seed: int = 0, verbose: bool = True) -> dict:
     env = re.MaxCpgEnv(preset=preset)
+    CAL_CMD = cal_cmd(preset)
     reset, step = jax.jit(env.reset), jax.jit(env.step)
     s = reset(jax.random.PRNGKey(seed))
     s = s.replace(info={**s.info, "cmd": jnp.array(CAL_CMD)})
-    a = jnp.array(re.baseline_action())
+    a = jnp.array(re.baseline_action(env.layout))
     acc = {k: [] for k in re.METRIC_KEYS}
     for i in range(steps):
         s = step(s, a)
@@ -49,7 +53,8 @@ def calibrate(preset: str, steps: int = 500, seed: int = 0, verbose: bool = True
             print(f"  {k:12s} {m[k]:9.4f} {100 * share[k]:6.1f}%")
         print(f"  權重：" + " ".join(f"{k}={v}" for k, v in w.items()
                                      if k in ("W_ROLL", "W_ROLLRATE", "W_PITCH", "W_PITCHRATE", "W_EXEC", "EXEC_SIGMA",
-                                              "W_YAW", "YAW_SIG2", "YAW_EMA")))
+                                              "W_SYM", "W_YAW", "YAW_SIG2", "YAW_EMA", "VX_SIG2", "CMD_VX",
+                                              "ACT_LAYOUT", "EXEC_MODE")))
     return {"metrics": m, "share": share, "pos": pos}
 
 

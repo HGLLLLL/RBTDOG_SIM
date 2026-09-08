@@ -62,11 +62,16 @@ import obs_max, gait_baseline as gb, max_model as mm
 PRESET = "{PRESET}"
 W = re.weights_of(PRESET)
 print("preset", PRESET, "權重", W)
-print("obs", re.OBS_DIM, "act", re.ACT_DIM, "scene", mm.SCENE_MJX_KP250)
+LAYOUT = W["ACT_LAYOUT"]
+ACT_DIM = re.LAYOUT_DIMS[LAYOUT]
+OBS_DIM = obs_max.obs_dim(ACT_DIM)
+print("layout", LAYOUT, "act", ACT_DIM, "obs", OBS_DIM, "scene", mm.SCENE_MJX_KP250)
 print("基準", gb.BASELINE_A)
 print("護欄 TAU_BAR", re.TAU_BAR, "ERR_BAR", re.ERR_BAR, "| sway ±", re.SWAY_MAX, "斜率", re.SWAY_SLEW)
-assert (re.OBS_DIM, re.ACT_DIM) == (70, 14)
+assert (ACT_DIM, OBS_DIM) in ((14, 70), (10, 66))
 assert list(gb.BASELINE_A["kp3"]) == [60.0, 250.0, 250.0], "ABAD 必須是 60"
+if LAYOUT == "nomux":
+    print("★ mu_x 固定 =", gb.BASELINE_A["mu_x"], "（不在動作空間），速度只靠 ω；指令範圍", W["CMD_VX"])
 '''
 
 calib_src = '''# ---- ★ 基準校準：A 步態是固定動作（sway=0），每一項 reward 在它身上值多少？----
@@ -74,13 +79,15 @@ calib_src = '''# ---- ★ 基準校準：A 步態是固定動作（sway=0），�
 #          (2) 護欄在基準上不該被碰到（tau_pk 平均要 < TAU_BAR、err_pk < ERR_BAR）
 env = re.MaxCpgEnv(preset=PRESET)
 assert env.preset == PRESET and env.w == W
+assert (env.action_size, env.observation_size) == (ACT_DIM, OBS_DIM)
 assert env.sys.actuator_biastype[0] == mujoco.mjtBias.mjBIAS_AFFINE
 kp_xml = np.asarray(env.sys.actuator_gainprm[np.asarray(mm.LEG_ACT_IDX), 0])
 assert np.allclose(kp_xml, np.tile(mm.KP3_A, 4)), f"訓練模型增益 {kp_xml[:3]} ≠ KP3_A"
 jit_reset, jit_step = jax.jit(env.reset), jax.jit(env.step)
-A_BASE = jnp.array(re.baseline_action())
+A_BASE = jnp.array(re.baseline_action(LAYOUT))
+CAL_VX = 0.30 if W["CMD_VX"][1] > 0.36 else 0.15                # 校準用固定指令（同 diag/rl_calibrate.py）
 s = jit_reset(jax.random.PRNGKey(0))
-s = s.replace(info={**s.info, "cmd": jnp.array([0.15, 0.0])})   # 校準用固定指令（同 diag/rl_calibrate.py）
+s = s.replace(info={**s.info, "cmd": jnp.array([CAL_VX, 0.0])})
 print("reset ok, obs", s.obs.shape, "height %.4f m" % float(s.pipeline_state.qpos[2]))
 
 import time as _t
@@ -105,13 +112,17 @@ print(f"[對照] 本機 local_infer_max --dummy：speed_travel 0.34 m/s、roll_p
 pos = np.mean(acc["t_pos"])
 share = {k: np.mean(acc[k]) / pos for k in re.TERM_KEYS if k != "t_pos"}
 print("[佔比] " + "  ".join(f"{k[2:]} {100*v:.1f}%" for k, v in share.items() if v > 0.001))
-print("[對照] 本機 rl_calibrate v2.1：yaw 28%  exec 34%  roll+rate 14%  pitch+rate 5%  vx 13.5%")
+print("[對照] 本機 rl_calibrate  v2.1：yaw 28% exec 34% roll+rate 14% pitch+rate 5% vx 13.5%"
+      "  |  v2.2：vx 37% yaw 24% exec 19% sym 12% roll+rate 7.7% pitch+rate 4.3%")
+if W["EXEC_MODE"] == "rate":
+    print(f"[執行率] 基準 前 {np.mean(acc['exec_f']):.2f} / 後 {np.mean(acc['exec_r']):.2f}（本機 Trace：0.88 / 1.47，應同量級）")
 roll_sh = share["t_roll"] + share["t_rollrate"]
 pitch_sh = share["t_pitch"] + share["t_pitchrate"]
-if PRESET != "v2":
-    assert 0.10 <= roll_sh <= 0.25, f"roll 兩項佔正項 {roll_sh:.1%}，不在 10–25%：權重跟本機校準對不上，不要訓"
-    assert 0.03 <= pitch_sh <= 0.15, f"pitch 兩項佔 {pitch_sh:.1%}"
-    assert share["t_exec"] <= 0.50 and roll_sh > pitch_sh
+if PRESET in re.CAL_BANDS:
+    b = re.CAL_BANDS[PRESET]
+    assert b["roll"][0] <= roll_sh <= b["roll"][1], f"roll 兩項佔正項 {roll_sh:.1%}，不在 {b['roll']}：權重跟本機校準對不上，不要訓"
+    assert b["pitch"][0] <= pitch_sh <= b["pitch"][1], f"pitch 兩項佔 {pitch_sh:.1%}，不在 {b['pitch']}"
+    assert share["t_exec"] <= b["exec_max"] and roll_sh > pitch_sh
 assert share["t_taubar"] < 0.01 and share["t_errbar"] < 0.01, "基準動作碰到護欄 —— env 或模型有問題，不要訓"
 print(f"[佔比] roll+rate {roll_sh:.1%}  pitch+rate {pitch_sh:.1%}  exec {share['t_exec']:.1%}  ✅ 與本機校準一致")
 '''
@@ -171,7 +182,7 @@ save_src = f'''from brax.io import model
 model.save_params("{WEIGHTS}", params)
 print("已存 {WEIGHTS} → 下載放 task7/weights/，本機（rbtdog 環境）跑：")
 print("  conda run --no-capture-output -n rbtdog python task7/inference/local_infer_max.py "
-      "--params task7/weights/{WEIGHTS} --secs 60 --perturb 12 --compare --video")
+      "--params task7/weights/{WEIGHTS} --preset {PRESET} --secs 60 --perturb 12 --compare --video")
 print("★ 驗收在原始網格模型上做；G7（力矩×1.2<70、誤差×1.14<0.6）任一不過就不上機。")
 '''
 

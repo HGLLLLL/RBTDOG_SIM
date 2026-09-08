@@ -46,3 +46,22 @@ def test_gates_report_keys():
         res = li.run(args)
     assert set(res["gates"]) >= {"G3", "G4", "G5", "G6", "G7"}
     assert res["n_perturb"] == 2 and "baseline" in res
+
+
+def test_v2_2_layout_dummy_matches_open_loop_walk_a():
+    """v2.2（10 維、mu_x 固定）的 --dummy 也必須逐位重現 A 基準。"""
+    A = gb.BASELINE_A
+    np.testing.assert_allclose(li.baseline_action("nomux"), re.baseline_action("nomux"))
+    mux, muy, om, sw = li.act_to_cmd(np.full(10, 0.2), "nomux")
+    mux2, muy2, om2, sw2 = re.act_to_cmd(np.full(10, 0.2), "nomux")
+    np.testing.assert_allclose(mux, np.asarray(mux2))
+    np.testing.assert_allclose(om, np.asarray(om2), atol=1e-6)
+    np.testing.assert_allclose(sw, np.asarray(sw2), atol=1e-6)
+    args = SimpleNamespace(params="", dummy=True, secs=6.0, vx=0.30, wz=0.0, video=False,
+                           scene=None, perturb=1, compare=False, preset="v2.2")
+    with contextlib.redirect_stdout(io.StringIO()):
+        res = li.run(args)
+        ref = cw.rollout(gait="walk_a", secs=6.0, kp3=A["kp3"], kd3=A["kd3"],
+                         kd_wheel=A["wheel_kd"], z_sag=A["z_sag"], quiet=True)
+    for k in ("speed_travel", "bounce", "support", "roll_pk", "exec_front"):
+        assert abs(res[k] - ref[k]) < 1e-9, k

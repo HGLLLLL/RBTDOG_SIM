@@ -77,31 +77,51 @@ GATE_TAU, GATE_ERR = 70.0, 0.6                # 實機 M9 的中止門檻
 SIM2REAL_TAU, SIM2REAL_ERR = 1.2, 1.14        # kp250 實測比值 ×1.14（兩次）留餘裕；誤差 ×1.14
 
 
-def baseline_action() -> np.ndarray:
-    """開迴路 A 基準步態對應的 14 維動作（`act_to_cmd` 的反函式；sway=0）。"""
+LAYOUT_DIMS = {"full": 14, "nomux": 10}
+PRESET_LAYOUT = {"v2": "full", "v2.1": "full", "v2.2": "nomux"}
+PRESET_G4_DROP = {"v2": 0.60, "v2.1": 0.60, "v2.2": 0.30}      # G4：roll 峰值要降的比例
+PRESET_EVAL_VX = {"v2": 0.15, "v2.1": 0.15, "v2.2": 0.30}      # 驗收指令（v2.2 指令範圍 0.15–0.40）
+
+
+def baseline_action(layout: str = "full") -> np.ndarray:
+    """開迴路 A 基準步態對應的固定動作（`act_to_cmd` 的反函式；sway=0）。"""
     def inv(u, lo, hi):
         return float(np.arctanh(np.clip(2 * (u - lo) / (hi - lo) - 1, -0.999, 0.999)))
 
-    return np.array([inv(A["mu_x"], mm.MU_MIN, mm.MU_MAX),
-                     inv(A["mu_y"], mm.MU_MIN, mm.MU_MAX),
-                     inv(A["omega"], OMEGA_MIN, OMEGA_MAX)] * 4 + [0.0, 0.0])
+    if layout == "full":
+        return np.array([inv(A["mu_x"], mm.MU_MIN, mm.MU_MAX),
+                         inv(A["mu_y"], mm.MU_MIN, mm.MU_MAX),
+                         inv(A["omega"], OMEGA_MIN, OMEGA_MAX)] * 4 + [0.0, 0.0])
+    if layout == "nomux":
+        return np.array([inv(A["mu_y"], mm.MU_MIN, mm.MU_MAX),
+                         inv(A["omega"], OMEGA_MIN, OMEGA_MAX)] * 4 + [0.0, 0.0])
+    raise ValueError(layout)
 
 
-def act_to_cmd(a: np.ndarray):
-    """14 維動作 → (mux(4), muy(4), omega(4), sway_target(2))。與 rl_env_max.act_to_cmd 逐行相同。"""
+def act_to_cmd(a: np.ndarray, layout: str = "full"):
+    """動作 → (mux(4), muy(4), omega(4), sway_target(2))。與 rl_env_max.act_to_cmd 逐行相同。
+    "full" 14 維：(mux,muy,ω)×4 + sway；"nomux" 10 維：(muy,ω)×4 + sway，mux 固定＝基準。"""
     a = np.tanh(np.asarray(a, dtype=float))
-    leg = a[:12].reshape(4, 3)
-    mux = (leg[:, 0] + 1) / 2 * (mm.MU_MAX - mm.MU_MIN) + mm.MU_MIN
-    muy = (leg[:, 1] + 1) / 2 * (mm.MU_MAX - mm.MU_MIN) + mm.MU_MIN
-    om = (leg[:, 2] + 1) / 2 * (OMEGA_MAX - OMEGA_MIN) + OMEGA_MIN
-    return mux, muy, om, a[12:14] * SWAY_MAX
+    if layout == "full":
+        leg = a[:12].reshape(4, 3)
+        mux = (leg[:, 0] + 1) / 2 * (mm.MU_MAX - mm.MU_MIN) + mm.MU_MIN
+        muy = (leg[:, 1] + 1) / 2 * (mm.MU_MAX - mm.MU_MIN) + mm.MU_MIN
+        om = (leg[:, 2] + 1) / 2 * (OMEGA_MAX - OMEGA_MIN) + OMEGA_MIN
+        return mux, muy, om, a[12:14] * SWAY_MAX
+    if layout == "nomux":
+        leg = a[:8].reshape(4, 2)
+        mux = np.full(4, A["mu_x"])
+        muy = (leg[:, 0] + 1) / 2 * (mm.MU_MAX - mm.MU_MIN) + mm.MU_MIN
+        om = (leg[:, 1] + 1) / 2 * (OMEGA_MAX - OMEGA_MIN) + OMEGA_MIN
+        return mux, muy, om, a[8:10] * SWAY_MAX
+    raise ValueError(layout)
 
 
 def slew_sway(prev, tgt):
     return prev + np.clip(np.asarray(tgt, dtype=float) - prev, -SWAY_SLEW, SWAY_SLEW)
 
 
-def load_policy(path: str):
+def load_policy(path: str, act_dim: int = obs_max.ACT_DIM):
     """載入 brax 權重，回傳 `infer(obs) -> action`（deterministic）。"""
     import functools
 
@@ -113,7 +133,7 @@ def load_policy(path: str):
     factory = functools.partial(ppo_networks.make_ppo_networks,
                                 policy_hidden_layer_sizes=POLICY_HIDDEN,
                                 value_hidden_layer_sizes=VALUE_HIDDEN)
-    net = factory(obs_max.OBS_DIM, obs_max.ACT_DIM,
+    net = factory(obs_max.obs_dim(act_dim), act_dim,
                   preprocess_observations_fn=running_statistics.normalize)
     pol = ppo_networks.make_inference_fn(net)(model.load_params(path), deterministic=True)
     jpol = jax.jit(pol)
@@ -129,6 +149,9 @@ def load_policy(path: str):
 def run_once(args, infer, seed: int = 0) -> dict:
     """一次 rollout。`seed` 只用來給 x_off 加 1e-12·seed 的皮米擾動（同 cpg_sweep_max）。"""
     import mujoco
+
+    layout = PRESET_LAYOUT[getattr(args, "preset", "v2")]
+    act_dim = LAYOUT_DIMS[layout]
 
     scene = args.scene or DEFAULT_SCENE
     mode = "position" if scene != mm.SCENE else "torque_pd"
@@ -152,14 +175,14 @@ def run_once(args, infer, seed: int = 0) -> dict:
     c = cpg_max.cpg_init(PHASE)
     n = int(args.secs / mm.CTRL_DT)
     cmd = np.array([args.vx, args.wz])
-    last_a = np.zeros(obs_max.ACT_DIM)
+    last_a = np.zeros(act_dim)
     sway = np.zeros(2)
     n_reach, om_hist, sway_hist = 0, [], []
     tr = cw.Trace(r, n, args.secs, A["omega"], PHASE, A["duty"])
     for i in range(n):
         obs = obs_max.build_obs(r.d, c, cmd, last_a)
         a = infer(obs)
-        mux, muy, om, sw_t = act_to_cmd(a)
+        mux, muy, om, sw_t = act_to_cmd(a, layout)
         sway = slew_sway(sway, sw_t)
         om_hist.append(om.copy())
         sway_hist.append(sway.copy())
@@ -200,8 +223,10 @@ def _med(rs, k):
 
 def run(args) -> dict:
     """跑 `perturb` 個擾動（policy），可選同擾動的開迴路對照；回傳中位數彙總與 G3–G7 判定。"""
-    fixed = baseline_action()
-    infer = (lambda _o: fixed) if args.dummy else load_policy(args.params)
+    preset = getattr(args, "preset", "v2")
+    layout = PRESET_LAYOUT[preset]
+    fixed = baseline_action(layout)
+    infer = (lambda _o: fixed) if args.dummy else load_policy(args.params, LAYOUT_DIMS[layout])
     n_pert = max(1, int(getattr(args, "perturb", 1)))
     rs = [run_once(args, infer, s) for s in range(n_pert)]
     res = dict(rs[0])
@@ -222,8 +247,10 @@ def run(args) -> dict:
         res["baseline"] = base
     g = {}
     g["G3"] = res["fell_n"] == 0
-    g["G4"] = (base is not None and res["roll_pk"] <= 0.4 * base["roll_pk"]
-               and res["roll_std"] <= 0.4 * base["roll_std"])
+    drop = PRESET_G4_DROP[preset]
+    g["G4"] = (base is not None and res["roll_pk"] <= (1 - drop) * base["roll_pk"]
+               and (res["roll_std"] <= (1 - drop) * base["roll_std"] if drop >= 0.6
+                    else res["roll_std"] <= base["roll_std"]))
     g["G5"] = res["exec_front"] >= 0.9 and abs(res["exec_front"] - res["exec_rear"]) < 0.15
     g["G6"] = (abs(res["yaw_total"]) * (60.0 / args.secs) < 5.0) if args.wz == 0 else None
     g["G7"] = ((res["tau_peak_max"] * SIM2REAL_TAU < GATE_TAU)
@@ -231,14 +258,15 @@ def run(args) -> dict:
     res["gates"] = g
 
     src = "基準固定動作" if args.dummy else Path(args.params).name
-    cw.report(res, f"[推論 v2] {src}  cmd=(vx {args.vx:.2f}, wz {args.wz:+.2f})  擾動 {len(rs)}"
+    cw.report(res, f"[推論 {preset}] {src}  cmd=(vx {args.vx:.2f}, wz {args.wz:+.2f})  擾動 {len(rs)}"
                    f"  ω {res['omega_min']:.2f}~{res['omega_max']:.2f}"
                    f"  sway |x| {res['sway_x_abs']:.0f} |y| {res['sway_y_abs']:.0f} mm")
     print(f"[G3] 跌倒 {res['fell_n']}/{len(rs)} → {'✅' if g['G3'] else '❌'}")
     if base:
         print(f"[G4] roll 峰值 {res['roll_pk']:.2f}°（基準 {base['roll_pk']:.2f}）"
               f" std {res['roll_std']:.2f}（基準 {base['roll_std']:.2f}）"
-              f" → {'✅' if g['G4'] else '❌'}（兩者都要降 ≥60%）")
+              f" → {'✅' if g['G4'] else '❌'}（峰值降 ≥{drop:.0%}"
+              f"{'、std 也降 ≥60%' if drop >= 0.6 else '、std 不升'}）")
     print(f"[G5] 執行率 前 {res['exec_front']:.2f} 後 {res['exec_rear']:.2f}"
           f" → {'✅' if g['G5'] else '❌'}（前 ≥0.9、|前−後| <0.15）")
     if g["G6"] is not None:
@@ -251,7 +279,7 @@ def run(args) -> dict:
     if frames:
         import imageio.v2 as iio
         OUT_DIR.mkdir(parents=True, exist_ok=True)
-        out = OUT_DIR / "cpg_rl_max_v2.mp4"
+        out = OUT_DIR / f"cpg_rl_max_{preset.replace('.', '_')}.mp4"
         iio.mimsave(str(out), frames, fps=25, codec="libx264")
         print("[影片]", out)
     return res
@@ -263,18 +291,23 @@ def main() -> int:
     ap.add_argument("--dummy", action="store_true",
                     help="不載權重，用開迴路基準步態對應的固定動作測管線")
     ap.add_argument("--secs", type=float, default=20.0)
-    ap.add_argument("--vx", type=float, default=0.15, help="前進速度指令 m/s")
+    ap.add_argument("--vx", type=float, default=None,
+                    help="前進速度指令 m/s（預設依 preset：v2/v2.1 0.15、v2.2 0.30）")
     ap.add_argument("--wz", type=float, default=0.0, help="偏航率指令 rad/s")
     ap.add_argument("--video", action="store_true")
     ap.add_argument("--scene", type=str, default=None,
                     help="覆寫場景；預設是**原始網格模型**。"
                          "給 scene_flat_mjx_kp250.xml 可與訓練條件對照")
+    ap.add_argument("--preset", default="v2", choices=sorted(PRESET_LAYOUT),
+                    help="權重是哪個 preset 訓的（決定動作維度／G4 門檻／預設 vx）")
     ap.add_argument("--perturb", type=int, default=1, help="皮米擾動次數（12 = 正式驗收）")
     ap.add_argument("--compare", action="store_true",
                     help="同擾動跑開迴路 A 當對照（G4 需要）")
     a = ap.parse_args()
     if not a.dummy and not a.params:
         ap.error("要嘛給 --params，要嘛用 --dummy")
+    if a.vx is None:
+        a.vx = PRESET_EVAL_VX[a.preset]
     run(a)
     return 0
 

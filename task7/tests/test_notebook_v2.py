@@ -30,3 +30,16 @@ def test_notebook_v2_1_contract():
     old = json.loads(NB.read_text(encoding="utf-8"))
     old_src = "\n".join("".join(c["source"]) for c in old["cells"] if c["cell_type"] == "code")
     assert "PRESET" not in old_src and "cpg_rl_max_v2_params.pkl" in old_src
+
+
+def test_notebook_v2_2_contract():
+    nb = json.loads((NB.parent / "cpg_rl_max_v2_2_colab.ipynb").read_text(encoding="utf-8"))
+    src = "\n".join("".join(c["source"]) for c in nb["cells"] if c["cell_type"] == "code")
+    assert 'PRESET = "v2.2"' in src and "MaxCpgEnv(preset=PRESET)" in src
+    assert "cpg_rl_max_v2_2_params.pkl" in src and "--preset v2.2" in src
+    assert "re.CAL_BANDS[PRESET]" in src and "baseline_action(LAYOUT)" in src
+    assert "(env.action_size, env.observation_size) == (ACT_DIM, OBS_DIM)" in src
+    # 舊的兩個 notebook 不受影響
+    old = json.loads((NB.parent / "cpg_rl_max_v2_1_colab.ipynb").read_text(encoding="utf-8"))
+    old_src = "\n".join("".join(c["source"]) for c in old["cells"] if c["cell_type"] == "code")
+    assert 'PRESET = "v2.1"' in old_src and "cpg_rl_max_v2_1_params.pkl" in old_src

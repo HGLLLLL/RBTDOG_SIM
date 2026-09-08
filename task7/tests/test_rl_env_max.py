@@ -139,3 +139,51 @@ def test_yaw_reward_kernel_sees_slow_drift():
     v21 = float(re.yaw_reward(d, 0.0, re.weights_of("v2.1")["YAW_SIG2"]))
     assert v2 > 0.99 and 0.6 < v21 < 0.75
     assert re.weights_of("v2.1")["YAW_EMA"] > 0 and re.weights_of("v2")["YAW_EMA"] == 0
+
+
+def test_v2_2_nomux_layout():
+    """v2.2：動作 10 維（mu_x 固定＝基準）、obs 66 維；sway 在第 8–9 維。"""
+    w = re.weights_of("v2.2")
+    assert w["ACT_LAYOUT"] == "nomux" and w["EXEC_MODE"] == "rate"
+    assert w["CMD_VX"] == (0.15, 0.40) and w["VX_SIG2"] == 0.1
+    a = re.baseline_action("nomux")
+    assert a.shape == (10,)
+    mux, muy, om, sway = re.act_to_cmd(jnp.array(a), "nomux")
+    np.testing.assert_allclose(mux, A["mu_x"])                 # 固定，不受動作影響
+    np.testing.assert_allclose(muy, A["mu_y"], atol=1e-3)
+    np.testing.assert_allclose(om, A["omega"], atol=1e-3)
+    np.testing.assert_allclose(sway, 0.0, atol=1e-6)
+    mux2, _, _, s2 = re.act_to_cmd(jnp.full(10, -10.0), "nomux")
+    np.testing.assert_allclose(mux2, A["mu_x"])
+    np.testing.assert_allclose(s2, -re.SWAY_MAX, atol=1e-6)
+    # 護欄與 v2 相同
+    assert w["W_TAUBAR"] == re.W_TAUBAR and w["W_ERRBAR"] == re.W_ERRBAR
+
+
+def test_v2_2_env_runs_and_reports_true_exec_rate():
+    env = re.MaxCpgEnv(preset="v2.2")
+    assert env.observation_size == 66 and env.action_size == 10
+    reset, step = jax.jit(env.reset), jax.jit(env.step)
+    s = reset(jax.random.PRNGKey(0))
+    assert s.obs.shape == (66,)
+    a = jnp.array(re.baseline_action("nomux"))
+    for i in range(120):                   # > 1 個步態週期，讓每腿都結算過一次執行率
+        s = step(s, a)
+        assert float(s.done) == 0.0
+    ef, er = float(s.metrics["exec_f"]), float(s.metrics["exec_r"])
+    assert 0.5 < ef < 1.3 and 0.9 < er < 2.0     # 基準量級：前 ~0.9、後 ~1.5（Trace 同量）
+    assert float(s.info["rate_last"].min()) > 0.3
+
+
+def test_v2_2_reward_shares_on_baseline():
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "inference" / "diag"))
+    import rl_calibrate
+    r = rl_calibrate.calibrate("v2.2", steps=300, verbose=False)
+    sh, b = r["share"], re.CAL_BANDS["v2.2"]
+    roll = sh["t_roll"] + sh["t_rollrate"]
+    pitch = sh["t_pitch"] + sh["t_pitchrate"]
+    assert b["roll"][0] <= roll <= b["roll"][1], f"roll {roll:.1%}"
+    assert b["pitch"][0] <= pitch <= b["pitch"][1], f"pitch {pitch:.1%}"
+    assert sh["t_exec"] <= b["exec_max"]
+    assert sh["t_taubar"] < 0.01 and sh["t_errbar"] < 0.01
+    assert 0.5 < r["metrics"]["exec_f"] < 1.3

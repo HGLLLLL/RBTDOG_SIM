@@ -48,26 +48,40 @@ import numpy as np
 from cpg_max import w2b
 from max_model import HOME12, LEG_QPOS_IDX, LEG_QVEL_IDX
 
-ACT_DIM = 14          # 每腿 (mux, muy, omega) ×4 ＋ body sway (x, y)。2026-09-08 RL v2 起
+ACT_DIM = 14          # v2/v2.1：每腿 (mux, muy, omega) ×4 ＋ body sway (x, y)。2026-09-08 RL v2 起
+ACT_DIM_NOMUX = 10    # v2.2：mu_x 固定（不在動作裡），每腿 (muy, omega) ×4 ＋ sway (x, y)
+ALLOWED_ACT_DIMS = (ACT_DIM, ACT_DIM_NOMUX)
 
-OBS_LAYOUT = [
-    ("gravity", 3),
-    ("gyro", 3),
-    ("joint_pos", 12),
-    ("joint_vel", 12),
-    ("cmd", 2),
-    ("last_action", ACT_DIM),
-    ("cpg", 24),
-]
-OBS_DIM = sum(d for _, d in OBS_LAYOUT)
+
+def layout(act_dim: int = ACT_DIM) -> list:
+    """obs 欄位順序。只有 `last_action` 的寬度隨動作 layout 變，其餘欄位順序**永遠不變**。"""
+    assert act_dim in ALLOWED_ACT_DIMS, f"act_dim {act_dim} 不在 {ALLOWED_ACT_DIMS}"
+    return [
+        ("gravity", 3),
+        ("gyro", 3),
+        ("joint_pos", 12),
+        ("joint_vel", 12),
+        ("cmd", 2),
+        ("last_action", act_dim),
+        ("cpg", 24),
+    ]
+
+
+def obs_dim(act_dim: int = ACT_DIM) -> int:
+    return sum(d for _, d in layout(act_dim))
+
+
+OBS_LAYOUT = layout(ACT_DIM)          # v2/v2.1 的 70 維
+OBS_DIM = obs_dim(ACT_DIM)
+OBS_DIM_NOMUX = obs_dim(ACT_DIM_NOMUX)   # v2.2 的 66 維
 
 _DOWN = np.array([0.0, 0.0, -1.0])
 
 
-def slice_of(name: str) -> slice:
+def slice_of(name: str, act_dim: int = ACT_DIM) -> slice:
     """某個欄位在 obs 向量裡的位置。給測試與除錯用，推論路徑不需要。"""
     i = 0
-    for n, d in OBS_LAYOUT:
+    for n, d in layout(act_dim):
         if n == name:
             return slice(i, i + d)
         i += d
@@ -83,7 +97,8 @@ def build_obs(d, c: dict, cmd, last_a) -> np.ndarray:
     cmd = np.asarray(cmd, dtype=np.float64).reshape(-1)
     last_a = np.asarray(last_a, dtype=np.float64).reshape(-1)
     assert cmd.size == 2, f"cmd 應為 2 維 (vx, wz)，實得 {cmd.size}"
-    assert last_a.size == ACT_DIM, f"last_a 應為 {ACT_DIM} 維，實得 {last_a.size}"
+    assert last_a.size in ALLOWED_ACT_DIMS, \
+        f"last_a 應為 {ALLOWED_ACT_DIMS} 之一，實得 {last_a.size}"
 
     o = np.concatenate([
         w2b(d.qpos[3:7], _DOWN),           # gravity 3
@@ -97,5 +112,6 @@ def build_obs(d, c: dict, cmd, last_a) -> np.ndarray:
         c["rx"], c["rx_d"], c["ry"], c["ry_d"],       # cpg 16
         np.sin(c["theta"]), np.cos(c["theta"]),       # cpg 8
     ]).astype(np.float32)
-    assert o.size == OBS_DIM, f"obs 應為 {OBS_DIM} 維，實得 {o.size}"
+    want = obs_dim(last_a.size)
+    assert o.size == want, f"obs 應為 {want} 維，實得 {o.size}"
     return o

@@ -43,8 +43,10 @@ D_STEP, D_STEP_Y = A["d_step"], A["d_step_y"]
 PHASE = np.asarray(cpg_max.PHASE_WALK_LS)
 OMEGA_MIN, OMEGA_MAX = 0.0, 2.0
 SWAY_MAX, SWAY_SLEW = 0.060, 0.004
-ACT_DIM, OBS_DIM = obs_max.ACT_DIM, obs_max.OBS_DIM
-assert ACT_DIM == 14 and OBS_DIM == 70, "obs_max 的維度與 RL v2 不符"
+ACT_DIM, OBS_DIM = obs_max.ACT_DIM, obs_max.OBS_DIM            # v2/v2.1：14 / 70
+ACT_DIM_NOMUX, OBS_DIM_NOMUX = obs_max.ACT_DIM_NOMUX, obs_max.OBS_DIM_NOMUX   # v2.2：10 / 66
+assert (ACT_DIM, OBS_DIM, ACT_DIM_NOMUX, OBS_DIM_NOMUX) == (14, 70, 10, 66)
+LAYOUT_DIMS = {"full": ACT_DIM, "nomux": ACT_DIM_NOMUX}
 
 HOME12_np = np.array(mm.HOME12)
 KNEE_SIGN_np = leg_kin.knee_sign_of(mm.HOME)
@@ -85,6 +87,10 @@ W_DEFAULT = dict(
     W_VZ=2.0, W_OMEGA_VAR=0.5, W_ACT=0.01, W_TAU=3e-5,
     W_TAUBAR=0.01, W_ERRBAR=20.0,
     YAW_SIG2=0.05, YAW_EMA=0.0,      # 偏航 reward 的核寬；YAW_EMA=0 → 用瞬時 wz（v2）
+    VX_SIG2=0.02, CMD_VX=(0.05, 0.35),  # 速度核寬與指令範圍
+    ACT_LAYOUT="full",               # "full" 14 維 / "nomux" 10 維（mu_x 固定＝基準）
+    EXEC_MODE="track",               # "track" 擺動相 x 追蹤 / "rate" 真執行率（擺動結束時結算）
+    EXEC_RATE_SIG=0.35,              # rate 模式：exp(−((rate−1)/σ)²)
 )
 PRESETS = {
     "v2": {},
@@ -99,6 +105,18 @@ PRESETS = {
     "v2.1": dict(W_ROLL=150.0, W_ROLLRATE=0.5, W_PITCH=100.0, W_PITCHRATE=0.3,
                  W_EXEC=1.5, EXEC_SIGMA=0.05,
                  W_YAW=1.5, YAW_SIG2=0.0005, YAW_EMA=0.005),
+    # v2.2（2026-09-08 晚，spec 附錄 A）：mu_x 固定（動作 10 維）、指令 0.15–0.40、速度核放軟、
+    #   執行率改量真的（擺動結束結算：實際前跨/指令前跨，基準 前 0.88/後 1.47）、
+    #   對稱＝前後執行率差²、姿態只溫和罰（roll 角/率各 ~5%、pitch ~3%，文獻只罰角速度）。
+    "v2.2": dict(ACT_LAYOUT="nomux", EXEC_MODE="rate", CMD_VX=(0.15, 0.40), VX_SIG2=0.1,
+                 W_ROLL=75.0, W_ROLLRATE=0.5, W_PITCH=100.0, W_PITCHRATE=0.3,
+                 W_EXEC=1.5, W_SYM=1.0,
+                 W_YAW=1.5, YAW_SIG2=0.0005, YAW_EMA=0.005),
+}
+# 校準帶（diag/rl_calibrate.py 與 notebook 校準格都用它斷言；佔正項的比例）
+CAL_BANDS = {
+    "v2.1": dict(roll=(0.10, 0.25), pitch=(0.03, 0.15), exec_max=0.50),
+    "v2.2": dict(roll=(0.06, 0.16), pitch=(0.02, 0.10), exec_max=0.45),
 }
 # 模組層級常數 = v2（舊 notebook / 舊測試引用）
 W_ROLL, W_ROLLRATE, W_PITCH, W_PITCHRATE = 20.0, 0.05, 20.0, 0.05
@@ -178,14 +196,23 @@ def duty_remap(th, duty):
 
 
 # ---------------------------------------------------------------- 動作
-def act_to_cmd(a):
-    """14 維 → (mux(4), muy(4), ω(4), sway_target(2))。"""
+def act_to_cmd(a, layout: str = "full"):
+    """動作 → (mux(4), muy(4), ω(4), sway_target(2))。
+    layout "full"：14 維 (mux,muy,ω)×4 + sway；"nomux"：10 維 (muy,ω)×4 + sway，mux 固定＝基準 1.8。"""
     a = jnp.tanh(jnp.asarray(a))
-    leg = a[:12].reshape(4, 3)
-    mux = (leg[:, 0] + 1) / 2 * (MU_MAX - MU_MIN) + MU_MIN
-    muy = (leg[:, 1] + 1) / 2 * (MU_MAX - MU_MIN) + MU_MIN
-    om = (leg[:, 2] + 1) / 2 * (OMEGA_MAX - OMEGA_MIN) + OMEGA_MIN
-    return mux, muy, om, a[12:14] * SWAY_MAX
+    if layout == "full":
+        leg = a[:12].reshape(4, 3)
+        mux = (leg[:, 0] + 1) / 2 * (MU_MAX - MU_MIN) + MU_MIN
+        muy = (leg[:, 1] + 1) / 2 * (MU_MAX - MU_MIN) + MU_MIN
+        om = (leg[:, 2] + 1) / 2 * (OMEGA_MAX - OMEGA_MIN) + OMEGA_MIN
+        return mux, muy, om, a[12:14] * SWAY_MAX
+    if layout == "nomux":
+        leg = a[:8].reshape(4, 2)
+        mux = jnp.full(4, A["mu_x"])
+        muy = (leg[:, 0] + 1) / 2 * (MU_MAX - MU_MIN) + MU_MIN
+        om = (leg[:, 1] + 1) / 2 * (OMEGA_MAX - OMEGA_MIN) + OMEGA_MIN
+        return mux, muy, om, a[8:10] * SWAY_MAX
+    raise ValueError(f"layout {layout!r}")
 
 
 def slew_sway(prev, tgt):
@@ -193,12 +220,17 @@ def slew_sway(prev, tgt):
     return prev + jnp.clip(tgt - prev, -SWAY_SLEW, SWAY_SLEW)
 
 
-def baseline_action() -> np.ndarray:
+def baseline_action(layout: str = "full") -> np.ndarray:
     """A 步態對應的固定動作（sway=0）。G0 的標準答案。"""
     def inv(u, lo, hi):
         return float(np.arctanh(np.clip(2 * (u - lo) / (hi - lo) - 1, -0.999, 0.999)))
-    return np.array([inv(A["mu_x"], MU_MIN, MU_MAX), inv(A["mu_y"], MU_MIN, MU_MAX),
-                     inv(A["omega"], OMEGA_MIN, OMEGA_MAX)] * 4 + [0.0, 0.0])
+    if layout == "full":
+        return np.array([inv(A["mu_x"], MU_MIN, MU_MAX), inv(A["mu_y"], MU_MIN, MU_MAX),
+                         inv(A["omega"], OMEGA_MIN, OMEGA_MAX)] * 4 + [0.0, 0.0])
+    if layout == "nomux":
+        return np.array([inv(A["mu_y"], MU_MIN, MU_MAX),
+                         inv(A["omega"], OMEGA_MIN, OMEGA_MAX)] * 4 + [0.0, 0.0])
+    raise ValueError(f"layout {layout!r}")
 
 
 # ---------------------------------------------------------------- 運動學（與 leg_kin 逐行同）
@@ -276,6 +308,9 @@ class MaxCpgEnv(Env):
     def __init__(self, scene: str = mm.SCENE_MJX_KP250, preset: str = "v2"):
         self.preset = preset
         self.w = weights_of(preset)
+        self.layout = self.w["ACT_LAYOUT"]
+        self.act_dim = LAYOUT_DIMS[self.layout]
+        self.obs_dim = obs_max.obs_dim(self.act_dim)
         m = mujoco.MjModel.from_xml_path(scene)
         assert m.opt.timestep == SIM_DT, f"timestep {m.opt.timestep} ≠ {SIM_DT}"
         assert m.actuator_biastype[0] == mujoco.mjtBias.mjBIAS_AFFINE, \
@@ -331,22 +366,25 @@ class MaxCpgEnv(Env):
         data = data.replace(ctrl=self._ctrl(self._init_q[LEG_QPOS_IDX]))
         data = mjx.forward(self.sys, data)
         k_vx, k_wz, k_zero = jax.random.split(k_cmd, 3)
-        vx = jax.random.uniform(k_vx, minval=0.05, maxval=0.35)
+        vx = jax.random.uniform(k_vx, minval=self.w["CMD_VX"][0], maxval=self.w["CMD_VX"][1])
         wz = jnp.where(jax.random.uniform(k_zero) < 0.6, 0.0,
                        jax.random.uniform(k_wz, minval=-0.4, maxval=0.4))
         cmd = jnp.array([vx, wz])
         tilt = jax.random.uniform(k_tilt, (2,), minval=-IMU_TILT_DEG,
                                   maxval=IMU_TILT_DEG) * jnp.pi / 180
         c = cpg_init()
-        z14 = jnp.zeros(ACT_DIM)
+        z14 = jnp.zeros(self.act_dim)
         info = {"rng": k_noise, "c": c, "cmd": cmd,
                 "gyro_bias": jax.random.uniform(k_bias, (3,), minval=-GYRO_BIAS, maxval=GYRO_BIAS),
                 "imu_q": _quat_rp(tilt[0], tilt[1]),
                 "delay": DELAY_BASE + jax.random.bernoulli(k_delay, 0.5).astype(jnp.int32),
-                "a_hist": jnp.zeros((3, ACT_DIM)), "last_a": z14,
+                "a_hist": jnp.zeros((3, self.act_dim)), "last_a": z14,
                 "sway": jnp.zeros(2), "qvel_prev": data.qvel[LEG_QVEL_IDX],
                 "ema_f": jnp.zeros(()), "ema_r": jnp.zeros(()),
                 "wz_ema": jnp.zeros(()),
+                # 真執行率（EXEC_MODE="rate"）：擺動開始時記足端 x 與目標 x，結束時結算
+                "sw_prev": jnp.zeros(4, bool), "sw_x0": jnp.zeros(4), "sw_t0": jnp.zeros(4),
+                "rate_last": jnp.ones(4),
                 "kill": jnp.zeros((), jnp.int32), "step": 0}
         obs = self._obs(data, c, cmd, z14, info)
         z = jnp.zeros(())
@@ -358,7 +396,7 @@ class MaxCpgEnv(Env):
         info = dict(state.info)
         a_hist = jnp.concatenate([action[None], info["a_hist"][:2]], 0)   # [t, t−1, t−2]
         act = a_hist[info["delay"]]                                         # ★ 動作延遲
-        mux, muy, om, sway_tgt = act_to_cmd(act)
+        mux, muy, om, sway_tgt = act_to_cmd(act, self.layout)
         sway = slew_sway(info["sway"], sway_tgt)
         c = cpg_step(info["c"], mux, muy, om, CTRL_DT)
         q_des = jnp.clip(joint_targets_j(c, sway), self._lo, self._hi)
@@ -393,14 +431,33 @@ class MaxCpgEnv(Env):
         dx = act_ft[:, 0] - tgt[:, 0]
         w = self.w
         track = jnp.exp(-(dx / w["EXEC_SIGMA"]) ** 2)
-        r_exec = jnp.sum(sw * track) / jnp.maximum(jnp.sum(sw), 1.0)
         n_f, n_r = jnp.sum(sw[FRONT]), jnp.sum(sw[REAR])
-        ef = jnp.sum(sw[FRONT] * jnp.abs(dx[FRONT])) / jnp.maximum(n_f, 1.0)
-        er = jnp.sum(sw[REAR] * jnp.abs(dx[REAR])) / jnp.maximum(n_r, 1.0)
-        ema_f = jnp.where(n_f > 0, (1 - SYM_EMA) * info["ema_f"] + SYM_EMA * ef, info["ema_f"])
-        ema_r = jnp.where(n_r > 0, (1 - SYM_EMA) * info["ema_r"] + SYM_EMA * er, info["ema_r"])
+        # ---- 真執行率：擺動開始記起點，結束時 (實際前跨)/(指令前跨)，保持到下一次擺動 ----
+        # ★ 實際前跨用**世界系**足端 x 減機身 x（與 cpg_walk_max.Trace 同一個量）。
+        #   機身系 FK 位移會把 pitch 擺動（±2° × 0.45 m 腿長 ≈ 30 mm）算成假的前跨。
+        fx_rel = data.geom_xpos[self._wheel_gids, 0] - data.qpos[0]
+        sw_b = sw > 0.5
+        start = sw_b & ~info["sw_prev"]
+        end = ~sw_b & info["sw_prev"]
+        sw_x0 = jnp.where(start, fx_rel, info["sw_x0"])
+        sw_t0 = jnp.where(start, tgt[:, 0], info["sw_t0"])
+        d_cmd = tgt[:, 0] - sw_t0
+        rate_new = (fx_rel - sw_x0) / jnp.where(jnp.abs(d_cmd) > 1e-3, d_cmd, 1e-3)
+        rate_last = jnp.where(end & (jnp.abs(d_cmd) > 1e-3), rate_new, info["rate_last"])
+        rate_f, rate_r = jnp.mean(rate_last[FRONT]), jnp.mean(rate_last[REAR])
+        if w["EXEC_MODE"] == "rate":
+            r_exec = jnp.mean(jnp.exp(-((rate_last - 1.0) / w["EXEC_RATE_SIG"]) ** 2))
+            sym_pen = (rate_f - rate_r) ** 2
+            ema_f, ema_r = info["ema_f"], info["ema_r"]
+        else:
+            r_exec = jnp.sum(sw * track) / jnp.maximum(jnp.sum(sw), 1.0)
+            ef = jnp.sum(sw[FRONT] * jnp.abs(dx[FRONT])) / jnp.maximum(n_f, 1.0)
+            er = jnp.sum(sw[REAR] * jnp.abs(dx[REAR])) / jnp.maximum(n_r, 1.0)
+            ema_f = jnp.where(n_f > 0, (1 - SYM_EMA) * info["ema_f"] + SYM_EMA * ef, info["ema_f"])
+            ema_r = jnp.where(n_r > 0, (1 - SYM_EMA) * info["ema_r"] + SYM_EMA * er, info["ema_r"])
+            sym_pen = (ema_f - ema_r) ** 2
 
-        r_vx = jnp.exp(-(vb[0] - cmd[0]) ** 2 / 0.02)
+        r_vx = jnp.exp(-(vb[0] - cmd[0]) ** 2 / w["VX_SIG2"])
         r_vy = jnp.exp(-vb[1] ** 2 / 0.02)
         wz_ema = info["wz_ema"] + w["YAW_EMA"] * (wz - info["wz_ema"])
         r_yaw = yaw_reward(wz_ema if w["YAW_EMA"] > 0 else wz, cmd[1], w["YAW_SIG2"])
@@ -413,7 +470,7 @@ class MaxCpgEnv(Env):
             "t_vx": w["W_VX"] * r_vx, "t_yaw": w["W_YAW"] * r_yaw, "t_exec": w["W_EXEC"] * r_exec,
             "t_roll": w["W_ROLL"] * grav[1] ** 2, "t_rollrate": w["W_ROLLRATE"] * data.qvel[3] ** 2,
             "t_pitch": w["W_PITCH"] * grav[0] ** 2, "t_pitchrate": w["W_PITCHRATE"] * data.qvel[4] ** 2,
-            "t_sym": w["W_SYM"] * (ema_f - ema_r) ** 2,
+            "t_sym": w["W_SYM"] * sym_pen,
             "t_vz": w["W_VZ"] * data.qvel[2] ** 2, "t_omvar": w["W_OMEGA_VAR"] * jnp.var(om),
             "t_act": w["W_ACT"] * c_act, "t_tau": w["W_TAU"] * c_tau,
             "t_taubar": w["W_TAUBAR"] * tau_barrier(tau_pk12),
@@ -432,20 +489,23 @@ class MaxCpgEnv(Env):
         done = jnp.where(fell | too_low | (kill >= KILL_STEPS), 1.0, 0.0)
 
         obs = self._obs(data, c, cmd, action, info)
-        n = jax.random.normal(k_obs, (OBS_DIM,))
+        n = jax.random.normal(k_obs, (self.obs_dim,))
         obs = (obs.at[0:3].add(NOISE_GRAV * n[0:3]).at[3:6].add(NOISE_GYRO * n[3:6])
                .at[6:18].add(NOISE_QPOS * n[6:18]).at[18:30].add(NOISE_QVEL * n[18:30]))
 
         info.update({"rng": rng, "c": c, "last_a": action, "a_hist": a_hist, "sway": sway,
                      "qvel_prev": data.qvel[LEG_QVEL_IDX], "ema_f": ema_f, "ema_r": ema_r,
-                     "wz_ema": wz_ema, "kill": kill, "step": info["step"] + 1})
+                     "wz_ema": wz_ema, "sw_prev": sw_b, "sw_x0": sw_x0, "sw_t0": sw_t0,
+                     "rate_last": rate_last, "kill": kill, "step": info["step"] + 1})
         metrics = {
             "height": data.qpos[2], "vx": vb[0], "reward": reward,
             "pitch": jnp.abs(grav[0]) * 57.29578, "roll": jnp.abs(grav[1]) * 57.29578,
             "clr": jnp.mean(self._wheel_clearance(data)) * 1000.0, "vz": jnp.abs(data.qvel[2]),
             "yawerr": jnp.abs(wz - cmd[1]), "vxerr": jnp.abs(vb[0] - cmd[0]),
-            "exec_f": jnp.sum(sw[FRONT] * track[FRONT]) / jnp.maximum(n_f, 1.0),
-            "exec_r": jnp.sum(sw[REAR] * track[REAR]) / jnp.maximum(n_r, 1.0),
+            "exec_f": (rate_f if w["EXEC_MODE"] == "rate"
+                       else jnp.sum(sw[FRONT] * track[FRONT]) / jnp.maximum(n_f, 1.0)),
+            "exec_r": (rate_r if w["EXEC_MODE"] == "rate"
+                       else jnp.sum(sw[REAR] * track[REAR]) / jnp.maximum(n_r, 1.0)),
             "tau_pk": jnp.max(tau_pk12), "err_pk": jnp.max(jnp.abs(err12)),
             "sway_x": jnp.abs(sway[0]) * 1000.0, "sway_y": jnp.abs(sway[1]) * 1000.0,
             **T,
@@ -455,11 +515,11 @@ class MaxCpgEnv(Env):
 
     @property
     def observation_size(self):
-        return OBS_DIM
+        return self.obs_dim
 
     @property
     def action_size(self):
-        return ACT_DIM
+        return self.act_dim
 
     @property
     def backend(self):

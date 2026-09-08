@@ -17,6 +17,9 @@
 - 測試 756 項；G0 基準數字：speed 0.34、roll_pk 3.86°、exec 前 0.88/**後 1.47**、峰值力矩 55.7（貼近護欄）
 - **下一步**：`git push` → Colab 全部執行 → 下載 `weights/cpg_rl_max_v2_params.pkl` → 本機 G3–G8 → 結果文件
 - ⚠️ **G7 不過不上機**；狗上推論（M9 加 policy 路徑）另開 spec，尚未實作
+- **v2.2**（同日晚，★ 主力）：v2 權重驗收 G4/G5/G6 全 ❌ 且比開迴路差（前腳不踏、前後不對稱、60 s 偏航 +48°）。
+  文獻對照後定案：**mu_x 固定（動作 10 維）**、指令 0.15–0.40、速度核放軟、真執行率獎勵、對稱＝執行率差、姿態溫和罰。
+  notebook `cpg_rl_max_v2_2_colab.ipynb`、權重 `cpg_rl_max_v2_2_params.pkl`、驗收 `local_infer_max --preset v2.2`。設計文件 §7。
 - **v2.1**（同日下午）：v2 跑到 23M roll 只降 12% → 量出 roll 罰項只佔正項 2.7% → `PRESETS["v2.1"]`（roll 18%）、
   新 notebook `cpg_rl_max_v2_1_colab.ipynb`、權重 `cpg_rl_max_v2_1_params.pkl`；設計文件 §6
 

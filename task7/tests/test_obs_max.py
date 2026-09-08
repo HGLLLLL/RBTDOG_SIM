@@ -158,3 +158,17 @@ def test_dummy_reproduces_open_loop_baseline_bit_exactly():
         assert got[k] == want[k], f"{k}: 推論端 {got[k]} vs 開迴路 {want[k]}"
     # ω 沒被動過 → 平均值就是基準值
     assert abs(got["omega_mean"] - A["omega"]) < 1e-12
+
+
+def test_nomux_layout_only_changes_last_action_width(level_data):
+    """v2.2：動作 10 維 → obs 66 維；其他欄位的位置與內容逐項不變。"""
+    assert obs_max.obs_dim(10) == 66 and obs_max.OBS_DIM_NOMUX == 66
+    o14 = obs_max.build_obs(level_data, _c(), np.array([0.3, -0.1]), np.arange(14.0))
+    o10 = obs_max.build_obs(level_data, _c(), np.array([0.3, -0.1]), np.arange(10.0))
+    assert o10.shape == (66,) and o14.shape == (70,)
+    for name in ("gravity", "gyro", "joint_pos", "joint_vel", "cmd"):
+        np.testing.assert_array_equal(o10[obs_max.slice_of(name, 10)], o14[obs_max.slice_of(name)])
+    np.testing.assert_array_equal(o10[obs_max.slice_of("cpg", 10)], o14[obs_max.slice_of("cpg")])
+    np.testing.assert_array_equal(o10[obs_max.slice_of("last_action", 10)], np.arange(10.0))
+    with pytest.raises(AssertionError):
+        obs_max.build_obs(level_data, _c(), np.array([0.0, 0.0]), np.zeros(12))

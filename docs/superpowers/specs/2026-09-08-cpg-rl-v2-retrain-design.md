@@ -152,3 +152,24 @@ v2 權重驗收 G4/G5/G6 全 ❌ 且「比開迴路差」，根因四個（詳 `
 
 實作：`obs_max` 支援 act_dim ∈ {10, 14}（`obs_dim(act_dim)`）；`rl_env_max.PRESETS["v2.2"]` 含 `ACT_LAYOUT="nomux"`、`EXEC_MODE="rate"`、`CMD_VX=(0.15,0.40)`、`VX_SIG2=0.1`；
 `local_infer_max --preset v2.2`；新 notebook `cpg_rl_max_v2_2_colab.ipynb`、權重 `cpg_rl_max_v2_2_params.pkl`。舊 preset 行為不變。
+
+---
+
+## 附錄 B：v2.4（2026-09-08 夜，使用者選 A：給 policy 航向誤差）
+
+v2.3 驗收：G3/G4/G7 ✅（roll −36%、力矩回到基準水準、起步扭動消失）、G5 差 0.01、
+**G6 −29.8°/60 s、轉彎只轉出指令 13–21%**。根因：policy 只觀測角速度，看不到累積航向；
+4 s EMA 在 ±0.6 rad/s 甩頭振盪下殘留 ±0.02 rad/s，就是 0.5°/s 的底噪，reward 再調也在底噪裡打轉。
+
+決策（使用者）：**obs 加 1 維航向誤差** `head_err = ∫(gyro_z_obs − cmd_wz)·dt`（rad，clip ±1.0），
+實機由 policy 迴圈用 IMU gyro_z 自己積分（起走時歸零），不需任何實機沒有的量。
+
+| 項 | v2.3 | **v2.4** |
+|---|---|---|
+| obs | 66 | **67**（`cmd` 之後插入 `head_err` 1 維；其餘順序不變） |
+| reward 新增 | — | `+W_HEAD·exp(−(head_err/0.15)²)`，W_HEAD 1.0（8.6° 時 0.37） |
+| gyro 偏置隨機化 | 三軸 ±0.02 | x/y ±0.02、**z ±0.005**（實測 z 偏置 0.001；積分器用的是含偏置的觀測值，policy 要學會容忍） |
+| 其餘 | — | 同 v2.3（動作 10 維、雙尺度核、淡入、護欄） |
+
+`obs_max.layout(act_dim, head=True)`；`local_infer_max --preset v2.4` 同步積分；notebook `cpg_rl_max_v2_4_colab.ipynb`、權重 `cpg_rl_max_v2_4_params.pkl`。
+上機語意：`head_err` 是「相對起走時航向的偏差」；轉彎指令時是「相對指令航向的偏差」。

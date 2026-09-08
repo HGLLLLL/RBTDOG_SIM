@@ -32,6 +32,7 @@ FILES=(
   "$HERE/M10_wheel_kd_chatter.py"  # ★ 輪阻尼抖振測試（trip17 分辨實驗，墊高零風險）
   "$HERE/M_faultwatch.py"
   "$HERE/M_freezetest.py"    # ★ mc_ctrl 凍結時長的零風險觀察
+  "$HERE/M_env_probe.py"     # ★ 狗上電腦探測：numpy/MLP 前向 ms/CPU 親和性（不碰 shm，零風險）
   "$HERE/estop_max.sh"      # ★ 急停。第二個終端機一定要備著
 )
 

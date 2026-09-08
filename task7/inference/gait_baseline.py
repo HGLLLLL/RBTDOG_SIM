@@ -102,3 +102,40 @@ def walk_gait() -> dict:
                 omega=BASELINE["omega"], mu_x=BASELINE["mu_x"],
                 x_off=BASELINE["x_off"], d_step=BASELINE["d_step"],
                 g_c=BASELINE["g_c"])
+
+
+# =============================================================================
+# ★ RL v2 基準（2026-09-08）：實機 trip17 兩趟零中止走完的 A_kp250_walk
+# =============================================================================
+# 每個數字直接對應 `outputs/A_kp250_walk.json` 的 params（測試釘住逐欄相等）。
+# 與 BASELINE 的差異：LS 相位序列（E 文件）、kp250/abad60/kd2（H 文件）、
+# x_off −30 / g_c 0.048 / z_sag 0.036（G 文件，kp250 重掃 + 實機錨點）。
+BASELINE_A = {
+    "gait": "walk_a",
+    "seq": "ls",
+    "duty": 0.80,
+    "omega": 1.4,
+    "mu_x": 1.80,
+    "mu_y": 1.50,
+    "d_step": 0.10,
+    "d_step_y": 0.12,
+    "x_off": -0.030,
+    "g_c": 0.048,
+    "z_sag": 0.036,
+    "kp3": [60.0, 250.0, 250.0],
+    "kd3": [2.0, 2.0, 2.0],
+    "wheel_kd": 0.5,
+    "wheel_mode": "damp",
+}
+
+
+def walk_a_gait() -> dict:
+    """`cpg_walk_max.GAITS["walk_a"]` 用的 dict。
+
+    ⚠️ 用它 rollout 時**必須同時給** kp3/kd3/kd_wheel/z_sag（增益不在 GAITS 裡）：
+        rollout(gait="walk_a", kp3=BASELINE_A["kp3"], kd3=BASELINE_A["kd3"],
+                kd_wheel=BASELINE_A["wheel_kd"], z_sag=BASELINE_A["z_sag"])
+    """
+    b = BASELINE_A
+    return dict(phase=cpg_max.PHASE_WALK_LS, duty=b["duty"], omega=b["omega"],
+                mu_x=b["mu_x"], x_off=b["x_off"], d_step=b["d_step"], g_c=b["g_c"])

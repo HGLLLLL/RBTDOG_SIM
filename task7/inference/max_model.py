@@ -25,6 +25,7 @@ SCENE = str(_MODEL_DIR / "scene_flat.xml")
 # ⚠️ 它與 SCENE **不是同一個物理模型**，差異的量化對照見
 #    `task7/docs/MJX模型對照_2026-08-27.md`。引用數字時要標明是哪一個。
 SCENE_MJX = str(_MODEL_DIR / "scene_flat_mjx.xml")
+SCENE_MJX_KP250 = str(_MODEL_DIR / "scene_flat_mjx_kp250.xml")   # RL v2 訓練模型（增益 KP3_A/KD3_A）
 
 # =============================================================================
 # 機構
@@ -123,6 +124,11 @@ SIM_DT = 0.002    # MJCF 預設 timestep，剛好等於原廠 controller_dt（50
 #   ABAD 與 HIP/KNEE **不共用一個 Kp**（60 vs 120），這點與 task6 的 D1 EDU 不同。
 KP3 = np.array([60.0, 120.0, 120.0])   # abad, hip, knee
 KD3 = np.array([1.0, 1.0, 1.0])
+# ★ RL v2（2026-09-08）用的增益 —— 就是實機 A_kp250_walk 走過的那組。
+#   ABAD 60 是原廠值，HIP/KNEE 250 是原廠站立值（M7/M8/trip17 實機驗證）。
+#   不改 KP3/KD3：kp120 那條線（BASELINE）仍引用它們。
+KP3_A = np.array([60.0, 250.0, 250.0])
+KD3_A = np.array([2.0, 2.0, 2.0])
 KP_WHEEL, KD_WHEEL = 60.0, 0.5         # 原廠輪子是真的有位置增益的（D1 EDU 幾乎只做阻尼）
 
 # 扭矩上限。MJCF 的 actuatorfrcrange 寫 150（腿）/ 40（輪），規格書寫 150 / 33。

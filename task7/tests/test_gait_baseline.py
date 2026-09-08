@@ -143,3 +143,29 @@ def test_kp250_gait_actually_fixes_front_legs():
     bad = cw.rollout(gait="walk_kp250", secs=12.0, quiet=True)
     assert bad["exec_front"] < 0.3, (
         "沒給 kp3 時前腳執行率竟然是好的 —— 表示增益從別的地方漏進來了")
+
+
+def test_baseline_a_matches_A_kp250_walk_json():
+    """BASELINE_A 是 RL v2 的基準與對照組，必須與實機走過的軌跡檔逐欄相等。"""
+    import json
+    p = Path(__file__).resolve().parents[1] / "outputs" / "A_kp250_walk.json"
+    D = json.loads(p.read_text(encoding="utf-8"))
+    P = D["params"]
+    A = gb.BASELINE_A
+    assert A["seq"] == D["seq"] == "ls"
+    for k in ("duty", "omega", "d_step", "x_off", "g_c", "z_sag"):
+        assert A[k] == P[k], k
+    assert A["mu_x"] == 1.80 and A["mu_y"] == 1.50 and A["d_step_y"] == 0.12
+    assert A["kp3"] == [D["kp_abad"], D["kp"], D["kp"]] == [60.0, 250.0, 250.0]
+    assert A["kd3"] == [D["kd"]] * 3 == [2.0, 2.0, 2.0]
+    assert A["wheel_kd"] == D["wheel_kd"] == 0.5 and A["wheel_mode"] == "damp"
+    assert list(mm.KP3_A) == A["kp3"] and list(mm.KD3_A) == A["kd3"]
+    # 舊常數不可被順手改掉
+    assert gb.BASELINE["x_off"] == -0.040 and list(mm.KP3) == [60.0, 120.0, 120.0]
+
+
+def test_walk_a_gait_uses_ls_phase_and_baseline_a():
+    g = cw.GAITS["walk_a"]
+    assert np.allclose(g["phase"], cpg_max.PHASE_WALK_LS)
+    for k in ("duty", "omega", "mu_x", "x_off", "g_c", "d_step"):
+        assert g[k] == gb.BASELINE_A[k], k

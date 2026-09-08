@@ -140,6 +140,8 @@ GAITS = {
     #              kd3=gb.BASELINE_KP250["kd3"], z_sag=gb.BASELINE_KP250["z_sag"])
     #      這正是「參數散在兩個地方」的坑，所以 gait_baseline 那邊放的是完整字典。
     "walk_kp250": gb.kp250_gait(),
+    # ★ RL v2 基準：實機 A_kp250_walk（LS）。增益要另外給，見 gb.walk_a_gait 的說明。
+    "walk_a": gb.walk_a_gait(),
     # trot 的 x_off 沒有重掃 —— 它的指標是混沌的，掃了也選不出東西。
     "trot": dict(phase=cpg_max.PHASE_TROT, duty=0.50, omega=3.0, mu_x=1.80,
                  x_off=-0.050, d_step=0.10, g_c=0.08),

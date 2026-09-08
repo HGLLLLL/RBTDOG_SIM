@@ -203,3 +203,21 @@ def test_v2_2_symmetry_penalises_left_right_too():
     s2 = step(s2, a)
     # 這一步沒有腿結算（rate_last 沿用）→ sym = (f−r)² + (l−r)² = 0 + 0.25，W_SYM=1
     assert abs(float(s2.metrics["t_sym"]) - 0.25) < 1e-3 or float(s2.metrics["t_sym"]) > base_sym
+
+
+def test_v2_3_preset_and_startup_ramp():
+    """v2.3 = v2.2 + 動作抖振/護欄權重 + 起步淡入。淡入：第 0 步不管 policy 出什麼，都等於基準動作。"""
+    w22, w23 = re.weights_of("v2.2"), re.weights_of("v2.3")
+    changed = {k for k in w23 if w23[k] != w22[k]}
+    assert changed == {"W_ACT", "W_TAUBAR", "RAMP_STEPS"}
+    assert w23["RAMP_STEPS"] == 50 and w22["RAMP_STEPS"] == 0
+    env = re.MaxCpgEnv(preset="v2.3")
+    reset, step = jax.jit(env.reset), jax.jit(env.step)
+    s = reset(jax.random.PRNGKey(0))
+    s = s.replace(info={**s.info, "delay": jnp.int32(0)})
+    wild = jnp.full(10, 8.0)                       # tanh → sway +60 mm、ω 2.0
+    s1 = step(s, wild)
+    np.testing.assert_allclose(np.asarray(s1.info["sway"]), 0.0, atol=1e-6)   # 第 0 步 u=0 → 基準（sway 0）
+    for _ in range(60):
+        s1 = step(s1, wild)
+    assert float(jnp.abs(s1.info["sway"]).max()) > 0.03                          # 淡入完成後 policy 生效

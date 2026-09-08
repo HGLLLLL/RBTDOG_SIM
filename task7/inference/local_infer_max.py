@@ -78,9 +78,13 @@ SIM2REAL_TAU, SIM2REAL_ERR = 1.2, 1.14        # kp250 實測比值 ×1.14（兩�
 
 
 LAYOUT_DIMS = {"full": 14, "nomux": 10}
-PRESET_LAYOUT = {"v2": "full", "v2.1": "full", "v2.2": "nomux"}
-PRESET_G4_DROP = {"v2": 0.60, "v2.1": 0.60, "v2.2": 0.30}      # G4：roll 峰值要降的比例
-PRESET_EVAL_VX = {"v2": 0.15, "v2.1": 0.15, "v2.2": 0.30}      # 驗收指令（v2.2 指令範圍 0.15–0.40）
+PRESET_LAYOUT = {"v2": "full", "v2.1": "full", "v2.2": "nomux", "v2.3": "nomux"}
+PRESET_G4_DROP = {"v2": 0.60, "v2.1": 0.60, "v2.2": 0.30, "v2.3": 0.30}   # G4：roll 峰值要降的比例
+PRESET_EVAL_VX = {"v2": 0.15, "v2.1": 0.15, "v2.2": 0.30, "v2.3": 0.30}   # 驗收指令
+PRESET_RAMP = {"v2": 0, "v2.1": 0, "v2.2": 0, "v2.3": 50}                # 起步淡入步數（= rl_env_max RAMP_STEPS）
+# ★ 實機延遲（H 文件實測：伺服 +15 ms、joint_vel 濾波 12–20 ms）。policy 在有延遲的 env 裡學的，
+#   零延遲驗收會得到假的偏航漂移（v2.2：零延遲 +28.8°/30 s，加延遲 +1.4°）。預設 1 步 = 20 ms。
+DEFAULT_LATENCY = 1
 
 
 def baseline_action(layout: str = "full") -> np.ndarray:
@@ -150,8 +154,12 @@ def run_once(args, infer, seed: int = 0) -> dict:
     """一次 rollout。`seed` 只用來給 x_off 加 1e-12·seed 的皮米擾動（同 cpg_sweep_max）。"""
     import mujoco
 
-    layout = PRESET_LAYOUT[getattr(args, "preset", "v2")]
+    preset = getattr(args, "preset", "v2")
+    layout = PRESET_LAYOUT[preset]
     act_dim = LAYOUT_DIMS[layout]
+    latency = int(getattr(args, "latency", DEFAULT_LATENCY))
+    ramp = int(getattr(args, "ramp", PRESET_RAMP[preset]))
+    base_act = baseline_action(layout)
 
     scene = args.scene or DEFAULT_SCENE
     mode = "position" if scene != mm.SCENE else "torque_pd"
@@ -179,10 +187,26 @@ def run_once(args, infer, seed: int = 0) -> dict:
     sway = np.zeros(2)
     n_reach, om_hist, sway_hist = 0, [], []
     tr = cw.Trace(r, n, args.secs, A["omega"], PHASE, A["duty"])
+    a_hist = [base_act.copy()] * 3              # 動作延遲佇列 [t, t−1, t−2]，以基準動作初始化（同 env）
+    qv_hist = [r.d.qvel[mm.LEG_QVEL_IDX].copy()] * 3
     for i in range(n):
-        obs = obs_max.build_obs(r.d, c, cmd, last_a)
+        # ---- obs：joint_vel 延 latency 步（driver 濾波），其餘即時 ----
+        class _D:
+            pass
+        d_ = _D()
+        d_.qpos = r.d.qpos
+        qv = r.d.qvel.copy()
+        qv[mm.LEG_QVEL_IDX] = qv_hist[latency]
+        d_.qvel = qv
+        obs = obs_max.build_obs(d_, c, cmd, last_a)
         a = infer(obs)
-        mux, muy, om, sw_t = act_to_cmd(a, layout)
+        a_hist = [a] + a_hist[:2]
+        qv_hist = [r.d.qvel[mm.LEG_QVEL_IDX].copy()] + qv_hist[:2]
+        act = a_hist[latency]                       # ---- 動作延 latency 步
+        if ramp > 0:                                # ---- 起步淡入
+            u = min(1.0, i / ramp)
+            act = base_act + u * (act - base_act)
+        mux, muy, om, sw_t = act_to_cmd(act, layout)
         sway = slew_sway(sway, sw_t)
         om_hist.append(om.copy())
         sway_hist.append(sway.copy())
@@ -204,7 +228,7 @@ def run_once(args, infer, seed: int = 0) -> dict:
             frames.append(ren.render())
     om_arr, sw_arr = np.asarray(om_hist), np.asarray(sway_hist)
     res = tr.summarize(n_reach, extra={
-        "scene": scene, "actuator_mode": mode, "seed": seed,
+        "scene": scene, "actuator_mode": mode, "seed": seed, "latency": latency, "ramp": ramp,
         "cmd_vx": args.vx, "cmd_wz": args.wz, "dummy": bool(args.dummy),
         "omega_mean": float(om_arr.mean()), "omega_min": float(om_arr.min()),
         "omega_max": float(om_arr.max()),
@@ -259,6 +283,7 @@ def run(args) -> dict:
 
     src = "基準固定動作" if args.dummy else Path(args.params).name
     cw.report(res, f"[推論 {preset}] {src}  cmd=(vx {args.vx:.2f}, wz {args.wz:+.2f})  擾動 {len(rs)}"
+                   f"  延遲 {res['latency']} 步  淡入 {res['ramp']} 步"
                    f"  ω {res['omega_min']:.2f}~{res['omega_max']:.2f}"
                    f"  sway |x| {res['sway_x_abs']:.0f} |y| {res['sway_y_abs']:.0f} mm")
     print(f"[G3] 跌倒 {res['fell_n']}/{len(rs)} → {'✅' if g['G3'] else '❌'}")
@@ -301,6 +326,9 @@ def main() -> int:
     ap.add_argument("--preset", default="v2", choices=sorted(PRESET_LAYOUT),
                     help="權重是哪個 preset 訓的（決定動作維度／G4 門檻／預設 vx）")
     ap.add_argument("--perturb", type=int, default=1, help="皮米擾動次數（12 = 正式驗收）")
+    ap.add_argument("--latency", type=int, default=DEFAULT_LATENCY,
+                    help="動作與 joint_vel 各延幾步（實機 ≈1 步 20 ms）。0 = 舊的零延遲驗收（不真實）")
+    ap.add_argument("--ramp", type=int, default=None, help="起步淡入步數；預設依 preset（v2.3 = 50）")
     ap.add_argument("--compare", action="store_true",
                     help="同擾動跑開迴路 A 當對照（G4 需要）")
     a = ap.parse_args()
@@ -308,6 +336,8 @@ def main() -> int:
         ap.error("要嘛給 --params，要嘛用 --dummy")
     if a.vx is None:
         a.vx = PRESET_EVAL_VX[a.preset]
+    if a.ramp is None:
+        a.ramp = PRESET_RAMP[a.preset]
     run(a)
     return 0
 

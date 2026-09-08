@@ -65,3 +65,18 @@ def test_v2_2_layout_dummy_matches_open_loop_walk_a():
                          kd_wheel=A["wheel_kd"], z_sag=A["z_sag"], quiet=True)
     for k in ("speed_travel", "bounce", "support", "roll_pk", "exec_front"):
         assert abs(res[k] - ref[k]) < 1e-9, k
+
+
+def test_latency_and_ramp_defaults_and_dummy_still_bit_exact():
+    """預設延遲 1 步（實機條件）；固定動作不受延遲/淡入影響，G0 仍逐位相同。"""
+    assert li.DEFAULT_LATENCY == 1 and li.PRESET_RAMP["v2.3"] == 50 and li.PRESET_RAMP["v2.2"] == 0
+    A = gb.BASELINE_A
+    args = SimpleNamespace(params="", dummy=True, secs=4.0, vx=0.30, wz=0.0, video=False,
+                           scene=None, perturb=1, compare=False, preset="v2.3", latency=1, ramp=50)
+    with contextlib.redirect_stdout(io.StringIO()):
+        res = li.run(args)
+        ref = cw.rollout(gait="walk_a", secs=4.0, kp3=A["kp3"], kd3=A["kd3"],
+                         kd_wheel=A["wheel_kd"], z_sag=A["z_sag"], quiet=True)
+    for k in ("speed_travel", "bounce", "roll_pk"):
+        assert abs(res[k] - ref[k]) < 1e-9, k
+    assert res["latency"] == 1 and res["ramp"] == 50

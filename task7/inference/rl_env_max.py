@@ -94,6 +94,7 @@ W_DEFAULT = dict(
     ACT_LAYOUT="full",               # "full" 14 維 / "nomux" 10 維（mu_x 固定＝基準）
     EXEC_MODE="track",               # "track" 擺動相 x 追蹤 / "rate" 真執行率（擺動結束時結算）
     EXEC_RATE_SIG=0.35,              # rate 模式：exp(−((rate−1)/σ)²)
+    RAMP_STEPS=0,                    # 起步淡入：前 N 步 policy 動作從基準線性混入（M9 上機有 3 s GAIT_IN）
 )
 PRESETS = {
     "v2": {},
@@ -119,10 +120,17 @@ PRESETS = {
                  W_YAW=1.5, YAW_SIG2=0.0005, YAW_EMA=0.005,
                  W_YAW_INST=0.5, YAW_INST_SIG2=0.05),
 }
+# v2.3（2026-09-08 夜）：v2.2 步態使用者滿意、動作空間不動。三件小事：
+#   ① 驗收工具改用實機延遲（動作 1 步 + joint_vel 1 步）—— v2.2 的「偏航 +65°」是零延遲驗收的假象
+#      （env 條件下 30 s 只漂 +1.4°）；② 起步淡入 1 s（解 0.22 s 那個 89 N·m 扭動）；
+#   ③ W_ACT 0.01→0.05、W_TAUBAR 0.01→0.05（穩態 τ_pk 65 ×1.2 = 78 超門檻 70，動作抖 Σ(Δa)² 0.8/步）。
+PRESETS["v2.3"] = dict(PRESETS["v2.2"], W_ACT=0.05, W_TAUBAR=0.05, RAMP_STEPS=50)
+
 # 校準帶（diag/rl_calibrate.py 與 notebook 校準格都用它斷言；佔正項的比例）
 CAL_BANDS = {
     "v2.1": dict(roll=(0.10, 0.25), pitch=(0.03, 0.15), exec_max=0.50),
     "v2.2": dict(roll=(0.06, 0.16), pitch=(0.02, 0.10), exec_max=0.45),
+    "v2.3": dict(roll=(0.06, 0.16), pitch=(0.02, 0.10), exec_max=0.45),
 }
 # 模組層級常數 = v2（舊 notebook / 舊測試引用）
 W_ROLL, W_ROLLRATE, W_PITCH, W_PITCHRATE = 20.0, 0.05, 20.0, 0.05
@@ -317,6 +325,8 @@ class MaxCpgEnv(Env):
         self.layout = self.w["ACT_LAYOUT"]
         self.act_dim = LAYOUT_DIMS[self.layout]
         self.obs_dim = obs_max.obs_dim(self.act_dim)
+        self._base_act = jnp.array(baseline_action(self.layout))
+        self._ramp = int(self.w["RAMP_STEPS"])
         m = mujoco.MjModel.from_xml_path(scene)
         assert m.opt.timestep == SIM_DT, f"timestep {m.opt.timestep} ≠ {SIM_DT}"
         assert m.actuator_biastype[0] == mujoco.mjtBias.mjBIAS_AFFINE, \
@@ -384,7 +394,8 @@ class MaxCpgEnv(Env):
                 "gyro_bias": jax.random.uniform(k_bias, (3,), minval=-GYRO_BIAS, maxval=GYRO_BIAS),
                 "imu_q": _quat_rp(tilt[0], tilt[1]),
                 "delay": DELAY_BASE + jax.random.bernoulli(k_delay, 0.5).astype(jnp.int32),
-                "a_hist": jnp.zeros((3, self.act_dim)), "last_a": z14,
+                # 延遲佇列以**基準動作**初始化：episode 開頭等於開迴路步態（零動作 = mux 1.5 不跨步）
+                "a_hist": jnp.tile(self._base_act[None], (3, 1)), "last_a": z14,
                 "sway": jnp.zeros(2), "qvel_prev": data.qvel[LEG_QVEL_IDX],
                 "ema_f": jnp.zeros(()), "ema_r": jnp.zeros(()),
                 "wz_ema": jnp.zeros(()),
@@ -402,6 +413,9 @@ class MaxCpgEnv(Env):
         info = dict(state.info)
         a_hist = jnp.concatenate([action[None], info["a_hist"][:2]], 0)   # [t, t−1, t−2]
         act = a_hist[info["delay"]]                                         # ★ 動作延遲
+        if self._ramp > 0:                                                  # ★ 起步淡入
+            u = jnp.clip(info["step"] / self._ramp, 0.0, 1.0)
+            act = self._base_act + u * (act - self._base_act)
         mux, muy, om, sway_tgt = act_to_cmd(act, self.layout)
         sway = slew_sway(info["sway"], sway_tgt)
         c = cpg_step(info["c"], mux, muy, om, CTRL_DT)

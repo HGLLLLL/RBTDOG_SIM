@@ -6,6 +6,18 @@
 
 ---
 
+## ▶ ★★★ 2026-09-08 下午：CPG-RL v2 工具鏈完成，G0/G1/G2 全過 —— **等 Colab 訓練**
+
+**讀 `docs/CPG-RL_v2_設計_2026-09-08.md`**（§3 是 Colab 流程、§4 是驗收門檻）。
+決策：基準 `BASELINE_A`（= A_kp250_walk）；動作 **14 維（加 body sway）**；obs 70 維；
+延遲/雜訊/IMU 偏轉依 H 文件實測；reward 優先序 姿態 > 前腳執行率與對稱 > 航向 > 速度；
+**力矩護欄 58 N·m / 誤差 0.45 rad、|τ|>90 連 3 步終止** —— 為了不重演 9/3 sway 趟膝 71 N·m。
+- env 在 **`inference/rl_env_max.py`**（本機 CPU 可測）；notebook 由 `notebooks/build_nb_v2.py` 產生、只 import
+- 訓練模型 `model/zgws/zgws_mjx_kp250.xml`（G1 ±2% 通過）；`local_infer_max.py --perturb 12 --compare` 一次印 G3–G7
+- 測試 756 項；G0 基準數字：speed 0.34、roll_pk 3.86°、exec 前 0.88/**後 1.47**、峰值力矩 55.7（貼近護欄）
+- **下一步**：`git push` → Colab 全部執行 → 下載 `weights/cpg_rl_max_v2_params.pkl` → 本機 G3–G8 → 結果文件
+- ⚠️ **G7 不過不上機**；狗上推論（M9 加 policy 路徑）另開 spec，尚未實作
+
 ## ▶ ★★★ 2026-09-08：obs 盤點完成 —— 30 個感測欄位全部可用，下一步就是 CPG-RL 重訓
 
 **結果文件 `docs/H_實機obs盤點_2026-09-08.md`** ← 接手先讀這份（§5 是訓練端要吃的清單）。

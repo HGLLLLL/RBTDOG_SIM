@@ -209,7 +209,7 @@ def test_v2_3_preset_and_startup_ramp():
     """v2.3 = v2.2 + 動作抖振/護欄權重 + 起步淡入。淡入：第 0 步不管 policy 出什麼，都等於基準動作。"""
     w22, w23 = re.weights_of("v2.2"), re.weights_of("v2.3")
     changed = {k for k in w23 if w23[k] != w22[k]}
-    assert changed == {"W_ACT", "W_TAUBAR", "RAMP_STEPS"}
+    assert changed == {"W_ACT", "W_TAUBAR", "RAMP_STEPS", "W_YAW", "YAW_SIG2_WIDE"}
     assert w23["RAMP_STEPS"] == 50 and w22["RAMP_STEPS"] == 0
     env = re.MaxCpgEnv(preset="v2.3")
     reset, step = jax.jit(env.reset), jax.jit(env.step)
@@ -221,3 +221,16 @@ def test_v2_3_preset_and_startup_ramp():
     for _ in range(60):
         s1 = step(s1, wild)
     assert float(jnp.abs(s1.info["sway"]).max()) > 0.03                          # 淡入完成後 policy 生效
+
+
+def test_v2_3_yaw_kernel_has_gradient_when_turning():
+    """雙尺度核：轉彎誤差 0.24 rad/s 時窄核 ≈ 0（沒梯度），雙尺度核仍 > 0.02 且對誤差單調。"""
+    w = re.weights_of("v2.3")
+    narrow = float(re.yaw_reward(0.06, 0.30, w["YAW_SIG2"]))
+    dual = float(re.yaw_reward(0.06, 0.30, w["YAW_SIG2"], w["YAW_SIG2_WIDE"]))
+    assert narrow < 1e-6 and dual > 0.02
+    e = np.array([0.0, 0.05, 0.1, 0.2, 0.3])
+    r = [float(re.yaw_reward(x, 0.0, w["YAW_SIG2"], w["YAW_SIG2_WIDE"])) for x in e]
+    assert all(r[i] > r[i + 1] for i in range(len(r) - 1))
+    # 直走漂移對比仍在：0 漂 vs 0.8°/s 漂
+    assert r[0] - float(re.yaw_reward(0.014, 0.0, w["YAW_SIG2"], w["YAW_SIG2_WIDE"])) > 0.1

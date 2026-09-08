@@ -89,6 +89,8 @@ W_DEFAULT = dict(
     W_VZ=2.0, W_OMEGA_VAR=0.5, W_ACT=0.01, W_TAU=3e-5,
     W_TAUBAR=0.01, W_ERRBAR=20.0,
     YAW_SIG2=0.05, YAW_EMA=0.0,      # 偏航 reward 的核寬；YAW_EMA=0 → 用瞬時 wz（v2）
+    YAW_SIG2_WIDE=0.0,               # >0 時 EMA 核改成雙尺度 0.5·exp(−e²/σ²)+0.5·exp(−e²/σ_wide²)：
+                                     # 窄核抓直走漂移、寬核給轉彎梯度（v2.2 轉彎時窄核整段 = 0，沒有梯度）
     VX_SIG2=0.02, CMD_VX=(0.05, 0.35),  # 速度核寬與指令範圍
     W_YAW_INST=0.0, YAW_INST_SIG2=0.05,  # 瞬時偏航核（管振盪；EMA 核管漂移）。v2 的 W_YAW 就是這個
     ACT_LAYOUT="full",               # "full" 14 維 / "nomux" 10 維（mu_x 固定＝基準）
@@ -124,13 +126,16 @@ PRESETS = {
 #   ① 驗收工具改用實機延遲（動作 1 步 + joint_vel 1 步）—— v2.2 的「偏航 +65°」是零延遲驗收的假象
 #      （env 條件下 30 s 只漂 +1.4°）；② 起步淡入 1 s（解 0.22 s 那個 89 N·m 扭動）；
 #   ③ W_ACT 0.01→0.05、W_TAUBAR 0.01→0.05（穩態 τ_pk 65 ×1.2 = 78 超門檻 70，動作抖 Σ(Δa)² 0.8/步）。
-PRESETS["v2.3"] = dict(PRESETS["v2.2"], W_ACT=0.05, W_TAUBAR=0.05, RAMP_STEPS=50)
+#   ④ 偏航雙尺度核：v2.2 在 env 裡下 wz=+0.3 只轉出指令的 21%，t_yaw 全程 0.00 —— σ=1.3°/s 的窄核
+#      對 13°/s 的轉彎誤差沒有梯度。加寬核 σ²=0.02（σ=8°/s），W_YAW 1.5→2.0 維持漂移對比。
+PRESETS["v2.3"] = dict(PRESETS["v2.2"], W_ACT=0.05, W_TAUBAR=0.05, RAMP_STEPS=50,
+                       W_YAW=2.0, YAW_SIG2_WIDE=0.02)
 
 # 校準帶（diag/rl_calibrate.py 與 notebook 校準格都用它斷言；佔正項的比例）
 CAL_BANDS = {
     "v2.1": dict(roll=(0.10, 0.25), pitch=(0.03, 0.15), exec_max=0.50),
     "v2.2": dict(roll=(0.06, 0.16), pitch=(0.02, 0.10), exec_max=0.45),
-    "v2.3": dict(roll=(0.06, 0.16), pitch=(0.02, 0.10), exec_max=0.45),
+    "v2.3": dict(roll=(0.05, 0.16), pitch=(0.02, 0.10), exec_max=0.45),   # yaw 項變大，roll 絕對值同 v2.2
 }
 # 模組層級常數 = v2（舊 notebook / 舊測試引用）
 W_ROLL, W_ROLLRATE, W_PITCH, W_PITCHRATE = 20.0, 0.05, 20.0, 0.05
@@ -145,9 +150,13 @@ METRIC_KEYS = ("height", "vx", "reward", "pitch", "roll", "clr", "vz", "yawerr",
                "exec_f", "exec_r", "tau_pk", "err_pk", "sway_x", "sway_y") + TERM_KEYS
 
 
-def yaw_reward(wz_f, cmd_wz, sig2):
-    """偏航 reward 核：exp(−(wz_f − cmd)²/sig2)。wz_f 可為瞬時或 EMA 濾過的角速度。"""
-    return jnp.exp(-(wz_f - cmd_wz) ** 2 / sig2)
+def yaw_reward(wz_f, cmd_wz, sig2, sig2_wide=0.0):
+    """偏航 reward 核：exp(−e²/sig2)；sig2_wide>0 時為雙尺度 0.5·窄 + 0.5·寬。"""
+    e2 = (wz_f - cmd_wz) ** 2
+    narrow = jnp.exp(-e2 / sig2)
+    if sig2_wide and sig2_wide > 0:
+        return 0.5 * narrow + 0.5 * jnp.exp(-e2 / sig2_wide)
+    return narrow
 
 
 def weights_of(preset: str) -> dict:
@@ -483,7 +492,8 @@ class MaxCpgEnv(Env):
         r_vx = jnp.exp(-(vb[0] - cmd[0]) ** 2 / w["VX_SIG2"])
         r_vy = jnp.exp(-vb[1] ** 2 / 0.02)
         wz_ema = info["wz_ema"] + w["YAW_EMA"] * (wz - info["wz_ema"])
-        r_yaw = yaw_reward(wz_ema if w["YAW_EMA"] > 0 else wz, cmd[1], w["YAW_SIG2"])
+        r_yaw = yaw_reward(wz_ema if w["YAW_EMA"] > 0 else wz, cmd[1], w["YAW_SIG2"],
+                           w["YAW_SIG2_WIDE"])
         r_yawi = yaw_reward(wz, cmd[1], w["YAW_INST_SIG2"])          # 瞬時（振盪）
         r_h = jnp.exp(-400.0 * (data.qpos[2] - NOMINAL_HEIGHT) ** 2)
         r_clr = jnp.mean(sw * jnp.clip(self._wheel_clearance(data) / G_C, 0.0, 1.0))

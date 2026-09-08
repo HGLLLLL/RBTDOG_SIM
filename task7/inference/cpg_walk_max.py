@@ -251,6 +251,9 @@ class Robot:
         # 逐關節的力矩峰值（未飽和前的控制律輸出）。★ 只有 n_tau 這種「飽和計數」
         # 看不出「哪一顆快撐不住」——實機的門檻是逐關節的，模擬也要逐關節才對得上。
         self.tau_peak = np.zeros(12)
+        # 逐關節追蹤誤差峰值（控制步粒度，用 clip 後的 q_des）。實機 M9 的中止門檻是 0.6 rad，
+        # RL v2 的護欄 0.45 —— 沒有這個量就沒辦法在模擬端做 G7。
+        self.err_peak = np.zeros(12)
         self.wheel_hold = None  # None = 只做阻尼
         # 輪子阻尼係數。★ 拉高它是「把輪足當點足」最接近的做法，而且是實機能安全
         #   轉的旋鈕 —— `wheel_mode="hold"` 鎖的是**絕對輪角**，那比點足更強
@@ -278,6 +281,7 @@ class Robot:
         self.n_lim += int(np.sum((q_des < lo - 1e-9) | (q_des > hi + 1e-9)))
         self.n_cmd += 12
         q_des = np.clip(q_des, lo, hi)
+        np.maximum(self.err_peak, np.abs(q_des - d.qpos[mm.LEG_QPOS_IDX]), out=self.err_peak)
 
         if self.actuator_mode == "position":
             # 模型內建的 position 致動器**每個物理步**自己算 PD，也就是 500 Hz ——
@@ -508,6 +512,8 @@ class Trace:
             "pitch_cycle": float(np.mean(cyc)),
             "pitch_mean": float(pit.mean()),
             "roll_mean": float(np.mean(self.roll)),
+            "roll_pk": float(np.percentile(np.abs(self.roll), 99)),   # ★ G4：搖擺峰值（°）
+            "roll_std": float(np.std(self.roll)),
             "bounce": float(hgt.max() - hgt.min()),
             "height": float(hgt.mean()),
             "support": float(np.mean(self.support)),
@@ -541,6 +547,8 @@ class Trace:
             # ★ 後膝峰值是掃參數時的硬門檻之一（實機 60.7 / 門檻 70），
             #   而它不會出現在任何一個「乾淨」的診斷指標裡 —— 必須自己帶出來。
             "tau_peak": [float(v) for v in r.tau_peak],
+            "err_peak": [float(v) for v in r.err_peak],               # ★ G7：追蹤誤差峰值
+            "err_peak_max": float(r.err_peak.max()),
             "knee_peak_front": float(max(r.tau_peak[2], r.tau_peak[5])),
             "knee_peak_rear": float(max(r.tau_peak[8], r.tau_peak[11])),
             "lim_pct": r.lim_pct,

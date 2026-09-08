@@ -169,3 +169,11 @@ def test_walk_a_gait_uses_ls_phase_and_baseline_a():
     assert np.allclose(g["phase"], cpg_max.PHASE_WALK_LS)
     for k in ("duty", "omega", "mu_x", "x_off", "g_c", "d_step"):
         assert g[k] == gb.BASELINE_A[k], k
+
+
+def test_summarize_has_roll_and_err_peaks():
+    A = gb.BASELINE_A
+    r = cw.rollout(gait="walk_a", secs=6.0, kp3=A["kp3"], kd3=A["kd3"],
+                   kd_wheel=A["wheel_kd"], z_sag=A["z_sag"], quiet=True)
+    assert 0.0 < r["roll_pk"] < 30.0 and 0.0 < r["roll_std"] <= r["roll_pk"]
+    assert len(r["err_peak"]) == 12 and 0.0 < r["err_peak_max"] < 1.0

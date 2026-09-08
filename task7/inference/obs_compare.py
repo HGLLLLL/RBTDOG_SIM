@@ -33,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "realbot"))
 import leg_kin          # noqa: E402
 import m6_rec           # noqa: E402
+import m9_rec           # noqa: E402
 import max_model as mm  # noqa: E402
 import obs_max          # noqa: E402
 import real_obs         # noqa: E402
@@ -241,7 +242,10 @@ def build_model(rec, rows, lat_des_q, jvr, quat_order, gyro_scale, imu_check_pat
             "std_real": {g: grp(g, "std_real") for g in GROUPS},
             "std_sim": {g: grp(g, "std_sim") for g in GROUPS},
             "corr": {g: grp(g, "corr") for g in GROUPS},
-            "joint_vel": jvr}
+            "joint_vel": jvr,
+            "imu_note": ("gyro 由 M9 log 的 roll/pitch 微分重建：gyro_x/y 幅度與延遲可用、雜訊不可用；"
+                         "gyro_z 無效（yaw 未記錄）—— 感測器性質用 imu_check.json，走路時 z 範圍取模擬值"
+                         if getattr(rec, "derived_imu", False) else "原始 imu_central")}
 
 
 def markdown_table(rows) -> str:
@@ -261,7 +265,7 @@ def markdown_table(rows) -> str:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="階 II：錄檔驅動回放 + obs 逐欄對照")
-    ap.add_argument("rec", type=Path)
+    ap.add_argument("rec", type=Path, help="M6 錄檔（m6_record/1）或 M9 步態 log（M9_*.json）")
     ap.add_argument("--imu-check", type=Path, help="imu_check.json：取 quat_order 與 gyro_scale")
     ap.add_argument("--quat-order", default=None, choices=("xyzw", "wxyz"))
     ap.add_argument("--gyro-scale", type=float, nargs=3, default=None)
@@ -280,7 +284,7 @@ def main() -> int:
     if a.gyro_scale:
         gyro_scale = tuple(a.gyro_scale)
 
-    rec = m6_rec.load(a.rec)
+    rec = m9_rec.load_any(a.rec)          # M6 錄檔或 M9 步態 log 都吃
     print(f"錄檔 {a.rec.name}  {rec.n} 筆 @ {rec.hz:.0f} Hz  {rec.t[-1]:.1f} s；"
           f"quat {quat_order}  gyro_scale {gyro_scale}")
     seg = gait_segment(rec)

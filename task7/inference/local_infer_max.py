@@ -1,48 +1,46 @@
-"""本機 CPU 推論：載入 Colab 訓練的權重，在**原始網格模型**上回放並量指標。
+"""本機 CPU 推論（RL v2）：載入 Colab 訓練的權重，在**原始網格模型**上回放並量指標、判 G3–G7。
 
 用法：
 
-    # 沒權重時先測管線（固定動作 = 開迴路基準步態）
+    # 沒權重時先測管線（固定動作 = 開迴路 A 基準步態，G0 有標準答案）
     conda run --no-capture-output -n rbtdog \
-        python task7/inference/local_infer_max.py --dummy --secs 20
+        python task7/inference/local_infer_max.py --dummy --secs 20 --perturb 3 --compare
 
-    # 有權重
+    # 有權重：12 擾動 + 同擾動開迴路對照 + 影片 → 一次印 G3–G7
     conda run --no-capture-output -n rbtdog \
         python task7/inference/local_infer_max.py \
-        --params task7/weights/cpg_rl_max_params.pkl --secs 20 --video
+        --params task7/weights/cpg_rl_max_v2_params.pkl --secs 60 --perturb 12 --compare --video
 
 ================================================================================
-★ 為什麼預設跑**原始網格模型**而不是訓練用的 zgws_mjx.xml
+★ RL v2（2026-09-08）與 v1 的差別
+================================================================================
+- 動作 14 維：每腿 (mux, muy, ω) ＋ body sway (x, y)；sway 有 ±0.06 m 與 0.004 m/步斜率限制
+- 基準 `gait_baseline.BASELINE_A`（LS 序列、kp250/abad60/kd2、x_off −30、g_c 0.048、z_sag 0.036）
+- 增益走 `Robot(kp3=, kd3=, kd_wheel=)`，不是模型預設
+- `--perturb N`：x_off 加 1e-12·seed 的皮米擾動跑 N 次取中位數（同 cpg_sweep_max）
+- `--compare`：同擾動跑開迴路 A（sway=0）當對照 → G4 的相對值
+- G7：峰值力矩 ×1.2 < 70 N·m、追蹤誤差 ×1.14 < 0.6 rad，**任一不過不上機**
+
+================================================================================
+★ 為什麼預設跑**原始網格模型**而不是訓練用的 zgws_mjx_kp250.xml
 ================================================================================
 訓練模型是為了 MJX 才把碰撞網格換成原始形狀的。驗收如果也跑那個簡化模型，
 等於**用同一個近似去驗證那個近似** —— 落差永遠量不到。
 所以這裡預設 `max_model.SCENE`（原始網格 + 純力矩致動器 + 迴圈內 PD）。
-想跟訓練條件對照時再用 `--scene`。
-
-兩個模型的落差已量過（`docs/MJX模型對照_2026-08-27.md`）：
-行進速度 −0.7%、彈跳 −1.7%、支撐腳 0%、離地 0%。
 
 ================================================================================
-★ `--dummy` 不是隨便給個固定動作 —— 它就是開迴路基準步態
+★ `--dummy` 不是隨便給個固定動作 —— 它就是開迴路 A 基準步態
 ================================================================================
-基準步態（`gait_baseline.BASELINE`）在這個動作空間裡是一個**固定動作**：
-`mux=1.80 / muy=1.50 / ω=1.4` 用 `atanh` 反推即得。所以 `--dummy` 跑出來的
-數字應該要對得上 `cpg_walk_max.rollout(gait="walk")`。這讓「管線有沒有接對」
-變成一個**有標準答案**的檢查，而不是「跑起來沒炸就算過」。
+`mux=1.80 / muy=1.50 / ω=1.4 / sway=0` 用 `atanh` 反推即得。所以 `--dummy` 跑出來的
+數字必須與 `cpg_walk_max.rollout(gait="walk_a", kp3=…, kd3=…)` 逐位相同（test_local_infer_max）。
 
 ================================================================================
 ⚠️ 網路結構必須與 Colab 訓練時逐項相同
 ================================================================================
 policy (256,256,128)、value (256,256,256)、`normalize_observations=True`。
-不匹配的後果分兩種，差別很大：
-
-  - **隱藏層大小**對不上 → flax 丟 `ScopeParamShapeError`，當場停住，安全。
-  - **activation 與動作分布類型**對不上 → 參數形狀完全相同，brax
-    **不會報錯**，權重照樣載入，只是 policy 行為錯亂而毫無訊息。
-
-而 activation 與分布是由 `make_ppo_networks` 的**預設值**決定的，也就是說
-它們由 **brax 的版本**決定，不由本檔的參數決定。所以 Colab notebook 的安裝格
-鎖死 `brax==0.14.2` 並在裝完後斷言，是這個靜默失敗的唯一防線。
+隱藏層大小對不上 → flax 丟 `ScopeParamShapeError`，安全；
+activation / 動作分布對不上 → brax **不會報錯**，只是 policy 行為錯亂 —— 由 brax **版本**決定，
+notebook 鎖死 `brax==0.14.2` 是唯一防線。
 """
 import argparse
 import os
@@ -69,31 +67,38 @@ POLICY_HIDDEN = (256, 256, 128)
 VALUE_HIDDEN = (256, 256, 256)
 
 
-def baseline_action() -> np.ndarray:
-    """開迴路基準步態對應的 12 維動作（`act_to_cmd` 的反函式）。
+# ⚠️ 必須與 rl_env_max 同值（test_obs_max / test_local_infer_max 釘住）。
+#    不同值的話 policy 輸出的同一個數字會被解成不同的頻率／位移，而且不會報錯。
+OMEGA_MIN, OMEGA_MAX = 0.0, 2.0
+SWAY_MAX, SWAY_SLEW = 0.060, 0.004
+A = gb.BASELINE_A
+PHASE = cpg_max.PHASE_WALK_LS
+GATE_TAU, GATE_ERR = 70.0, 0.6                # 實機 M9 的中止門檻
+SIM2REAL_TAU, SIM2REAL_ERR = 1.2, 1.14        # kp250 實測比值 ×1.14（兩次）留餘裕；誤差 ×1.14
 
-    `--dummy` 用它，所以 dummy 跑出來的數字有標準答案可對。
-    """
+
+def baseline_action() -> np.ndarray:
+    """開迴路 A 基準步態對應的 14 維動作（`act_to_cmd` 的反函式；sway=0）。"""
     def inv(u, lo, hi):
         return float(np.arctanh(np.clip(2 * (u - lo) / (hi - lo) - 1, -0.999, 0.999)))
 
-    return np.array([inv(gb.BASELINE["mu_x"], mm.MU_MIN, mm.MU_MAX),
-                     inv(gb.BASELINE["mu_y"], mm.MU_MIN, mm.MU_MAX),
-                     inv(gb.BASELINE["omega"], OMEGA_MIN, OMEGA_MAX)] * 4)
-
-
-# ⚠️ 必須與 notebook 第 4 格的 OMEGA_MIN / OMEGA_MAX 同值。
-#    不同值的話 policy 輸出的同一個數字會被解成不同的頻率，而且不會報錯。
-OMEGA_MIN, OMEGA_MAX = 0.0, 2.0
+    return np.array([inv(A["mu_x"], mm.MU_MIN, mm.MU_MAX),
+                     inv(A["mu_y"], mm.MU_MIN, mm.MU_MAX),
+                     inv(A["omega"], OMEGA_MIN, OMEGA_MAX)] * 4 + [0.0, 0.0])
 
 
 def act_to_cmd(a: np.ndarray):
-    """12 維動作 → 每腿 (mux, muy, omega)。與 notebook 的 `act_to_cmd` 逐行相同。"""
-    a = np.tanh(np.asarray(a, dtype=float)).reshape(4, 3)
-    mux = (a[:, 0] + 1) / 2 * (mm.MU_MAX - mm.MU_MIN) + mm.MU_MIN
-    muy = (a[:, 1] + 1) / 2 * (mm.MU_MAX - mm.MU_MIN) + mm.MU_MIN
-    om = (a[:, 2] + 1) / 2 * (OMEGA_MAX - OMEGA_MIN) + OMEGA_MIN
-    return mux, muy, om
+    """14 維動作 → (mux(4), muy(4), omega(4), sway_target(2))。與 rl_env_max.act_to_cmd 逐行相同。"""
+    a = np.tanh(np.asarray(a, dtype=float))
+    leg = a[:12].reshape(4, 3)
+    mux = (leg[:, 0] + 1) / 2 * (mm.MU_MAX - mm.MU_MIN) + mm.MU_MIN
+    muy = (leg[:, 1] + 1) / 2 * (mm.MU_MAX - mm.MU_MIN) + mm.MU_MIN
+    om = (leg[:, 2] + 1) / 2 * (OMEGA_MAX - OMEGA_MIN) + OMEGA_MIN
+    return mux, muy, om, a[12:14] * SWAY_MAX
+
+
+def slew_sway(prev, tgt):
+    return prev + np.clip(np.asarray(tgt, dtype=float) - prev, -SWAY_SLEW, SWAY_SLEW)
 
 
 def load_policy(path: str):
@@ -121,99 +126,132 @@ def load_policy(path: str):
     return infer
 
 
-def run(args) -> dict:
-    """跑一段推論並回傳指標（欄位與 `cpg_walk_max.rollout` 完全相同）。"""
+def run_once(args, infer, seed: int = 0) -> dict:
+    """一次 rollout。`seed` 只用來給 x_off 加 1e-12·seed 的皮米擾動（同 cpg_sweep_max）。"""
     import mujoco
 
     scene = args.scene or DEFAULT_SCENE
-    # 原始網格模型的致動器是純力矩，用迴圈內 PD；MJX 模型是位置伺服。
-    # 兩者不是可以自由組合的旋鈕，模式必須跟著模型檔走（Robot 會斷言擋下錯配）。
-    mode = "position" if scene == mm.SCENE_MJX else "torque_pd"
-    r = cw.Robot(scene=scene, actuator_mode=mode)
-
-    ks = leg_kin.knee_sign_of(mm.HOME)
-    f0 = leg_kin.home_foot(mm.HOME)
-    step = cpg_max.make_cpg_step(cpg_max.PHASE_WALK)
-    x_off, g_c = gb.BASELINE["x_off"], gb.BASELINE["g_c"]
-    d_step, d_step_y = gb.BASELINE["d_step"], gb.BASELINE["d_step_y"]
-    duty, z_sag = gb.BASELINE["duty"], gb.BASELINE["z_sag"]
-
-    fixed = baseline_action()
-    infer = (lambda _o: fixed) if args.dummy else load_policy(args.params)
-
-    # 先站穩，與 rollout 用同一段流程（否則第一步要從偏移過的基準跳過來）
+    mode = "position" if scene != mm.SCENE else "torque_pd"
+    r = cw.Robot(scene=scene, actuator_mode=mode, kp3=A["kp3"], kd3=A["kd3"],
+                 kd_wheel=A["wheel_kd"], solver_iters=(6, 6) if mode == "position" else None)
+    ks, f0 = leg_kin.knee_sign_of(mm.HOME), leg_kin.home_foot(mm.HOME)
+    step = cpg_max.make_cpg_step(PHASE)
+    x_off = A["x_off"] + seed * 1e-12
     r.reset_standing(cpg_max.stand_targets(ks, f0, x_off), mm.NOMINAL_HEIGHT_KIN + 0.005)
     for i in range(int(cw.SETTLE_S / mm.CTRL_DT)):
         r.step(cpg_max.stand_targets(ks, f0, x_off))
         if i == int(0.5 / mm.CTRL_DT):
             r.lock_wheels()
-
     ren = cam = None
     frames = []
-    if args.video:
+    if args.video and seed == 0:
         r.m.vis.global_.offwidth, r.m.vis.global_.offheight = 1000, 600
         ren = mujoco.Renderer(r.m, 600, 1000)
         cam = mujoco.MjvCamera()
         mujoco.mjv_defaultFreeCamera(r.m, cam)
-
-    c = cpg_max.cpg_init(cpg_max.PHASE_WALK)
+    c = cpg_max.cpg_init(PHASE)
     n = int(args.secs / mm.CTRL_DT)
     cmd = np.array([args.vx, args.wz])
     last_a = np.zeros(obs_max.ACT_DIM)
-    n_reach = 0
-    om_hist = []
-    # ω 是逐步變動的，`Trace` 的週期長度要有一個代表值 —— 用基準值。
-    # （只影響 speed_travel 的步長與週期俯仰的分段，不影響其他欄位。）
-    tr = cw.Trace(r, n, args.secs, gb.BASELINE["omega"], cpg_max.PHASE_WALK)
-
+    sway = np.zeros(2)
+    n_reach, om_hist, sway_hist = 0, [], []
+    tr = cw.Trace(r, n, args.secs, A["omega"], PHASE, A["duty"])
     for i in range(n):
         obs = obs_max.build_obs(r.d, c, cmd, last_a)
         a = infer(obs)
-        mux, muy, om = act_to_cmd(a)
+        mux, muy, om, sw_t = act_to_cmd(a)
+        sway = slew_sway(sway, sw_t)
         om_hist.append(om.copy())
+        sway_hist.append(sway.copy())
         c = step(c, mux, muy, om, mm.CTRL_DT)
-        q_des, nc = cpg_max.joint_targets(c, f0, x_off, g_c, d_step, d_step_y, duty,
-                                          ks, z_sag)
+        # sway 全零時傳 None，走與開迴路 rollout **逐位元相同**的路徑（G0 靠這個）
+        sw_arg = None if not np.any(sway) else (float(sway[0]), float(sway[1]))
+        tgt = cpg_max.foot_targets(c, f0, x_off, A["g_c"], A["d_step"], A["d_step_y"],
+                                   A["duty"], A["z_sag"], sw_arg)
+        q_des, nc = cpg_max.joint_targets(c, f0, x_off, A["g_c"], A["d_step"], A["d_step_y"],
+                                          A["duty"], ks, A["z_sag"], sw_arg)
         n_reach += nc
         r.step(q_des)
-        tr.record(c["theta"])
+        tr.record(c["theta"], tgt[:, 0])
         last_a = a
-
         if ren is not None and i % 2 == 0:
             cam.lookat[:] = [r.d.qpos[0], r.d.qpos[1], 0.30]
             cam.distance, cam.elevation, cam.azimuth = 2.0, -10, 90
             ren.update_scene(r.d, cam)
             frames.append(ren.render())
-
-    om_arr = np.asarray(om_hist)
+    om_arr, sw_arr = np.asarray(om_hist), np.asarray(sway_hist)
     res = tr.summarize(n_reach, extra={
-        "scene": scene, "actuator_mode": mode,
+        "scene": scene, "actuator_mode": mode, "seed": seed,
         "cmd_vx": args.vx, "cmd_wz": args.wz, "dummy": bool(args.dummy),
-        # policy 實際用到的頻率範圍。開迴路是恆定 1.4，RL 會變 ——
-        # 這一欄是判斷「policy 到底有沒有在動 ω」最直接的證據。
         "omega_mean": float(om_arr.mean()), "omega_min": float(om_arr.min()),
         "omega_max": float(om_arr.max()),
-        # 偏航率（°/s）。★ G4 的判準：要顯著優於開迴路的 −0.5 ~ −0.9 °/s。
-        "yaw_rate": None,
+        "sway_x_abs": float(np.abs(sw_arr[:, 0]).mean() * 1000),
+        "sway_y_abs": float(np.abs(sw_arr[:, 1]).mean() * 1000),
     })
-    # ⚠️ 一定要用 `yaw_total`（逐步累積、不包裹）而不是 `yaw`（首尾相減）。
-    #    下 wz 指令時機器人會繞圈，20 秒就轉超過一整圈 —— 首尾相減會包裹，
-    #    實測會給出「−135.4°」而真值是「+224.6°」，**連符號都是反的**，
-    #    看起來就像「偏航指令接反了」。
+    # ⚠️ 一定要用 `yaw_total`（逐步累積、不包裹）而不是 `yaw`（首尾相減）——轉彎 20 秒就繞過一圈。
     res["yaw_rate"] = res["yaw_total"] / args.secs
+    res["_frames"] = frames
+    return res
+
+
+def _med(rs, k):
+    return float(np.median([r[k] for r in rs]))
+
+
+def run(args) -> dict:
+    """跑 `perturb` 個擾動（policy），可選同擾動的開迴路對照；回傳中位數彙總與 G3–G7 判定。"""
+    fixed = baseline_action()
+    infer = (lambda _o: fixed) if args.dummy else load_policy(args.params)
+    n_pert = max(1, int(getattr(args, "perturb", 1)))
+    rs = [run_once(args, infer, s) for s in range(n_pert)]
+    res = dict(rs[0])
+    res.pop("_frames", None)
+    for k in ("speed_travel", "bounce", "support", "min_lift", "roll_pk", "roll_std",
+              "exec_front", "exec_rear", "yaw_total", "yaw_rate"):
+        res[k] = _med(rs, k)
+    res["n_perturb"] = len(rs)
+    res["fell_n"] = sum(r["fell"] is not None for r in rs)
+    res["tau_peak_max"] = float(max(max(r["tau_peak"]) for r in rs))
+    res["err_peak_max"] = float(max(r["err_peak_max"] for r in rs))
+    base = None
+    if getattr(args, "compare", False):
+        bargs = argparse.Namespace(**{**vars(args), "dummy": True, "video": False})
+        brs = [run_once(bargs, lambda _o: fixed, s) for s in range(len(rs))]
+        base = {k: _med(brs, k) for k in ("roll_pk", "roll_std", "exec_front", "exec_rear",
+                                           "yaw_total", "speed_travel")}
+        res["baseline"] = base
+    g = {}
+    g["G3"] = res["fell_n"] == 0
+    g["G4"] = (base is not None and res["roll_pk"] <= 0.4 * base["roll_pk"]
+               and res["roll_std"] <= 0.4 * base["roll_std"])
+    g["G5"] = res["exec_front"] >= 0.9 and abs(res["exec_front"] - res["exec_rear"]) < 0.15
+    g["G6"] = (abs(res["yaw_total"]) * (60.0 / args.secs) < 5.0) if args.wz == 0 else None
+    g["G7"] = ((res["tau_peak_max"] * SIM2REAL_TAU < GATE_TAU)
+               and (res["err_peak_max"] * SIM2REAL_ERR < GATE_ERR))
+    res["gates"] = g
 
     src = "基準固定動作" if args.dummy else Path(args.params).name
-    cw.report(res, f"[推論] {src}  cmd=(vx {args.vx:.2f}, wz {args.wz:+.2f})  "
-                   f"場景={Path(scene).name}  ω 用到 "
-                   f"{res['omega_min']:.2f}~{res['omega_max']:.2f}（平均 "
-                   f"{res['omega_mean']:.2f}）")
-    print(f"[G4  ] 偏航率 {res['yaw_rate']:+.3f} °/s"
-          f"（開迴路基準 −0.5 ~ −0.9 °/s，要顯著優於它）")
-
+    cw.report(res, f"[推論 v2] {src}  cmd=(vx {args.vx:.2f}, wz {args.wz:+.2f})  擾動 {len(rs)}"
+                   f"  ω {res['omega_min']:.2f}~{res['omega_max']:.2f}"
+                   f"  sway |x| {res['sway_x_abs']:.0f} |y| {res['sway_y_abs']:.0f} mm")
+    print(f"[G3] 跌倒 {res['fell_n']}/{len(rs)} → {'✅' if g['G3'] else '❌'}")
+    if base:
+        print(f"[G4] roll 峰值 {res['roll_pk']:.2f}°（基準 {base['roll_pk']:.2f}）"
+              f" std {res['roll_std']:.2f}（基準 {base['roll_std']:.2f}）"
+              f" → {'✅' if g['G4'] else '❌'}（兩者都要降 ≥60%）")
+    print(f"[G5] 執行率 前 {res['exec_front']:.2f} 後 {res['exec_rear']:.2f}"
+          f" → {'✅' if g['G5'] else '❌'}（前 ≥0.9、|前−後| <0.15）")
+    if g["G6"] is not None:
+        print(f"[G6] 總偏航 {res['yaw_total']:+.1f}° / {args.secs:.0f}s"
+              f"（換算 60 s {res['yaw_total'] * 60 / args.secs:+.1f}°）→ {'✅' if g['G6'] else '❌'}")
+    print(f"[G7] 峰值力矩 {res['tau_peak_max']:.1f}×{SIM2REAL_TAU}={res['tau_peak_max'] * SIM2REAL_TAU:.1f}"
+          f"（<{GATE_TAU}）  誤差 {res['err_peak_max']:.3f}×{SIM2REAL_ERR}="
+          f"{res['err_peak_max'] * SIM2REAL_ERR:.3f}（<{GATE_ERR}）→ {'✅' if g['G7'] else '❌ 不上機'}")
+    frames = rs[0].get("_frames") or []
     if frames:
         import imageio.v2 as iio
         OUT_DIR.mkdir(parents=True, exist_ok=True)
-        out = OUT_DIR / "cpg_rl_max.mp4"
+        out = OUT_DIR / "cpg_rl_max_v2.mp4"
         iio.mimsave(str(out), frames, fps=25, codec="libx264")
         print("[影片]", out)
     return res
@@ -230,7 +268,10 @@ def main() -> int:
     ap.add_argument("--video", action="store_true")
     ap.add_argument("--scene", type=str, default=None,
                     help="覆寫場景；預設是**原始網格模型**。"
-                         "給 scene_flat_mjx.xml 可與訓練條件對照")
+                         "給 scene_flat_mjx_kp250.xml 可與訓練條件對照")
+    ap.add_argument("--perturb", type=int, default=1, help="皮米擾動次數（12 = 正式驗收）")
+    ap.add_argument("--compare", action="store_true",
+                    help="同擾動跑開迴路 A 當對照（G4 需要）")
     a = ap.parse_args()
     if not a.dummy and not a.params:
         ap.error("要嘛給 --params，要嘛用 --dummy")

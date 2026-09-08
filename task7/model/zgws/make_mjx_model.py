@@ -65,7 +65,7 @@ SCENE_SRC = HERE / "scene_flat.xml"
 SCENE_DST = HERE / "scene_flat_mjx.xml"
 
 sys.path.insert(0, str(HERE.parents[1] / "inference"))
-from max_model import (KD3, KD_WHEEL, KP3, LEGS, PREFIX,  # noqa: E402
+from max_model import (KD3, KD3_A, KD_WHEEL, KP3, KP3_A, LEGS, PREFIX,  # noqa: E402
                        TAU_MAX3, TAU_MAX_WHEEL, WHEEL_RADIUS)
 
 # MJX 沒有提早收斂，solver 迭代數是**固定成本**。MuJoCo 預設 100/50 在 MJX 上是災難。
@@ -143,8 +143,12 @@ def _fmt(v) -> str:
 
 def build(src: str = str(SRC), dst: str = str(DST),
           collision: str = "primitive", actuators: str = "position",
-          solver: bool = True, wheel: str = WHEEL_SHAPE) -> dict:
+          solver: bool = True, wheel: str = WHEEL_SHAPE,
+          kp3=None, kd3=None) -> dict:
     """讀官方 XML，寫出改造版，回傳替換摘要。
+
+    `kp3`/`kd3`：位置伺服增益（三關節）。預設 `max_model.KP3/KD3`（kp120 線）；
+    RL v2 用 `KP3_A/KD3_A` 產 `zgws_mjx_kp250.xml`。
 
     四個組合都做得出來，是為了讓 G1 對照能**一次只動一個變因**：
 
@@ -270,13 +274,15 @@ def build(src: str = str(SRC), dst: str = str(DST),
                 g.set("conaffinity", "0")
 
     # --- 3. 換致動器 ---
+    kp3 = np.asarray(KP3 if kp3 is None else kp3, float)
+    kd3 = np.asarray(KD3 if kd3 is None else kd3, float)
     if actuators == "position":
         for a in root.findall("actuator"):
             root.remove(a)
         act = ET.SubElement(root, "actuator")
         for leg in LEGS:
             p = PREFIX[leg]
-            for j, (kp, kd, tau) in enumerate(zip(KP3, KD3, TAU_MAX3)):
+            for j, (kp, kd, tau) in enumerate(zip(kp3, kd3, TAU_MAX3)):
                 e = ET.SubElement(act, "position")
                 e.set("name", f"{p}_{JOINT3[j]}_LINK")
                 e.set("joint", f"{p}_{JOINT3[j]}_JOINT")
@@ -306,7 +312,7 @@ def build(src: str = str(SRC), dst: str = str(DST),
               f"  產生器：task7/model/zgws/make_mjx_model.py（跑它會逐字元覆蓋本檔）\n"
               f"  來源：  task7/model/zgws/zgws.xml（官方 MATRiX v0.1.2 原檔）\n"
               f"  組合：  碰撞={collision}({wheel})  致動器={actuators}  "
-              f"solver={'6/6' if solver else 'MJCF 預設'}\n"
+              f"solver={'6/6' if solver else 'MJCF 預設'}  kp={kp3.tolist()} kd={kd3.tolist()}\n"
               f"  ⚠️ 它與 zgws.xml **不是同一個物理模型**。差異的量化對照見\n"
               f"     task7/docs/MJX模型對照_2026-08-27.md，引用數字要標明是哪一個。\n"
               f"-->\n")
@@ -356,6 +362,11 @@ def build_all() -> None:
         build(dst=str(xml), **kw)
         build_scene(str(HERE / f"scene_{name}.xml"), xml.name)
         print(f"[診斷] {xml.name}  ({kw['collision']} / {kw['actuators']})")
+    # ★ RL v2 訓練模型：與 zgws_mjx.xml 唯一差異是增益（A_kp250_walk 那組）
+    xml = HERE / "zgws_mjx_kp250.xml"
+    build(dst=str(xml), kp3=KP3_A, kd3=KD3_A)
+    build_scene(str(HERE / "scene_flat_mjx_kp250.xml"), xml.name)
+    print(f"[產生] {xml.name}  kp={KP3_A.tolist()} kd={KD3_A.tolist()}")
 
 
 if __name__ == "__main__":

@@ -189,3 +189,29 @@ def test_generator_is_reproducible(tmp_path):
     out = tmp_path / "zgws_mjx.xml"
     make_mjx_model.build(str(make_mjx_model.SRC), str(out))
     assert out.read_text() == MJX_XML.read_text()
+
+
+def test_kp250_model_has_A_gains():
+    m = mujoco.MjModel.from_xml_path(mm.SCENE_MJX_KP250)
+    kp = m.actuator_gainprm[mm.LEG_ACT_IDX, 0]
+    kv = -m.actuator_biasprm[mm.LEG_ACT_IDX, 2]
+    np.testing.assert_allclose(kp, np.tile(mm.KP3_A, 4))
+    np.testing.assert_allclose(kv, np.tile(mm.KD3_A, 4))
+    wkv = -m.actuator_biasprm[mm.WHEEL_ACT_IDX, 2]
+    np.testing.assert_allclose(wkv, mm.KD_WHEEL)
+    # 舊模型不受影響
+    m0 = mujoco.MjModel.from_xml_path(mm.SCENE_MJX)
+    np.testing.assert_allclose(m0.actuator_gainprm[mm.LEG_ACT_IDX, 0], np.tile(mm.KP3, 4))
+
+
+def test_kp250_model_walks_A_gait_like_mesh():
+    """G1 的縮小版（單次、8 s）：速度差 10% 內、不跌倒。完整 12 擾動由 diag/g1_kp250.py 做。"""
+    import gait_baseline as gb
+    A = gb.BASELINE_A
+    kw = dict(gait="walk_a", secs=8.0, kp3=A["kp3"], kd3=A["kd3"], kd_wheel=A["wheel_kd"],
+              z_sag=A["z_sag"], quiet=True)
+    a = cw.rollout(**kw)
+    b = cw.rollout(scene=mm.SCENE_MJX_KP250, actuator_mode="position",
+                   solver_iters=(6, 6), **kw)
+    assert a["fell"] is None and b["fell"] is None
+    assert abs(b["speed_travel"] - a["speed_travel"]) < 0.10 * max(a["speed_travel"], 1e-3)

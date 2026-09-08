@@ -2,11 +2,12 @@
   ⚠️ 這個檔案是產生的，不要手改。
   產生器：task7/model/zgws/make_mjx_model.py（跑它會逐字元覆蓋本檔）
   來源：  task7/model/zgws/zgws.xml（官方 MATRiX v0.1.2 原檔）
-  組合：  碰撞=primitive(disc_5)  致動器=position  solver=MJCF 預設  kp=[60.0, 120.0, 120.0] kd=[1.0, 1.0, 1.0]
+  組合：  碰撞=primitive(disc_5)  致動器=position  solver=6/6  kp=[60.0, 250.0, 250.0] kd=[2.0, 2.0, 2.0]
   ⚠️ 它與 zgws.xml **不是同一個物理模型**。差異的量化對照見
      task7/docs/MJX模型對照_2026-08-27.md，引用數字要標明是哪一個。
 -->
 <mujoco model="zgws_primitive_position">
+  <option iterations="6" ls_iterations="6" />
   <compiler angle="radian" meshdir="assets/" />
   <worldbody>
     <body name="base_link" pos="0 0 0.8">
@@ -160,21 +161,21 @@
     <framelinvel name="camera_imu_frame_vel" objtype="site" objname="camera_imu" />
   </sensor>
   <actuator>
-    <position name="FAR_ABAD_LINK" joint="FAR_ABAD_JOINT" kp="60.0" kv="1.0" forcerange="-150.0 150.0" />
-    <position name="FAR_HIP_LINK" joint="FAR_HIP_JOINT" kp="120.0" kv="1.0" forcerange="-150.0 150.0" />
-    <position name="FAR_KNEE_LINK" joint="FAR_KNEE_JOINT" kp="120.0" kv="1.0" forcerange="-150.0 150.0" />
+    <position name="FAR_ABAD_LINK" joint="FAR_ABAD_JOINT" kp="60.0" kv="2.0" forcerange="-150.0 150.0" />
+    <position name="FAR_HIP_LINK" joint="FAR_HIP_JOINT" kp="250.0" kv="2.0" forcerange="-150.0 150.0" />
+    <position name="FAR_KNEE_LINK" joint="FAR_KNEE_JOINT" kp="250.0" kv="2.0" forcerange="-150.0 150.0" />
     <velocity name="FAR_FOOT_LINK" joint="FAR_FOOT_JOINT" kv="0.5" forcerange="-33.0 33.0" />
-    <position name="FBL_ABAD_LINK" joint="FBL_ABAD_JOINT" kp="60.0" kv="1.0" forcerange="-150.0 150.0" />
-    <position name="FBL_HIP_LINK" joint="FBL_HIP_JOINT" kp="120.0" kv="1.0" forcerange="-150.0 150.0" />
-    <position name="FBL_KNEE_LINK" joint="FBL_KNEE_JOINT" kp="120.0" kv="1.0" forcerange="-150.0 150.0" />
+    <position name="FBL_ABAD_LINK" joint="FBL_ABAD_JOINT" kp="60.0" kv="2.0" forcerange="-150.0 150.0" />
+    <position name="FBL_HIP_LINK" joint="FBL_HIP_JOINT" kp="250.0" kv="2.0" forcerange="-150.0 150.0" />
+    <position name="FBL_KNEE_LINK" joint="FBL_KNEE_JOINT" kp="250.0" kv="2.0" forcerange="-150.0 150.0" />
     <velocity name="FBL_FOOT_LINK" joint="FBL_FOOT_JOINT" kv="0.5" forcerange="-33.0 33.0" />
-    <position name="RAR_ABAD_LINK" joint="RAR_ABAD_JOINT" kp="60.0" kv="1.0" forcerange="-150.0 150.0" />
-    <position name="RAR_HIP_LINK" joint="RAR_HIP_JOINT" kp="120.0" kv="1.0" forcerange="-150.0 150.0" />
-    <position name="RAR_KNEE_LINK" joint="RAR_KNEE_JOINT" kp="120.0" kv="1.0" forcerange="-150.0 150.0" />
+    <position name="RAR_ABAD_LINK" joint="RAR_ABAD_JOINT" kp="60.0" kv="2.0" forcerange="-150.0 150.0" />
+    <position name="RAR_HIP_LINK" joint="RAR_HIP_JOINT" kp="250.0" kv="2.0" forcerange="-150.0 150.0" />
+    <position name="RAR_KNEE_LINK" joint="RAR_KNEE_JOINT" kp="250.0" kv="2.0" forcerange="-150.0 150.0" />
     <velocity name="RAR_FOOT_LINK" joint="RAR_FOOT_JOINT" kv="0.5" forcerange="-33.0 33.0" />
-    <position name="RBL_ABAD_LINK" joint="RBL_ABAD_JOINT" kp="60.0" kv="1.0" forcerange="-150.0 150.0" />
-    <position name="RBL_HIP_LINK" joint="RBL_HIP_JOINT" kp="120.0" kv="1.0" forcerange="-150.0 150.0" />
-    <position name="RBL_KNEE_LINK" joint="RBL_KNEE_JOINT" kp="120.0" kv="1.0" forcerange="-150.0 150.0" />
+    <position name="RBL_ABAD_LINK" joint="RBL_ABAD_JOINT" kp="60.0" kv="2.0" forcerange="-150.0 150.0" />
+    <position name="RBL_HIP_LINK" joint="RBL_HIP_JOINT" kp="250.0" kv="2.0" forcerange="-150.0 150.0" />
+    <position name="RBL_KNEE_LINK" joint="RBL_KNEE_JOINT" kp="250.0" kv="2.0" forcerange="-150.0 150.0" />
     <velocity name="RBL_FOOT_LINK" joint="RBL_FOOT_JOINT" kv="0.5" forcerange="-33.0 33.0" />
   </actuator>
 </mujoco>

@@ -6,21 +6,24 @@
 
 ---
 
-## ▶ 2026-09-08 上午：obs 盤點工具鏈完成，等上機（trip18）
+## ▶ ★★★ 2026-09-08：obs 盤點完成 —— 30 個感測欄位全部可用，下一步就是 CPG-RL 重訓
 
-決策：**IMU 進 obs（重力 + 角速度），先驗證再重訓**。今天一輪量齊，不回頭補。
-- 操作卡 **`docs/現場操作卡_obs盤點_2026-09-08.md`** ← 上機照這張
-- spec `docs/superpowers/specs/2026-09-08-d1max-real-obs-audit-design.md`、
-  plan `docs/superpowers/plans/2026-09-08-d1max-real-obs-audit.md`
-- 工具：`inference/{m6_rec,real_obs,imu_check,obs_compare}.py`、`realbot/M_env_probe.py`；
-  測試 738 項全綠（新增 19）。**不改 M9、不改 M6、不寫 joint_cmd。**
-- 架構要點：`real_obs` 造假 MjData 餵**同一支** `obs_max.build_obs`；`imu_check` 用
-  加速度計／腿 FK 共面／四元數微分三個獨立參考；`obs_compare` 把錄到的 `des/kp/kd`
-  逐筆驅動 MuJoCo（不重跑 CPG、不用對齊）。
-- ★ 意外收穫：trip14（9/2 原廠七段 500 Hz）錄檔已含 gyro，離線先判出
-  **quat=xyzw、acc m/s²、gyro rad/s 三軸同號、關節角量化 14 位元、更新率 ≥480 Hz、
-  實機 des→q 比模擬多落後 ~16 ms、joint_vel 欄位有 driver 濾波**。上機是刻意設計的複核＋我們增益下的數字。
-- 產出（上機後）：`outputs/imu_check.json`、`outputs/obs_noise_model.json`、`docs/H_實機obs盤點_2026-09-08.md`。
+**結果文件 `docs/H_實機obs盤點_2026-09-08.md`** ← 接手先讀這份（§5 是訓練端要吃的清單）。
+決策：**IMU（重力＋角速度）進 obs**；階 I（平放／跳舞／原地轉／電腦探測，全唯讀）上機 15 分鐘，
+階 II 走路側錄**沒上機**——trip17 兩趟 M9 log 經 `inference/m9_rec.py` 轉格式後離線做掉。
+
+定案：quat **xyzw**、gyro **rad/s 三軸與 MJCF 同號**、+roll=右低／+pitch=頭低／+yaw=左轉（跳舞七步眼睛對照全中）、
+IMU 姿態偏置 pitch −1.24°／roll +0.63°（腿 FK 與加速度計兩獨立參考一致；解掉 8/26 的 +7.1° 懸案）、
+**實機伺服比模擬多落後 ~15 ms**（兩種 kp 都是）、joint_vel 雜訊 0.15–0.45 rad/s（driver 有濾波）、
+狗上 **numpy 1.21.5 有**、MLP 前向 0.14 ms、cpu7 保留。
+
+產出：`outputs/imu_check.json`、`outputs/obs_noise_model_trip17.json`、`outputs/obs_compare_table_trip17.md`、
+`logs/m_logs_trip18/`（今天的 M6 三段＋ENV）。
+工具：`inference/{m6_rec,m9_rec,real_obs,imu_check,obs_compare}.py`、`realbot/M_env_probe.py`（測試 741 項）。
+spec/plan：`docs/superpowers/{specs,plans}/2026-09-08-d1max-real-obs-audit*.md`。
+
+**下一步：CPG-RL 重訓**，訓練端照 H §5 加延遲／雜訊／偏置隨機化；上機前 `real_obs` 要不要套 IMU 偏置修正再決定。
+未補的洞：走路時的原始 gyro_z（之後任何走路趟順便 `M6 walk --record` 一次即可）。
 
 ---
 

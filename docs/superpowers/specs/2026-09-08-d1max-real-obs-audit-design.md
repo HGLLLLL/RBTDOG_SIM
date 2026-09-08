@@ -32,10 +32,9 @@ CPG-RL 以 `A_kp250_walk`（LS/kp250/abad60/kd2/wheel_kd0.5）為基準重訓之
 | 階 | 狗上指令 | 狗的狀態 | 操作者要記的 |
 |---|---|---|---|
 | I-a 平放 | `M6 flat --record --secs 30 --hz 200` | 趴平不動，地面用手機水平儀確認 | — |
-| I-b 跳舞 | `M6 dance --record --secs 90 --hz 200` | 遙控器跳舞（左右扭動） | **一開始先往狗的哪一側倒** |
-| I-b' 跳舞高速 | `M6 dance_fast --record --secs 10 --hz 1000` | 跳舞中 | — |
+| I-b 跳舞 | `M6 dance --record --secs 90 --hz 500` | 遙控器跳舞（左右扭動） | **一開始先往狗的哪一側倒** |
 | I-c 原地轉 | `M6 turn --record --secs 30 --hz 200` | 遙控器原地轉：左轉、停、右轉（沒有就跳過） | 先左還是先右 |
-| I-d 環境探測 | `python3 M_env_probe.py` | 趴著 | — |
+| I-d 電腦探測 | `python3 M_env_probe.py` | 趴著（測的是 RK3588 這顆電腦，與狗的動作無關） | — |
 | II 步態側錄 | ssh#2：`M6 walk --record --secs 120 --hz 200`；ssh#1 照 `現場操作卡_互動式前進_trip17_2026-09-03.md` 跑 `A_kp250_walk` | 站→走 10 s→停→趴 | 同 9/3 |
 
 每階回答什麼：
@@ -44,7 +43,7 @@ CPG-RL 以 `A_kp250_walk`（LS/kp250/abad60/kd2/wheel_kd0.5）為基準重訓之
   acc 單位（模長 9.81 或 1.0）、gyro 靜態偏置與雜訊、`joint_pos`/`joint_vel` 靜態量化步階與雜訊。
 - **I-b**：`gyro = k · ω(quat)` 逐軸擬合 → k≈1 rad/s、k≈57.3 deg/s、k<0 軸反；
   IMU roll/pitch vs 腿 FK 傾角（四輪共面）的偏置與相關；**第 1 個 roll 極值在第幾秒、往哪側**（對眼睛）。
-- **I-b'**：`imu_central` 與 `joint_state` 的真實更新率（連續相同值計數）。
+- **I-b（500 Hz）**：順帶得到 `imu_central` 與 `joint_state` 的更新率（相鄰筆相同值計數；每筆都變 → ≥500 Hz）。
 - **I-c**：gyro z 正負（左轉 = 由上往下看逆時針 = MJCF +z）。
 - **I-d**：numpy / onnxruntime 有無；pure-Python 與 numpy 的 (68→256→256→128→12) 前向時間；
   CPU 核數與親和性限制。
@@ -70,13 +69,13 @@ CPG-RL 以 `A_kp250_walk`（LS/kp250/abad60/kd2/wheel_kd0.5）為基準重訓之
 
 ### ② `imu_check.py` —— 階 I 判讀
 
-- 輸入：flat / dance / dance_fast / turn 四個錄檔（缺 turn 可省）。
+- 輸入：flat / dance / turn 三個錄檔（缺 turn 可省）。
 - 輸出一張表（stdout + `outputs/imu_check.json`）：
   - 平放：兩種順序解出的 roll/pitch；acc 模長；gyro 偏置 (3)；gyro 雜訊 std (3)；joint q/v 量化步階與 std
   - 跳舞：逐軸最小平方擬合 `gyro_i = k_i · ω_i(quat)`，附相關係數；ω(quat) 由 `q_{t+1} ⊗ q_t^{-1}` 轉機身系角速度
   - 跳舞：IMU roll/pitch vs 腿 FK 傾角（`leg_kin` FK，四輪共面平面擬合）的偏置、斜率、相關；FK 不共面的樣本標記並排除
   - 跳舞：第 1 個 |roll|>2° 極值的時間與符號，翻成「往狗的左/右」
-  - 高速：`imu_central` 與 `joint_state` 的更新率（相鄰筆值不變的比例 → Hz）
+  - 跳舞（500 Hz）：`imu_central` 與 `joint_state` 的更新率（相鄰筆值不變的比例 → Hz）
   - 轉向：gyro z 在「先轉那段」的平均符號
 - 判定寫死在程式裡並印出結論句：`quat_order`、`gyro_scale`（3 軸 ±1 或 ±57.3）、`imu_mount_rp_deg`、
   `imu_rate_hz`、`gyro_bias`，並存進 `outputs/imu_check.json` 供 ① 與訓練讀。
@@ -125,4 +124,4 @@ CPG-RL 以 `A_kp250_walk`（LS/kp250/abad60/kd2/wheel_kd0.5）為基準重訓之
 
 - 跳舞可能抬腳 → 腿 FK 共面參考在那些樣本失效；程式標記排除，靠 acc 與 quat↔gyro 撐。
 - 遙控器沒有原地轉 → gyro z 正負只剩 quat 微分的一致性（假設 quat 的 yaw 軸向正確）；文件註明。
-- 1000 Hz 錄製 Python 可能跟不上 → 只看實際達到的 dt，更新率仍可估（上界）。
+- 500 Hz 錄 90 s Python 可能偶爾掉拍 → 更新率用實際達到的 dt 算，估的是下界。

@@ -1,4 +1,4 @@
-"""D1 Max 的 68 維 observation —— Colab 訓練端與本機推論端的**共用定義**。
+"""D1 Max 的 70 維 observation —— Colab 訓練端與本機推論端的**共用定義**。
 
 ## 設計約束：每一欄都必須是實機底層真的拿得到的量
 
@@ -11,7 +11,7 @@
 | `joint_pos` | 12 | `/dev/shm/joint_state` pos − `HOME12` | ★ 實機驗過是 1 kHz 活的串流 |
 | `joint_vel` | 12 | `/dev/shm/joint_state` vel | ★ 同上 |
 | `cmd` | 2 | `(vx, wz)`，自產 | — |
-| `last_action` | 12 | 自存 | — |
+| `last_action` | 14 | 自存（12 CPG 參數 + 2 body sway，2026-09-08 起） | — |
 | `cpg` | 24 | `rx, rx_d, ry, ry_d, sin θ, cos θ`，自算 | — |
 
 ⚠️ **IMU 那兩欄尚未驗證**：`imu_central` 目前只有離線快照解碼過，**沒驗過是不是活的
@@ -40,13 +40,15 @@ ABAD 行程只有 −0.697 ~ +0.523 rad 且左右鏡像，全向移動另案處�
 放一個恆為 0 的欄位只是讓網路多學一個常數。
 
 ⚠️ **欄位順序一旦改動，既有權重全部報廢。** 有 `test_obs_max.py` 釘住。
+2026-09-08：`last_action` 12→14（加 body sway），舊權重 `cpg_rl_max_params.pkl` 自此報廢
+（它本來就是 kp120 訓的）。
 """
 import numpy as np
 
 from cpg_max import w2b
 from max_model import HOME12, LEG_QPOS_IDX, LEG_QVEL_IDX
 
-ACT_DIM = 12          # 每腿 (mux, muy, omega)
+ACT_DIM = 14          # 每腿 (mux, muy, omega) ×4 ＋ body sway (x, y)。2026-09-08 RL v2 起
 
 OBS_LAYOUT = [
     ("gravity", 3),
@@ -73,7 +75,7 @@ def slice_of(name: str) -> slice:
 
 
 def build_obs(d, c: dict, cmd, last_a) -> np.ndarray:
-    """組 68 維 observation。`d` 為 `mujoco.MjData`（或具備同名欄位的物件）。
+    """組 70 維 observation。`d` 為 `mujoco.MjData`（或具備同名欄位的物件）。
 
     ⚠️ 入口一定要擋維度。`np.concatenate` 對長度錯誤的輸入**不會報錯**，
        會靜默產生錯誤維度的 obs，而錯誤維度的 obs 會讓訓練好的權重直接失效。

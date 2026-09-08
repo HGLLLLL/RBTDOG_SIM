@@ -12,6 +12,7 @@ import coord  # noqa: E402
 import m6_rec  # noqa: E402
 import max_model as mm  # noqa: E402
 import obs_compare as oc  # noqa: E402
+import obs_max  # noqa: E402
 import real_obs  # noqa: E402
 import shm_io  # noqa: E402
 
@@ -69,7 +70,7 @@ def test_replay_then_compare_recovers_noise_and_lag():
     des = _des_sequence()
     rec = _rec_with_des(des)
     sim = oc.sim_replay(rec, "xyzw", (1.0, 1.0, 1.0))
-    assert sim["obs"].shape == (rec.n, 68)
+    assert sim["obs"].shape == (rec.n, obs_max.OBS_DIM)
     assert sim["height"][-1] > 0.35            # 站起來了、沒倒
 
     # 用回放結果造「假實機」：加已知雜訊、往後平移 3 筆（15 ms）

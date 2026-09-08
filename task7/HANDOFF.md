@@ -6,6 +6,24 @@
 
 ---
 
+## ▶ 2026-09-08 上午：obs 盤點工具鏈完成，等上機（trip18）
+
+決策：**IMU 進 obs（重力 + 角速度），先驗證再重訓**。今天一輪量齊，不回頭補。
+- 操作卡 **`docs/現場操作卡_obs盤點_2026-09-08.md`** ← 上機照這張
+- spec `docs/superpowers/specs/2026-09-08-d1max-real-obs-audit-design.md`、
+  plan `docs/superpowers/plans/2026-09-08-d1max-real-obs-audit.md`
+- 工具：`inference/{m6_rec,real_obs,imu_check,obs_compare}.py`、`realbot/M_env_probe.py`；
+  測試 738 項全綠（新增 19）。**不改 M9、不改 M6、不寫 joint_cmd。**
+- 架構要點：`real_obs` 造假 MjData 餵**同一支** `obs_max.build_obs`；`imu_check` 用
+  加速度計／腿 FK 共面／四元數微分三個獨立參考；`obs_compare` 把錄到的 `des/kp/kd`
+  逐筆驅動 MuJoCo（不重跑 CPG、不用對齊）。
+- ★ 意外收穫：trip14（9/2 原廠七段 500 Hz）錄檔已含 gyro，離線先判出
+  **quat=xyzw、acc m/s²、gyro rad/s 三軸同號、關節角量化 14 位元、更新率 ≥480 Hz、
+  實機 des→q 比模擬多落後 ~16 ms、joint_vel 欄位有 driver 濾波**。上機是刻意設計的複核＋我們增益下的數字。
+- 產出（上機後）：`outputs/imu_check.json`、`outputs/obs_noise_model.json`、`docs/H_實機obs盤點_2026-09-08.md`。
+
+---
+
 ## ▶ ★★★★ 2026-09-03 實機日：**LS+kp250 步態全流程零中止走通 —— 下一步 CPG+RL 重訓**
 
 一天內四趟失敗 → 三個互相糾纏的根因全部定案 → 17:00/17:01 兩趟

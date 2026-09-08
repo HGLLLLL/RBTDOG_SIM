@@ -88,6 +88,7 @@ W_DEFAULT = dict(
     W_TAUBAR=0.01, W_ERRBAR=20.0,
     YAW_SIG2=0.05, YAW_EMA=0.0,      # 偏航 reward 的核寬；YAW_EMA=0 → 用瞬時 wz（v2）
     VX_SIG2=0.02, CMD_VX=(0.05, 0.35),  # 速度核寬與指令範圍
+    W_YAW_INST=0.0, YAW_INST_SIG2=0.05,  # 瞬時偏航核（管振盪；EMA 核管漂移）。v2 的 W_YAW 就是這個
     ACT_LAYOUT="full",               # "full" 14 維 / "nomux" 10 維（mu_x 固定＝基準）
     EXEC_MODE="track",               # "track" 擺動相 x 追蹤 / "rate" 真執行率（擺動結束時結算）
     EXEC_RATE_SIG=0.35,              # rate 模式：exp(−((rate−1)/σ)²)
@@ -108,10 +109,13 @@ PRESETS = {
     # v2.2（2026-09-08 晚，spec 附錄 A）：mu_x 固定（動作 10 維）、指令 0.15–0.40、速度核放軟、
     #   執行率改量真的（擺動結束結算：實際前跨/指令前跨，基準 前 0.88/後 1.47）、
     #   對稱＝前後執行率差²、姿態只溫和罰（roll 角/率各 ~5%、pitch ~3%，文獻只罰角速度）。
+    #   偏航兩個核都要（v2.1 訓練中發現）：EMA 核抓漂移、瞬時軟核抓 1.4 Hz 甩頭振盪
+    #   （v2 的瞬時核把 yawerr 0.76→0.10，v2.1 只剩 EMA 核就卡在 0.51）。
     "v2.2": dict(ACT_LAYOUT="nomux", EXEC_MODE="rate", CMD_VX=(0.15, 0.40), VX_SIG2=0.1,
                  W_ROLL=75.0, W_ROLLRATE=0.5, W_PITCH=100.0, W_PITCHRATE=0.3,
                  W_EXEC=1.5, W_SYM=1.0,
-                 W_YAW=1.5, YAW_SIG2=0.0005, YAW_EMA=0.005),
+                 W_YAW=1.5, YAW_SIG2=0.0005, YAW_EMA=0.005,
+                 W_YAW_INST=0.5, YAW_INST_SIG2=0.05),
 }
 # 校準帶（diag/rl_calibrate.py 與 notebook 校準格都用它斷言；佔正項的比例）
 CAL_BANDS = {
@@ -125,7 +129,7 @@ W_YAW, W_VX, W_VY, W_H, W_CLR = 1.0, 1.5, 0.5, 0.5, 1.5
 W_VZ, W_OMEGA_VAR, W_ACT, W_TAU = 2.0, 0.5, 0.01, 3e-5
 W_TAUBAR, W_ERRBAR = 0.01, 20.0
 SYM_EMA = 0.05
-TERM_KEYS = ("t_pos", "t_vx", "t_yaw", "t_exec", "t_roll", "t_rollrate", "t_pitch", "t_pitchrate",
+TERM_KEYS = ("t_pos", "t_vx", "t_yaw", "t_yawi", "t_exec", "t_roll", "t_rollrate", "t_pitch", "t_pitchrate",
              "t_sym", "t_vz", "t_omvar", "t_act", "t_tau", "t_taubar", "t_errbar")
 METRIC_KEYS = ("height", "vx", "reward", "pitch", "roll", "clr", "vz", "yawerr", "vxerr",
                "exec_f", "exec_r", "tau_pk", "err_pk", "sway_x", "sway_y") + TERM_KEYS
@@ -461,13 +465,15 @@ class MaxCpgEnv(Env):
         r_vy = jnp.exp(-vb[1] ** 2 / 0.02)
         wz_ema = info["wz_ema"] + w["YAW_EMA"] * (wz - info["wz_ema"])
         r_yaw = yaw_reward(wz_ema if w["YAW_EMA"] > 0 else wz, cmd[1], w["YAW_SIG2"])
+        r_yawi = yaw_reward(wz, cmd[1], w["YAW_INST_SIG2"])          # 瞬時（振盪）
         r_h = jnp.exp(-400.0 * (data.qpos[2] - NOMINAL_HEIGHT) ** 2)
         r_clr = jnp.mean(sw * jnp.clip(self._wheel_clearance(data) / G_C, 0.0, 1.0))
         c_act = jnp.sum((action - info["last_a"]) ** 2)
         c_tau = jnp.sum(data.actuator_force ** 2)
         # 每一項各自帶權重存起來：校準（佔比）與訓練監看都靠這些
         T = {
-            "t_vx": w["W_VX"] * r_vx, "t_yaw": w["W_YAW"] * r_yaw, "t_exec": w["W_EXEC"] * r_exec,
+            "t_vx": w["W_VX"] * r_vx, "t_yaw": w["W_YAW"] * r_yaw,
+            "t_yawi": w["W_YAW_INST"] * r_yawi, "t_exec": w["W_EXEC"] * r_exec,
             "t_roll": w["W_ROLL"] * grav[1] ** 2, "t_rollrate": w["W_ROLLRATE"] * data.qvel[3] ** 2,
             "t_pitch": w["W_PITCH"] * grav[0] ** 2, "t_pitchrate": w["W_PITCHRATE"] * data.qvel[4] ** 2,
             "t_sym": w["W_SYM"] * sym_pen,
@@ -476,7 +482,7 @@ class MaxCpgEnv(Env):
             "t_taubar": w["W_TAUBAR"] * tau_barrier(tau_pk12),
             "t_errbar": w["W_ERRBAR"] * err_barrier(err12),
         }
-        T["t_pos"] = (T["t_vx"] + w["W_VY"] * r_vy + T["t_yaw"] + w["W_H"] * r_h
+        T["t_pos"] = (T["t_vx"] + w["W_VY"] * r_vy + T["t_yaw"] + T["t_yawi"] + w["W_H"] * r_h
                       + w["W_CLR"] * r_clr + T["t_exec"])
         reward = (T["t_pos"]
                   - T["t_sym"] - T["t_roll"] - T["t_rollrate"] - T["t_pitch"] - T["t_pitchrate"]

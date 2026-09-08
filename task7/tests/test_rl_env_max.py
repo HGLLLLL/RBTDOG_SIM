@@ -146,6 +146,7 @@ def test_v2_2_nomux_layout():
     w = re.weights_of("v2.2")
     assert w["ACT_LAYOUT"] == "nomux" and w["EXEC_MODE"] == "rate"
     assert w["CMD_VX"] == (0.15, 0.40) and w["VX_SIG2"] == 0.1
+    assert w["W_YAW_INST"] == 0.5 and re.weights_of("v2.1")["W_YAW_INST"] == 0.0   # v2.1 不變
     a = re.baseline_action("nomux")
     assert a.shape == (10,)
     mux, muy, om, sway = re.act_to_cmd(jnp.array(a), "nomux")

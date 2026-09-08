@@ -80,3 +80,17 @@ def test_latency_and_ramp_defaults_and_dummy_still_bit_exact():
     for k in ("speed_travel", "bounce", "roll_pk"):
         assert abs(res[k] - ref[k]) < 1e-9, k
     assert res["latency"] == 1 and res["ramp"] == 50
+
+
+def test_v2_4_dummy_bit_exact_and_head_integrated():
+    """v2.4 推論端：head_err 在迴圈裡積分（固定動作不用它，G0 仍逐位相同）。"""
+    A = gb.BASELINE_A
+    args = SimpleNamespace(params="", dummy=True, secs=4.0, vx=0.30, wz=0.0, video=False,
+                           scene=None, perturb=1, compare=False, preset="v2.4")
+    with contextlib.redirect_stdout(io.StringIO()):
+        res = li.run(args)
+        ref = cw.rollout(gait="walk_a", secs=4.0, kp3=A["kp3"], kd3=A["kd3"],
+                         kd_wheel=A["wheel_kd"], z_sag=A["z_sag"], quiet=True)
+    for k in ("speed_travel", "bounce", "roll_pk"):
+        assert abs(res[k] - ref[k]) < 1e-9, k
+    assert li.PRESET_HEAD["v2.4"] and not li.PRESET_HEAD["v2.3"]

@@ -53,22 +53,32 @@ ACT_DIM_NOMUX = 10    # v2.2：mu_x 固定（不在動作裡），每腿 (muy, o
 ALLOWED_ACT_DIMS = (ACT_DIM, ACT_DIM_NOMUX)
 
 
-def layout(act_dim: int = ACT_DIM) -> list:
-    """obs 欄位順序。只有 `last_action` 的寬度隨動作 layout 變，其餘欄位順序**永遠不變**。"""
+def layout(act_dim: int = ACT_DIM, head: bool = False) -> list:
+    """obs 欄位順序。只有 `last_action` 的寬度隨動作 layout 變、`head_err` 隨 `head` 有無，
+    其餘欄位順序**永遠不變**。
+
+    `head_err`（v2.4 起）：∫(gyro_z − cmd_wz)·dt（rad，clip ±HEAD_CLIP），由 policy 迴圈自己用
+    IMU gyro_z 積分（起走時歸零）——實機拿得到，不是上帝視角。
+    """
     assert act_dim in ALLOWED_ACT_DIMS, f"act_dim {act_dim} 不在 {ALLOWED_ACT_DIMS}"
-    return [
+    L = [
         ("gravity", 3),
         ("gyro", 3),
         ("joint_pos", 12),
         ("joint_vel", 12),
         ("cmd", 2),
-        ("last_action", act_dim),
-        ("cpg", 24),
     ]
+    if head:
+        L.append(("head_err", 1))
+    L += [("last_action", act_dim), ("cpg", 24)]
+    return L
 
 
-def obs_dim(act_dim: int = ACT_DIM) -> int:
-    return sum(d for _, d in layout(act_dim))
+def obs_dim(act_dim: int = ACT_DIM, head: bool = False) -> int:
+    return sum(d for _, d in layout(act_dim, head))
+
+
+HEAD_CLIP = 1.0     # rad；航向誤差在 obs 裡的夾限（env 與推論端同值）
 
 
 OBS_LAYOUT = layout(ACT_DIM)          # v2/v2.1 的 70 維
@@ -78,17 +88,17 @@ OBS_DIM_NOMUX = obs_dim(ACT_DIM_NOMUX)   # v2.2 的 66 維
 _DOWN = np.array([0.0, 0.0, -1.0])
 
 
-def slice_of(name: str, act_dim: int = ACT_DIM) -> slice:
+def slice_of(name: str, act_dim: int = ACT_DIM, head: bool = False) -> slice:
     """某個欄位在 obs 向量裡的位置。給測試與除錯用，推論路徑不需要。"""
     i = 0
-    for n, d in layout(act_dim):
+    for n, d in layout(act_dim, head):
         if n == name:
             return slice(i, i + d)
         i += d
     raise KeyError(f"沒有這個欄位：{name}")
 
 
-def build_obs(d, c: dict, cmd, last_a) -> np.ndarray:
+def build_obs(d, c: dict, cmd, last_a, head_err=None) -> np.ndarray:
     """組 70 維 observation。`d` 為 `mujoco.MjData`（或具備同名欄位的物件）。
 
     ⚠️ 入口一定要擋維度。`np.concatenate` 對長度錯誤的輸入**不會報錯**，
@@ -100,6 +110,7 @@ def build_obs(d, c: dict, cmd, last_a) -> np.ndarray:
     assert last_a.size in ALLOWED_ACT_DIMS, \
         f"last_a 應為 {ALLOWED_ACT_DIMS} 之一，實得 {last_a.size}"
 
+    head = [] if head_err is None else [np.array([float(np.clip(head_err, -HEAD_CLIP, HEAD_CLIP))])]
     o = np.concatenate([
         w2b(d.qpos[3:7], _DOWN),           # gravity 3
         d.qvel[3:6],                       # gyro 3
@@ -108,10 +119,11 @@ def build_obs(d, c: dict, cmd, last_a) -> np.ndarray:
         d.qpos[LEG_QPOS_IDX] - HOME12,     # joint_pos 12
         d.qvel[LEG_QVEL_IDX],              # joint_vel 12
         cmd,                               # cmd 2
-        last_a,                            # last_action 12
+        *head,                             # head_err 1（v2.4 起，可選）
+        last_a,                            # last_action 14 / 10
         c["rx"], c["rx_d"], c["ry"], c["ry_d"],       # cpg 16
         np.sin(c["theta"]), np.cos(c["theta"]),       # cpg 8
     ]).astype(np.float32)
-    want = obs_dim(last_a.size)
+    want = obs_dim(last_a.size, head_err is not None)
     assert o.size == want, f"obs 應為 {want} 維，實得 {o.size}"
     return o

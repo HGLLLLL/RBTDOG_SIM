@@ -49,3 +49,10 @@ def test_notebook_v2_3_contract():
     nb = json.loads((NB.parent / "cpg_rl_max_v2_3_colab.ipynb").read_text(encoding="utf-8"))
     src = "\n".join("".join(c["source"]) for c in nb["cells"] if c["cell_type"] == "code")
     assert 'PRESET = "v2.3"' in src and "cpg_rl_max_v2_3_params.pkl" in src and "--preset v2.3" in src
+
+
+def test_notebook_v2_4_contract():
+    nb = json.loads((NB.parent / "cpg_rl_max_v2_4_colab.ipynb").read_text(encoding="utf-8"))
+    src = "\n".join("".join(c["source"]) for c in nb["cells"] if c["cell_type"] == "code")
+    assert 'PRESET = "v2.4"' in src and "cpg_rl_max_v2_4_params.pkl" in src and "--preset v2.4" in src
+    assert "(10, 67)" in src

@@ -234,3 +234,33 @@ def test_v2_3_yaw_kernel_has_gradient_when_turning():
     assert all(r[i] > r[i + 1] for i in range(len(r) - 1))
     # 直走漂移對比仍在：0 漂 vs 0.8°/s 漂
     assert r[0] - float(re.yaw_reward(0.014, 0.0, w["YAW_SIG2"], w["YAW_SIG2_WIDE"])) > 0.1
+
+
+def test_v2_4_head_err_in_obs_and_integrates_gyro():
+    """v2.4：obs 67 維；head_err 隨 (gyro_z − cmd_wz) 積分；轉彎指令下若不轉，head_err 變負且獎勵下降。"""
+    w = re.weights_of("v2.4")
+    assert w["HEAD_OBS"] and w["W_HEAD"] == 1.0 and w["GYRO_BIAS_Z"] == 0.005
+    env = re.MaxCpgEnv(preset="v2.4")
+    assert env.observation_size == 67 and env.action_size == 10
+    reset, step = jax.jit(env.reset), jax.jit(env.step)
+    s = reset(jax.random.PRNGKey(0))
+    s = s.replace(info={**s.info, "cmd": jnp.array([0.30, 0.30]), "gyro_bias": jnp.zeros(3),
+                        "imu_q": jnp.array([1.0, 0.0, 0.0, 0.0])})
+    a = jnp.array(re.baseline_action("nomux"))
+    heads, th = [], []
+    for i in range(100):                         # 基準動作不轉 → head_err ≈ −0.3·t
+        s = step(s, a)
+        heads.append(float(s.info["head_err"])); th.append(float(s.metrics["t_head"]))
+    assert heads[-1] < -0.4 and heads[-1] > -0.8          # ≈ −0.3×2 s ＝ −0.6（加上步態偏航擾動）
+    assert th[-1] < 0.1                                    # 8.6° 以上獎勵已掉到 <0.37；0.6 rad → ≈0
+    assert abs(float(s.obs[32]) - max(-1.0, heads[-1])) < 1e-5   # obs 第 32 維就是 head_err（clip ±1）
+
+
+def test_v2_4_reward_shares_on_baseline():
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "inference" / "diag"))
+    import rl_calibrate
+    r = rl_calibrate.calibrate("v2.4", steps=300, verbose=False)
+    sh, b = r["share"], re.CAL_BANDS["v2.4"]
+    roll = sh["t_roll"] + sh["t_rollrate"]
+    assert b["roll"][0] <= roll <= b["roll"][1], f"roll {roll:.1%}"
+    assert sh["t_head"] > 0.05 and sh["t_taubar"] < 0.01

@@ -172,3 +172,17 @@ def test_nomux_layout_only_changes_last_action_width(level_data):
     np.testing.assert_array_equal(o10[obs_max.slice_of("last_action", 10)], np.arange(10.0))
     with pytest.raises(AssertionError):
         obs_max.build_obs(level_data, _c(), np.array([0.0, 0.0]), np.zeros(12))
+
+
+def test_head_err_layout_inserts_after_cmd(level_data):
+    """v2.4：head_err 1 維插在 cmd 之後；有無 head 的其他欄位逐項相同；會被 clip 到 ±1。"""
+    assert obs_max.obs_dim(10, True) == 67 and obs_max.obs_dim(14, True) == 71
+    o = obs_max.build_obs(level_data, _c(), np.array([0.3, -0.1]), np.arange(10.0), head_err=0.25)
+    o0 = obs_max.build_obs(level_data, _c(), np.array([0.3, -0.1]), np.arange(10.0))
+    assert o.shape == (67,)
+    assert o[obs_max.slice_of("head_err", 10, True)] == pytest.approx(0.25)
+    assert obs_max.slice_of("head_err", 10, True) == slice(32, 33)
+    for name in ("gravity", "gyro", "joint_pos", "joint_vel", "cmd", "last_action", "cpg"):
+        np.testing.assert_array_equal(o[obs_max.slice_of(name, 10, True)], o0[obs_max.slice_of(name, 10)])
+    o2 = obs_max.build_obs(level_data, _c(), np.array([0.0, 0.0]), np.zeros(10), head_err=3.0)
+    assert o2[32] == pytest.approx(1.0)

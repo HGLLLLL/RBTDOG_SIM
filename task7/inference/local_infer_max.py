@@ -78,10 +78,11 @@ SIM2REAL_TAU, SIM2REAL_ERR = 1.2, 1.14        # kp250 實測比值 ×1.14（兩�
 
 
 LAYOUT_DIMS = {"full": 14, "nomux": 10}
-PRESET_LAYOUT = {"v2": "full", "v2.1": "full", "v2.2": "nomux", "v2.3": "nomux"}
-PRESET_G4_DROP = {"v2": 0.60, "v2.1": 0.60, "v2.2": 0.30, "v2.3": 0.30}   # G4：roll 峰值要降的比例
-PRESET_EVAL_VX = {"v2": 0.15, "v2.1": 0.15, "v2.2": 0.30, "v2.3": 0.30}   # 驗收指令
-PRESET_RAMP = {"v2": 0, "v2.1": 0, "v2.2": 0, "v2.3": 50}                # 起步淡入步數（= rl_env_max RAMP_STEPS）
+PRESET_LAYOUT = {"v2": "full", "v2.1": "full", "v2.2": "nomux", "v2.3": "nomux", "v2.4": "nomux"}
+PRESET_G4_DROP = {"v2": 0.60, "v2.1": 0.60, "v2.2": 0.30, "v2.3": 0.30, "v2.4": 0.30}   # G4：roll 峰值要降的比例
+PRESET_EVAL_VX = {"v2": 0.15, "v2.1": 0.15, "v2.2": 0.30, "v2.3": 0.30, "v2.4": 0.30}   # 驗收指令
+PRESET_RAMP = {"v2": 0, "v2.1": 0, "v2.2": 0, "v2.3": 50, "v2.4": 50}                # 起步淡入步數（= rl_env_max RAMP_STEPS）
+PRESET_HEAD = {"v2": False, "v2.1": False, "v2.2": False, "v2.3": False, "v2.4": True}  # obs 含航向誤差
 # ★ 實機延遲（H 文件實測：伺服 +15 ms、joint_vel 濾波 12–20 ms）。policy 在有延遲的 env 裡學的，
 #   零延遲驗收會得到假的偏航漂移（v2.2：零延遲 +28.8°/30 s，加延遲 +1.4°）。預設 1 步 = 20 ms。
 DEFAULT_LATENCY = 1
@@ -125,7 +126,7 @@ def slew_sway(prev, tgt):
     return prev + np.clip(np.asarray(tgt, dtype=float) - prev, -SWAY_SLEW, SWAY_SLEW)
 
 
-def load_policy(path: str, act_dim: int = obs_max.ACT_DIM):
+def load_policy(path: str, act_dim: int = obs_max.ACT_DIM, head: bool = False):
     """載入 brax 權重，回傳 `infer(obs) -> action`（deterministic）。"""
     import functools
 
@@ -137,7 +138,7 @@ def load_policy(path: str, act_dim: int = obs_max.ACT_DIM):
     factory = functools.partial(ppo_networks.make_ppo_networks,
                                 policy_hidden_layer_sizes=POLICY_HIDDEN,
                                 value_hidden_layer_sizes=VALUE_HIDDEN)
-    net = factory(obs_max.obs_dim(act_dim), act_dim,
+    net = factory(obs_max.obs_dim(act_dim, head), act_dim,
                   preprocess_observations_fn=running_statistics.normalize)
     pol = ppo_networks.make_inference_fn(net)(model.load_params(path), deterministic=True)
     jpol = jax.jit(pol)
@@ -159,6 +160,8 @@ def run_once(args, infer, seed: int = 0) -> dict:
     act_dim = LAYOUT_DIMS[layout]
     latency = int(getattr(args, "latency", DEFAULT_LATENCY))
     ramp = int(getattr(args, "ramp", PRESET_RAMP[preset]))
+    head = PRESET_HEAD[preset]
+    head_err = 0.0                                # ∫(gyro_z − cmd_wz)dt，起走時 0（同 env、同上機語意）
     base_act = baseline_action(layout)
 
     scene = args.scene or DEFAULT_SCENE
@@ -198,7 +201,7 @@ def run_once(args, infer, seed: int = 0) -> dict:
         qv = r.d.qvel.copy()
         qv[mm.LEG_QVEL_IDX] = qv_hist[latency]
         d_.qvel = qv
-        obs = obs_max.build_obs(d_, c, cmd, last_a)
+        obs = obs_max.build_obs(d_, c, cmd, last_a, head_err if head else None)
         a = infer(obs)
         a_hist = [a] + a_hist[:2]
         qv_hist = [r.d.qvel[mm.LEG_QVEL_IDX].copy()] + qv_hist[:2]
@@ -219,6 +222,7 @@ def run_once(args, infer, seed: int = 0) -> dict:
                                           A["duty"], ks, A["z_sag"], sw_arg)
         n_reach += nc
         r.step(q_des)
+        head_err += (float(r.d.qvel[5]) - cmd[1]) * mm.CTRL_DT      # 用 obs 看到的 gyro_z（模擬 = 真值）
         tr.record(c["theta"], tgt[:, 0])
         last_a = a
         if ren is not None and i % 2 == 0:
@@ -250,7 +254,8 @@ def run(args) -> dict:
     preset = getattr(args, "preset", "v2")
     layout = PRESET_LAYOUT[preset]
     fixed = baseline_action(layout)
-    infer = (lambda _o: fixed) if args.dummy else load_policy(args.params, LAYOUT_DIMS[layout])
+    infer = (lambda _o: fixed) if args.dummy else load_policy(args.params, LAYOUT_DIMS[layout],
+                                                             PRESET_HEAD[preset])
     n_pert = max(1, int(getattr(args, "perturb", 1)))
     rs = [run_once(args, infer, s) for s in range(n_pert)]
     res = dict(rs[0])

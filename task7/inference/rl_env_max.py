@@ -97,6 +97,8 @@ W_DEFAULT = dict(
     EXEC_MODE="track",               # "track" 擺動相 x 追蹤 / "rate" 真執行率（擺動結束時結算）
     EXEC_RATE_SIG=0.35,              # rate 模式：exp(−((rate−1)/σ)²)
     RAMP_STEPS=0,                    # 起步淡入：前 N 步 policy 動作從基準線性混入（M9 上機有 3 s GAIT_IN）
+    HEAD_OBS=False, W_HEAD=0.0, HEAD_SIG=0.15,   # v2.4：航向誤差進 obs ＋ exp(−(head/σ)²) 獎勵
+    GYRO_BIAS_Z=0.02,                # z 軸 gyro 偏置範圍（v2.4 起 0.005：實測 0.001，積分器吃得到）
 )
 PRESETS = {
     "v2": {},
@@ -131,11 +133,16 @@ PRESETS = {
 PRESETS["v2.3"] = dict(PRESETS["v2.2"], W_ACT=0.05, W_TAUBAR=0.05, RAMP_STEPS=50,
                        W_YAW=2.0, YAW_SIG2_WIDE=0.02)
 
+# v2.4（2026-09-08 夜，spec 附錄 B）：policy 只看角速度看不到航向 → 直走漂 0.5°/s、轉彎只轉出 20%。
+#   obs 加 head_err = ∫(gyro_z_obs − cmd_wz)dt（實機由 policy 迴圈自己積分），reward 加 W_HEAD·exp(−(head/0.15)²)。
+PRESETS["v2.4"] = dict(PRESETS["v2.3"], HEAD_OBS=True, W_HEAD=1.0, GYRO_BIAS_Z=0.005)
+
 # 校準帶（diag/rl_calibrate.py 與 notebook 校準格都用它斷言；佔正項的比例）
 CAL_BANDS = {
     "v2.1": dict(roll=(0.10, 0.25), pitch=(0.03, 0.15), exec_max=0.50),
     "v2.2": dict(roll=(0.06, 0.16), pitch=(0.02, 0.10), exec_max=0.45),
     "v2.3": dict(roll=(0.05, 0.16), pitch=(0.02, 0.10), exec_max=0.45),   # yaw 項變大，roll 絕對值同 v2.2
+    "v2.4": dict(roll=(0.04, 0.16), pitch=(0.02, 0.10), exec_max=0.45),   # 多一個 head 正項，roll 絕對值同 v2.2
 }
 # 模組層級常數 = v2（舊 notebook / 舊測試引用）
 W_ROLL, W_ROLLRATE, W_PITCH, W_PITCHRATE = 20.0, 0.05, 20.0, 0.05
@@ -144,10 +151,10 @@ W_YAW, W_VX, W_VY, W_H, W_CLR = 1.0, 1.5, 0.5, 0.5, 1.5
 W_VZ, W_OMEGA_VAR, W_ACT, W_TAU = 2.0, 0.5, 0.01, 3e-5
 W_TAUBAR, W_ERRBAR = 0.01, 20.0
 SYM_EMA = 0.05
-TERM_KEYS = ("t_pos", "t_vx", "t_yaw", "t_yawi", "t_exec", "t_roll", "t_rollrate", "t_pitch", "t_pitchrate",
+TERM_KEYS = ("t_pos", "t_vx", "t_yaw", "t_yawi", "t_head", "t_exec", "t_roll", "t_rollrate", "t_pitch", "t_pitchrate",
              "t_sym", "t_vz", "t_omvar", "t_act", "t_tau", "t_taubar", "t_errbar")
 METRIC_KEYS = ("height", "vx", "reward", "pitch", "roll", "clr", "vz", "yawerr", "vxerr",
-               "exec_f", "exec_r", "tau_pk", "err_pk", "sway_x", "sway_y") + TERM_KEYS
+               "exec_f", "exec_r", "tau_pk", "err_pk", "sway_x", "sway_y", "head_abs") + TERM_KEYS
 
 
 def yaw_reward(wz_f, cmd_wz, sig2, sig2_wide=0.0):
@@ -333,7 +340,8 @@ class MaxCpgEnv(Env):
         self.w = weights_of(preset)
         self.layout = self.w["ACT_LAYOUT"]
         self.act_dim = LAYOUT_DIMS[self.layout]
-        self.obs_dim = obs_max.obs_dim(self.act_dim)
+        self.head = bool(self.w["HEAD_OBS"])
+        self.obs_dim = obs_max.obs_dim(self.act_dim, self.head)
         self._base_act = jnp.array(baseline_action(self.layout))
         self._ramp = int(self.w["RAMP_STEPS"])
         m = mujoco.MjModel.from_xml_path(scene)
@@ -377,13 +385,18 @@ class MaxCpgEnv(Env):
         qm = info["imu_q"]
         grav = _qrot(qm, w2b(data.qpos[3:7], jnp.array([0.0, 0.0, -1.0])))
         gyro = _qrot(qm, data.qvel[3:6]) + info["gyro_bias"]
+        head = [jnp.clip(info["head_err"], -obs_max.HEAD_CLIP, obs_max.HEAD_CLIP)[None]] if self.head else []
         return jnp.concatenate([
             grav, gyro,
             data.qpos[LEG_QPOS_IDX] - jnp.array(HOME12_np),
             info["qvel_prev"],                    # ★ joint_vel 延 1 步（driver 濾波實測）
-            cmd, last_a,
+            cmd, *head, last_a,
             c["rx"], c["rx_d"], c["ry"], c["ry_d"], jnp.sin(c["theta"]), jnp.cos(c["theta"]),
         ])
+
+    def _gyro_obs(self, data, info):
+        """policy 實際看到的 gyro（含安裝偏轉與偏置）—— 航向積分器用這個，不用真值。"""
+        return _qrot(info["imu_q"], data.qvel[3:6]) + info["gyro_bias"]
 
     def reset(self, rng):
         k_cmd, k_bias, k_delay, k_tilt, k_noise = jax.random.split(rng, 5)
@@ -400,7 +413,9 @@ class MaxCpgEnv(Env):
         c = cpg_init()
         z14 = jnp.zeros(self.act_dim)
         info = {"rng": k_noise, "c": c, "cmd": cmd,
-                "gyro_bias": jax.random.uniform(k_bias, (3,), minval=-GYRO_BIAS, maxval=GYRO_BIAS),
+                "gyro_bias": (jax.random.uniform(k_bias, (3,), minval=-1.0, maxval=1.0)
+                              * jnp.array([GYRO_BIAS, GYRO_BIAS, self.w["GYRO_BIAS_Z"]])),
+                "head_err": jnp.zeros(()),
                 "imu_q": _quat_rp(tilt[0], tilt[1]),
                 "delay": DELAY_BASE + jax.random.bernoulli(k_delay, 0.5).astype(jnp.int32),
                 # 延遲佇列以**基準動作**初始化：episode 開頭等於開迴路步態（零動作 = mux 1.5 不跨步）
@@ -450,6 +465,8 @@ class MaxCpgEnv(Env):
         vb = w2b(data.qpos[3:7], data.qvel[0:3])      # reward 用真值速度（只在模擬）
         cmd = info["cmd"]
         wz = data.qvel[5]
+        # ★ 航向誤差積分（用 policy 看到的 gyro，含偏置）；HEAD_OBS=False 時仍積分（只當監看）
+        head_err = info["head_err"] + (self._gyro_obs(data, info)[2] - cmd[1]) * CTRL_DT
         q12 = data.qpos[LEG_QPOS_IDX]
         err12 = q_des - q12
 
@@ -495,6 +512,7 @@ class MaxCpgEnv(Env):
         r_yaw = yaw_reward(wz_ema if w["YAW_EMA"] > 0 else wz, cmd[1], w["YAW_SIG2"],
                            w["YAW_SIG2_WIDE"])
         r_yawi = yaw_reward(wz, cmd[1], w["YAW_INST_SIG2"])          # 瞬時（振盪）
+        r_head = jnp.exp(-(head_err / w["HEAD_SIG"]) ** 2)              # 航向誤差（v2.4）
         r_h = jnp.exp(-400.0 * (data.qpos[2] - NOMINAL_HEIGHT) ** 2)
         r_clr = jnp.mean(sw * jnp.clip(self._wheel_clearance(data) / G_C, 0.0, 1.0))
         c_act = jnp.sum((action - info["last_a"]) ** 2)
@@ -502,7 +520,8 @@ class MaxCpgEnv(Env):
         # 每一項各自帶權重存起來：校準（佔比）與訓練監看都靠這些
         T = {
             "t_vx": w["W_VX"] * r_vx, "t_yaw": w["W_YAW"] * r_yaw,
-            "t_yawi": w["W_YAW_INST"] * r_yawi, "t_exec": w["W_EXEC"] * r_exec,
+            "t_yawi": w["W_YAW_INST"] * r_yawi, "t_head": w["W_HEAD"] * r_head,
+            "t_exec": w["W_EXEC"] * r_exec,
             "t_roll": w["W_ROLL"] * grav[1] ** 2, "t_rollrate": w["W_ROLLRATE"] * data.qvel[3] ** 2,
             "t_pitch": w["W_PITCH"] * grav[0] ** 2, "t_pitchrate": w["W_PITCHRATE"] * data.qvel[4] ** 2,
             "t_sym": w["W_SYM"] * sym_pen,
@@ -511,8 +530,8 @@ class MaxCpgEnv(Env):
             "t_taubar": w["W_TAUBAR"] * tau_barrier(tau_pk12),
             "t_errbar": w["W_ERRBAR"] * err_barrier(err12),
         }
-        T["t_pos"] = (T["t_vx"] + w["W_VY"] * r_vy + T["t_yaw"] + T["t_yawi"] + w["W_H"] * r_h
-                      + w["W_CLR"] * r_clr + T["t_exec"])
+        T["t_pos"] = (T["t_vx"] + w["W_VY"] * r_vy + T["t_yaw"] + T["t_yawi"] + T["t_head"]
+                      + w["W_H"] * r_h + w["W_CLR"] * r_clr + T["t_exec"])
         reward = (T["t_pos"]
                   - T["t_sym"] - T["t_roll"] - T["t_rollrate"] - T["t_pitch"] - T["t_pitchrate"]
                   - T["t_omvar"] - T["t_vz"] - T["t_act"] - T["t_tau"]
@@ -523,6 +542,7 @@ class MaxCpgEnv(Env):
         too_low = data.qpos[2] < MIN_HEIGHT
         done = jnp.where(fell | too_low | (kill >= KILL_STEPS), 1.0, 0.0)
 
+        info["head_err"] = head_err
         obs = self._obs(data, c, cmd, action, info)
         n = jax.random.normal(k_obs, (self.obs_dim,))
         obs = (obs.at[0:3].add(NOISE_GRAV * n[0:3]).at[3:6].add(NOISE_GYRO * n[3:6])
@@ -543,6 +563,7 @@ class MaxCpgEnv(Env):
                        else jnp.sum(sw[REAR] * track[REAR]) / jnp.maximum(n_r, 1.0)),
             "tau_pk": jnp.max(tau_pk12), "err_pk": jnp.max(jnp.abs(err12)),
             "sway_x": jnp.abs(sway[0]) * 1000.0, "sway_y": jnp.abs(sway[1]) * 1000.0,
+            "head_abs": jnp.abs(head_err) * 57.29578,
             **T,
         }
         return state.replace(pipeline_state=data, obs=obs, reward=reward, done=done,

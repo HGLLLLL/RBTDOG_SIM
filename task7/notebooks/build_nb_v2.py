@@ -64,11 +64,12 @@ W = re.weights_of(PRESET)
 print("preset", PRESET, "權重", W)
 LAYOUT = W["ACT_LAYOUT"]
 ACT_DIM = re.LAYOUT_DIMS[LAYOUT]
-OBS_DIM = obs_max.obs_dim(ACT_DIM)
-print("layout", LAYOUT, "act", ACT_DIM, "obs", OBS_DIM, "scene", mm.SCENE_MJX_KP250)
+HEAD = bool(W.get("HEAD_OBS", False))
+OBS_DIM = obs_max.obs_dim(ACT_DIM, HEAD)
+print("layout", LAYOUT, "act", ACT_DIM, "obs", OBS_DIM, "head_err in obs", HEAD, "scene", mm.SCENE_MJX_KP250)
 print("基準", gb.BASELINE_A)
 print("護欄 TAU_BAR", re.TAU_BAR, "ERR_BAR", re.ERR_BAR, "| sway ±", re.SWAY_MAX, "斜率", re.SWAY_SLEW)
-assert (ACT_DIM, OBS_DIM) in ((14, 70), (10, 66))
+assert (ACT_DIM, OBS_DIM) in ((14, 70), (10, 66), (10, 67))
 assert list(gb.BASELINE_A["kp3"]) == [60.0, 250.0, 250.0], "ABAD 必須是 60"
 if LAYOUT == "nomux":
     print("★ mu_x 固定 =", gb.BASELINE_A["mu_x"], "（不在動作空間），速度只靠 ω；指令範圍", W["CMD_VX"])

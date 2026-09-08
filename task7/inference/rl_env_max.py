@@ -84,6 +84,7 @@ W_DEFAULT = dict(
     W_YAW=1.0, W_VX=1.5, W_VY=0.5, W_H=0.5, W_CLR=1.5,
     W_VZ=2.0, W_OMEGA_VAR=0.5, W_ACT=0.01, W_TAU=3e-5,
     W_TAUBAR=0.01, W_ERRBAR=20.0,
+    YAW_SIG2=0.05, YAW_EMA=0.0,      # 偏航 reward 的核寬；YAW_EMA=0 → 用瞬時 wz（v2）
 )
 PRESETS = {
     "v2": {},
@@ -91,8 +92,13 @@ PRESETS = {
     #   v2   ：roll+rollrate 2.7%、pitch 1.5%、exec 30%  → policy 忽略姿態（23M 步 roll 只降 12%）
     #   v2.1 ：roll+rollrate ~16%、pitch ~6%、exec ~38%  → 與使用者優先序（姿態 > 執行率）一致
     #   exec σ 放寬到 50 mm：A 步態擺動相 x 誤差本來就 ~30 mm，σ=30 在基準上只給 0.32 分。
+    #   ★ 偏航：v2 權重跑出 60 s +48°（0.8°/s），但 exp(−(wz−cmd)²/0.05) 對 0.014 rad/s 只掉 0.4%
+    #     —— reward 看不見漂移，而瞬時 wz 又被 1.4 Hz 步態振盪（±0.5 rad/s）淹沒。
+    #     改成 4 s EMA 濾過的 wz（YAW_EMA 0.005 @50 Hz；量過：1 s 只衰減到 ±0.07、4 s 到 ±0.018）
+    #     ＋ 核寬 σ=1.3°/s（YAW_SIG2 0.0005）：基準 r_yaw ≈ 0.60，漂 0.8°/s 掉到 ≈ 0.40。
     "v2.1": dict(W_ROLL=150.0, W_ROLLRATE=0.5, W_PITCH=100.0, W_PITCHRATE=0.3,
-                 W_EXEC=1.5, EXEC_SIGMA=0.05),
+                 W_EXEC=1.5, EXEC_SIGMA=0.05,
+                 W_YAW=1.5, YAW_SIG2=0.0005, YAW_EMA=0.005),
 }
 # 模組層級常數 = v2（舊 notebook / 舊測試引用）
 W_ROLL, W_ROLLRATE, W_PITCH, W_PITCHRATE = 20.0, 0.05, 20.0, 0.05
@@ -105,6 +111,11 @@ TERM_KEYS = ("t_pos", "t_vx", "t_yaw", "t_exec", "t_roll", "t_rollrate", "t_pitc
              "t_sym", "t_vz", "t_omvar", "t_act", "t_tau", "t_taubar", "t_errbar")
 METRIC_KEYS = ("height", "vx", "reward", "pitch", "roll", "clr", "vz", "yawerr", "vxerr",
                "exec_f", "exec_r", "tau_pk", "err_pk", "sway_x", "sway_y") + TERM_KEYS
+
+
+def yaw_reward(wz_f, cmd_wz, sig2):
+    """偏航 reward 核：exp(−(wz_f − cmd)²/sig2)。wz_f 可為瞬時或 EMA 濾過的角速度。"""
+    return jnp.exp(-(wz_f - cmd_wz) ** 2 / sig2)
 
 
 def weights_of(preset: str) -> dict:
@@ -335,6 +346,7 @@ class MaxCpgEnv(Env):
                 "a_hist": jnp.zeros((3, ACT_DIM)), "last_a": z14,
                 "sway": jnp.zeros(2), "qvel_prev": data.qvel[LEG_QVEL_IDX],
                 "ema_f": jnp.zeros(()), "ema_r": jnp.zeros(()),
+                "wz_ema": jnp.zeros(()),
                 "kill": jnp.zeros((), jnp.int32), "step": 0}
         obs = self._obs(data, c, cmd, z14, info)
         z = jnp.zeros(())
@@ -390,7 +402,8 @@ class MaxCpgEnv(Env):
 
         r_vx = jnp.exp(-(vb[0] - cmd[0]) ** 2 / 0.02)
         r_vy = jnp.exp(-vb[1] ** 2 / 0.02)
-        r_yaw = jnp.exp(-(wz - cmd[1]) ** 2 / 0.05)
+        wz_ema = info["wz_ema"] + w["YAW_EMA"] * (wz - info["wz_ema"])
+        r_yaw = yaw_reward(wz_ema if w["YAW_EMA"] > 0 else wz, cmd[1], w["YAW_SIG2"])
         r_h = jnp.exp(-400.0 * (data.qpos[2] - NOMINAL_HEIGHT) ** 2)
         r_clr = jnp.mean(sw * jnp.clip(self._wheel_clearance(data) / G_C, 0.0, 1.0))
         c_act = jnp.sum((action - info["last_a"]) ** 2)
@@ -425,7 +438,7 @@ class MaxCpgEnv(Env):
 
         info.update({"rng": rng, "c": c, "last_a": action, "a_hist": a_hist, "sway": sway,
                      "qvel_prev": data.qvel[LEG_QVEL_IDX], "ema_f": ema_f, "ema_r": ema_r,
-                     "kill": kill, "step": info["step"] + 1})
+                     "wz_ema": wz_ema, "kill": kill, "step": info["step"] + 1})
         metrics = {
             "height": data.qpos[2], "vx": vb[0], "reward": reward,
             "pitch": jnp.abs(grav[0]) * 57.29578, "roll": jnp.abs(grav[1]) * 57.29578,

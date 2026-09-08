@@ -107,7 +107,8 @@ def test_presets_v2_unchanged_and_v2_1_defined():
     assert w2["EXEC_SIGMA"] == re.EXEC_SIGMA == 0.03 and w2["W_TAUBAR"] == re.W_TAUBAR
     w21 = re.weights_of("v2.1")
     changed = {k for k in w21 if w21[k] != w2[k]}
-    assert changed == {"W_ROLL", "W_ROLLRATE", "W_PITCH", "W_PITCHRATE", "W_EXEC", "EXEC_SIGMA"}
+    assert changed == {"W_ROLL", "W_ROLLRATE", "W_PITCH", "W_PITCHRATE", "W_EXEC", "EXEC_SIGMA",
+                       "W_YAW", "YAW_SIG2", "YAW_EMA"}
     assert w21["W_TAUBAR"] == w2["W_TAUBAR"] and w21["W_ERRBAR"] == w2["W_ERRBAR"]   # 護欄不動
     with pytest.raises(ValueError):
         re.weights_of("v9")
@@ -129,3 +130,12 @@ def test_v2_1_reward_shares_on_baseline():
     assert sh["t_exec"] <= 0.50 and roll > pitch          # 姿態 > 執行率的優先序在權重上成立
     assert sh["t_taubar"] < 0.01 and sh["t_errbar"] < 0.01  # 基準不碰護欄
     assert r["metrics"]["reward"] > 1.0
+
+
+def test_yaw_reward_kernel_sees_slow_drift():
+    """v2 的核（σ²=0.05）對 0.8°/s 的漂移只掉 0.4%；v2.1 的核（0.0005）掉 32%。"""
+    d = 0.014                                   # rad/s = 0.8°/s（v2 實測漂移）
+    v2 = float(re.yaw_reward(d, 0.0, re.weights_of("v2")["YAW_SIG2"]))
+    v21 = float(re.yaw_reward(d, 0.0, re.weights_of("v2.1")["YAW_SIG2"]))
+    assert v2 > 0.99 and 0.6 < v21 < 0.75
+    assert re.weights_of("v2.1")["YAW_EMA"] > 0 and re.weights_of("v2")["YAW_EMA"] == 0

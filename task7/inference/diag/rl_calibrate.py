@@ -18,10 +18,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import rl_env_max as re  # noqa: E402
 
 
+CAL_CMD = (0.15, 0.0)     # 校準用固定指令：直走 0.15 m/s（隨機指令會讓 vx/yaw 兩項在基準上失真）
+
+
 def calibrate(preset: str, steps: int = 500, seed: int = 0, verbose: bool = True) -> dict:
     env = re.MaxCpgEnv(preset=preset)
     reset, step = jax.jit(env.reset), jax.jit(env.step)
     s = reset(jax.random.PRNGKey(seed))
+    s = s.replace(info={**s.info, "cmd": jnp.array(CAL_CMD)})
     a = jnp.array(re.baseline_action())
     acc = {k: [] for k in re.METRIC_KEYS}
     for i in range(steps):
@@ -35,7 +39,7 @@ def calibrate(preset: str, steps: int = 500, seed: int = 0, verbose: bool = True
     share = {k: m[k] / pos for k in re.TERM_KEYS if k != "t_pos"}
     if verbose:
         w = re.weights_of(preset)
-        print(f"preset {preset}  {steps} 步（統計後半）  正項總和 {pos:.3f}/步  reward {m['reward']:.3f}/步")
+        print(f"preset {preset}  cmd {CAL_CMD}  {steps} 步（統計後半）  正項總和 {pos:.3f}/步  reward {m['reward']:.3f}/步")
         print(f"  roll {m['roll']:.2f}° pitch {m['pitch']:.2f}° exec f/r {m['exec_f']:.2f}/{m['exec_r']:.2f}"
               f"  tau_pk {m['tau_pk']:.1f} err_pk {m['err_pk']:.3f}")
         print(f"  {'項':12s} {'值/步':>9s} {'佔正項':>7s}")
@@ -44,7 +48,8 @@ def calibrate(preset: str, steps: int = 500, seed: int = 0, verbose: bool = True
                 continue
             print(f"  {k:12s} {m[k]:9.4f} {100 * share[k]:6.1f}%")
         print(f"  權重：" + " ".join(f"{k}={v}" for k, v in w.items()
-                                     if k in ("W_ROLL", "W_ROLLRATE", "W_PITCH", "W_PITCHRATE", "W_EXEC", "EXEC_SIGMA")))
+                                     if k in ("W_ROLL", "W_ROLLRATE", "W_PITCH", "W_PITCHRATE", "W_EXEC", "EXEC_SIGMA",
+                                              "W_YAW", "YAW_SIG2", "YAW_EMA")))
     return {"metrics": m, "share": share, "pos": pos}
 
 

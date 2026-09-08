@@ -80,6 +80,7 @@ assert np.allclose(kp_xml, np.tile(mm.KP3_A, 4)), f"訓練模型增益 {kp_xml[:
 jit_reset, jit_step = jax.jit(env.reset), jax.jit(env.step)
 A_BASE = jnp.array(re.baseline_action())
 s = jit_reset(jax.random.PRNGKey(0))
+s = s.replace(info={**s.info, "cmd": jnp.array([0.15, 0.0])})   # 校準用固定指令（同 diag/rl_calibrate.py）
 print("reset ok, obs", s.obs.shape, "height %.4f m" % float(s.pipeline_state.qpos[2]))
 
 import time as _t
@@ -104,6 +105,7 @@ print(f"[對照] 本機 local_infer_max --dummy：speed_travel 0.34 m/s、roll_p
 pos = np.mean(acc["t_pos"])
 share = {k: np.mean(acc[k]) / pos for k in re.TERM_KEYS if k != "t_pos"}
 print("[佔比] " + "  ".join(f"{k[2:]} {100*v:.1f}%" for k, v in share.items() if v > 0.001))
+print("[對照] 本機 rl_calibrate v2.1：yaw 28%  exec 34%  roll+rate 14%  pitch+rate 5%  vx 13.5%")
 roll_sh = share["t_roll"] + share["t_rollrate"]
 pitch_sh = share["t_pitch"] + share["t_pitchrate"]
 if PRESET != "v2":

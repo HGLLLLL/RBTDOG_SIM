@@ -17,6 +17,8 @@
 - 測試 756 項；G0 基準數字：speed 0.34、roll_pk 3.86°、exec 前 0.88/**後 1.47**、峰值力矩 55.7（貼近護欄）
 - **下一步**：`git push` → Colab 全部執行 → 下載 `weights/cpg_rl_max_v2_params.pkl` → 本機 G3–G8 → 結果文件
 - ⚠️ **G7 不過不上機**；狗上推論（M9 加 policy 路徑）另開 spec，尚未實作
+- **v2.1**（同日下午）：v2 跑到 23M roll 只降 12% → 量出 roll 罰項只佔正項 2.7% → `PRESETS["v2.1"]`（roll 18%）、
+  新 notebook `cpg_rl_max_v2_1_colab.ipynb`、權重 `cpg_rl_max_v2_1_params.pkl`；設計文件 §6
 
 ## ▶ ★★★ 2026-09-08：obs 盤點完成 —— 30 個感測欄位全部可用，下一步就是 CPG-RL 重訓
 

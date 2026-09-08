@@ -16,3 +16,17 @@ def test_notebook_v2_contract():
     assert "gb.BASELINE[" not in src             # 只能經 rl_env_max 用 BASELINE_A
     assert "policy_hidden_layer_sizes=(256, 256, 128)" in src
     assert "randomization_fn=re.domain_randomize" in src
+
+
+def test_notebook_v2_1_contract():
+    """v2.1 notebook：preset 明寫、權重檔名不同、校準格有佔比斷言；v2 notebook 不受影響。"""
+    nb = json.loads((NB.parent / "cpg_rl_max_v2_1_colab.ipynb").read_text(encoding="utf-8"))
+    src = "\n".join("".join(c["source"]) for c in nb["cells"] if c["cell_type"] == "code")
+    assert 'PRESET = "v2.1"' in src and "MaxCpgEnv(preset=PRESET)" in src
+    assert "cpg_rl_max_v2_1_params.pkl" in src and "cpg_rl_max_v2_params.pkl" not in src
+    assert "0.10 <= roll_sh <= 0.25" in src           # 佔比斷言
+    assert 'assert np.allclose(kp_xml, np.tile(mm.KP3_A, 4))' in src   # 增益斷言（ABAD 60）
+    assert 'BRANCH = "main"' in src
+    old = json.loads(NB.read_text(encoding="utf-8"))
+    old_src = "\n".join("".join(c["source"]) for c in old["cells"] if c["cell_type"] == "code")
+    assert "PRESET" not in old_src and "cpg_rl_max_v2_params.pkl" in old_src

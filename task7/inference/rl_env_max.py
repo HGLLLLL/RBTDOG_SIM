@@ -73,15 +73,44 @@ TAU_BAR, ERR_BAR = 58.0, 0.45          # 實機門檻 70 N·m ÷ 1.2；M9 中止
 TAU_KILL, KILL_STEPS = 90.0, 3
 NOMINAL_HEIGHT = mm.NOMINAL_HEIGHT_WALK
 
-# ---- reward 權重（起始值；notebook 校準格印每一項在基準動作上的值）----
+# ---- reward 權重 ----
+# ★ preset 機制：舊 notebook 用 "v2"（行為不變），新 notebook 用 "v2.1"。
+#   每一項在基準動作上的實際值由 metrics 的 t_* 欄位吐出來（diag/rl_calibrate.py 印佔比），
+#   權重是**量出來校準的**，不是猜的 —— v2 的教訓：W_ROLL=20 在 roll 2.3° 時每步只扣 0.03 分
+#   （正項的 1%），policy 完全有理由忽略它，23M 步 roll 只降 12%。
+W_DEFAULT = dict(
+    W_ROLL=20.0, W_ROLLRATE=0.05, W_PITCH=20.0, W_PITCHRATE=0.05,
+    W_EXEC=1.0, W_SYM=5.0, EXEC_SIGMA=0.03,
+    W_YAW=1.0, W_VX=1.5, W_VY=0.5, W_H=0.5, W_CLR=1.5,
+    W_VZ=2.0, W_OMEGA_VAR=0.5, W_ACT=0.01, W_TAU=3e-5,
+    W_TAUBAR=0.01, W_ERRBAR=20.0,
+)
+PRESETS = {
+    "v2": {},
+    # v2.1（2026-09-08，diag/rl_calibrate.py 量出來的）：基準動作上各項佔正項的比例
+    #   v2   ：roll+rollrate 2.7%、pitch 1.5%、exec 30%  → policy 忽略姿態（23M 步 roll 只降 12%）
+    #   v2.1 ：roll+rollrate ~16%、pitch ~6%、exec ~38%  → 與使用者優先序（姿態 > 執行率）一致
+    #   exec σ 放寬到 50 mm：A 步態擺動相 x 誤差本來就 ~30 mm，σ=30 在基準上只給 0.32 分。
+    "v2.1": dict(W_ROLL=150.0, W_ROLLRATE=0.5, W_PITCH=100.0, W_PITCHRATE=0.3,
+                 W_EXEC=1.5, EXEC_SIGMA=0.05),
+}
+# 模組層級常數 = v2（舊 notebook / 舊測試引用）
 W_ROLL, W_ROLLRATE, W_PITCH, W_PITCHRATE = 20.0, 0.05, 20.0, 0.05
 W_EXEC, W_SYM, EXEC_SIGMA = 1.0, 5.0, 0.03
 W_YAW, W_VX, W_VY, W_H, W_CLR = 1.0, 1.5, 0.5, 0.5, 1.5
 W_VZ, W_OMEGA_VAR, W_ACT, W_TAU = 2.0, 0.5, 0.01, 3e-5
 W_TAUBAR, W_ERRBAR = 0.01, 20.0
 SYM_EMA = 0.05
+TERM_KEYS = ("t_pos", "t_vx", "t_yaw", "t_exec", "t_roll", "t_rollrate", "t_pitch", "t_pitchrate",
+             "t_sym", "t_vz", "t_omvar", "t_act", "t_tau", "t_taubar", "t_errbar")
 METRIC_KEYS = ("height", "vx", "reward", "pitch", "roll", "clr", "vz", "yawerr", "vxerr",
-               "exec_f", "exec_r", "tau_pk", "err_pk", "sway_x", "sway_y")
+               "exec_f", "exec_r", "tau_pk", "err_pk", "sway_x", "sway_y") + TERM_KEYS
+
+
+def weights_of(preset: str) -> dict:
+    if preset not in PRESETS:
+        raise ValueError(f"沒有這個 preset：{preset!r}（有 {list(PRESETS)}）")
+    return {**W_DEFAULT, **PRESETS[preset]}
 
 
 # ---------------------------------------------------------------- 四元數（wxyz）
@@ -233,7 +262,9 @@ def err_barrier(err12):
 
 # ---------------------------------------------------------------- env
 class MaxCpgEnv(Env):
-    def __init__(self, scene: str = mm.SCENE_MJX_KP250):
+    def __init__(self, scene: str = mm.SCENE_MJX_KP250, preset: str = "v2"):
+        self.preset = preset
+        self.w = weights_of(preset)
         m = mujoco.MjModel.from_xml_path(scene)
         assert m.opt.timestep == SIM_DT, f"timestep {m.opt.timestep} ≠ {SIM_DT}"
         assert m.actuator_biastype[0] == mujoco.mjtBias.mjBIAS_AFFINE, \
@@ -348,7 +379,8 @@ class MaxCpgEnv(Env):
         act_ft = foot_actual_j(q12)
         sw = swing_mask_j(c["theta"])
         dx = act_ft[:, 0] - tgt[:, 0]
-        track = jnp.exp(-(dx / EXEC_SIGMA) ** 2)
+        w = self.w
+        track = jnp.exp(-(dx / w["EXEC_SIGMA"]) ** 2)
         r_exec = jnp.sum(sw * track) / jnp.maximum(jnp.sum(sw), 1.0)
         n_f, n_r = jnp.sum(sw[FRONT]), jnp.sum(sw[REAR])
         ef = jnp.sum(sw[FRONT] * jnp.abs(dx[FRONT])) / jnp.maximum(n_f, 1.0)
@@ -363,14 +395,23 @@ class MaxCpgEnv(Env):
         r_clr = jnp.mean(sw * jnp.clip(self._wheel_clearance(data) / G_C, 0.0, 1.0))
         c_act = jnp.sum((action - info["last_a"]) ** 2)
         c_tau = jnp.sum(data.actuator_force ** 2)
-        reward = (W_VX * r_vx + W_VY * r_vy + W_YAW * r_yaw + W_H * r_h + W_CLR * r_clr
-                  + W_EXEC * r_exec
-                  - W_SYM * (ema_f - ema_r) ** 2
-                  - W_ROLL * grav[1] ** 2 - W_ROLLRATE * data.qvel[3] ** 2
-                  - W_PITCH * grav[0] ** 2 - W_PITCHRATE * data.qvel[4] ** 2
-                  - W_OMEGA_VAR * jnp.var(om) - W_VZ * data.qvel[2] ** 2
-                  - W_ACT * c_act - W_TAU * c_tau
-                  - W_TAUBAR * tau_barrier(tau_pk12) - W_ERRBAR * err_barrier(err12))
+        # 每一項各自帶權重存起來：校準（佔比）與訓練監看都靠這些
+        T = {
+            "t_vx": w["W_VX"] * r_vx, "t_yaw": w["W_YAW"] * r_yaw, "t_exec": w["W_EXEC"] * r_exec,
+            "t_roll": w["W_ROLL"] * grav[1] ** 2, "t_rollrate": w["W_ROLLRATE"] * data.qvel[3] ** 2,
+            "t_pitch": w["W_PITCH"] * grav[0] ** 2, "t_pitchrate": w["W_PITCHRATE"] * data.qvel[4] ** 2,
+            "t_sym": w["W_SYM"] * (ema_f - ema_r) ** 2,
+            "t_vz": w["W_VZ"] * data.qvel[2] ** 2, "t_omvar": w["W_OMEGA_VAR"] * jnp.var(om),
+            "t_act": w["W_ACT"] * c_act, "t_tau": w["W_TAU"] * c_tau,
+            "t_taubar": w["W_TAUBAR"] * tau_barrier(tau_pk12),
+            "t_errbar": w["W_ERRBAR"] * err_barrier(err12),
+        }
+        T["t_pos"] = (T["t_vx"] + w["W_VY"] * r_vy + T["t_yaw"] + w["W_H"] * r_h
+                      + w["W_CLR"] * r_clr + T["t_exec"])
+        reward = (T["t_pos"]
+                  - T["t_sym"] - T["t_roll"] - T["t_rollrate"] - T["t_pitch"] - T["t_pitchrate"]
+                  - T["t_omvar"] - T["t_vz"] - T["t_act"] - T["t_tau"]
+                  - T["t_taubar"] - T["t_errbar"])
 
         kill = jnp.where(jnp.max(tau_pk12) > TAU_KILL, info["kill"] + 1, 0)
         fell = grav[2] > FALL_GRAV_Z
@@ -394,6 +435,7 @@ class MaxCpgEnv(Env):
             "exec_r": jnp.sum(sw[REAR] * track[REAR]) / jnp.maximum(n_r, 1.0),
             "tau_pk": jnp.max(tau_pk12), "err_pk": jnp.max(jnp.abs(err12)),
             "sway_x": jnp.abs(sway[0]) * 1000.0, "sway_y": jnp.abs(sway[1]) * 1000.0,
+            **T,
         }
         return state.replace(pipeline_state=data, obs=obs, reward=reward, done=done,
                              metrics=metrics, info=info)

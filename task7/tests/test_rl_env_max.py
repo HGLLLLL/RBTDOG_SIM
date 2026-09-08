@@ -98,3 +98,34 @@ def test_domain_randomize_shapes():
     kp = np.asarray(sys_r.actuator_gainprm[:, mm.LEG_ACT_IDX, 0])
     ratio = kp[:, 0] / kp[:, 1]
     assert np.ptp(ratio) > 1e-3
+
+
+def test_presets_v2_unchanged_and_v2_1_defined():
+    """v2 的權重必須與模組層級常數逐項相同（舊 notebook 行為不變）；v2.1 只改六個鍵。"""
+    w2 = re.weights_of("v2")
+    assert w2["W_ROLL"] == re.W_ROLL == 20.0 and w2["W_EXEC"] == re.W_EXEC == 1.0
+    assert w2["EXEC_SIGMA"] == re.EXEC_SIGMA == 0.03 and w2["W_TAUBAR"] == re.W_TAUBAR
+    w21 = re.weights_of("v2.1")
+    changed = {k for k in w21 if w21[k] != w2[k]}
+    assert changed == {"W_ROLL", "W_ROLLRATE", "W_PITCH", "W_PITCHRATE", "W_EXEC", "EXEC_SIGMA"}
+    assert w21["W_TAUBAR"] == w2["W_TAUBAR"] and w21["W_ERRBAR"] == w2["W_ERRBAR"]   # 護欄不動
+    with pytest.raises(ValueError):
+        re.weights_of("v9")
+
+
+def test_v2_1_reward_shares_on_baseline():
+    """★ 權重是量出來的：基準動作上 roll 兩項要佔正項 10–25%、exec ≤ 50%、護欄 ≈ 0。
+
+    v2 的教訓：roll 兩項只佔 2.7%，policy 忽略它。這條測試讓「權重失衡」變成會失敗的東西。
+    """
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "inference" / "diag"))
+    import rl_calibrate
+    r = rl_calibrate.calibrate("v2.1", steps=300, verbose=False)
+    sh = r["share"]
+    roll = sh["t_roll"] + sh["t_rollrate"]
+    pitch = sh["t_pitch"] + sh["t_pitchrate"]
+    assert 0.10 <= roll <= 0.25, f"roll 兩項佔 {roll:.1%}"
+    assert 0.03 <= pitch <= 0.15, f"pitch 兩項佔 {pitch:.1%}"
+    assert sh["t_exec"] <= 0.50 and roll > pitch          # 姿態 > 執行率的優先序在權重上成立
+    assert sh["t_taubar"] < 0.01 and sh["t_errbar"] < 0.01  # 基準不碰護欄
+    assert r["metrics"]["reward"] > 1.0

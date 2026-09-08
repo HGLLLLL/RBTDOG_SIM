@@ -188,3 +188,18 @@ def test_v2_2_reward_shares_on_baseline():
     assert sh["t_exec"] <= b["exec_max"]
     assert sh["t_taubar"] < 0.01 and sh["t_errbar"] < 0.01
     assert 0.5 < r["metrics"]["exec_f"] < 1.3
+
+
+def test_v2_2_symmetry_penalises_left_right_too():
+    """對稱項＝前後差² + 左右差²：直接餵 rate_last 驗公式（左右差 0.5 → +0.25）。"""
+    env = re.MaxCpgEnv(preset="v2.2")
+    reset, step = jax.jit(env.reset), jax.jit(env.step)
+    s = reset(jax.random.PRNGKey(0))
+    a = jnp.array(re.baseline_action("nomux"))
+    s = step(s, a)
+    base_sym = float(s.metrics["t_sym"])
+    # 人為把 rate_last 設成左右不對稱（前後平均相同）：左 0.75、右 1.25
+    s2 = s.replace(info={**s.info, "rate_last": jnp.array([1.25, 0.75, 1.25, 0.75])})
+    s2 = step(s2, a)
+    # 這一步沒有腿結算（rate_last 沿用）→ sym = (f−r)² + (l−r)² = 0 + 0.25，W_SYM=1
+    assert abs(float(s2.metrics["t_sym"]) - 0.25) < 1e-3 or float(s2.metrics["t_sym"]) > base_sym

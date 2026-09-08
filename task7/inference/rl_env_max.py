@@ -59,6 +59,8 @@ KP_NOM = np.tile(np.asarray(mm.KP3_A), 4)          # [60,250,250]×4，MJCF 序
 ABAD12 = jnp.array([0, 3, 6, 9])                   # 12 維腿關節裡的 ABAD 位置
 FRONT = jnp.array([0, 1])                          # FR, FL
 REAR = jnp.array([2, 3])                           # RR, RL
+RIGHT = jnp.array([0, 2])                          # FR, RR
+LEFT = jnp.array([1, 3])                           # FL, RL
 
 # ---- 隨機化（H 文件 §5 的實測值）----
 PUSH_EVERY, PUSH_VEL = 100, 0.6
@@ -449,9 +451,12 @@ class MaxCpgEnv(Env):
         rate_new = (fx_rel - sw_x0) / jnp.where(jnp.abs(d_cmd) > 1e-3, d_cmd, 1e-3)
         rate_last = jnp.where(end & (jnp.abs(d_cmd) > 1e-3), rate_new, info["rate_last"])
         rate_f, rate_r = jnp.mean(rate_last[FRONT]), jnp.mean(rate_last[REAR])
+        rate_l, rate_rt = jnp.mean(rate_last[LEFT]), jnp.mean(rate_last[RIGHT])
         if w["EXEC_MODE"] == "rate":
             r_exec = jnp.mean(jnp.exp(-((rate_last - 1.0) / w["EXEC_RATE_SIG"]) ** 2))
-            sym_pen = (rate_f - rate_r) ** 2
+            # ★ 前後 + 左右都罰：v2.1 兩趟證明漂移的機制是**左右**步幅差
+            #   （FL 35 / FR 61、RL 59 / RR 142 mm），mu_y 逐腿仍能做出這種不對稱。
+            sym_pen = (rate_f - rate_r) ** 2 + (rate_l - rate_rt) ** 2
             ema_f, ema_r = info["ema_f"], info["ema_r"]
         else:
             r_exec = jnp.sum(sw * track) / jnp.maximum(jnp.sum(sw), 1.0)

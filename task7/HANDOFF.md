@@ -6,6 +6,13 @@
 
 ---
 
+## ▶ ★★★ 2026-09-09 晚：v3 雙模式 env 完成、G0 過 —— **可上 Colab（`notebooks/cpg_rl_v3_colab.ipynb`）**
+
+`inference/rl_env_v3.py`（12 維動作／76 維 obs）、模型 `scene_flat_mjx_v3p.xml`（輪 kp 60 位置環＋M11 摩擦阻尼）。
+G0 零動作：直走 0.49 m/s、弧線 11°/s、原地轉 27°/s（原廠 77；kp250 做不到原廠 2.5 Hz 跳步，名目 2.0 Hz／duty 0.5／抬 40 mm）。
+**平移 v3.0 不訓**（原廠單側踏步靠輪胎側滑，模擬站不住）。兩個實機待驗：輪子位置環 kp 60 會不會抖振、承重輪行的打滑。
+細節與決定 spec §7。未做：`local_infer_v3.py` 驗收工具、M9 v3 推論路徑。參考資料集 `outputs/ref_gait_dataset.json`（`ref_extract.py`）。
+
 ## ▶ ★★★ 2026-09-09 16:20 原廠參考錄製完成（trip21）—— 讀 `docs/results/L_原廠步態參考錄製_2026-09-09.md`
 
 17 檔 500 Hz（`ref_turn_to_fwd` 第一檔作廢；`/cmd_vel` 遙控器不發，無指令標籤）。**原廠模式表定案**：

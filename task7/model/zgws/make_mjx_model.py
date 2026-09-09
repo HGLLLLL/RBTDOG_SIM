@@ -144,7 +144,7 @@ def _fmt(v) -> str:
 def build(src: str = str(SRC), dst: str = str(DST),
           collision: str = "primitive", actuators: str = "position",
           solver: bool = True, wheel: str = WHEEL_SHAPE,
-          kp3=None, kd3=None) -> dict:
+          kp3=None, kd3=None, wheel_model: dict = None) -> dict:
     """讀官方 XML，寫出改造版，回傳替換摘要。
 
     `kp3`/`kd3`：位置伺服增益（三關節）。預設 `max_model.KP3/KD3`（kp120 線）；
@@ -289,11 +289,28 @@ def build(src: str = str(SRC), dst: str = str(DST),
                 e.set("kp", f"{kp:.1f}")
                 e.set("kv", f"{kd:.1f}")
                 e.set("forcerange", f"{-tau:.1f} {tau:.1f}")
-            e = ET.SubElement(act, "velocity")
-            e.set("name", f"{p}_FOOT_LINK")
-            e.set("joint", f"{p}_FOOT_JOINT")
-            e.set("kv", f"{KD_WHEEL:.1f}")
+            wm = wheel_model or {}
+            if wm.get("kp", 0.0) > 0:
+                # ★ v3：位置＋速度伺服（原廠 FSM_RL_Wheel_Kp=60 的形式；ctrl = 累加的目標角）
+                e = ET.SubElement(act, "position")
+                e.set("name", f"{p}_FOOT_LINK")
+                e.set("joint", f"{p}_FOOT_JOINT")
+                e.set("kp", f"{wm['kp']:.1f}")
+                e.set("kv", f"{wm.get('kv', KD_WHEEL):.1f}")
+            else:
+                e = ET.SubElement(act, "velocity")
+                e.set("name", f"{p}_FOOT_LINK")
+                e.set("joint", f"{p}_FOOT_JOINT")
+                e.set("kv", f"{wm.get('kv', KD_WHEEL):.1f}")
             e.set("forcerange", f"{-TAU_MAX_WHEEL:.1f} {TAU_MAX_WHEEL:.1f}")
+
+    # --- 3b. 輪關節物理（v3：M11 實測 τ_f 0.13、b 0.015、J ≤ 0.005，K 文件）---
+    if wheel_model:
+        for j in root.iter("joint"):
+            if j.get("name", "").endswith("_FOOT_JOINT"):
+                for k in ("frictionloss", "damping", "armature"):
+                    if k in wheel_model:
+                        j.set(k, f"{wheel_model[k]:.4f}")
 
     # --- 4. solver 選項 ---
     if solver:
@@ -345,6 +362,10 @@ DIAG_VARIANTS = {
 }
 
 
+WHEEL_MODEL_V3 = dict(kv=1.0, frictionloss=0.13, damping=0.015, armature=0.004)   # results/K_輪子系統辨識_M11（純速度伺服，實機已驗）
+WHEEL_MODEL_V3P = dict(WHEEL_MODEL_V3, kp=60.0)   # ★ 位置＋速度伺服（原廠 Wheel_Kp 60；差速轉向需要，**實機未驗**）
+
+
 def build_all() -> None:
     """產生訓練模型與三個診斷變體（含各自的場景檔）。"""
     s = build()
@@ -367,6 +388,16 @@ def build_all() -> None:
     build(dst=str(xml), kp3=KP3_A, kd3=KD3_A)
     build_scene(str(HERE / "scene_flat_mjx_kp250.xml"), xml.name)
     print(f"[產生] {xml.name}  kp={KP3_A.tolist()} kd={KD3_A.tolist()}")
+    # ★ RL v3 訓練模型：kp250 ＋ 輪子照 M11 實測（kv 1.0 = 實機 kd、frictionloss 0.13、damping 0.015、armature 0.004）
+    xml = HERE / "zgws_mjx_v3.xml"
+    build(dst=str(xml), kp3=KP3_A, kd3=KD3_A, wheel_model=WHEEL_MODEL_V3)
+    build_scene(str(HERE / "scene_flat_mjx_v3.xml"), xml.name)
+    print(f"[產生] {xml.name}  輪 {WHEEL_MODEL_V3}")
+    xml = HERE / "zgws_mjx_v3p.xml"
+    build(dst=str(xml), kp3=KP3_A, kd3=KD3_A, wheel_model=WHEEL_MODEL_V3P)
+    build_scene(str(HERE / "scene_flat_mjx_v3p.xml"), xml.name)
+    print(f"[產生] {xml.name}  輪 {WHEEL_MODEL_V3P}")
+
 
 
 if __name__ == "__main__":

@@ -32,7 +32,7 @@ def summarize(path: str) -> str:
         L += ["遙控各段：" + "、".join(f"第{x['seg']}段 {x['steps']} 步/退回 {x['fallback']}" for x in P["per_segment"])
               + ("　⚠️ log 已截斷" if P.get("log_truncated") else ""), ""]
     if d.get("notes"):
-        L += ["階段轉換：" + " → ".join(f"{n[1]}@{n[0]}s" for n in d["notes"][-12:]), ""]
+        L += ["階段轉換（離開某階段的時刻）：" + " → ".join(f"{n[1]}@{n[0]}s" for n in d["notes"][-12:]), ""]
     fbs = [s["fb"] for s in steps if s["fb"]]
     if fbs:
         from collections import Counter

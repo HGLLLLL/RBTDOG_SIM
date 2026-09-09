@@ -36,6 +36,7 @@ FILES=(
   "$HERE/estop_max.sh"      # ★ 急停。第二個終端機一定要備著
   "$HERE/policy_np.py"      # ★★★ RL policy 純 numpy 推論（M9 --policy 要用，2026-09-09）
   "$HERE/rl_obs.py"         # ★★★ RL obs 組裝（shm → 66 維）
+  "$HERE/teleop_cmd.py"     # 遙控指令映射（純 CPG 版遙控用；RL 遙控不需要，但同套件一起走）
   "$HERE/../weights/cpg_rl_max_v2_3_np.npz"   # ★★★ v2.3 權重（export_policy_np 產）
 )
 

@@ -309,7 +309,8 @@ def run(args) -> dict:
     if frames:
         import imageio.v2 as iio
         OUT_DIR.mkdir(parents=True, exist_ok=True)
-        out = OUT_DIR / f"cpg_rl_max_{preset.replace('.', '_')}.mp4"
+        tag = getattr(args, "tag", "") or ""
+        out = OUT_DIR / f"cpg_rl_max_{preset.replace('.', '_')}{('_' + tag) if tag else ''}.mp4"
         iio.mimsave(str(out), frames, fps=25, codec="libx264")
         print("[影片]", out)
     return res
@@ -334,6 +335,7 @@ def main() -> int:
     ap.add_argument("--latency", type=int, default=DEFAULT_LATENCY,
                     help="動作與 joint_vel 各延幾步（實機 ≈1 步 20 ms）。0 = 舊的零延遲驗收（不真實）")
     ap.add_argument("--ramp", type=int, default=None, help="起步淡入步數；預設依 preset（v2.3 = 50）")
+    ap.add_argument("--tag", default="", help="影片檔名後綴（例如 wz03）")
     ap.add_argument("--compare", action="store_true",
                     help="同擾動跑開迴路 A 當對照（G4 需要）")
     a = ap.parse_args()

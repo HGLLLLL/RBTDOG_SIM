@@ -36,6 +36,7 @@ from imu_check import omega_body, smooth  # noqa: E402
 
 STANDUP_KP, STANDUP_KD, WHEEL_KD_SAFE = 250.0, 5.0, 0.5   # 與 M9_gait.py 相同
 GAIT_PHASES = ("GAIT_IN", "GAIT", "GAIT_OUT")
+GAIT_PHASES = tuple(GAIT_PHASES) + tuple("TELEOP_" + x for x in GAIT_PHASES) + ("TELEOP_STAND",)   # 遙控段用步態增益（2026-09-09）
 D2R = np.pi / 180.0
 
 

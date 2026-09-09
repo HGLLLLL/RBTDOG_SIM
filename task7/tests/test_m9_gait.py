@@ -1186,3 +1186,111 @@ def test_wheel_vmax_survives_stale_frame():
     src = (ROOT / "realbot" / "M9_gait.py").read_text(encoding="utf-8")
     main_src = src[src.index("def main()"):]
     assert "wrec.values()" not in main_src, "主迴圈不得直接對可能為 None 的 wrec 呼叫 .values()"
+
+
+# ══════════════════════════ 遙控（--teleop，2026-09-09）
+def test_keyhold_press_hold_release_semantics():
+    """按住＝動：首次按下有 0.7 s 寬限（自動重複還沒開始），之後 0.25 s 沒重複就當放開。"""
+    kh = m9.KeyHold(enabled=False)
+    kh.feed("w", 0.0)
+    assert kh.held(0.5) == {"w"}            # 自動重複開始前，寬限內仍算按住
+    assert kh.held(0.8) == set()            # 寬限過了沒重複 → 放開（輕點一下 = 0.7 s）
+    kh.feed("w", 1.0)
+    for k in range(1, 30):                  # 自動重複 30 ms 一個
+        kh.feed("w", 1.0 + 0.03 * k)
+    t_last = 1.0 + 0.03 * 29
+    assert kh.held(t_last + 0.2) == {"w"}
+    assert kh.held(t_last + 0.3) == set()   # 放開後 0.25 s 判定
+    kh.feed(" ", 3.0)
+    assert kh.take_space() and not kh.take_space()
+    kh.feed("\n", 3.1)
+    assert kh.take_enter() and not kh.take_enter()
+    kh.feed("x\r", 3.2)                     # 非移動鍵忽略；\\r 也算 Enter
+    assert kh.held(3.2) == set() and kh.take_enter()
+
+
+def _teleop_plan(policy, ramp=2.0, walk_max=30.0):
+    p, _ = _gp()
+    f0, ks = cpg.home_foot(coord.POSES["home"]), cpg.knee_signs(coord.POSES["home"])
+    log = []
+
+    def factory():
+        return m9.PolicyGaitStream(p, f0, ks, policy, (0.30, 0.0), 1.0, _Reader(), log)
+    a = Args(kp=250.0, kd=2.0, kp_abad=60.0, ramp=ramp, kp_shift=1.5, hold_max=1.0, walk_max=walk_max)
+    q_stand = {j: coord.POSES["home"][j] for j in m9.LEGS12}
+    return m9.TeleopPlan(a, dict(Q_LIE), q_stand, factory), log
+
+
+def _run_until(plan, t, cond, dt=1 / 200, walk=False, key=False, limit=60.0):
+    t_end = t + limit
+    while t < t_end:
+        out = plan.update(t, key, walk)
+        if cond(plan, out):
+            return t, out
+        t += dt
+        key = False
+    raise AssertionError("條件沒發生")
+
+
+def test_teleop_press_walk_release_stand_and_restart_uses_fresh_stream():
+    """★ 放開＝站好；再按＝新的一段（新步態流，不是沿用已退回開迴路的舊流）。"""
+    plan, log = _teleop_plan(_fake_policy(delta=0.5))
+    t, _ = _run_until(plan, 0.0, lambda p, o: p.name == "TELEOP")
+    q_stand = plan.q_stand
+    nm, des, *_ = plan.update(t, False, False)
+    assert nm == "TELEOP_STAND" and des == q_stand
+    # 按住 W → 淡入 → 走
+    t, (nm, *_) = _run_until(plan, t, lambda p, o: o[0] == "TELEOP_GAIT", walk=True)
+    assert plan.n_walks == 1 and not plan.gs.open_loop
+    t += 1.0
+    for _ in range(200):
+        plan.update(t, False, True)
+        t += 1 / 200
+    # 放開 → 淡出（policy 切回 A）→ 站好
+    t, (nm, *_) = _run_until(plan, t, lambda p, o: o[0] == "TELEOP_GAIT_OUT", walk=False)
+    assert plan.gs.open_loop
+    t, (nm, des, *_) = _run_until(plan, t, lambda p, o: o[0] == "TELEOP_STAND", walk=False)
+    assert max(abs(des[j] - q_stand[j]) for j in des) < 1e-9
+    # 再按 → 第二段，新的流
+    old = plan.gs
+    t, _ = _run_until(plan, t, lambda p, o: o[0] == "TELEOP_GAIT_IN", walk=True)
+    assert plan.n_walks == 2 and plan.gs is not old and not plan.gs.open_loop
+    # 淡入中放開：從當下混合比例淡出，不跳回
+    t += 0.5
+    nm, des_a, *_ = plan.update(t, False, True)
+    nm, des_b, *_ = plan.update(t + 1 / 200, False, False)
+    assert nm == "TELEOP_GAIT_OUT"
+    assert max(abs(des_a[j] - des_b[j]) for j in des_a) < 0.05
+    # 站好時 Enter → 升增益 → 停 → 坐下，最後趴姿零增益
+    t, _ = _run_until(plan, t, lambda p, o: o[0] == "TELEOP_STAND", walk=False)
+    nm, *_ = plan.update(t, True, False)
+    assert nm == "KP_UP"
+    t, (nm, des, kp, kd, kpa, done) = _run_until(plan, t, lambda p, o: o[-1], key=False)
+    assert nm == "RAMP_DOWN" and kp == 0.0
+
+
+def test_teleop_enter_ignored_while_walking():
+    plan, _ = _teleop_plan(_fake_policy(delta=0.5))
+    t, _ = _run_until(plan, 0.0, lambda p, o: p.name == "TELEOP")
+    t, _ = _run_until(plan, t, lambda p, o: o[0] == "TELEOP_GAIT", walk=True)
+    nm, *_ = plan.update(t, True, True)          # 走路中按 Enter
+    assert nm == "TELEOP_GAIT" and plan.name == "TELEOP"
+
+
+def test_teleop_walk_max_fades_out_then_leaves():
+    plan, _ = _teleop_plan(_fake_policy(delta=0.5), walk_max=5.0)
+    t, _ = _run_until(plan, 0.0, lambda p, o: p.name == "TELEOP")
+    t0 = t
+    t, _ = _run_until(plan, t, lambda p, o: o[0] == "TELEOP_GAIT", walk=True)
+    t, (nm, *_) = _run_until(plan, t, lambda p, o: o[0] == "TELEOP_GAIT_OUT", walk=True)
+    assert t - t0 >= 5.0 - 0.01
+    t, (nm, *_) = _run_until(plan, t, lambda p, o: p.name == "KP_UP", walk=True)
+
+
+def test_teleop_gains_and_wheel_kd_use_gait_schedule():
+    plan, _ = _teleop_plan(_fake_policy())
+    t, _ = _run_until(plan, 0.0, lambda p, o: p.name == "TELEOP")
+    nm, des, kp, kd, kpa, _ = plan.update(t, False, False)
+    assert (kp, kd, kpa) == (250.0, 2.0, 60.0)
+    src = (ROOT / "realbot" / "M9_gait.py").read_text(encoding="utf-8")
+    assert 'nm.replace("TELEOP_", "")' in src, "wheel_kd_of 必須認得 TELEOP_* 階段"

@@ -644,6 +644,177 @@ class InteractivePlan:
         return kp, kd, phase_kp(nm, r, self.a.kp_abad)
 
 
+class KeyHold:
+    """遙控用的單鍵讀取：按住＝動、放開＝停（2026-09-09，`--teleop`）。
+
+    終端機沒有「放開」事件。這裡把 tty 切到 cbreak（不回顯、逐字、**保留 Ctrl-C**），
+    靠鍵盤自動重複判斷「還按著」：`REPEAT_TIMEOUT` 內沒再收到同一鍵就當放開；
+    首次按下給 `FIRST_GRACE` 寬限，因為自動重複要延遲 250–660 ms 才開始（筆電 `xset r rate 200 40` 可縮短）。
+    空白鍵與 Enter 是事件，不是「按住」。
+
+    ⚠️ 改了 termios 就必須還原（`restore()`）—— 這個終端機壞掉，現場就少一個能打指令的地方。
+    急停在另一個終端機（estop_max.sh），不受影響。
+    """
+
+    FIRST_GRACE = 0.7
+    REPEAT_TIMEOUT = 0.25
+    MOVE_KEYS = {"w"}
+
+    def __init__(self, enabled: bool = True, now=None):
+        self.now = now or time.monotonic
+        self.enabled = enabled and sys.stdin.isatty()
+        self._old = None
+        self._last: dict = {}        # key -> 最近一次收到的時刻
+        self._reps: dict = {}        # key -> 這次按住收到幾次
+        self.enter = False
+        self.space = False
+        if self.enabled:
+            import termios
+            fd = sys.stdin.fileno()
+            self._old = termios.tcgetattr(fd)
+            new = termios.tcgetattr(fd)
+            new[3] = new[3] & ~(termios.ICANON | termios.ECHO)    # 逐字、不回顯；ISIG 保留 → Ctrl-C 有效
+            new[6][termios.VMIN] = 0
+            new[6][termios.VTIME] = 0
+            termios.tcsetattr(fd, termios.TCSANOW, new)
+
+    def restore(self) -> None:
+        if self._old is not None:
+            import termios
+            try:
+                termios.tcsetattr(sys.stdin.fileno(), termios.TCSANOW, self._old)
+            except Exception:
+                pass
+            self._old = None
+
+    def feed(self, chars: str, t: float) -> None:
+        """測試與 poll 共用：把讀到的字元餵進來。"""
+        for ch in chars:
+            if ch in ("\n", "\r"):
+                self.enter = True
+            elif ch == " ":
+                self.space = True
+            else:
+                k = ch.lower()
+                if k in self.MOVE_KEYS:
+                    if k not in self._last or t - self._last[k] > self.FIRST_GRACE:
+                        self._reps[k] = 0            # 新的一次按住
+                    self._reps[k] = self._reps.get(k, 0) + 1
+                    self._last[k] = t
+
+    def poll(self) -> None:
+        if not self.enabled:
+            return
+        try:
+            import select
+            r, _, _ = select.select([sys.stdin], [], [], 0)
+            if r:
+                self.feed(os.read(sys.stdin.fileno(), 64).decode(errors="ignore"), self.now())
+        except Exception:
+            pass
+
+    def held(self, t: float) -> set:
+        """目前判定為「按住」的鍵。"""
+        out = set()
+        for k, tl in self._last.items():
+            grace = self.FIRST_GRACE if self._reps.get(k, 0) <= 1 else self.REPEAT_TIMEOUT
+            if t - tl <= grace:
+                out.add(k)
+        return out
+
+    def take_enter(self) -> bool:
+        e, self.enter = self.enter, False
+        return e
+
+    def take_space(self) -> bool:
+        e, self.space = self.space, False
+        return e
+
+
+class TeleopPlan(InteractivePlan):
+    """遙控版流程（2026-09-09）：站起來 →〔Enter〕→ 降增益 → **TELEOP**（站好 ⇄ 淡入走 ⇄ 淡出）→〔Enter〕→ 升增益 → 趴下。
+
+    TELEOP 段的子狀態：STAND（站著等鍵）→ 按住 W → GAIT_IN（淡入 `ramp` 秒）→ GAIT（按住就走）
+    → 放開 → GAIT_OUT（淡出）→ STAND。每次起走**重新建一個步態流**（`gs_factory()`），
+    因為上一段淡出時 policy 已被切回開迴路 A、CPG 相位也該從頭來。
+    Enter 只在 STAND 有效（要先放開 W 才能收工）；`walk_max` 是整個 TELEOP 段的逾時，
+    逾時走路中會先淡出再離開。空白鍵急停在主迴圈處理（走 M9 中止路徑），不在這裡。
+    """
+
+    WAIT = InteractivePlan.WAIT | {"TELEOP"}     # 基底狀態機把它當等待段（dur=None），細節由本類接手
+
+    def __init__(self, a, q_lie: dict, q_stand: dict, gs_factory):
+        super().__init__(a, q_lie, q_stand, None)
+        self.gs_factory = gs_factory
+        self.streams: list = []
+        i_in = next(k for k, sg in enumerate(self.segs) if sg[0] == "GAIT_IN")
+        i_out = next(k for k, sg in enumerate(self.segs) if sg[0] == "GAIT_OUT")
+        self.segs[i_in:i_out + 1] = [("TELEOP", None, q_stand, q_stand)]
+        self.sub = "STAND"
+        self.t_sub = 0.0
+        self.ramp = float(a.ramp)
+        self.n_walks = 0
+
+    def _limit(self) -> float:
+        return self.a.walk_max if self.name == "TELEOP" else self.a.hold_max
+
+    def _sub_to(self, t: float, sub: str, why: str) -> None:
+        self.notes.append((round(t, 2), f"TELEOP/{self.sub}", why))
+        print(f"\n  ▸ 遙控 {self.sub} → {sub}（{why}）\n")
+        self.sub, self.t_sub = sub, t
+
+    def update(self, t: float, key: bool, walk: bool = False):
+        """`walk` = 移動鍵按住中。回傳同 InteractivePlan.update。"""
+        if self.name != "TELEOP":
+            return super().update(t, key)
+        timeout = (t - self.t_seg) >= self._limit()
+        if self.sub == "STAND":
+            if key or timeout:
+                self._advance(t, "按下 Enter" if key else f"逾時 {self._limit():.0f} s（自動繼續）")
+                return super().update(t, False)
+            if walk:
+                self.gs = self.gs_factory()
+                self.streams.append(self.gs)
+                self.n_walks += 1
+                self.t_gait0 = t
+                self._sub_to(t, "GAIT_IN", f"按住 W（第 {self.n_walks} 段）")
+        el = t - self.t_sub
+        if self.sub == "GAIT_IN":
+            if not walk or timeout:
+                self.u_out0 = smoothstep(min(el / self.ramp, 1.0))
+                self._stop_policy()
+                self._sub_to(t, "GAIT_OUT", "放開" if not walk else "逾時")
+            elif el >= self.ramp:
+                self._sub_to(t, "GAIT", "淡入完成")
+        if self.sub == "GAIT":
+            if not walk or timeout:
+                self.u_out0 = 1.0
+                self._stop_policy()
+                self._sub_to(t, "GAIT_OUT", "放開" if not walk else "逾時")
+        if self.sub == "GAIT_OUT":
+            dur = max(0.5, self.ramp * self.u_out0)
+            if t - self.t_sub >= dur:
+                self._sub_to(t, "STAND", "淡出完成")
+        el = t - self.t_sub
+        nm = "TELEOP_" + self.sub
+        kp, kd = phase_gains("GAIT", 1.0, self.a.kp, self.a.kd)
+        kpa = phase_kp("GAIT", 1.0, self.a.kp_abad)
+        if self.sub == "STAND":
+            des = dict(self.q_stand)
+        else:
+            qg = self.gs.sample(t - self.t_gait0)
+            if self.sub == "GAIT":
+                des = qg
+            elif self.sub == "GAIT_IN":
+                u = smoothstep(min(el / self.ramp, 1.0))
+                des = {j: (1 - u) * self.q_stand[j] + u * qg[j] for j in qg}
+            else:
+                dur = max(0.5, self.ramp * self.u_out0)
+                u = self.u_out0 * smoothstep(1.0 - min(el / dur, 1.0))
+                des = {j: (1 - u) * self.q_stand[j] + u * qg[j] for j in qg}
+        return (nm, des, kp, kd, kpa, False)
+
+
 def build_standup(a, q_lie: dict, q_gait0: dict):
     """趴 → crouch → 步態起點。回傳 (名稱, 秒數, 起點, 終點)。"""
     crouch = dict(coord.POSES["crouch"])
@@ -812,6 +983,10 @@ def main() -> int:
                          "退路永遠是開迴路 A（現場輸入 o＋Enter 即退回）")
     ap.add_argument("--vx", type=float, default=0.30, help="policy 的前進指令（訓練驗收 0.30）")
     ap.add_argument("--wz", type=float, default=0.0, help="policy 的偏航率指令 rad/s")
+    ap.add_argument("--teleop", action="store_true",
+                    help="★★★ 遙控：READY 按 Enter 後進遙控段 —— 按住 W 淡入往前走、放開淡出站好、"
+                         "空白鍵急停（M9 中止路徑：凍結目標角撐住）、站好時按 Enter 收工坐下。"
+                         "需 --interactive（--policy 則走 RL 步態）。--walk-max 是整個遙控段的逾時")
     ap.add_argument("--policy-gain", type=float, default=1.0, dest="policy_gain",
                     help="★ policy 動作的混合比例 0–1。0 = 乾跑：obs/推論照跑照記，動作固定基準")
     ap.add_argument("--hold-max", type=float, default=25.0, dest="hold_max",
@@ -1217,7 +1392,7 @@ def main() -> int:
         ⚠️ kd=3.0 連步態段行不行都還是未知 —— 走路的支撐腳同樣是承重+滾動。
           上機前先做吊掛抖振測試分辨（driver 迴路不穩 vs 地面黏滑）。
         """
-        if nm in ("GAIT", "GAIT_IN", "GAIT_OUT"):
+        if nm.replace("TELEOP_", "") in ("GAIT", "GAIT_IN", "GAIT_OUT"):
             return a.wheel_kd
         return min(a.wheel_kd, WHEEL_KD_SAFE)
 
@@ -1231,25 +1406,37 @@ def main() -> int:
         bounds.append((tt, tt + dur, nm, p0, p1))
         tt += dur
 
-    plan = kw = None
+    plan = kw = kh = None
     if a.interactive:
         # ★ 步態改成即時算：走多久由現場決定，固定長度的 G 播不完也停不下來。
         #   參數從既有來源取，**與上面所有乾跑檢查用的是同一組**。
         gp = dict(p_src, mu_x=mu_x_src, mu_y=mu_y_src, d_step_y=d_step_y_src)
         f0_h, ks_h = cpg.home_foot(coord.POSES["home"]), cpg.knee_signs(coord.POSES["home"])
+        policy_log: list = []
         if policy is not None:
             import rl_obs
             imu_shm = shm_io.Shm("imu_central")
-            policy_log: list = []
-            gs = PolicyGaitStream(
-                gp, f0_h, ks_h, policy, (a.vx, a.wz), a.policy_gain,
-                lambda: rl_obs.read_frame(state_ro, imu_shm, idx, shm_io.STATE_STRIDE),
-                policy_log)
+
+            def gs_factory():
+                return PolicyGaitStream(
+                    gp, f0_h, ks_h, policy, (a.vx, a.wz), a.policy_gain,
+                    lambda: rl_obs.read_frame(state_ro, imu_shm, idx, shm_io.STATE_STRIDE),
+                    policy_log)
         else:
-            gs = GaitStream(gp, f0_h, ks_h)
-        plan = InteractivePlan(a, q_lie, q_gait0, gs)
-        kw = KeyWatch()
+            def gs_factory():
+                return GaitStream(gp, f0_h, ks_h)
+        if a.teleop:
+            plan = TeleopPlan(a, q_lie, q_gait0, gs_factory)
+            kh = KeyHold()
+            kw = KeyWatch()      # 不用它讀，只借 enabled 判斷
+            print("🎮 遙控：READY 按 Enter → 站好等鍵；**按住 W 走、放開站好、空白鍵急停**；站好時 Enter 收工")
+        else:
+            gs = gs_factory()
+            plan = InteractivePlan(a, q_lie, q_gait0, gs)
+            kw = KeyWatch()
         if not kw.enabled:
+            if kh is not None:
+                kh.restore()
             print("❌ 互動模式需要 tty（不要用 nohup／背景執行）—— 沒有 tty 就按不了 Enter。")
             return 1
 
@@ -1284,7 +1471,15 @@ def main() -> int:
             if abort:
                 break
 
-            if a.interactive:
+            if a.interactive and kh is not None:
+                kh.poll()
+                if kh.take_space():
+                    abort = "遙控急停（空白鍵）"
+                    break
+                walk = bool(kh.held(time.monotonic()) & KeyHold.MOVE_KEYS)
+                nm, des_now, kp_now, kd_now, kp_abad_now, plan_done = plan.update(
+                    t, kh.take_enter(), walk)
+            elif a.interactive:
                 key = kw.pressed()
                 if key and policy is not None and kw.last_line.strip().lower() == "o":
                     gs.set_open_loop("現場輸入 o")     # 只退回，不推進階段
@@ -1460,6 +1655,8 @@ def main() -> int:
         abort = f"未預期的例外：{type(e).__name__}: {e}"
 
     # ---------------------------------------------------------------- 收尾
+    if kh is not None:
+        kh.restore()          # ★ tty 一定要還原：下面的「Enter 坐回趴姿」與現場都還要用這個終端機
     gc.enable()
     gc.collect()
     held_des, held_kp = dict(des_now), (kp_now if abort else 0.0)
@@ -1562,8 +1759,19 @@ def main() -> int:
            "loop": {"ticks": n_tick, "hz": round(hz, 1),
                     "worst_gap_s": round(worst_gap, 4)},
            "samples": samples[:60000]}
-    if policy is not None and plan is not None:
+    if policy is not None and plan is not None and plan.gs is not None:
         gs = plan.gs
+        if getattr(plan, "streams", None):
+            class _Agg:            # 遙控：多段步態流，彙總
+                pass
+            _g = _Agg()
+            _g.i = sum(x.i for x in plan.streams)
+            _g.n_fallback_total = sum(x.n_fallback_total for x in plan.streams)
+            _g.open_loop = any(x.open_loop for x in plan.streams)
+            _g.open_loop_why = "; ".join(x.open_loop_why for x in plan.streams if x.open_loop)
+            _g.worst_ms = max(x.worst_ms for x in plan.streams)
+            _g.log = policy_log
+            gs = _g
         out["policy"] = {"path": a.policy, "sha256": policy.src_sha256, "preset": policy.preset,
                          "vx": a.vx, "wz": a.wz, "gain": a.policy_gain,
                          "steps": gs.i, "fallback_total": gs.n_fallback_total,

@@ -557,6 +557,19 @@ class InteractivePlan:
         self.t_seg = t if dur is None else self.t_seg + dur
         if self.segs[self.i][0] == "GAIT_IN":
             self.t_gait0 = t
+        if self.segs[self.i][0] == "GAIT_OUT":
+            self._stop_policy()
+
+    def _stop_policy(self) -> None:
+        """★ 進淡出就把 policy 切回開迴路 A（2026-09-09）。
+
+        淡出 3 秒裡關節被拉向站姿，policy 看到的 obs 是訓練沒見過的組合，可能給飽和的
+        sway／ω；純 CPG 版沒這問題（trip17 驗過的淡出）。切回 A 之後，按 Enter 後的
+        3 秒就是 trip17 那個淡出。純 CPG 的 `GaitStream` 沒這方法，跳過。
+        """
+        f = getattr(self.gs, "set_open_loop", None)
+        if f is not None:
+            f("按停淡出：淡出段走純 A")
 
     def update(self, t: float, key: bool):
         """回傳 (階段名, 12 關節目標, kp, kd, 是否結束)。
@@ -592,6 +605,7 @@ class InteractivePlan:
                       f"直接進入 GAIT_OUT\n")
                 self.i = i_out
                 self.t_seg = t
+                self._stop_policy()
                 # 淡出時間按比例縮短：只淡入到 0.4 就沒必要花整個 ramp 淡出
                 self.segs[i_out] = ("GAIT_OUT",
                                     max(0.5, self.a.ramp * self.u_out0),

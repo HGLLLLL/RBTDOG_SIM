@@ -1113,3 +1113,67 @@ def test_policy_args_require_traj_and_interactive():
     r = subprocess.run([sys.executable, str(ROOT / "realbot" / "M9_gait.py"), "--live",
                         "--policy", "x.npz"], capture_output=True, text=True)
     assert r.returncode != 0
+
+
+def _policy_plan(policy, gain=1.0, **kw):
+    p, _ = _gp()
+    f0, ks = cpg.home_foot(coord.POSES["home"]), cpg.knee_signs(coord.POSES["home"])
+    log = []
+    gs = m9.PolicyGaitStream(p, f0, ks, policy, (0.30, 0.0), gain, _Reader(), log)
+    a = Args(kp=250.0, kd=2.0, kp_abad=60.0, ramp=3.0, kp_shift=1.5, hold_max=kw.get("hold_max", 1.0),
+             walk_max=kw.get("walk_max", 20.0))
+    q_stand = {j: coord.POSES["home"][j] for j in m9.LEGS12}
+    return m9.InteractivePlan(a, dict(Q_LIE), q_stand, gs), gs, log
+
+
+def test_enter_during_policy_gait_stops_and_fades_out_as_open_loop_a():
+    """★ 場地短：按 Enter 必須（1）進 GAIT_OUT、（2）淡出段 policy 已切回開迴路 A。"""
+    plan, gs, log = _policy_plan(_fake_policy(delta=0.5))
+    t, dt = 0.0, 1.0 / 200
+    while plan.name != "GAIT":
+        plan.update(t, False)
+        t += dt
+    for _ in range(400):                       # 走 2 秒，policy 全量作用
+        plan.update(t, False)
+        t += dt
+    assert not gs.open_loop and gs.sway_direct is not None
+    nm, *_ = plan.update(t, True)              # ★ Enter
+    assert nm == "GAIT_OUT"
+    assert gs.open_loop and "淡出" in gs.open_loop_why
+    n0 = len(log)
+    for _ in range(int(3.0 / dt) + 5):
+        nm, des, *_ = plan.update(t, False)
+        t += dt
+    base = policy_np.baseline_action("nomux")
+    assert all(np.allclose(e["act"], base) for e in log[n0 + 1:]), "淡出段還有 policy 動作"
+    assert gs.sway_direct is None, "淡出結束 sway 沒退到 0"
+    assert plan.name == "KP_UP"
+    # 淡出結束 = 站姿
+    assert max(abs(des[j] - coord.POSES["home"][j]) for j in des) < 1e-6
+
+
+def test_enter_during_policy_ramp_in_also_stops():
+    plan, gs, _ = _policy_plan(_fake_policy(delta=0.5))
+    t, dt = 0.0, 1.0 / 200
+    while plan.name != "GAIT_IN":
+        plan.update(t, False)
+        t += dt
+    for _ in range(100):
+        plan.update(t, False)
+        t += dt
+    nm, *_ = plan.update(t, True)
+    assert nm == "GAIT_OUT" and gs.open_loop
+
+
+def test_o_line_does_not_advance_phase_but_plain_enter_does():
+    """`o`＋Enter 只退回、不停車；空行 Enter 才停 —— 這段邏輯在 main 的迴圈裡，這裡驗它依賴的兩個元件。"""
+    plan, gs, _ = _policy_plan(_fake_policy(delta=0.5))
+    t, dt = 0.0, 1.0 / 200
+    while plan.name != "GAIT":
+        plan.update(t, False)
+        t += dt
+    gs.set_open_loop("現場輸入 o")              # main 對 `o` 做的事：只有這個、key=False
+    nm, *_ = plan.update(t, False)
+    assert nm == "GAIT" and gs.open_loop
+    nm, *_ = plan.update(t + dt, True)          # 之後空行 Enter 仍然停車
+    assert nm == "GAIT_OUT"

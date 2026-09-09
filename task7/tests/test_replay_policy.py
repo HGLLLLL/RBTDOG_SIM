@@ -58,3 +58,39 @@ def test_cpg_reconstruction_matches_gait_stream():
         c_re = gs.step(cs[k], gs.mux, gs.muy, gs.om, gs.GAIT_DT)
         worst = max(worst, max(abs(c_gs["theta"][l] - c_re["theta"][l]) for l in cpg.LEGS))
     assert worst < 1e-12, worst
+
+
+def test_policy_log_summary_reads_m9_policy_block(tmp_path):
+    """上機後的摘要工具要吃得下 M9 `--policy` 寫出的 json（欄位名對得上 PolicyGaitStream.log）。"""
+    import json
+    import coord
+    import cpg
+    import M9_gait as m9
+    import policy_log_summary as pls
+    import rl_obs
+    D = json.loads((ROOT / "outputs" / "A_kp250_walk.json").read_text(encoding="utf-8"))
+    p = dict(D["params"], mu_x=D["baseline_ref"]["mu_x"], mu_y=D["baseline_ref"]["mu_y"],
+             d_step_y=D["baseline_ref"]["d_step_y"])
+    pol = pn.load(str(ROOT / "weights" / "cpg_rl_max_v2_3_np.npz"))
+    tick = [0]
+
+    def reader():
+        tick[0] += 1
+        pose = coord.POSES["home"]
+        return rl_obs.Frame({j: coord.to_motor(j, pose[j]) for j in rl_obs.LEG_NAMES},
+                            {j: 0.0 for j in rl_obs.LEG_NAMES}, [0, 0, 0, 1], [0, 0, 0], tick[0])
+    log = []
+    gs = m9.PolicyGaitStream(p, cpg.home_foot(coord.POSES["home"]), cpg.knee_signs(coord.POSES["home"]),
+                             pol, (0.30, 0.0), 1.0, reader, log)
+    for k in range(400):
+        gs.sample(k / 200)
+    out = {"abort_reason": None, "peak": {"fl3_knee_pitch": 55.0, "fr3_knee_pitch": 50.0},
+           "policy": {"path": "x.npz", "sha256": pol.src_sha256, "preset": "v2.3", "vx": 0.3, "wz": 0.0,
+                      "gain": 1.0, "steps": gs.i, "fallback_total": gs.n_fallback_total,
+                      "open_loop": gs.open_loop, "open_loop_why": gs.open_loop_why,
+                      "worst_ms": round(gs.worst_ms, 3), "log": gs.log}}
+    f = tmp_path / "M9_x.json"
+    f.write_text(json.dumps(out), encoding="utf-8")
+    txt = pls.summarize(str(f))
+    assert "步數 100" in txt and "退回 0" in txt and "gravity" in txt and "ω 範圍" in txt
+    assert gs.worst_ms < 10.0, gs.worst_ms       # 本機都超過預算的話狗上（RK3588）更慘

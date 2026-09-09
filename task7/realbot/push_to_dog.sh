@@ -34,6 +34,9 @@ FILES=(
   "$HERE/M_freezetest.py"    # ★ mc_ctrl 凍結時長的零風險觀察
   "$HERE/M_env_probe.py"     # ★ 狗上電腦探測：numpy/MLP 前向 ms/CPU 親和性（不碰 shm，零風險）
   "$HERE/estop_max.sh"      # ★ 急停。第二個終端機一定要備著
+  "$HERE/policy_np.py"      # ★★★ RL policy 純 numpy 推論（M9 --policy 要用，2026-09-09）
+  "$HERE/rl_obs.py"         # ★★★ RL obs 組裝（shm → 66 維）
+  "$HERE/../weights/cpg_rl_max_v2_3_np.npz"   # ★★★ v2.3 權重（export_policy_np 產）
 )
 
 # ★ 軌跡檔（`M9_gait.py --traj` 要用）。2026-09-03 加：清單原本只有 .py/.sh，

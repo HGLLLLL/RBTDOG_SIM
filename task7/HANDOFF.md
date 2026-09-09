@@ -1,10 +1,31 @@
 # task7 交接：D1 Max 現況與下一步
 
-- 最後更新：**2026-09-03（收工）**
+- 最後更新：**2026-09-09（RL v2.3 上機工具鏈完成、待上機）**
 - 分支：`feat/d1-edu-cpg-rl`
 - **接手先讀這份，再讀 `README.md`。**
 
 ---
+
+## ▶ ★★★ 2026-09-09：RL v2.3 policy 上機工具鏈完成 —— **今晚上機，讀 `docs/現場操作卡_RL_v2.3_2026-09-09.md`**
+
+spec `docs/superpowers/specs/2026-09-09-rl-policy-on-dog-design.md`、plan `.../plans/2026-09-09-rl-policy-on-dog.md`。
+原則：**policy 只在開迴路 A（trip17 走通那組）周圍調變，退路永遠是 A**；M9 護欄一個沒動。
+
+| 元件 | 在哪 | 驗證 |
+|---|---|---|
+| pkl → npz 匯出 | `inference/export_policy_np.py` → `weights/cpg_rl_max_v2_3_np.npz` | numpy 前向 vs brax 1000 筆 < 1e-5 |
+| 狗上 numpy 推論 | `realbot/policy_np.py`（MLP、`act_to_cmd`、基準動作、sway 斜率） | 常數釘住 `local_infer_max` |
+| 狗上 obs 組裝 | `realbot/rl_obs.py`（shm 關節＋`imu_central` → 66 維） | 與 `obs_max.build_obs` **逐位元**相同 |
+| M9 `--policy` | `PolicyGaitStream`：50 Hz 推進點 obs→policy→逐腿 mux/muy/ω＋直接 sway；淡入 50 步 | gain 0 ≡ `GaitStream`；NaN／幀停滯／超時→當步退回，連 25 步→永久退回；鍵 `o` 退回 |
+| 閉迴路說兩次 | `tests/test_policy_closed_loop.py`：MuJoCo 內狗端堆疊影子跟跑 jax 堆疊 200 步 | 目標角差 2e-7 rad |
+| 離線回放 | `inference/replay_policy.py` → `outputs/replay_policy_trip17.md` | trip17 兩趟 obs 逐位元同、動作差 8e-7；實機 obs 上動作分布與模擬同量級 |
+| 上機後摘要 | `inference/policy_log_summary.py M9_*.json` | 讀 M9 新的 `policy` 區塊（每步 obs／動作／原始 IMU／ms／退回原因） |
+
+測試 task7 全套 **821 項**。`push_to_dog.sh` 已加三個新檔。
+上機順序：① `--policy-gain 0` 乾跑 5 s（走純 A、policy 只看）→ ② gain 1 走 5 s → ③ 10 s；每段拉 log 跑摘要再進下一段。
+v2.3 模擬驗收：G4 ✅ G7 ✅（67.6 < 70，膝是最緊的一項）、G6 ❌（60 s −30°，10 s 約 5°，非安全問題）。
+未做：v2.4 head_err（等 Colab 權重；notebook 已可直接跑）、IMU 偏置修正（訓練已隨機化）。
+★ 這趟的 log 會第一次記到**走路時的原始 gyro_z**（H 文件的洞）。
 
 ## ▶ ★★★ 2026-09-08 下午：CPG-RL v2 工具鏈完成，G0/G1/G2 全過 —— **等 Colab 訓練**
 

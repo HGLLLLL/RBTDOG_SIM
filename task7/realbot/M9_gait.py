@@ -308,6 +308,7 @@ class KeyWatch:
 
     def __init__(self, enabled: bool = True):
         self.enabled = enabled and sys.stdin.isatty()
+        self.last_line = ""          # 最近一次按下 Enter 時的整行（policy 模式的 `o` 用）
 
     def pressed(self) -> bool:
         """有沒有按下 Enter（消費掉一整行）。非阻塞。"""
@@ -318,7 +319,7 @@ class KeyWatch:
             r, _, _ = select.select([sys.stdin], [], [], 0)
             if not r:
                 return False
-            sys.stdin.readline()
+            self.last_line = sys.stdin.readline()
             return True
         except Exception:
             return False
@@ -350,13 +351,14 @@ class GaitStream:
         self.muy = {l: p["mu_y"] for l in cpg.LEGS}
         self.om = {l: p["omega"] for l in cpg.LEGS}
         self.step = cpg.make_step(self.phase)
+        self.sway_direct = None     # policy 模式直接給足端偏移 (sx, sy)，取代相位式 body_sway
         self.n_clamp = 0
         self.t_next = 0.0
         self.q_prev = self.q_next = self._compute()
 
     def _compute(self) -> dict:
-        sway = None
-        if self.sway_p[0] or self.sway_p[1]:
+        sway = self.sway_direct
+        if sway is None and (self.sway_p[0] or self.sway_p[1]):
             sway = cpg.body_sway(cpg.gait_phase(self.c["theta"], self.phase),
                                  *self.sway_p)
         q, ncl = cpg.joint_targets(self.c, self.f0, self.ks, self.x_off,
@@ -370,13 +372,115 @@ class GaitStream:
         """步態開始後 t 秒的 12 個關節目標。t 必須單調不減。"""
         while t >= self.t_next:
             self.q_prev = self.q_next
-            self.c = self.step(self.c, self.mux, self.muy, self.om, self.GAIT_DT)
+            self._advance()
             self.q_next = self._compute()
             self.t_next += self.GAIT_DT
         f = 1.0 - (self.t_next - t) / self.GAIT_DT
         f = 0.0 if f < 0.0 else (1.0 if f > 1.0 else f)
         return {j: self.q_prev[j] + f * (self.q_next[j] - self.q_prev[j])
                 for j in self.q_prev}
+
+    def _advance(self) -> None:
+        """推進一個 50 Hz 步。policy 模式在這裡插 obs → policy → 調變（`PolicyGaitStream`）。"""
+        self.c = self.step(self.c, self.mux, self.muy, self.om, self.GAIT_DT)
+
+
+class PolicyGaitStream(GaitStream):
+    """RL policy 調變的步態流（2026-09-09，v2.3 權重）。
+
+    每個 50 Hz 推進點：讀 shm（關節＋IMU）→ `rl_obs.build` → `policy_np` 前向 →
+    `act_to_cmd` → 逐腿 mux/muy/ω 進 `cpg.step`、sway 直接給足端。
+    與本機 `local_infer_max.run_once` 的對應由 `tests/test_policy_closed_loop.py` 影子跟跑釘住。
+
+    ★ 退路永遠是開迴路 A：
+      - 當步異常（obs NaN／shm 幀沒前進／推論超時／例外）→ 該步用基準動作，
+        連續 `FALLBACK_LIMIT` 步 → 永久退回開迴路（走路繼續，不中止）。
+      - 現場鍵 `o`＋Enter → `set_open_loop()`。
+      - `gain=0` 是乾跑：obs 與推論照跑照記，動作固定基準（與 `GaitStream` 同軌跡）。
+    起步淡入 `RAMP_STEPS`（1 s）與訓練／驗收相同。**不加動作延遲** —— 實機延遲是真的。
+    """
+
+    FALLBACK_LIMIT = 25
+
+    def __init__(self, p: dict, f0: dict, ks: dict, policy, cmd, gain: float,
+                 reader, log: list = None):
+        import numpy as np
+        import policy_np
+        self._np, self._pn = np, policy_np
+        super().__init__(p, f0, ks)
+        self.policy, self.reader = policy, reader
+        self.cmd = np.asarray(cmd, dtype=float).reshape(2)
+        self.gain = float(gain)
+        self.base = policy_np.baseline_action(policy.layout)
+        self.last_a = np.zeros(policy.act_dim)
+        self.sway = np.zeros(2)
+        self.i = 0
+        self.n_fallback = 0            # 連續退回步數
+        self.n_fallback_total = 0
+        self.open_loop = False
+        self.open_loop_why = ""
+        self.last_tick = None
+        self.log = log if log is not None else []
+        self.worst_ms = 0.0
+
+    def set_open_loop(self, why: str) -> None:
+        if not self.open_loop:
+            self.open_loop, self.open_loop_why = True, why
+            print(f"\n  ▸ policy 退回開迴路 A（{why}）—— 走路繼續\n")
+
+    def _advance(self) -> None:
+        import time
+        import rl_obs
+        np, pn = self._np, self._pn
+        t0 = time.perf_counter()
+        fb, obs, a, imu = "", None, None, None
+        try:
+            fr = self.reader()
+            imu = (list(map(float, fr.quat_xyzw)), list(map(float, fr.gyro)))
+            if self.last_tick is not None and fr.tick == self.last_tick:
+                fb = "stale"
+            self.last_tick = fr.tick
+            obs = rl_obs.build(fr, self.c, self.cmd, self.last_a)
+            if not np.all(np.isfinite(obs)):
+                fb = fb or "obs_nan"
+            a = self.policy.infer(obs)
+            if not np.all(np.isfinite(a)):
+                fb = fb or "act_nan"
+        except Exception as e:            # noqa: BLE001 —— 承重中不能讓例外炸掉主迴圈
+            fb = fb or f"exc:{type(e).__name__}"
+        ms = (time.perf_counter() - t0) * 1000.0
+        self.worst_ms = max(self.worst_ms, ms)
+        if not fb and ms > pn.INFER_BUDGET_MS:
+            fb = f"slow:{ms:.1f}ms"
+        if a is None or fb:
+            a = self.base.copy()
+        if fb:
+            self.n_fallback += 1
+            self.n_fallback_total += 1
+            if self.n_fallback >= self.FALLBACK_LIMIT:
+                self.set_open_loop(f"連續 {self.n_fallback} 步退回（最後：{fb}）")
+        else:
+            self.n_fallback = 0
+        a_use = self.base if (self.open_loop or fb) else a
+        u = min(1.0, self.i / pn.RAMP_STEPS) * self.gain
+        act = self.base + u * (a_use - self.base)
+        mux, muy, om, sw_t = pn.act_to_cmd(act, self.policy.layout)
+        if self.open_loop:
+            sw_t = np.zeros(2)
+        self.sway = pn.slew_sway(self.sway, sw_t)
+        self.mux, self.muy = rl_obs.to_shm_legs(mux), rl_obs.to_shm_legs(muy)
+        self.om = rl_obs.to_shm_legs(om)
+        self.c = self.step(self.c, self.mux, self.muy, self.om, self.GAIT_DT)
+        self.sway_direct = ((float(self.sway[0]), float(self.sway[1]))
+                            if np.any(self.sway) else None)
+        self.last_a = a
+        self.log.append({"i": self.i, "obs": None if obs is None else [round(float(x), 5) for x in obs],
+                         "a": [round(float(x), 5) for x in a],
+                         "act": [round(float(x), 5) for x in act],
+                         "sway": [round(float(x), 4) for x in self.sway],
+                         "imu": imu, "ms": round(ms, 3), "fb": fb,
+                         "ol": self.open_loop})
+        self.i += 1
 
 
 class InteractivePlan:
@@ -584,6 +688,44 @@ def param_mismatches(D: dict, want: dict) -> list:
     return bad
 
 
+POLICY_PARAM_KEYS = ("seq", "omega", "duty", "d_step", "x_off", "g_c", "z_sag")
+POLICY_REF_KEYS = ("mu_x", "mu_y", "d_step_y")
+
+
+def policy_mismatches(D: dict, a, base: dict) -> list:
+    """policy 的「說兩次」：軌跡檔（＝要跑的基準步態）與 policy 訓練時的基準必須一致。
+
+    policy 只在基準周圍調變，基準若不是訓練那組，policy 的每個輸出都會被解成另一個步態，
+    而且不會報錯。回傳 [(欄位, 檔案/命令列值, policy 值)]。
+    """
+    bad = []
+    P, R = D.get("params", {}), D.get("baseline_ref", {})
+    for k in POLICY_PARAM_KEYS:
+        if k in P and not _same(P[k], base.get(k)):
+            bad.append((k, P[k], base.get(k)))
+    for k in POLICY_REF_KEYS:
+        if k in R and not _same(R[k], base.get(k)):
+            bad.append((k, R[k], base.get(k)))
+    for k in ("sway_x", "sway_y"):
+        if abs(float(P.get(k, 0.0))) > 1e-9:
+            bad.append((k, P[k], 0.0))
+    kp3, kd3 = base.get("kp3", [None] * 3), base.get("kd3", [None] * 3)
+    for k, have, want in (("kp_abad", a.kp_abad, kp3[0]), ("kp", a.kp, kp3[1]),
+                          ("kd", a.kd, kd3[1]), ("wheel_kd", a.wheel_kd, base.get("wheel_kd"))):
+        if not _same(have, want):
+            bad.append((k, have, want))
+    return bad
+
+
+def _same(x, y) -> bool:
+    if isinstance(x, str) or isinstance(y, str):
+        return x == y
+    try:
+        return abs(float(x) - float(y)) < 1e-9
+    except (TypeError, ValueError):
+        return False
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -637,6 +779,14 @@ def main() -> int:
                     help="★★ 三段互動：站起來→〔Enter〕→往前走→〔Enter〕→原地停→"
                          "〔Enter〕→crouch 後趴下。步態改成**狗上即時算 CPG**"
                          "（走多久由現場決定），乾跑的所有檢查照舊")
+    ap.add_argument("--policy", default="",
+                    help="★★★ RL policy（export_policy_np 產的 .npz）。必須搭 --traj 基準檔"
+                         "（A_kp250_walk.json）＋ --interactive。步態改成 policy 調變的 CPG；"
+                         "退路永遠是開迴路 A（現場輸入 o＋Enter 即退回）")
+    ap.add_argument("--vx", type=float, default=0.30, help="policy 的前進指令（訓練驗收 0.30）")
+    ap.add_argument("--wz", type=float, default=0.0, help="policy 的偏航率指令 rad/s")
+    ap.add_argument("--policy-gain", type=float, default=1.0, dest="policy_gain",
+                    help="★ policy 動作的混合比例 0–1。0 = 乾跑：obs/推論照跑照記，動作固定基準")
     ap.add_argument("--hold-max", type=float, default=25.0, dest="hold_max",
                     help="★ 每個等待階段的逾時（秒）。逾時不是中止，是自動往下走。"
                          "⚠️ 等待中狗是承重站著的，而**腿吃 41 kg 的發熱從沒量過**")
@@ -878,6 +1028,44 @@ def main() -> int:
     q_gait0 = {j: G[0][i] for i, j in enumerate(LEGS12)}
     q_gaitN = {j: G[-1][i] for i, j in enumerate(LEGS12)}
 
+    # ---------------------------------------------------------------- policy
+    policy = None
+    if a.policy:
+        if not (a.traj and a.interactive):
+            print("❌ --policy 必須搭 --traj（基準步態檔）＋ --interactive。")
+            return 1
+        if not 0.0 <= a.policy_gain <= 1.0:
+            print(f"❌ --policy-gain {a.policy_gain} 要在 0–1。")
+            return 1
+        try:
+            import policy_np
+            import rl_obs  # noqa: F401
+        except ImportError as e:
+            print(f"❌ 狗上少了 policy 推論需要的模組：{e}（numpy / policy_np.py / rl_obs.py 有推嗎？）")
+            return 1
+        policy = policy_np.load(a.policy)
+        print(f"\nRL policy：{os.path.basename(a.policy)}　preset {policy.preset}　"
+              f"obs {policy.obs_dim} act {policy.act_dim}　sha {policy.src_sha256[:12]}")
+        print(f"  指令 vx {a.vx:g} wz {a.wz:g}　混合比例 {a.policy_gain:g}"
+              f"{'（乾跑：動作固定基準）' if a.policy_gain == 0 else ''}　起步淡入 {policy_np.RAMP_STEPS} 步")
+        bad = policy_mismatches(D, a, policy.baseline)
+        if bad:
+            print("\n❌ 軌跡檔／命令列與 policy 訓練基準不一致 —— policy 只在基準周圍調變，拒跑：")
+            for k, have, want in bad:
+                print(f"   {k:10s} 檔案/命令列 {have!r:>10}　policy 基準 {want!r}")
+            print("   → 用 A_kp250_walk.json ＋ --kp 250 --kp-abad 60 --kd 2.0 --wheel-kd 0.5")
+            return 1
+        print("✅ 基準步態與 policy 訓練基準一致（說兩次）")
+        import numpy as _np
+        _t0 = time.perf_counter()
+        for _ in range(20):
+            policy.infer(_np.zeros(policy.obs_dim, dtype=_np.float32))
+        _ms = (time.perf_counter() - _t0) / 20 * 1000
+        print(f"✅ 推論 {_ms:.2f} ms/步（預算 {policy_np.INFER_BUDGET_MS:g} ms）")
+        if _ms > policy_np.INFER_BUDGET_MS:
+            print("❌ 推論太慢，狗上會整趟退回開迴路。")
+            return 1
+
     # ---------------------------------------------------------------- 時序
     pre = build_standup(a, q_lie, q_gait0)
     post = build_sitdown(a, q_gaitN, q_lie)
@@ -1021,8 +1209,17 @@ def main() -> int:
         # ★ 步態改成即時算：走多久由現場決定，固定長度的 G 播不完也停不下來。
         #   參數從既有來源取，**與上面所有乾跑檢查用的是同一組**。
         gp = dict(p_src, mu_x=mu_x_src, mu_y=mu_y_src, d_step_y=d_step_y_src)
-        gs = GaitStream(gp, cpg.home_foot(coord.POSES["home"]),
-                        cpg.knee_signs(coord.POSES["home"]))
+        f0_h, ks_h = cpg.home_foot(coord.POSES["home"]), cpg.knee_signs(coord.POSES["home"])
+        if policy is not None:
+            import rl_obs
+            imu_shm = shm_io.Shm("imu_central")
+            policy_log: list = []
+            gs = PolicyGaitStream(
+                gp, f0_h, ks_h, policy, (a.vx, a.wz), a.policy_gain,
+                lambda: rl_obs.read_frame(state_ro, imu_shm, idx, shm_io.STATE_STRIDE),
+                policy_log)
+        else:
+            gs = GaitStream(gp, f0_h, ks_h)
         plan = InteractivePlan(a, q_lie, q_gait0, gs)
         kw = KeyWatch()
         if not kw.enabled:
@@ -1061,8 +1258,11 @@ def main() -> int:
                 break
 
             if a.interactive:
-                nm, des_now, kp_now, kd_now, kp_abad_now, plan_done = plan.update(
-                    t, kw.pressed())
+                key = kw.pressed()
+                if key and policy is not None and kw.last_line.strip().lower() == "o":
+                    gs.set_open_loop("現場輸入 o")     # 只退回，不推進階段
+                    key = False
+                nm, des_now, kp_now, kd_now, kp_abad_now, plan_done = plan.update(t, key)
             elif t < t_gait0 or t >= t_gait0 + T_gait:
                 s0, s1, nm, p0, p1 = next(b for b in bounds if b[0] <= t < b[1])
                 r = (t - s0) / max(s1 - s0, 1e-6)      # 這一段走了幾成
@@ -1335,6 +1535,15 @@ def main() -> int:
            "loop": {"ticks": n_tick, "hz": round(hz, 1),
                     "worst_gap_s": round(worst_gap, 4)},
            "samples": samples[:60000]}
+    if policy is not None and plan is not None:
+        gs = plan.gs
+        out["policy"] = {"path": a.policy, "sha256": policy.src_sha256, "preset": policy.preset,
+                         "vx": a.vx, "wz": a.wz, "gain": a.policy_gain,
+                         "steps": gs.i, "fallback_total": gs.n_fallback_total,
+                         "open_loop": gs.open_loop, "open_loop_why": gs.open_loop_why,
+                         "worst_ms": round(gs.worst_ms, 3), "log": gs.log[:6000]}
+        print(f"\npolicy：{gs.i} 步　退回 {gs.n_fallback_total} 步　最慢 {gs.worst_ms:.2f} ms"
+              f"{'　★ 已退回開迴路：' + gs.open_loop_why if gs.open_loop else ''}")
     jp = (logp[:-4] if logp.endswith(".log") else logp) + ".json"
     try:
         with open(jp, "w", encoding="utf-8") as f:

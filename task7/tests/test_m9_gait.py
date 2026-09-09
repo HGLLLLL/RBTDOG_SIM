@@ -966,3 +966,150 @@ def test_all_write_frame_calls_have_five_args():
     for c in calls:
         assert len(c.args) + len(c.keywords) == 5, \
             f"write_frame 在第 {c.lineno} 行只有 {len(c.args)} 個引數"
+
+
+# ══════════════════════════ policy 模式（--policy，2026-09-09）
+np = pytest.importorskip("numpy")
+sys.path.insert(0, str(ROOT / "inference"))
+import policy_np  # noqa: E402
+import rl_obs     # noqa: E402
+
+A_JSON = ROOT / "outputs" / "A_kp250_walk.json"
+
+
+def _gp():
+    D = json.loads(A_JSON.read_text(encoding="utf-8"))
+    return dict(D["params"], mu_x=D["baseline_ref"]["mu_x"], mu_y=D["baseline_ref"]["mu_y"],
+                d_step_y=D["baseline_ref"]["d_step_y"]), D
+
+
+def _fake_policy(delta=0.0):
+    base = policy_np.baseline_action("nomux")
+    return type("P", (), {
+        "layout": "nomux", "act_dim": 10, "obs_dim": 66, "preset": "v2.3", "src_sha256": "x" * 64,
+        "baseline": {}, "infer": staticmethod(lambda o: base + delta)})()
+
+
+class _Reader:
+    """假 shm：home 姿勢、靜止、機身水平；tick 每次 +1（可設成停住或給 NaN）。"""
+
+    def __init__(self, stale=False, nan=False):
+        self.tick, self.stale, self.nan = 0, stale, nan
+        self.n = 0
+
+    def __call__(self):
+        self.n += 1
+        if not self.stale:
+            self.tick += 1
+        pose = coord.POSES["home"]
+        pos = {j: coord.to_motor(j, pose[j]) for j in rl_obs.LEG_NAMES}
+        vel = {j: 0.0 for j in rl_obs.LEG_NAMES}
+        gyro = [float("nan"), 0.0, 0.0] if self.nan else [0.0, 0.0, 0.0]
+        return rl_obs.Frame(pos, vel, [0.0, 0.0, 0.0, 1.0], gyro, self.tick)
+
+
+def _streams(policy, gain, reader=None):
+    p, _ = _gp()
+    f0, ks = cpg.home_foot(coord.POSES["home"]), cpg.knee_signs(coord.POSES["home"])
+    ref = m9.GaitStream(p, f0, ks)
+    log = []
+    pg = m9.PolicyGaitStream(p, f0, ks, policy, (0.30, 0.0), gain, reader or _Reader(), log)
+    return ref, pg, log
+
+
+def _worst_diff(ref, pg, secs=4.0, dt=1 / 200):
+    worst = 0.0
+    for k in range(int(secs / dt)):
+        t = k * dt
+        qa, qb = ref.sample(t), pg.sample(t)
+        worst = max(worst, max(abs(qa[j] - qb[j]) for j in qa))
+    return worst
+
+
+def test_policy_stream_gain0_equals_open_loop_gait_stream():
+    """乾跑（gain 0）：policy 亂輸出也不影響軌跡 —— 與 GaitStream 逐幀相同。"""
+    ref, pg, log = _streams(_fake_policy(delta=0.7), gain=0.0)
+    assert _worst_diff(ref, pg) < 1e-12
+    assert pg.i == 200 and len(log) == 200
+    assert all(e["fb"] == "" for e in log) and pg.n_fallback_total == 0
+    assert log[-1]["obs"] is not None and len(log[-1]["obs"]) == 66
+
+
+def test_policy_stream_with_baseline_action_equals_open_loop():
+    ref, pg, _ = _streams(_fake_policy(delta=0.0), gain=1.0)
+    assert _worst_diff(ref, pg) < 1e-12
+    assert pg.sway_direct is None
+
+
+def test_policy_stream_modulates_when_policy_deviates():
+    ref, pg, log = _streams(_fake_policy(delta=0.5), gain=1.0)
+    assert _worst_diff(ref, pg) > 1e-3
+    assert pg.sway_direct is not None and abs(pg.sway_direct[0]) > 0.01
+    # 淡入：第 0 步的 act 就是基準，第 50 步後才全量
+    base = policy_np.baseline_action("nomux")
+    assert np.allclose(log[0]["act"], base, atol=1e-4)
+    assert not np.allclose(log[60]["act"], base, atol=1e-2)
+    # sway 斜率：每步變化 ≤ SWAY_SLEW
+    sw = np.array([e["sway"] for e in log])
+    assert np.max(np.abs(np.diff(sw, axis=0))) <= policy_np.SWAY_SLEW + 1e-6
+
+
+def test_policy_stream_stale_frames_fall_back_then_go_open_loop():
+    ref, pg, log = _streams(_fake_policy(delta=0.5), gain=1.0, reader=_Reader(stale=True))
+    _worst_diff(ref, pg, secs=1.0)                 # 50 步
+    fbs = [e["fb"] for e in log]
+    assert fbs[0] == "" and fbs[1] == "stale"        # 第一幀沒有前一個 tick 可比
+    assert pg.open_loop and "連續" in pg.open_loop_why
+    assert pg.n_fallback_total >= m9.PolicyGaitStream.FALLBACK_LIMIT
+    # 退回後 = 開迴路 A：再跑 2 秒與 GaitStream 同步（sway 已斜率退到 0）
+    ref2, _, _ = _streams(_fake_policy(), gain=0.0)
+    for k in range(int(3.0 / (1 / 200))):
+        ref2.sample(k / 200)
+    assert pg.sway_direct is None or max(abs(x) for x in pg.sway_direct) < 1e-9
+
+
+def test_policy_stream_nan_obs_falls_back_that_step():
+    ref, pg, log = _streams(_fake_policy(delta=0.5), gain=1.0, reader=_Reader(nan=True))
+    pg.sample(0.0)
+    assert log[0]["fb"] == "obs_nan"
+    assert np.allclose(log[0]["act"], policy_np.baseline_action("nomux"))
+
+
+def test_policy_stream_exception_in_policy_does_not_raise():
+    bad = _fake_policy()
+    bad.infer = lambda o: (_ for _ in ()).throw(RuntimeError("boom"))
+    ref, pg, log = _streams(bad, gain=1.0)
+    assert _worst_diff(ref, pg, secs=0.5) < 1e-12
+    assert all(e["fb"].startswith("exc:RuntimeError") for e in log)
+
+
+def test_policy_stream_manual_open_loop_switch():
+    ref, pg, log = _streams(_fake_policy(delta=0.5), gain=1.0)
+    _worst_diff(ref, pg, secs=2.0)
+    pg.set_open_loop("test")
+    for k in range(400, 1200):
+        pg.sample(k / 200)
+    assert pg.open_loop and log[-1]["ol"]
+    assert np.allclose(log[-1]["act"], policy_np.baseline_action("nomux"))
+    assert pg.sway_direct is None
+
+
+def test_policy_mismatches_accept_the_real_baseline_file():
+    _, D = _gp()
+    pol = policy_np.load(str(ROOT / "weights" / "cpg_rl_max_v2_3_np.npz"))
+    ok = Args(kp=250.0, kp_abad=60.0, kd=2.0, wheel_kd=0.5)
+    assert m9.policy_mismatches(D, ok, pol.baseline) == []
+    assert [k for k, _, _ in m9.policy_mismatches(D, Args(kp=120.0, kp_abad=60.0, kd=2.0, wheel_kd=0.5),
+                                                  pol.baseline)] == ["kp"]
+    assert [k for k, _, _ in m9.policy_mismatches(D, Args(kp=250.0, kp_abad=60.0, kd=2.0, wheel_kd=3.0),
+                                                  pol.baseline)] == ["wheel_kd"]
+    D2 = json.loads(json.dumps(D))
+    D2["baseline_ref"]["mu_x"] = 1.5
+    D2["params"]["sway_x"] = 0.02
+    assert sorted(k for k, _, _ in m9.policy_mismatches(D2, ok, pol.baseline)) == ["mu_x", "sway_x"]
+
+
+def test_policy_args_require_traj_and_interactive():
+    r = subprocess.run([sys.executable, str(ROOT / "realbot" / "M9_gait.py"), "--live",
+                        "--policy", "x.npz"], capture_output=True, text=True)
+    assert r.returncode != 0

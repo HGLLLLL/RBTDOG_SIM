@@ -30,6 +30,7 @@ FILES=(
   "$HERE/M8_swing.py"        # ★★ 單腿擺動（承重，三輪支撐）
   "$HERE/M9_gait.py"         # ★★★ 步態（承重、連續、動態觸地）
   "$HERE/M10_wheel_kd_chatter.py"  # ★ 輪阻尼抖振測試（trip17 分辨實驗，墊高零風險）
+  "$HERE/M11_wheel_sysid.py"       # ★ 輪子速度伺服系統辨識（墊高、腿洩力；輪行模式建模用）
   "$HERE/M_faultwatch.py"
   "$HERE/M_freezetest.py"    # ★ mc_ctrl 凍結時長的零風險觀察
   "$HERE/M_env_probe.py"     # ★ 狗上電腦探測：numpy/MLP 前向 ms/CPU 親和性（不碰 shm，零風險）

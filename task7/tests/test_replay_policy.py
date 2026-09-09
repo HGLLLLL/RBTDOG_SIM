@@ -40,14 +40,18 @@ def test_cpg_reconstruction_matches_gait_stream():
              d_step_y=D["baseline_ref"]["d_step_y"])
     gs = m9.GaitStream(p, cpg.home_foot(coord.POSES["home"]), cpg.knee_signs(coord.POSES["home"]))
 
+    # ⚠️ 取樣時刻刻意**不落在 20 ms 整數邊界**：邊界上浮點兩邊都可能歧義
+    #   （GaitStream 累加的 t_next 是 1.0000000000000004）。實機 log 的 t 相對 t_gait0
+    #   （Enter 按下的 monotonic 時刻）本來就不會剛好在邊界；歧義最多 5 ms = 1/4 步。
+    OFF = 0.0025
     class R:
-        t = np.array([10.0 + k / 200 for k in range(400)])
+        t = np.array([10.0 + OFF + k / 200 for k in range(400)])
     idx = np.arange(400)
     cs = rp.cpg_states_for(R, idx, p)
-    # GaitStream 在 t 時 c 是「推進到 t 為止」的狀態；重建用推進前 → 比對 gs 落後一步的時刻
+    # GaitStream 在 t 時 c 是「推進到 t 為止」的狀態；重建用推進前 → 再推一步應相同
     worst = 0.0
     for k in (0, 1, 3, 4, 5, 200, 399):
-        t = k / 200
+        t = OFF + k / 200
         gs.sample(t)
         c_gs = gs.c                       # 已推進 floor(t/0.02)+1 次
         # cs[k] 推進了 floor(t/0.02) 次 → 比 gs 少一步；再推一步應相同

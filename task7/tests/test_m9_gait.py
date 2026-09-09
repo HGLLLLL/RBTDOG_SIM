@@ -1177,3 +1177,11 @@ def test_o_line_does_not_advance_phase_but_plain_enter_does():
     assert nm == "GAIT" and gs.open_loop
     nm, *_ = plan.update(t + dt, True)          # 之後空行 Enter 仍然停車
     assert nm == "GAIT_OUT"
+
+
+def test_wheel_vmax_survives_stale_frame():
+    """★ trip19 第六趟：舊幀（wrec=None）撞上列印時刻 → `None.values()` 中止整趟。永遠不能再發生。"""
+    assert math.isnan(m9.wheel_vmax(None))
+    assert m9.wheel_vmax({"fl4_foot": (0.1, -2.5, 0.0), "fr4_foot": (0.1, 1.0, 0.0)}) == 2.5
+    src = (ROOT / "realbot" / "M9_gait.py").read_text(encoding="utf-8")
+    assert "wrec.values()" not in src, "主迴圈不得直接對可能為 None 的 wrec 呼叫 .values()"

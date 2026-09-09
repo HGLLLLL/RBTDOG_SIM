@@ -662,6 +662,19 @@ def build_sitdown(a, q_gait_end: dict, q_lie: dict):
             ("RAMP_DOWN", a.ramp_kp, q_lie, q_lie)]
 
 
+def wheel_vmax(wrec) -> float:
+    """畫面上「輪速」欄：四輪 |velocity| 最大值。
+
+    ★ `wrec` 在**舊幀**（追趕 tick 讀到同一幀）時是 None —— 2026-09-09 trip19 第六趟
+      在 GAIT_IN 剛好舊幀撞上 0.25 s 的列印時刻，`None.values()` 炸掉主迴圈 → 中止。
+      這個 bug 自 2026-09-04 的舊幀保護就存在，只是 policy 模式每步多 2–8 ms，
+      舊幀變多（每趟 2–13 次）才踩到。舊幀時印 nan，不中止。
+    """
+    if not wrec:
+        return float("nan")
+    return max(abs(x[1]) for x in wrec.values())
+
+
 def gain_mismatches(D: dict, kp: float, kd: float, wheel_kd: float) -> list:
     """（相容用）只比三個增益。新程式請用 `param_mismatches`。"""
     return param_mismatches(D, {"kp": kp, "kd": kd, "wheel_kd": wheel_kd})
@@ -1428,7 +1441,7 @@ def main() -> int:
                 break
 
             if t - last >= 0.25:
-                wv = max(abs(x[1]) for x in wrec.values())
+                wv = wheel_vmax(wrec)
                 print(f"{t:6.2f} {nm:>12s} {kp_now:6.0f} {we[0]:10.4f} {wt[0]:8.2f}"
                       f" {wt[1]:>16s} {roll:+6.1f} {pitch:+6.1f} {wv:7.2f}")
                 last = t

@@ -8,6 +8,7 @@
 
 | 文件 | 什麼時候看 |
 |---|---|
+| **`J_RL_sim2real_總結報告_2026-09-09.md`** | ★★★★ 總結：實機 RL vs 非 RL 量化、sim2real 三層量化（SRCC 式／Wasserstein／致動器）、gap 成因、pipeline 改法 |
 | **`I_RL_v2.3_首次上機_2026-09-09.md`** | ★★★★ trip19 結果：RL 首次走路、七趟數字表、兩個中止的原因、下一步 |
 | **`現場操作卡_RL_v2.3_2026-09-09.md`** | ★★★ **今晚上機用**：RL v2.3 policy 三段上機（gain 0 乾跑 → 5 s → 10 s）、看什麼數、怎麼退回 |
 | `../outputs/replay_policy_trip17.md` | trip17 log 離線回放：狗端 obs 逐位元同本機；上機乾跑對照的 obs 範圍表 |

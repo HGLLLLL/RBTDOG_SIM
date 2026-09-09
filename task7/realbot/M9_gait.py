@@ -422,6 +422,7 @@ class PolicyGaitStream(GaitStream):
         self.last_tick = None
         self.log = log if log is not None else []
         self.worst_ms = 0.0
+        self.seg = 1                   # 遙控：第幾段（TeleopPlan 設定）；單段模式恆 1
 
     def set_open_loop(self, why: str) -> None:
         if not self.open_loop:
@@ -474,7 +475,8 @@ class PolicyGaitStream(GaitStream):
         self.sway_direct = ((float(self.sway[0]), float(self.sway[1]))
                             if np.any(self.sway) else None)
         self.last_a = a
-        self.log.append({"i": self.i, "obs": None if obs is None else [round(float(x), 5) for x in obs],
+        self.log.append({"i": self.i, "seg": self.seg, "tg": round(self.t_next, 3),
+                         "obs": None if obs is None else [round(float(x), 5) for x in obs],
                          "a": [round(float(x), 5) for x in a],
                          "act": [round(float(x), 5) for x in act],
                          "sway": [round(float(x), 4) for x in self.sway],
@@ -776,6 +778,7 @@ class TeleopPlan(InteractivePlan):
                 self.gs = self.gs_factory()
                 self.streams.append(self.gs)
                 self.n_walks += 1
+                self.gs.seg = self.n_walks
                 self.t_gait0 = t
                 self._sub_to(t, "GAIT_IN", f"按住 W（第 {self.n_walks} 段）")
         el = t - self.t_sub
@@ -813,6 +816,33 @@ class TeleopPlan(InteractivePlan):
                 u = self.u_out0 * smoothstep(1.0 - min(el / dur, 1.0))
                 des = {j: (1 - u) * self.q_stand[j] + u * qg[j] for j in qg}
         return (nm, des, kp, kd, kpa, False)
+
+
+POLICY_LOG_CAP = 20000     # 50 Hz → 400 s；超過就截斷並標記，不要靜默丟
+
+
+def policy_block(a, policy, plan, policy_log: list):
+    """收工 JSON 的 `policy` 區塊。單段（InteractivePlan）用 plan.gs；遙控多段（TeleopPlan）彙總 `streams`。
+    還沒起走過（gs 為 None、沒有 streams）→ 回 None，但仍寫 steps=0 的空區塊由呼叫端決定。"""
+    streams = list(getattr(plan, "streams", None) or ([plan.gs] if plan.gs is not None else []))
+    streams = [x for x in streams if hasattr(x, "n_fallback_total")]
+    if not streams:
+        return {"path": a.policy, "sha256": policy.src_sha256, "preset": policy.preset,
+                "vx": a.vx, "wz": a.wz, "gain": a.policy_gain, "segments": 0, "steps": 0,
+                "fallback_total": 0, "open_loop": False, "open_loop_why": "", "worst_ms": 0.0,
+                "log": [], "log_truncated": False}
+    log = policy_log if policy_log else [e for x in streams for e in x.log]
+    return {"path": a.policy, "sha256": policy.src_sha256, "preset": policy.preset,
+            "vx": a.vx, "wz": a.wz, "gain": a.policy_gain,
+            "segments": len(streams),
+            "steps": sum(x.i for x in streams),
+            "fallback_total": sum(x.n_fallback_total for x in streams),
+            "open_loop": any(x.open_loop for x in streams),
+            "open_loop_why": "; ".join(x.open_loop_why for x in streams if x.open_loop),
+            "worst_ms": round(max(x.worst_ms for x in streams), 3),
+            "per_segment": [{"seg": getattr(x, "seg", 1), "steps": x.i, "fallback": x.n_fallback_total,
+                             "open_loop_why": x.open_loop_why} for x in streams],
+            "log": log[:POLICY_LOG_CAP], "log_truncated": len(log) > POLICY_LOG_CAP}
 
 
 def build_standup(a, q_lie: dict, q_gait0: dict):
@@ -1407,12 +1437,12 @@ def main() -> int:
         tt += dur
 
     plan = kw = kh = None
+    policy_log: list = []
     if a.interactive:
         # ★ 步態改成即時算：走多久由現場決定，固定長度的 G 播不完也停不下來。
         #   參數從既有來源取，**與上面所有乾跑檢查用的是同一組**。
         gp = dict(p_src, mu_x=mu_x_src, mu_y=mu_y_src, d_step_y=d_step_y_src)
         f0_h, ks_h = cpg.home_foot(coord.POSES["home"]), cpg.knee_signs(coord.POSES["home"])
-        policy_log: list = []
         if policy is not None:
             import rl_obs
             imu_shm = shm_io.Shm("imu_central")
@@ -1759,26 +1789,16 @@ def main() -> int:
            "loop": {"ticks": n_tick, "hz": round(hz, 1),
                     "worst_gap_s": round(worst_gap, 4)},
            "samples": samples[:60000]}
-    if policy is not None and plan is not None and plan.gs is not None:
-        gs = plan.gs
-        if getattr(plan, "streams", None):
-            class _Agg:            # 遙控：多段步態流，彙總
-                pass
-            _g = _Agg()
-            _g.i = sum(x.i for x in plan.streams)
-            _g.n_fallback_total = sum(x.n_fallback_total for x in plan.streams)
-            _g.open_loop = any(x.open_loop for x in plan.streams)
-            _g.open_loop_why = "; ".join(x.open_loop_why for x in plan.streams if x.open_loop)
-            _g.worst_ms = max(x.worst_ms for x in plan.streams)
-            _g.log = policy_log
-            gs = _g
-        out["policy"] = {"path": a.policy, "sha256": policy.src_sha256, "preset": policy.preset,
-                         "vx": a.vx, "wz": a.wz, "gain": a.policy_gain,
-                         "steps": gs.i, "fallback_total": gs.n_fallback_total,
-                         "open_loop": gs.open_loop, "open_loop_why": gs.open_loop_why,
-                         "worst_ms": round(gs.worst_ms, 3), "log": gs.log[:6000]}
-        print(f"\npolicy：{gs.i} 步　退回 {gs.n_fallback_total} 步　最慢 {gs.worst_ms:.2f} ms"
-              f"{'　★ 已退回開迴路：' + gs.open_loop_why if gs.open_loop else ''}")
+    if plan is not None:
+        out["notes"] = [list(n) for n in plan.notes]        # 階段轉換（含遙控子狀態）
+        out["teleop"] = bool(a.teleop)
+    if policy is not None and plan is not None:
+        pb = policy_block(a, policy, plan, policy_log)
+        if pb is not None:
+            out["policy"] = pb
+            print(f"\npolicy：{pb['steps']} 步（{pb['segments']} 段）　退回 {pb['fallback_total']} 步"
+                  f"　最慢 {pb['worst_ms']:.2f} ms"
+                  f"{'　★ 已退回開迴路：' + pb['open_loop_why'] if pb['open_loop'] else ''}")
     jp = (logp[:-4] if logp.endswith(".log") else logp) + ".json"
     try:
         with open(jp, "w", encoding="utf-8") as f:

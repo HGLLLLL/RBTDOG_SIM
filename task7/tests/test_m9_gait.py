@@ -1294,3 +1294,53 @@ def test_teleop_gains_and_wheel_kd_use_gait_schedule():
     assert (kp, kd, kpa) == (250.0, 2.0, 60.0)
     src = (ROOT / "realbot" / "M9_gait.py").read_text(encoding="utf-8")
     assert 'nm.replace("TELEOP_", "")' in src, "wheel_kd_of 必須認得 TELEOP_* 階段"
+
+
+def test_teleop_log_is_complete_and_serialisable():
+    """★ 不綁吊帶遙控完不能沒有資料：多段 policy log 有段號／時間、彙總正確、notes 有子狀態、JSON 可寫。"""
+    pol = policy_np.load(str(ROOT / "weights" / "cpg_rl_max_v2_3_np.npz"))
+    plan, log = _teleop_plan(pol)
+    a = plan.a
+    a.policy, a.vx, a.wz, a.policy_gain, a.teleop = "x.npz", 0.30, 0.0, 1.0, True
+    # 還沒走：空區塊而不是 None／例外
+    pb0 = m9.policy_block(a, pol, plan, log)
+    assert pb0["segments"] == 0 and pb0["steps"] == 0 and pb0["log"] == []
+    t, _ = _run_until(plan, 0.0, lambda p, o: p.name == "TELEOP")
+    for seg in (1, 2):
+        t, _ = _run_until(plan, t, lambda p, o: o[0] == "TELEOP_GAIT", walk=True)
+        t += 1.0
+        for _ in range(100):
+            plan.update(t, False, True); t += 1 / 200
+        t, _ = _run_until(plan, t, lambda p, o: o[0] == "TELEOP_STAND", walk=False)
+    pb = m9.policy_block(a, pol, plan, log)
+    assert pb["segments"] == 2
+    assert pb["steps"] == sum(x.i for x in plan.streams) == len(log) == len(pb["log"])
+    assert sorted({e["seg"] for e in pb["log"]}) == [1, 2]
+    assert [x["seg"] for x in pb["per_segment"]] == [1, 2]
+    for seg in (1, 2):
+        tg = [e["tg"] for e in pb["log"] if e["seg"] == seg]
+        assert tg == sorted(tg) and tg[0] == 0.0
+        assert all(e["obs"] is not None and len(e["obs"]) == 66 for e in pb["log"] if e["seg"] == seg)
+    assert pb["fallback_total"] == 0 and pb["open_loop"]        # 兩段都在淡出時切回 A
+    assert not pb["log_truncated"]
+    notes = [n[1] for n in plan.notes]
+    assert "TELEOP/STAND" in notes and "TELEOP/GAIT" in notes and "TELEOP/GAIT_OUT" in notes
+    out = {"notes": [list(n) for n in plan.notes], "teleop": True, "policy": pb}
+    s = json.dumps(out, ensure_ascii=False)
+    assert len(s) > 10000
+
+
+def test_single_segment_policy_block_matches_stream():
+    pol = _fake_policy(delta=0.3)
+    plan, gs, log = _policy_plan(pol)
+    a = plan.a
+    a.policy, a.vx, a.wz, a.policy_gain, a.teleop = "x.npz", 0.30, 0.0, 1.0, False
+    pol.src_sha256, pol.preset = "y" * 64, "v2.3"
+    t, dt = 0.0, 1 / 200
+    while plan.name != "GAIT":
+        plan.update(t, False); t += dt
+    for _ in range(100):
+        plan.update(t, False); t += dt
+    pb = m9.policy_block(a, pol, plan, log)
+    assert pb["segments"] == 1 and pb["steps"] == gs.i == len(pb["log"]) > 0
+    assert all(e["seg"] == 1 for e in pb["log"])

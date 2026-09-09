@@ -93,8 +93,10 @@ conda run -n rbtdog python task7/inference/policy_log_summary.py task7/logs/m_lo
 sudo python3 M9_gait.py --traj A_kp250_walk.json --interactive \
         --kp 250 --kp-abad 60 --kd 2.0 --wheel-kd 0.5 \
         --seq ls --x-off -0.030 --g-c 0.048 --hold-max 10 --walk-max 5 \
-        --policy cpg_rl_max_v2_3_np.npz --policy-gain 1 --confirm
+        --policy cpg_rl_max_v2_3_np.npz --policy-gain 1 --vmax 18 --confirm
 ```
+
+> ★ trip19 定案：RL 趟**必帶 `--vmax 18`**。後膝擺動追趕峰實測 15.7–16.3 rad/s（A 是 13–14），16 會誤中止。
 
 **這段看什麼**（畫面 200 Hz 那行）：
 - 起步 1 秒是淡入，之後 sway 上來、腳步頻率會變（ω 0.5–1.6 之間跳）—— 正常。

@@ -72,7 +72,7 @@ fi
 # ★ 漏檔偵測。2026-08-27 加：`kin.py` / `M8_swing.py` 寫好之後忘了加進清單，
 #   而漏檔的症狀是「ImportError」或更糟的「跑到舊版」—— 正是本腳本要防的事。
 #   有些檔**故意不傳**（本機端工具、需要 numpy 的、已完成的階段），列在下面。
-NOT_PUSHED=(push_to_dog.sh pull_from_dog.sh shm_decode.py recon_d1max.sh
+NOT_PUSHED=(push_to_dog.sh pull_from_dog.sh clean_dog_logs.sh shm_decode.py recon_d1max.sh
             recon2_d1max.sh M1_zero_write.py M3_wheel_tour.py M4_pose_capture.py)
 missing=()
 for f in "$HERE"/*.py "$HERE"/*.sh; do

@@ -32,7 +32,7 @@ def rollout_obs(infer, secs=8.0, seed=0, ramp=50, lat=1, t0=3.5):
 def real_data(paths):
     OBS=[];ACT=[];TAU=[];ERR=[]
     for p in paths:
-        d=json.load(open(p)); S=d["samples"]; g=[s for s in S if s["phase"]=="GAIT"]; gi=[s for s in S if s["phase"] in("GAIT_IN","GAIT")]
+        d=json.load(open(p)); S=d["samples"]; g=[s for s in S if s["phase"].replace("TELEOP_","")=="GAIT"]; gi=[s for s in S if s["phase"].replace("TELEOP_","") in("GAIT_IN","GAIT")]
         t0=g[0]["t"]+0.5; t1=g[-1]["t"]
         L=[e for e in d["policy"]["log"] if not e["ol"]]; tg=gi[0]["t"]; ts=tg+0.02*np.arange(len(L)); sel=(ts>=t0)&(ts<=t1)
         OBS+= [e["obs"] for e,s in zip(L,sel) if s]; ACT+=[e["a"] for e,s in zip(L,sel) if s]
@@ -61,7 +61,7 @@ def compare(name, sim_obs, sim_act, sim_tau, sim_err, real_obs, real_act, real_t
 if __name__=="__main__":
     infer_rl=li.load_policy('task7/weights/cpg_rl_max_v2_3_params.pkl',act_dim=10,head=False); base=li.baseline_action("nomux"); infer_a=lambda o: base
     res={}
-    for name,inf,paths in (("A",infer_a,["task7/logs/m_logs_trip19/M9_20260909_102900.json"]),("RL",infer_rl,["task7/logs/m_logs_trip19/M9_20260909_104304.json","task7/logs/m_logs_trip19/M9_20260909_110247.json","task7/logs/m_logs_trip19/M9_20260909_112653.json"])):
+    for name,inf,paths in (("A",infer_a,["task7/logs/m_logs_trip19/M9_20260909_102900.json"]),("RL",infer_rl,["task7/logs/m_logs_trip19/M9_20260909_104304.json","task7/logs/m_logs_trip19/M9_20260909_110247.json","task7/logs/m_logs_trip19/M9_20260909_112653.json","task7/logs/m_logs_trip19/M9_20260909_140148.json"])):
         so=[];sa=[];st=[];se=[]
         for seed in range(3):
             o,a,t,e=rollout_obs(inf,8.0,seed); so.append(o);sa.append(a);st.append(t);se.append(e)

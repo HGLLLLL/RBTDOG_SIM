@@ -9,7 +9,7 @@
 ## ▶ ★★★★ 2026-09-09 總結報告：`docs/J_RL_sim2real_總結報告_2026-09-09.md`
 
 實機 RL vs A：roll std −21%、pitch std −45%、髖峰 −13%；靜態右傾 +1.6°、誤差 +30%、膝速 +18%。
-sim2real：8 項改善同號、Pearson 0.92、**兌現率 53%**；分布層 gravity W1 1.9 std（靜態側傾）、ABAD 平均差 ±4.5°；力矩 RMS 差 6% 但峰值 1.2–1.8×。
+sim2real：8 項改善同號、Pearson 0.91、**兌現率 57%**（含下午 7.6 s 遙控段重算，結論不變）；分布層 gravity W1 1.9 std（靜態側傾）、ABAD 平均差 ±4.5°；力矩 RMS 差 6% 但峰值 1.2–1.8×。
 第一根源 ABAD 側向順從＋靜態側傾；下一輪順序 A（量化迴圈）→ E＋F（env 靜態側傾隨機化＋偏置罰，重訓）→ G 驗 → B（懸空辨識）→ C/D（分布匹配調參／殘差致動器）。
 分析腳本 `inference/diag/sim2real_{metrics,gap_dist}.py`。
 

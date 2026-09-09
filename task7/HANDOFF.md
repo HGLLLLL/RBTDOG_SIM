@@ -6,6 +6,24 @@
 
 ---
 
+## ▶▶ 下次上班從這裡開始（2026-09-09 收工，全部已 push 到 `main`）
+
+**今天做完的**：RL v2.3 首次上機（trip19，四趟乾淨＋遙控 7.6 s）→ I／J 報告；M11 輪子辨識（K）；原廠遙控錄製 17 段（L）＋參考資料集
+`outputs/ref_gait_dataset.json`；v3 雙模式 env（`inference/rl_env_v3.py`）G0 過；架構圖 `docs/figs/圖P12_v3雙模式架構.png`。
+
+**下一步（照順序）**：
+1. **Colab 訓 v3.0**：`notebooks/cpg_rl_v3_colab.ipynb`（clone `main`，第 5 格 G0 要過：直走 0.49、弧線 11°/s、原地轉 27°/s）→ 權重 `weights/cpg_rl_v3_params.pkl`。
+2. **本機補 `inference/local_infer_v3.py`**（驗收工具：obs 76／act 12，G3–G7 加 vx／wz 追蹤，用 `diag/g0_v3.py` 的 rollout 骨架）。
+3. **狗上 M9 的 v3 推論路徑**（另開 spec）：76 維 obs 組裝（多輪速／指令／模式／航向）、輪子指令（位置環 kp 60 累加目標角＋前饋 0.13）、
+   `policy_np` 12 維動作 → 雙模式產生器的 numpy 版（`teleop_cmd.py` 可擴）。
+4. **實機兩件待驗**（排在 v3 上機前，可與 1 並行）：① 輪子位置環 kp 20–60 會不會抖振（墊高，M11 改 proto）；② 腿站著只給 vx 的輪行上機
+   （承重打滑、L_eff、輪行時 roll）。
+5. 平移：v3.0 不訓（原廠式單側踏步靠輪胎側滑，kp250 站不住）；之後另做四腿蟹行。
+6. v2.4（航向誤差進 obs）notebook 已可跑，但 v3 取代它的方向；除非 v3 卡住，不用回頭。
+
+**已知硬限制**（改 env 前先看）：輪速伺服 kd ≤ 1.0（M10）、kp250 撓度 36 mm（抬腿要 +Z_SAG）、原廠 2.5 Hz 跳步做不到（名目 2.0 Hz／duty 0.5／40 mm）、
+RL 趟 `--vmax 18`、ABAD 承重外張 ±4.5°（J 報告第一根源）。
+
 ## ▶ ★★★ 2026-09-09 晚：v3 雙模式 env 完成、G0 過 —— **可上 Colab（`notebooks/cpg_rl_v3_colab.ipynb`）**
 
 `inference/rl_env_v3.py`（12 維動作／76 維 obs）、模型 `scene_flat_mjx_v3p.xml`（輪 kp 60 位置環＋M11 摩擦阻尼）。

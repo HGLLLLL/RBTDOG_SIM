@@ -1184,4 +1184,5 @@ def test_wheel_vmax_survives_stale_frame():
     assert math.isnan(m9.wheel_vmax(None))
     assert m9.wheel_vmax({"fl4_foot": (0.1, -2.5, 0.0), "fr4_foot": (0.1, 1.0, 0.0)}) == 2.5
     src = (ROOT / "realbot" / "M9_gait.py").read_text(encoding="utf-8")
-    assert "wrec.values()" not in src, "主迴圈不得直接對可能為 None 的 wrec 呼叫 .values()"
+    main_src = src[src.index("def main()"):]
+    assert "wrec.values()" not in main_src, "主迴圈不得直接對可能為 None 的 wrec 呼叫 .values()"

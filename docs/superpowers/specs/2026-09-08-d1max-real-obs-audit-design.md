@@ -96,7 +96,7 @@ CPG-RL 以 `A_kp250_walk`（LS/kp250/abad60/kd2/wheel_kd0.5）為基準重訓之
    "noise_std":{"gravity":[..3],"gyro":[..3],"joint_pos":[..12],"joint_vel":[..12]},
    "range_real":{...},"range_sim":{...}}
   ```
-  與 `docs/H_實機obs盤點_2026-09-08.md`（表格由程式印、文字我寫）。
+  與 `docs/results/H_實機obs盤點_2026-09-08.md`（表格由程式印、文字我寫）。
 
 ### ④ `realbot/M_env_probe.py` —— 狗上環境探測（零風險）
 
@@ -118,7 +118,7 @@ CPG-RL 以 `A_kp250_walk`（LS/kp250/abad60/kd2/wheel_kd0.5）為基準重訓之
 ## 明確不做
 
 不改 `M9_gait.py`、不改 `M6_load_probe.py`、不寫 `joint_cmd`、不訓練、不改 `obs_max.OBS_LAYOUT`。
-今天的終點：`outputs/imu_check.json`、`outputs/obs_noise_model.json`、`docs/H_實機obs盤點_2026-09-08.md`。
+今天的終點：`outputs/imu_check.json`、`outputs/obs_noise_model.json`、`docs/results/H_實機obs盤點_2026-09-08.md`。
 
 ## 風險
 

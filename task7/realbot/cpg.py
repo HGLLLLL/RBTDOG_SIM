@@ -42,7 +42,7 @@ TWO_PI = 2.0 * math.pi
 #   於是下面這個 `PHASE_WALK` 一直是 **diagonal sequence**（左後→右前→右後→左前），
 #   不是原本註解寫的 lateral sequence。守著它的測試用 `argsort(相位值)` 判順序，
 #   剛好判反，所以這個誤解被一個綠色的測試保護了兩週。
-#   詳見 `docs/E_步態序列與靜態穩定裕度_2026-09-03.md`。
+#   詳見 `docs/results/E_步態序列與靜態穩定裕度_2026-09-03.md`。
 PHASE_WALK = {"fr": 1.5 * math.pi, "fl": 0.5 * math.pi,
               "br": math.pi, "bl": 0.0}
 

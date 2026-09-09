@@ -4,7 +4,7 @@
 資料來源（2026-09-08，原始網格模型、60 s、12 皮米擾動、實機延遲 1 步、淡入 1 s）：
   純 CPG：local_infer_max --dummy --preset v2.3 --secs 60（開迴路無指令，走 0.35 m/s）
   RL v2.3：local_infer_max --params cpg_rl_max_v2_3_params.pkl --preset v2.3 --secs 60 --perturb 12 --compare
-用法：conda run -n rbtdog python task7/docs/gen_figP11_cpg_vs_rl.py
+用法：conda run -n rbtdog python task7/docs/figs/gen_figP11_cpg_vs_rl.py
 """
 from pathlib import Path
 

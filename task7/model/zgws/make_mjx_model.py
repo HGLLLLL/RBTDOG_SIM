@@ -36,7 +36,7 @@ MJX 的 plane–convex 碰撞是**逐頂點**計算的。2048 個平行環境 ×
 ## 落差量到多少
 
 行進速度 −0.7%、彈跳 −1.7%、支撐腳 0%、離地 0%、跌倒都是 0/12。
-完整對照與**三個踩過的坑**見 `task7/docs/MJX模型對照_2026-08-27.md`。
+完整對照與**三個踩過的坑**見 `task7/docs/results/MJX模型對照_2026-08-27.md`。
 
 ## 不改的事
 
@@ -314,7 +314,7 @@ def build(src: str = str(SRC), dst: str = str(DST),
               f"  組合：  碰撞={collision}({wheel})  致動器={actuators}  "
               f"solver={'6/6' if solver else 'MJCF 預設'}  kp={kp3.tolist()} kd={kd3.tolist()}\n"
               f"  ⚠️ 它與 zgws.xml **不是同一個物理模型**。差異的量化對照見\n"
-              f"     task7/docs/MJX模型對照_2026-08-27.md，引用數字要標明是哪一個。\n"
+              f"     task7/docs/results/MJX模型對照_2026-08-27.md，引用數字要標明是哪一個。\n"
               f"-->\n")
     Path(dst).write_text(header + ET.tostring(root, encoding="unicode") + "\n")
     return summary

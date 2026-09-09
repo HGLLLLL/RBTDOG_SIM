@@ -195,5 +195,5 @@ policy_zgwt_crawl_1029
 
 - 原始檔：`task7/reference/matrix_zgws/`（含 `SOURCE.md` 的取得方式與可信度說明）
 - 控制介面調查：`task7/docs/D1Max_控制方式調查_2026-08-25.md`
-- CPG 交接：`task7/docs/CPG步態_完整結果_2026-08-27.md`
+- CPG 交接：`task7/docs/results/CPG步態_完整結果_2026-08-27.md`
 - D1 EDU 實機增益實測（交叉驗證的另一半）：記憶檔 `d1-edu-factory-gains`

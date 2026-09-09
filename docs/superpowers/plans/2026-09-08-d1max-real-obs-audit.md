@@ -1678,7 +1678,7 @@ git commit -m "feat(task7): obs_compare —— 錄檔驅動 MuJoCo 回放 + obs 
 python task7/inference/imu_check.py --flat logs/m_logs_trip18/M6_<flat>.json --dance logs/m_logs_trip18/M6_<dance>.json [--turn ...] --seen-first left|right [--turn-first left]
 python task7/inference/obs_compare.py logs/m_logs_trip18/M6_<walk>.json --imu-check outputs/imu_check.json --md outputs/obs_compare_table.md --video outputs/obs_replay.mp4
 ```
-產出 `outputs/imu_check.json`、`outputs/obs_noise_model.json`、表格；結果整理到 `docs/H_實機obs盤點_2026-09-08.md`。
+產出 `outputs/imu_check.json`、`outputs/obs_noise_model.json`、表格；結果整理到 `docs/results/H_實機obs盤點_2026-09-08.md`。
 ```
 
 - [ ] **Step 2: 全套測試**
@@ -1697,7 +1697,7 @@ Expected: 719 + 19 = 738 passed（數字以實際為準，重點是既有 719 �
 工具：`inference/{m6_rec,real_obs,imu_check,obs_compare}.py`、`realbot/M_env_probe.py`，
 操作卡 `docs/archive/現場操作卡_obs盤點_2026-09-08.md`，spec `docs/superpowers/specs/2026-09-08-d1max-real-obs-audit-design.md`。
 ★ 意外收穫：trip14（9/2 原廠平移）500 Hz 錄檔已含 gyro，IMU 更新率 ≥500 Hz 已從那裡看出來。
-產出（上機後）：`outputs/imu_check.json`、`outputs/obs_noise_model.json`、`docs/H_實機obs盤點_2026-09-08.md`。
+產出（上機後）：`outputs/imu_check.json`、`outputs/obs_noise_model.json`、`docs/results/H_實機obs盤點_2026-09-08.md`。
 
 ---
 ```

@@ -14,7 +14,7 @@
    只切模擬那一邊的話會差整整 3 秒，相關係數從 0.989 掉到 0.828。
 
 用法：
-    ~/miniforge3/envs/rbtdog/bin/python task7/docs/gen_figP10_tilt.py
+    ~/miniforge3/envs/rbtdog/bin/python task7/docs/figs/gen_figP10_tilt.py
 
 ⚠️ 用 rbtdog 環境跑（要 mujoco + matplotlib）。中文字型要 Noto Sans CJK TC
    （`sudo apt install fonts-noto-cjk`）。
@@ -35,7 +35,7 @@ import matplotlib.pyplot as plt     # noqa: E402
 import mujoco                       # noqa: E402
 import numpy as np                  # noqa: E402
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "inference"))
 sys.path.insert(0, str(ROOT / "realbot"))
 

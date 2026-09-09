@@ -34,7 +34,7 @@
 | `task7/inference/local_infer_max.py`（改） | 14 維、sway、LS、A 增益、`--perturb N`、`--compare`、G3–G7 判定、影片 v2 |
 | `task7/notebooks/cpg_rl_max_colab.ipynb`（改） | 由 `task7/notebooks/build_nb_v2.py` 重新產生 |
 | `task7/tests/test_rl_env_max.py`（新）、`test_local_infer_max.py`（新）；`test_obs_max.py`、`test_gait_baseline.py`、`test_mjx_model.py`（改） | 測試 |
-| `task7/docs/CPG-RL_v2_設計_2026-09-08.md`（新）、`task7/HANDOFF.md`（改） | 文件 |
+| `task7/docs/design/CPG-RL_v2_設計_2026-09-08.md`（新）、`task7/HANDOFF.md`（改） | 文件 |
 
 ---
 
@@ -1204,7 +1204,7 @@ version_src = "".join(OLD["cells"][2]["source"])
 md0 = """# CPG-RL **v2** 訓練：智元 D1 Max · MJX · Colab GPU（2026-09-08）
 
 基準 `A_kp250_walk`（LS / kp250 / abad60 / kd2），14 維動作（每腿 mux/muy/ω ＋ body sway x,y），
-70 維 obs，隨機化與護欄依 `task7/docs/H_實機obs盤點_2026-09-08.md` 與
+70 維 obs，隨機化與護欄依 `task7/docs/results/H_實機obs盤點_2026-09-08.md` 與
 `docs/superpowers/specs/2026-09-08-cpg-rl-v2-retrain-design.md`。
 
 **env 住在 repo（`task7/inference/rl_env_max.py`），本 notebook 只有：安裝 → clone → 校準 → 訓練 → 存檔。**
@@ -1311,7 +1311,7 @@ git commit -m "feat(task7): Colab notebook v2 —— env 改 import rl_env_max�
 ### Task 8: 訓練前收尾：G0/G1/G2 全跑、設計文件、HANDOFF、push
 
 **Files:**
-- Create: `task7/docs/CPG-RL_v2_設計_2026-09-08.md`
+- Create: `task7/docs/design/CPG-RL_v2_設計_2026-09-08.md`
 - Modify: `task7/HANDOFF.md`
 
 - [ ] **Step 1: G0–G2**
@@ -1323,14 +1323,14 @@ conda run --no-capture-output -n rbtdog python task7/inference/diag/g1_kp250.py 
 ```
 把三個輸出的關鍵數字抄進設計文件 §驗收。
 
-- [ ] **Step 2: 寫 `task7/docs/CPG-RL_v2_設計_2026-09-08.md`**：內容＝spec 的 §1–§9 ＋「G0/G1/G2 結果」＋「Colab 使用流程」（push → 開 notebook → 全部執行 → 第 6 格看基準校準 → 第 7 格第一個 eval 看步率 → 下載 pkl → 本機 `local_infer_max --perturb 12 --compare --video --secs 60`，再跑 `--secs 180 --perturb 12` 與 `--wz 0.3`）。
+- [ ] **Step 2: 寫 `task7/docs/design/CPG-RL_v2_設計_2026-09-08.md`**：內容＝spec 的 §1–§9 ＋「G0/G1/G2 結果」＋「Colab 使用流程」（push → 開 notebook → 全部執行 → 第 6 格看基準校準 → 第 7 格第一個 eval 看步率 → 下載 pkl → 本機 `local_infer_max --perturb 12 --compare --video --secs 60`，再跑 `--secs 180 --perturb 12` 與 `--wz 0.3`）。
 
 - [ ] **Step 3: HANDOFF 最上面加一節**（RL v2 工具鏈完成、等 Colab 訓練；列 G3–G8 指令與過關門檻；提醒 G7 不過不上機；狗上推論另開 spec）
 
 - [ ] **Step 4: Commit + push**
 
 ```bash
-git add task7/docs/CPG-RL_v2_設計_2026-09-08.md task7/HANDOFF.md
+git add task7/docs/design/CPG-RL_v2_設計_2026-09-08.md task7/HANDOFF.md
 git commit -m "docs(task7): CPG-RL v2 設計文件 + G0/G1/G2 結果 + HANDOFF；可開訓"
 git push origin main
 ```

@@ -328,13 +328,13 @@ G3–G6 需要訓練完成的權重，屬於使用者跑完 Colab 之後的驗�
 | `task7/inference/gait_baseline.py` | 基準步態唯一真實來源 |
 | `task7/docs/基準步態凍結_D1Max_walk_2026-08-27.md` | 凍結說明與複驗數據 |
 | `task7/model/zgws/make_mjx_model.py` → `zgws_mjx.xml` + `scene_flat_mjx.xml` | MJX 訓練模型生成器 |
-| `task7/docs/MJX模型對照_2026-08-27.md` | G1 的 A/B 數據 |
+| `task7/docs/results/MJX模型對照_2026-08-27.md` | G1 的 A/B 數據 |
 | `task7/inference/obs_max.py` | 觀測層唯一定義 |
 | `task7/notebooks/cpg_rl_max_colab.ipynb` | **使用者拿去 Colab 跑的東西** |
 | `task7/inference/local_infer_max.py` | 載權重、本機原始網格模型回放／錄影／量測 |
 | `task7/tests/test_gait_baseline.py`、`test_obs_max.py`、`test_mjx_model.py` | 測試 |
 | `task7/docs/archive/現場操作卡_IMU平放複核.md` | 上實機前的 IMU 驗證流程 |
-| `task7/docs/CPG-RL_D1Max_設計_2026-08-27.md` | 設計與結果總結，掛進 `task7/HANDOFF.md` |
+| `task7/docs/design/CPG-RL_D1Max_設計_2026-08-27.md` | 設計與結果總結，掛進 `task7/HANDOFF.md` |
 
 ---
 

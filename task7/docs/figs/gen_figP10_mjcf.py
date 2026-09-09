@@ -10,7 +10,7 @@ haze 改白、反射壓到 0.05。改法是**讀 scene_flat.xml 的文字做替�
 先跑 1.5 秒 PD 迴圈讓牠落穩再拍，作法與 `inference/play_gait_traj.py` 相同。
 
 用法：
-    ~/miniforge3/envs/rbtdog/bin/python task7/docs/gen_figP10_mjcf.py
+    ~/miniforge3/envs/rbtdog/bin/python task7/docs/figs/gen_figP10_mjcf.py
 
 ⚠️ 用 rbtdog 環境跑（要 mujoco）。
 """
@@ -25,7 +25,7 @@ os.environ.setdefault("MUJOCO_GL", "egl")
 import mujoco                       # noqa: E402
 import numpy as np                  # noqa: E402
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "inference"))
 sys.path.insert(0, str(ROOT / "realbot"))
 

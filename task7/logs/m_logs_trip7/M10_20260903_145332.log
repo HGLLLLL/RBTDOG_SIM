@@ -1,0 +1,77 @@
+M10 —— 輪阻尼抖振測試（trip17 分辨實驗：driver 迴路不穩 vs 地面黏滑）
+   逐級 kd：[0.5, 1.0, 2.0, 3.0]　每級 靜置 5s ＋ 撥輪 20s
+   保護：kd·|v| > 25.0 N·m 立即歸零；腿全程洩力
+
+   ⚠️ 確認：狗肚子墊高、**四輪完全離地可自由轉**、手邊有急停。
+   ⚠️ 撥輪輕撥（3~5 rad/s 就夠），不要用力甩。
+
+✅ 結構檢查通過
+✅ 16 顆全部洩力中
+✅ mc_ctrl PID=2428 狀態=S
+✅ 已凍結 mc_ctrl（T）
+
+═══ kd = 0.5 ═══
+  ① 靜置 5s（看會不會自激）——不要碰輪子
+   QUIET kd=0.5 t= 0.0s  |v|峰: fl4  0.0  fr4  0.0  bl4  0.0  br4  0.0
+   QUIET kd=0.5 t= 1.0s  |v|峰: fl4  0.0  fr4  0.0  bl4  0.0  br4  0.0
+   QUIET kd=0.5 t= 2.0s  |v|峰: fl4  0.0  fr4  0.0  bl4  0.0  br4  0.0
+   QUIET kd=0.5 t= 3.0s  |v|峰: fl4  0.0  fr4  0.0  bl4  0.0  br4  0.0
+   QUIET kd=0.5 t= 4.0s  |v|峰: fl4  0.0  fr4  0.0  bl4  0.0  br4  0.0
+  ② 撥輪 20s —— 依序輕撥四顆輪，看停不停得下來。撥完按 Enter 提早結束
+   FLICK kd=0.5 t= 0.0s  |v|峰: fl4  0.0  fr4  0.0  bl4  0.0  br4  0.0
+   FLICK kd=0.5 t= 1.0s  |v|峰: fl4  0.0  fr4  0.0  bl4  0.0  br4  0.0
+   FLICK kd=0.5 t= 2.0s  |v|峰: fl4  0.0  fr4  0.0  bl4  0.3  br4  0.0
+   FLICK kd=0.5 t= 3.0s  |v|峰: fl4  0.0  fr4  0.0  bl4  1.5  br4  0.0
+   FLICK kd=0.5 t= 4.0s  |v|峰: fl4  0.0  fr4  0.0  bl4  1.5  br4  2.4
+   FLICK kd=0.5 t= 5.0s  |v|峰: fl4  2.0  fr4  0.0  bl4  1.5  br4  2.4
+   FLICK kd=0.5 t= 6.0s  |v|峰: fl4  2.1  fr4  0.0  bl4  1.5  br4  2.4
+   FLICK kd=0.5 t= 7.0s  |v|峰: fl4  2.1  fr4  2.2  bl4  1.5  br4  2.4
+   FLICK kd=0.5 t= 8.0s  |v|峰: fl4  2.1  fr4  2.2  bl4  1.5  br4  2.4
+   FLICK kd=0.5 t= 9.0s  |v|峰: fl4  2.1  fr4  2.2  bl4  1.5  br4  2.4
+   FLICK kd=0.5 t=10.0s  |v|峰: fl4  2.1  fr4  2.2  bl4  1.5  br4  2.4
+   FLICK kd=0.5 t=11.0s  |v|峰: fl4  2.1  fr4  2.2  bl4  1.5  br4  2.4
+   FLICK kd=0.5 t=12.0s  |v|峰: fl4  2.1  fr4  2.2  bl4  1.5  br4  2.4
+   FLICK kd=0.5 t=13.0s  |v|峰: fl4  2.1  fr4  2.2  bl4  1.5  br4  2.4
+  （提早結束此窗口）
+  ✅ kd=0.5 通過（|v|峰 fl4=2.1 fr4=2.2 bl4=1.5 br4=2.4）
+
+═══ kd = 1 ═══
+  ① 靜置 5s（看會不會自激）——不要碰輪子
+   QUIET kd=1 t= 0.0s  |v|峰: fl4  0.0  fr4  0.0  bl4  0.0  br4  0.0
+   QUIET kd=1 t= 1.0s  |v|峰: fl4  0.0  fr4  0.0  bl4  0.0  br4  0.0
+   QUIET kd=1 t= 2.0s  |v|峰: fl4  0.0  fr4  0.0  bl4  0.0  br4  0.0
+   QUIET kd=1 t= 3.0s  |v|峰: fl4  0.0  fr4  0.0  bl4  0.0  br4  0.0
+   QUIET kd=1 t= 4.0s  |v|峰: fl4  0.0  fr4  0.0  bl4  0.0  br4  0.0
+  ② 撥輪 20s —— 依序輕撥四顆輪，看停不停得下來。撥完按 Enter 提早結束
+   FLICK kd=1 t= 0.0s  |v|峰: fl4  0.0  fr4  0.0  bl4  0.0  br4  0.0
+   FLICK kd=1 t= 1.0s  |v|峰: fl4  0.0  fr4  0.0  bl4  0.0  br4  0.0
+   FLICK kd=1 t= 2.0s  |v|峰: fl4  0.9  fr4  0.0  bl4  0.0  br4  0.0
+   FLICK kd=1 t= 3.0s  |v|峰: fl4  1.5  fr4  0.0  bl4  0.0  br4  0.0
+   FLICK kd=1 t= 4.0s  |v|峰: fl4  1.5  fr4  1.8  bl4  0.0  br4  0.0
+   FLICK kd=1 t= 5.0s  |v|峰: fl4  1.5  fr4  1.8  bl4  0.1  br4  0.0
+   FLICK kd=1 t= 6.0s  |v|峰: fl4  1.5  fr4  1.8  bl4  1.3  br4  0.0
+   FLICK kd=1 t= 7.0s  |v|峰: fl4  1.5  fr4  1.8  bl4  1.3  br4  1.6
+   FLICK kd=1 t= 8.0s  |v|峰: fl4  1.5  fr4  1.8  bl4  1.3  br4  1.6
+  （提早結束此窗口）
+  ✅ kd=1 通過（|v|峰 fl4=1.5 fr4=1.8 bl4=1.3 br4=1.6）
+
+═══ kd = 2 ═══
+  ① 靜置 5s（看會不會自激）——不要碰輪子
+   QUIET kd=2 t= 0.0s  |v|峰: fl4  0.0  fr4  0.0  bl4  0.0  br4  0.0
+   QUIET kd=2 t= 1.0s  |v|峰: fl4  0.0  fr4  0.0  bl4  0.0  br4  0.0
+   QUIET kd=2 t= 2.0s  |v|峰: fl4  0.0  fr4 11.5  bl4  0.0  br4  0.0
+
+  ⛔ kd=2 **靜置自激**（fr4_foot @ 2.1s）
+  → H1 成立：driver 離散阻尼迴路不穩。停止升級。
+✅ 已解凍 mc_ctrl，狀態=S
+
+============================================================
+結論
+============================================================
+  懸空最高穩定 kd = 1.0
+  kd=2 SELF_EXCITED（fr4_foot）
+  → **H1：driver 迴路在該 kd 不穩，與地面無關。**
+    該 kd 出局；步態要用 kd ≤ 懸空最高穩定值，並重掃 x_off。
+
+📊 /home/robot/m_logs/M10_20260903_145332.json
+📄 /home/robot/m_logs/M10_20260903_145332.log

@@ -1,133 +1,51 @@
-# task7 — 智元 D1 Max（zsm-1w）控制
+# task7 — 智元 D1 Max（zsm-1w）輪足機器狗：底層控制 → CPG 步態 → CPG-RL 上機
 
-**這是一台跟 task6 的 D1 EDU 不同的狗，SDK 完全不共用。** 開這個 task 就是為了不要把兩台的
-程式碼與參數混在一起。
+**這是一台跟 task6 的 D1 EDU 不同的狗，SDK 完全不共用。** 開這個 task 就是為了不要把兩台的程式碼與參數混在一起。
 
-## 現況（2026-08-26）
+## 三個入口
 
-> **接手請先讀 [`HANDOFF.md`](HANDOFF.md)** —— 完整現況、關鍵事實表、下一步、踩過的坑。
-
-**底層控制鏈已實機打通。**
-
-| 路線 | 狀態 |
+| 要做什麼 | 讀哪份 |
 |---|---|
-| A. 官方 SDK 高層控制 | ✅ 可用（UDP 8082 listen 中），尚未實跑 |
-| B. ROS2 `rt/lowcmd` | ❌ **不存在**，那是 D1 MaxPro 的做法 |
-| B'. ros2_control command interface | ⚠️ 80 個存在，但全被 `joint_shm_controller` claimed |
-| **C. `/dev/shm/joint_cmd`** | ★★★ **實機驗證通過**：寫入被接受、四顆輪都驅動過 |
+| 接手／看現況／下一步 | **[`HANDOFF.md`](HANDOFF.md)**（最上面那節最新） |
+| 找某份文件 | [`docs/README.md`](docs/README.md)（索引） |
+| 查狗的規格、SHM 佈局、座標與 IMU 慣例、原廠參數、實測物理量 | **[`docs/D1Max_機器狗資訊.md`](docs/D1Max_機器狗資訊.md)** |
+| 上機 | `docs/現場SOP_通用_2026-08-27.md` → 對應的 `docs/現場操作卡_*.md` |
 
-已完成：寫入驗證（16/16）、四顆輪驅動、輪摩擦實測 0.15 N·m（已填進 MJCF）、
-座標換算式與座標系同框驗證，以及 **2026-08-26 的 ★★ 16 顆馬達全控**
-（吊帶懸吊，12 個腿關節符號全對 + 四輪同時驅動，並首次量到腿關節摩擦）。
-見 `docs/實機腿關節與16顆全控結果_2026-08-26.md`。
+## 現況（2026-09-09）
 
-**還沒做**：S5 姿勢切換（crouch/home/knee-back）、落地承重測試。
+- 底層控制鏈：`/dev/shm/joint_cmd` 寫入（★ 實機驗證）；起身／坐下／步態全在 `realbot/M9_gait.py`。
+- 開迴路 CPG 步態 `A_kp250_walk`（LS 序列、kp 250／ABAD 60／kd 2／輪 kd 0.5）：trip17 實機零中止走通。
+- **CPG-RL v2.3 已上實機**（trip19）：四趟乾淨、鍵盤遙控 7.6 s；roll std −23%、pitch std −47%。
+  結果 `docs/I_*.md`，sim2real 總結 `docs/J_*.md`。
+- 下一步：v2.4（航向誤差進 obs）＋ 靜態側傾隨機化／偏置罰 → 重訓 → 上機。
 
-**★ 額外收穫**：從 MATRiX 官方發布包解出了**原廠運控的實際設定檔**
-（增益、站/趴姿、關節零點慣例、步態排程參數）。可信度有交叉驗證——
-同一批檔案裡 D1 EDU 那份的增益與 task6 實機量到的原廠值逐項吻合。
-見 `docs/D1Max_原廠運控參數_MATRiX解包_2026-08-25.md`。
-
-## 檔案
-
-### 文件（`docs/`）
+## 目錄
 
 | 路徑 | 內容 |
 |---|---|
-| **`../HANDOFF.md`** | ★ **接手入口**：現況、關鍵事實表、下一步、踩過的坑 |
-| `D1Max_控制方式調查_2026-08-25.md` | 機型辨識、硬體規格、連線、SDK 完整 API、底層可行性證據 |
-| `D1Max_原廠運控參數_MATRiX解包_2026-08-25.md` | 原廠增益、站姿、符號慣例、步態參數 |
-| `實機偵察結果_第一趟_2026-08-25.md` | SHM 三塊、運控架構、ROS2 拓樸 |
-| `實機偵察結果_第二趟_2026-08-25.md` | SHM 結構解碼、`ros2_control` 80 個介面 |
-| `實機寫入結果_第三趟_2026-08-25.md` | 寫入驗證 16/16、心跳時戳的發現 |
-| `實機單顆馬達驅動結果_2026-08-25.md` | 左前輪 22.08° |
-| `實機四輪驅動結果_2026-08-25.md` | 四顆輪全部成功、摩擦 0.13–0.18 N·m |
-| `座標換算式驗證結果_2026-08-25.md` | ★ 換算式 + 座標系同框驗證 |
-| **`實機腿關節與16顆全控結果_2026-08-26.md`** | ★★ **16 顆全控、腿關節摩擦、兩次邊界條件的教訓** |
-| `腿關節與姿勢控制_設計_2026-08-26.md` | M5 的設計與理由 |
-| `M7實測結果_承重站立_2026-08-27.md` | 承重站立 |
-| `M8實測結果_承重擺動_2026-08-27.md` | ★ 承重擺動、單腿抬起與前跨的落後量 |
-| `三機型對照表_2026-08-25.md` + `圖4_*.png/svg/pdf` | 給主管的橫向比較與論文風圖表 |
-| **`現場SOP_通用_2026-08-27.md`** | ★ **每次上機都先看**：連線、安全、部署、中止語意、常踩的坑 |
-| `現場操作卡_*.md`（3 份） | 各次任務自己的流程，**設計成離線可用** |
+| `realbot/` | 狗上跑的（純標準庫＋numpy）：`shm_io`（SHM 底層）、`coord`（★ 座標換算／限位／姿勢的唯一來源）、`kin`／`cpg`（IK／CPG 的 stdlib 移植）、`M0`–`M10`（風險遞增的實機模組；**`M9_gait.py` 是步態主程式**，含 `--policy`／`--teleop`）、`policy_np`／`rl_obs`（RL 推論與 obs）、`teleop_cmd`（四向遙控映射，純 CPG 版）、`estop_max.sh`（★ 急停）、`push_to_dog.sh`／`pull_from_dog.sh`／`clean_dog_logs.sh` |
+| `inference/` | 本機模擬與分析：`max_model`／`cpg_max`／`leg_kin`／`cpg_walk_max`（模型、CPG、IK、rollout）、`gait_baseline`（★ 基準步態唯一來源）、`obs_max`（★ obs 唯一定義）、`rl_env_max`（MJX 訓練 env）、`local_infer_max`（RL 權重驗收 G3–G7、錄影）、`export_policy_np`（pkl→npz）、`replay_policy`／`policy_log_summary`（實機 log 分析）、`cpg_teleop_sim`（遙控模擬）、`m6_rec`／`m9_rec`／`real_obs`／`imu_check`／`obs_compare`（實機 obs 工具）、`diag/`（sim2real 量化等診斷腳本） |
+| `notebooks/` | Colab 訓練 notebook（`cpg_rl_max_v2_*_colab.ipynb`，由 `build_nb_v2.py` 產生） |
+| `weights/` | RL 權重：`cpg_rl_max_v2_3_params.pkl`（brax）＋ `cpg_rl_max_v2_3_np.npz`（狗上用） |
+| `model/zgws/` | 官方 MJCF（已填實測輪摩擦）＋ MJX 訓練模型產生器；`SOURCE.md` 有質量分佈與致動器的坑 |
+| `outputs/` | 軌跡檔（`A_*.json` 才推上狗；`stale/` 作廢）、模擬影片、回放與摘要 md |
+| `logs/m_logs_trip*/` | 每趟實機原始 log（M9 json/log） |
+| `reference/matrix_zgws/` | 原廠 MATRiX 設定檔原件 |
+| `tests/` | 830+ 項；`conda run -n rbtdog python -m pytest task7/tests -q` |
+| `docs/` | 結果文件、操作卡、設計；`docs/archive/` 是已完成／被取代的舊文件（沒刪，只是收起來） |
 
-★ 完整索引見 **`docs/README.md`**。2026-08-27 刪掉 13 份已完成／被取代的文件，
-原文在 git 歷史裡（`git log --diff-filter=D --name-only -- 'task7/docs/*'`）。
+## 從 task6 帶過來會出事的四件事
 
-### 工具（`realbot/`）
+1. **增益與力矩門檻**：這台 41 kg、腿關節 150 N·m，是 D1 EDU 的五倍量級。task6 的 `kp=20/kd=0.7`、「力矩 >5 N·m 保護」全部不適用。
+2. **IP `192.168.168.100`**：在 D1 EDU 是我們電腦的靜態 IP，在 D1 Max 是狗的 Orin NX；電腦端要改別的。
+3. **SDK 程式碼**：`mc_sdk::` 那套跟這台的 `robot_sdk::SDKClient` 毫無關係，一行都不能重用。
+4. **站姿是前後鏡像的 X 型**（`hip_stand_pos = [0.6, 0.6, −0.6, −0.6]`），D1 EDU 是四腿同號；「四條腿共用一個 `HOME3`」照抄會錯。
 
-`shm_io.py`（底層，其他都 import 它）、`coord.py`（★ 座標換算／限位／姿勢的單一事實來源）、
-`shm_decode.py`（離線解碼）、`recon_d1max.sh` / `recon2_d1max.sh`（唯讀偵察）、
-`M0_probe.py` → `M1_zero_write.py` → `M2_wheel_spin.py` → `M3_wheel_tour.py`（風險遞增）、
-`M4_pose_capture.py`（姿勢擷取）、
-**`M5_leg_pose.py`（腿關節與姿勢控制，★ 必須吊掛）**、
-`estop_max.sh`（★ 急停）、`push_to_dog.sh`（傳檔+校驗）、`M_faultwatch.py`（故障取證）。
-用途與風險等級見 `HANDOFF.md`；M5 的設計理由見
-`docs/腿關節與姿勢控制_設計_2026-08-26.md`。
-
-### 其他
-
-| 路徑 | 內容 |
-|---|---|
-| `model/zgws/` | ★ 官方 MJCF（**已填實測輪摩擦**）+ 平地場景 + 取網格腳本 + `SOURCE.md` |
-| `model/zgws/make_mjx_model.py` | ★ **MJX 訓練模型產生器**。官方 MJCF 的碰撞網格 98,569 頂點，MJX 會 OOM；產物 `zgws_mjx.xml` 零 STL 相依 |
-| `model/max.urdf` | 官方 URDF。與 MJCF 質量分佈不同，見 `model/zgws/SOURCE.md` |
-| `reference/matrix_zgws/` | 原廠設定檔原件 + 可信度說明 |
-| `logs/` | 六趟實機的原始輸出（含 SHM 二進位快照） |
-| `inference/`、`tests/` | CPG 步態與 CPG-RL（由另一條線維護，見下） |
-| `notebooks/cpg_rl_max_colab.ipynb` | ★ **CPG-RL 訓練 notebook**，丟 Colab GPU 直接跑 |
-
-### CPG 步態 / CPG-RL（純模擬，2026-08-27）
-
-| 路徑 | 內容 |
-|---|---|
-| `inference/gait_baseline.py` | ★ **基準步態的唯一真實來源**（`walk`，180 s × 12 擾動 0 跌倒） |
-| `inference/cpg_walk_max.py` | 開迴路 CPG rollout ＋ `Trace`（統計，與推論端共用） |
-| `inference/cpg_sweep_max.py` | 多擾動掃描器（含記憶體守衛） |
-| `inference/obs_max.py` | ★ **68 維觀測層的唯一定義**，Colab 與本機共用 |
-| `inference/local_infer_max.py` | 載 RL 權重，在**原始網格模型**上回放／錄影／量指標 |
-| `docs/CPG步態_完整結果_2026-08-27.md` | 凍結參數與判準來源 |
-| `docs/MJX模型對照_2026-08-27.md` | 訓練模型 vs 原始模型的落差（±2% 內）與三個踩過的坑 |
-| `docs/CPG-RL_D1Max_設計_2026-08-27.md` | ★ **這條線的入口**：觀測層、reward、DR、驗收關卡 |
-| `docs/現場操作卡_IMU平放複核.md` | ⚠️ **上實機前必做**（唯讀、零風險） |
-
-## 下一步
-
-見 **`HANDOFF.md`** 的「下一步」一節。摘要：
-
-1. **[零風險]** MJCF knee 限位 ±2.791 → ±2.801（實測支持）
-2. **[零風險]** 掃 `--kd` 找靜摩擦掙脫門檻
-3. **[中，須吊掛]** 單一腿關節微動 ← **下一個真正的門檻**（41 kg / 150 N·m）
-
-⚠️ 進到第 3 步前，建議先確認原廠對「第三方寫入 `/dev/shm/joint_cmd`」的態度與保固範圍。
-
-## ✅ 官方 MJCF 已取得（不用自己從 URDF 轉了）
-
-MATRiX（官方 MuJoCo+UE5 模擬器）的 `base-0.1.2.tar.gz` 裡有
-`Content/model/zgws/zgws.xml` —— **智元官方的 D1 Max MuJoCo 模型**。
-（`zgws` = `zsm-1w` = D1 Max，已用外觀比對確認。）
-
-已收進 `model/zgws/`，**在 MuJoCo 3.10 載入通過**（nq=23 / nu=16 / 38.821 kg），
-並用它驗證了原廠站姿、質心偏移、機身高度、輪半徑 —— 見 `model/zgws/SOURCE.md`。
+## 常用指令
 
 ```bash
-bash task7/model/zgws/fetch_assets.sh   # 取回 54 MB 網格（未進版控）
-conda run --no-capture-output -n rbtdog python -c \
-  "import mujoco;m=mujoco.MjModel.from_xml_path('task7/model/zgws/scene_flat.xml');print(m.nq,m.nu)"
+bash task7/model/zgws/fetch_assets.sh                     # 取回 54 MB 網格（未進版控）
+conda run -n rbtdog python -m pytest task7/tests -q       # 全部測試
+bash task7/realbot/push_to_dog.sh                         # 推檔＋校驗
+conda run -n rbtdog python task7/inference/policy_log_summary.py task7/logs/m_logs_tripNN/M9_*.json
 ```
-
-⚠️ 官方 MJCF 與官方 URDF **質量分佈對不上**（38.8 vs 41.0 kg），
-且 MJCF 的致動器是純力矩、沒 keyframe、輪關節沒摩擦。三件事都要處理，見 `SOURCE.md`。
-
-## ⚠️ 三個從 task6 帶過來會出事的東西
-
-1. **增益與力矩門檻**：這台 41 kg、腿關節 150 N·m，是 D1 EDU 的五倍量級。
-   task6 的 `kp=20/kd=0.7`、「力矩 >5 N·m 保護」全部不適用。
-   （原廠 RL 用 ABAD 60 / HIP 120 / KNEE 120，**三個關節不同值**。）
-2. **IP `192.168.168.100`**：在 D1 EDU 是我們電腦的靜態 IP，在 D1 Max 是**狗的 Orin NX**。
-   會撞位址，電腦端要改別的（例如 .50）。
-3. **SDK 程式碼**：`mc_sdk::` 那套跟這台的 `robot_sdk::SDKClient` 毫無關係，一行都不能重用。
-
-外加一個模擬端的：**D1 Max 的站姿是前後鏡像的 X 型**
-（`hip_stand_pos = [0.6, 0.6, −0.6, −0.6]`），D1 EDU 是四腿同號。
-「四條腿共用一個 `HOME3`」的寫法照抄會錯。

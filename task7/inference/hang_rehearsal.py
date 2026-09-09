@@ -197,7 +197,7 @@ def verify_leg_map(m: mujoco.MjModel) -> dict:
 def flip_rear_knee(legmap: dict, q12: np.ndarray) -> np.ndarray:
     """膝模式切換：**只把後兩腿（bl / br）的 hip_pitch 與 knee_pitch 翻號，前腿不動。**
 
-    出處：2026-08-25 實機四姿勢驗證（`docs/座標換算式驗證結果_2026-08-25.md` §2.2），
+    出處：2026-08-25 實機四姿勢驗證（`docs/archive/座標換算式驗證結果_2026-08-25.md` §2.2），
     與 `realbot/coord.py` 的 `flip_rear_knee_mode()` 是同一個運算 ——
     本檔在 `verify_flip_against_coord()` 裡對 import 進來的 coord 逐項比對，不是照抄。
 
@@ -1191,7 +1191,7 @@ def main() -> int:
         "knee_mode": {
             "_note": ("膝模式切換 = **只把後兩腿（bl/br）的 hip_pitch 與 knee_pitch 翻號，"
                       "前腿完全不動**。出處：2026-08-25 實機四姿勢驗證，"
-                      "docs/座標換算式驗證結果_2026-08-25.md §2.2。"
+                      "docs/archive/座標換算式驗證結果_2026-08-25.md §2.2。"
                       "預設（不帶後綴的 STAND/HOME/CROUCH）是**後腿往前彎**；"
                       "帶 _knee_back 後綴的是**後腿往後彎**。"),
             "pairs": {a: b for a, b in KNEE_MODE_PAIRS},

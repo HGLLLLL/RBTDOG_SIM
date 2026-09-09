@@ -1650,7 +1650,7 @@ git commit -m "feat(task7): obs_compare —— 錄檔驅動 MuJoCo 回放 + obs 
 ### Task 6: 現場操作卡 + 全套測試 + HANDOFF
 
 **Files:**
-- Create: `task7/docs/現場操作卡_obs盤點_2026-09-08.md`
+- Create: `task7/docs/archive/現場操作卡_obs盤點_2026-09-08.md`
 - Modify: `task7/HANDOFF.md`（最上面加一節）
 
 - [ ] **Step 1: 寫操作卡**
@@ -1695,7 +1695,7 @@ Expected: 719 + 19 = 738 passed（數字以實際為準，重點是既有 719 �
 
 決策：**IMU 進 obs（重力 + 角速度），先驗證再重訓**。今天一輪量齊，不回頭補。
 工具：`inference/{m6_rec,real_obs,imu_check,obs_compare}.py`、`realbot/M_env_probe.py`，
-操作卡 `docs/現場操作卡_obs盤點_2026-09-08.md`，spec `docs/superpowers/specs/2026-09-08-d1max-real-obs-audit-design.md`。
+操作卡 `docs/archive/現場操作卡_obs盤點_2026-09-08.md`，spec `docs/superpowers/specs/2026-09-08-d1max-real-obs-audit-design.md`。
 ★ 意外收穫：trip14（9/2 原廠平移）500 Hz 錄檔已含 gyro，IMU 更新率 ≥500 Hz 已從那裡看出來。
 產出（上機後）：`outputs/imu_check.json`、`outputs/obs_noise_model.json`、`docs/H_實機obs盤點_2026-09-08.md`。
 
@@ -1705,7 +1705,7 @@ Expected: 719 + 19 = 738 passed（數字以實際為準，重點是既有 719 �
 - [ ] **Step 4: Commit**
 
 ```bash
-git add task7/docs/現場操作卡_obs盤點_2026-09-08.md task7/HANDOFF.md
+git add task7/docs/archive/現場操作卡_obs盤點_2026-09-08.md task7/HANDOFF.md
 git commit -m "docs(task7): obs 盤點操作卡 + HANDOFF"
 ```
 

@@ -1,0 +1,118 @@
+M7 —— 站起來（★★ 承重）
+
+⚠️⚠️ 確認：狗趴在地上、16 顆洩力、**吊帶掛著但鬆弛**、地面淨空、第二個終端機備著 estop。
+
+✅ 結構檢查通過
+✅ 16 顆全部洩力中
+✅ mc_ctrl PID=2425 狀態=T
+✅ 機身姿態 roll +1.7° pitch -2.3°
+
+目標 crouch　kp=250.0 kd=5.0　輪子純阻尼 kd=0.5
+路徑：趴平(實測) → crouch → 趴平
+
+關節                    趴平(實測)     crouch                 限位
+fl1_hip_roll         -0.0689     0.0000    [-0.523,+0.697]
+fl2_hip_pitch         0.8116     1.4000    [-2.442,+2.791]
+fl3_knee_pitch       -2.5220    -2.4000    [-2.801,+2.801]
+fr1_hip_roll         -0.0010     0.0000    [-0.697,+0.523]
+fr2_hip_pitch         0.8044     1.4000    [-2.442,+2.791]
+fr3_knee_pitch       -2.5068    -2.4000    [-2.801,+2.801]
+bl1_hip_roll         -0.0860     0.0000    [-0.523,+0.697]
+bl2_hip_pitch        -0.8673    -1.4000    [-2.791,+2.442]
+bl3_knee_pitch        2.6075     2.4000    [-2.801,+2.801]
+br1_hip_roll          0.0147     0.0000    [-0.697,+0.523]
+br2_hip_pitch        -0.8433    -1.4000    [-2.791,+2.442]
+br3_knee_pitch        2.5861     2.4000    [-2.801,+2.801]
+
+✅ 所有路徑點都在機構限位內
+
+總時長 11.0 秒：RAMP_UP(2.0s) → GO_crouch(1.5s) → HOLD_crouch(4.0s) → BACK_LIE(1.5s) → RAMP_DOWN(2.0s)
+
+           區段         最大位移         峰值命令速度             哪個關節
+      RAMP_UP    0.000 rad        0.00 rad/s     fl1_hip_roll
+    GO_crouch    0.596 rad        0.62 rad/s    fr2_hip_pitch
+  HOLD_crouch    0.000 rad        0.00 rad/s     fl1_hip_roll
+     BACK_LIE    0.596 rad        0.62 rad/s    fr2_hip_pitch
+    RAMP_DOWN    0.000 rad        0.00 rad/s     fl1_hip_roll
+✅ 所有區段的命令速度都在 2.0 rad/s 以內
+
+力矩門檻（實機分段峰值 ×1.5）：ABAD 45 / HIP 40 / KNEE 65 N·m，硬上限 120
+傾角保護 ±25°（現在 roll +1.7 pitch -2.3）
+輪子：移動中純阻尼 kd=0.5；到位後鎖定 kp=20.0 kd=0.1（原廠做法，力矩保護 8）
+
+✅ 已凍結 mc_ctrl（T）
+
+     t            階段     kp     最大|誤差|    最大|τ|               關節   roll  pitch
+  0.00       RAMP_UP      0     0.0000     0.06     br1_hip_roll   +1.7   -2.3
+  0.25       RAMP_UP     31     0.0000     0.05     fl1_hip_roll   +1.7   -2.3
+  0.51       RAMP_UP     63     0.0000     0.10     bl1_hip_roll   +1.7   -2.3
+  0.76       RAMP_UP     94     0.0000     0.09   br3_knee_pitch   +1.7   -2.3
+  1.01       RAMP_UP    126     0.0000     0.10   fl3_knee_pitch   +1.7   -2.3
+  1.27       RAMP_UP    158     0.0000     0.16    fr2_hip_pitch   +1.7   -2.3
+  1.52       RAMP_UP    189     0.0000     0.19    fr2_hip_pitch   +1.7   -2.3
+  1.77       RAMP_UP    221     0.0000     0.21    fr2_hip_pitch   +1.7   -2.3
+  2.02     GO_crouch    250     0.0003     0.21     fl1_hip_roll   +1.7   -2.3
+  2.28     GO_crouch    250     0.0382     7.98    fr2_hip_pitch   +1.7   -2.4
+  2.53     GO_crouch    250     0.0597    14.20   bl3_knee_pitch   +1.5   -2.2
+  2.78     GO_crouch    250     0.1053    25.51   bl3_knee_pitch   +1.1   -2.1
+  3.04     GO_crouch    250     0.1069    25.93   br3_knee_pitch   +1.0   -1.5
+  3.29     GO_crouch    250     0.0971    23.98   fl3_knee_pitch   +0.8   -1.1
+       ↳ 輪子鎖定於 HOLD_crouch（kp=20）
+  3.54   HOLD_crouch    250     0.0915    22.88   bl3_knee_pitch   +0.6   -1.1
+  3.79   HOLD_crouch    250     0.0911    22.82   bl3_knee_pitch   +0.6   -1.1
+  4.04   HOLD_crouch    250     0.0911    22.85   bl3_knee_pitch   +0.6   -1.1
+  4.30   HOLD_crouch    250     0.0911    22.87   bl3_knee_pitch   +0.6   -1.1
+  4.55   HOLD_crouch    250     0.0911    22.79   bl3_knee_pitch   +0.6   -1.1
+  4.80   HOLD_crouch    250     0.0911    22.87   bl3_knee_pitch   +0.6   -1.1
+  5.05   HOLD_crouch    250     0.0911    22.87   bl3_knee_pitch   +0.6   -1.1
+  5.31   HOLD_crouch    250     0.0911    22.83   bl3_knee_pitch   +0.6   -1.1
+  5.56   HOLD_crouch    250     0.0911    22.84   bl3_knee_pitch   +0.6   -1.1
+  5.81   HOLD_crouch    250     0.0911    22.78   bl3_knee_pitch   +0.6   -1.2
+  6.07   HOLD_crouch    250     0.0908    22.78   bl3_knee_pitch   +0.6   -1.1
+  6.32   HOLD_crouch    250     0.0908    22.75   bl3_knee_pitch   +0.6   -1.1
+  6.57   HOLD_crouch    250     0.0908    22.76   bl3_knee_pitch   +0.6   -1.1
+  6.82   HOLD_crouch    250     0.0908    22.75   bl3_knee_pitch   +0.6   -1.1
+  7.08   HOLD_crouch    250     0.0908    22.77   bl3_knee_pitch   +0.6   -1.1
+  7.33   HOLD_crouch    250     0.0908    22.73   bl3_knee_pitch   +0.6   -1.1
+  7.58      BACK_LIE    250     0.0872    21.59   br3_knee_pitch   +0.6   -1.1
+  7.83      BACK_LIE    250     0.0722    18.18   fr3_knee_pitch   +0.6   -1.0
+  8.09      BACK_LIE    250     0.0551    14.90   br3_knee_pitch   +0.9   -1.6
+  8.34      BACK_LIE    250     0.0571    14.45   fr3_knee_pitch   +1.1   -1.9
+  8.59      BACK_LIE    250     0.0351     7.92     bl1_hip_roll   +1.6   -2.1
+  8.85      BACK_LIE    250     0.0135     3.57   fr3_knee_pitch   +2.0   -2.1
+  9.10     RAMP_DOWN    237     0.0061     1.44   bl3_knee_pitch   +1.8   -2.2
+  9.35     RAMP_DOWN    206     0.0061     1.29     fr1_hip_roll   +1.8   -2.2
+  9.61     RAMP_DOWN    174     0.0065     1.13     fr1_hip_roll   +1.8   -2.2
+  9.86     RAMP_DOWN    143     0.0065     0.97     fr1_hip_roll   +1.8   -2.2
+ 10.11     RAMP_DOWN    111     0.0065     0.74     fr1_hip_roll   +1.8   -2.2
+ 10.37     RAMP_DOWN     79     0.0065     0.55     fr1_hip_roll   +1.8   -2.2
+ 10.62     RAMP_DOWN     48     0.0065     0.36     br1_hip_roll   +1.8   -2.2
+ 10.87     RAMP_DOWN     16     0.0069     0.16   fr3_knee_pitch   +1.8   -2.2
+
+============================================================================
+✅ 序列完整跑完
+
+關節                     峰值τ      門檻      用掉
+fl1_hip_roll         -7.29      45     16%
+fl2_hip_pitch       +13.00      40     32%
+fl3_knee_pitch      +25.62      65     39%
+fr1_hip_roll         +4.29      45     10%
+fr2_hip_pitch       +13.53      40     34%
+fr3_knee_pitch      -51.49      65     79%
+bl1_hip_roll         -9.29      45     21%
+bl2_hip_pitch       -12.25      40     31%
+bl3_knee_pitch      -25.81      65     40%
+br1_hip_roll         +5.84      45     13%
+br2_hip_pitch       -13.61      40     34%
+br3_knee_pitch      -26.33      65     41%
+
+全部腿關節峰值 51.49 N·m（實機原廠做同樣動作是 42.45）
+
+============================================================================
+
+📊 /home/robot/m_logs/M7_20260827_101642.json
+
+⏸ mc_ctrl 仍在凍結中（PID 2425）。確認狗安全後交還控制權：
+      sudo kill -CONT 2425
+
+📄 /home/robot/m_logs/M7_20260827_101642.log

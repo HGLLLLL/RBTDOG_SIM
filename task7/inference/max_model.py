@@ -5,7 +5,7 @@ task7 所有腳本的常數都必須從這裡取，不得各自寫死。
 數值出處（每一項都標明是「官方檔案」「規格書」還是「我們量的」）：
   - 幾何 / 質量 / 限位：官方 MJCF `task7/model/zgws/zgws.xml`（MATRiX v0.1.2 原檔）
   - 增益 / 站姿 / 抬腿高度：官方運控設定檔 `task7/reference/matrix_zgws/`
-    （解讀見 `task7/docs/D1Max_原廠運控參數_MATRiX解包_2026-08-25.md`）
+    （解讀見 `task7/docs/archive/D1Max_原廠運控參數_MATRiX解包_2026-08-25.md`）
   - 扭矩上限：規格書（比 MJCF 的 actuatorfrcrange 保守，見 TAU_MAX）
   - CPG 結構常數：沿用 task4 論文標準版，經 task6 在 D1 EDU 上驗證過的那組
 

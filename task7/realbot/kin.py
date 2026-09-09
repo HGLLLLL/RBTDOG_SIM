@@ -12,7 +12,7 @@
 ★ **這一份用「腿名」當索引，不用數字 index。**
   `inference/leg_kin.py` 的 `k` 是 `max_model.LEGS = (FR, FL, RR, RL)` 的序，
   而 SHM 是 `(fl, fr, bl, br)` —— 這是本專案反覆出事的腿序陷阱
-  （`docs/實機偵察結果_第二趟` 明列「按名稱對應，別按索引」）。
+  （`docs/archive/實機偵察結果_第二趟` 明列「按名稱對應，別按索引」）。
   在狗上唯一拿得到的識別是 SHM 名稱，所以這裡就用它。
 
 座標系（與 `inference/leg_kin.py`、MJCF 相同）：

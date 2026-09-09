@@ -7,7 +7,7 @@
      `inference/hang_rehearsal.py` 也有一份，理由是狗上不能 import numpy、
      而預演跑在本機需要 numpy —— 同一個測試檔一起比對三份。）
 
-換算式（2026-08-25 實機四姿勢驗證通過，見 `docs/座標換算式驗證結果_2026-08-25.md`）：
+換算式（2026-08-25 實機四姿勢驗證通過，見 `docs/archive/座標換算式驗證結果_2026-08-25.md`）：
 
     馬達角 = side_sign × 控制器角 + offset
     控制器角 = (馬達角 − offset) / side_sign

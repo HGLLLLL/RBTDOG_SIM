@@ -115,7 +115,7 @@ class Keepalive(threading.Thread):
 
     實測證據顯示，`joint_shm_controller` 判定指令過期後會**把指令區清成 0**
     —— 2026-08-25 M1 第一次寫入失敗讀回全 0 就是這樣，見
-    `docs/實機寫入結果_第三趟_2026-08-25.md` §2。
+    `docs/archive/實機寫入結果_第三趟_2026-08-25.md` §2。
     （HANDOFF 另有一說是套 `estop_kd=35`，但那是讀設定檔推的，沒有觀測佐證。
       兩說的安全後果相反：清零 = 失力，estop_kd = 阻尼。**以實測為準。**）
 

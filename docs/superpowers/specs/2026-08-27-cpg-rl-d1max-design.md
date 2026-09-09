@@ -5,7 +5,7 @@
 - 目標機：**D1 Max（中狗）**，16 軸輪足，MJCF `task7/model/zgws/zgws.xml`
 - 前置文件：`task7/docs/CPG多擾動重掃結果_2026-08-26.md`、
   `task7/docs/D1Max_CPG步態_模擬結果_2026-08-25.md`、
-  `task7/docs/實機偵察結果_第二趟_2026-08-25.md`
+  `task7/docs/archive/實機偵察結果_第二趟_2026-08-25.md`
 - 移植基底：`task6/notebooks/cpg_rl_d1w_colab.ipynb`（D1 EDU，reward 已迭代到 v4）
 
 ---
@@ -213,7 +213,7 @@ cpg_step → duty_remap(0.80) → foot_targets(x_off=−40mm, z_sag=32.5mm 只�
 
 四元數順序若錯 → 重力向量翻掉 → policy 直接廢掉。
 
-本 spec 交付一張 `task7/docs/現場操作卡_IMU平放複核.md`：
+本 spec 交付一張 `task7/docs/archive/現場操作卡_IMU平放複核.md`：
 讀 30 秒串流看數值有沒有在動 ＋ 平放／前傾／側傾三姿態與加速度計交叉驗證。
 **這張卡不執行不影響訓練，但不執行就不可以上實機。**
 
@@ -333,7 +333,7 @@ G3–G6 需要訓練完成的權重，屬於使用者跑完 Colab 之後的驗�
 | `task7/notebooks/cpg_rl_max_colab.ipynb` | **使用者拿去 Colab 跑的東西** |
 | `task7/inference/local_infer_max.py` | 載權重、本機原始網格模型回放／錄影／量測 |
 | `task7/tests/test_gait_baseline.py`、`test_obs_max.py`、`test_mjx_model.py` | 測試 |
-| `task7/docs/現場操作卡_IMU平放複核.md` | 上實機前的 IMU 驗證流程 |
+| `task7/docs/archive/現場操作卡_IMU平放複核.md` | 上實機前的 IMU 驗證流程 |
 | `task7/docs/CPG-RL_D1Max_設計_2026-08-27.md` | 設計與結果總結，掛進 `task7/HANDOFF.md` |
 
 ---

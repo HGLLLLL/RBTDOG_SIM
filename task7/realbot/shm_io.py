@@ -136,7 +136,7 @@ class Shm:
 
         順序若錯，CPG-RL 的 obs 前三維（重力向量）會整個翻掉，而且**不會報錯** ——
         症狀是「狗一走就往某個方向倒」，現場會被誤判成 RL 沒訓練好。
-        上實機前先跑 `task7/docs/現場操作卡_IMU平放複核.md`。
+        上實機前先跑 `task7/docs/archive/現場操作卡_IMU平放複核.md`。
         """
         vals = [_F8.unpack_from(self.mm, IMU_BASE + i * 8)[0] for i in range(10)]
         return {"acc": vals[0:3], "gyro": vals[3:6], "quat": vals[6:10]}
@@ -236,7 +236,7 @@ def read_imu() -> dict:
 
     一次性讀取用。高頻迴圈請自己持有 `Shm("imu_central")` 並呼叫 `.imu()`。
     ⚠️ 四元數順序尚未實驗證實，見 `Shm.imu` 的說明與
-       `task7/docs/現場操作卡_IMU平放複核.md`。
+       `task7/docs/archive/現場操作卡_IMU平放複核.md`。
     """
     with Shm("imu_central") as s:
         return s.imu()

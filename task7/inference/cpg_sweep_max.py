@@ -369,7 +369,7 @@ def build_plan(name: str, secs: float, nseed: int) -> list[dict]:
                                              z_sag=mm.STATIC_SAG * 120.0 / 480.0)))
 
     if name == "kp250":
-        # 實機線指定的重掃（`docs/給CPG線_請重掃kp250基準_2026-08-27.md`）。
+        # 實機線指定的重掃（`docs/archive/給CPG線_請重掃kp250基準_2026-08-27.md`）。
         #
         # ⚠️ kd 對方沒指定 —— 這裡用原廠**站立實測**的 5.0（與 kp=250 同一組來源）。
         # ⚠️ 對方 §2 的關鍵警告：**模擬在 z 方向系統性高估順從性約 2 倍，x 方向卻是準的**

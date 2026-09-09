@@ -49,7 +49,7 @@ def test_imu_reproduces_the_2026_08_25_snapshot():
     這一組是「機身剛好水平」時量到的，也是目前 xyzw 判定的唯一證據 ——
     把它固定成測試，之後任何人重讀這塊 SHM 都有一個對照點。
     ⚠️ 但**它不能證明 xyzw 是對的**，證明要靠
-       `docs/現場操作卡_IMU平放複核.md` 的 T2 / T3（刻意前傾與側傾）。
+       `docs/archive/現場操作卡_IMU平放複核.md` 的 T2 / T3（刻意前傾與側傾）。
     """
     import math
     buf = bytearray(shm_io.SIZE)

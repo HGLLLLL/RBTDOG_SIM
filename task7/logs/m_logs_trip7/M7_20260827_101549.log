@@ -1,0 +1,45 @@
+M7 —— 站起來（★★ 承重）
+
+⚠️⚠️ 確認：狗趴在地上、16 顆洩力、**吊帶掛著但鬆弛**、地面淨空、第二個終端機備著 estop。
+
+✅ 結構檢查通過
+✅ 16 顆全部洩力中
+✅ mc_ctrl PID=2425 狀態=S
+✅ 機身姿態 roll +1.5° pitch -2.4°
+
+目標 crouch　kp=250.0 kd=5.0　輪子純阻尼 kd=0.5
+路徑：趴平(實測) → crouch → 趴平
+
+關節                    趴平(實測)     crouch                 限位
+fl1_hip_roll         -0.0746     0.0000    [-0.523,+0.697]
+fl2_hip_pitch         0.8120     1.4000    [-2.442,+2.791]
+fl3_knee_pitch       -2.5213    -2.4000    [-2.801,+2.801]
+fr1_hip_roll          0.0059     0.0000    [-0.697,+0.523]
+fr2_hip_pitch         0.7956     1.4000    [-2.442,+2.791]
+fr3_knee_pitch       -2.5041    -2.4000    [-2.801,+2.801]
+bl1_hip_roll         -0.0967     0.0000    [-0.523,+0.697]
+bl2_hip_pitch        -0.8730    -1.4000    [-2.791,+2.442]
+bl3_knee_pitch        2.6128     2.4000    [-2.801,+2.801]
+br1_hip_roll          0.0219     0.0000    [-0.697,+0.523]
+br2_hip_pitch        -0.8429    -1.4000    [-2.791,+2.442]
+br3_knee_pitch        2.5877     2.4000    [-2.801,+2.801]
+
+✅ 所有路徑點都在機構限位內
+
+總時長 11.0 秒：RAMP_UP(2.0s) → GO_crouch(1.5s) → HOLD_crouch(4.0s) → BACK_LIE(1.5s) → RAMP_DOWN(2.0s)
+
+           區段         最大位移         峰值命令速度             哪個關節
+      RAMP_UP    0.000 rad        0.00 rad/s     fl1_hip_roll
+    GO_crouch    0.604 rad        0.63 rad/s    fr2_hip_pitch
+  HOLD_crouch    0.000 rad        0.00 rad/s     fl1_hip_roll
+     BACK_LIE    0.604 rad        0.63 rad/s    fr2_hip_pitch
+    RAMP_DOWN    0.000 rad        0.00 rad/s     fl1_hip_roll
+✅ 所有區段的命令速度都在 2.0 rad/s 以內
+
+力矩門檻（實機分段峰值 ×1.5）：ABAD 45 / HIP 40 / KNEE 65 N·m，硬上限 120
+傾角保護 ±25°（現在 roll +1.5 pitch -2.4）
+輪子：移動中純阻尼 kd=0.5；到位後鎖定 kp=20.0 kd=0.1（原廠做法，力矩保護 8）
+
+[乾跑] 沒有帶 --confirm，到此為止。沒有凍結、沒有寫入。
+
+📄 /home/robot/m_logs/M7_20260827_101549.log

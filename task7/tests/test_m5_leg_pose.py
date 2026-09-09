@@ -131,7 +131,7 @@ def test_unknown_joint_name_raises():
 # 2026-08-25 用 M4 在實機擷取的四個姿勢。把 `mean`（馬達角）用 coord.py 換回
 # 控制器角，跟設定檔記載的姿勢比 RMS 殘差。
 # 這三個數字是**實測值**，不是理論值 —— 換算式被改壞，這裡立刻爆。
-# 佐證文件：docs/座標換算式驗證結果_2026-08-25.md
+# 佐證文件：docs/archive/座標換算式驗證結果_2026-08-25.md
 
 def _load_pose_json(name: str) -> dict:
     with open(LOG_DIR / name, encoding="utf-8") as f:

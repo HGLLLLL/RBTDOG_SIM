@@ -83,6 +83,23 @@ REF = dict(
     wheel_outer_gain=1.0,               # 力矩空間下輪行族的外環增益 τ = G_w·(v_des − v)；1.0 ＝ kd 1.0 的等效行為
     trans_s=1.0,
 )
+SCENE_V3F = str(Path(mm.SCENE_MJX_KP250).with_name("scene_flat_mjx_v3f.xml"))
+
+# ---- v3.4f：馬達增益完全照原廠錄檔動作段（spec 2026-09-15-cpg-rl-v3.4f-factory-gains-design.md）
+#   腿 kp 250→120 讓承重撓度 36→72 mm（M8 實機），命令相關的常數要跟著重掃（spec §4）；
+#   輪 kv 1.0→0.1 讓速度殘差沒有力矩權限，改走力矩空間（spec §3）。
+#   z_sag／lat_cmd_gain／wheel_outer_gain 的值由 G0 掃定（Task 8），這裡是起點。
+REF_FACTORY = dict(
+    z_sag=0.072,                        # M8 實機：kp120 撓度 72 mm（kp250 是 36）
+    err_bar3=(1.05, 0.45, 0.45),        # 原廠 ABAD 命令差實測 max 1.02 rad；髖膝 max 0.32 < 0.45 不動（spec §0.3）
+    wheel_space="tau",
+    wheel_outer_gain=1.0,               # 起點＝kd 1.0 的等效行為
+)
+
+GAIN_SETS = {
+    "kp250": dict(scene=SCENE_V3, kp3=mm.KP3_A, kd3=mm.KD3_A, ref={}),          # v3.3（預設）
+    "factory": dict(scene=SCENE_V3F, kp3=mm.KP3, kd3=mm.KD3, ref=REF_FACTORY),  # v3.4f
+}
 KV_WHEEL, TAU_FF, V_DEAD = 1.0, 0.13, 0.3          # M11：kd 1.0、前饋 0.13、|v_des|<0.3 rad/s 視為 0
 Z_SAG = 0.036                                      # ★ kp250 承重撓度（M8 實測 36 mm）：命令抬高 = 目標抬高 + Z_SAG，否則腳離不了地
 ACT_DIM = 24
@@ -366,15 +383,19 @@ def foot_actual(q12):
 
 # ---------------------------------------------------------------- env
 class DualModeEnv(Env):
-    def __init__(self, scene: str = None, wheel_pos: bool = False, ref: dict = None, weights: dict = None):
-        """`wheel_pos=False`（預設）：純速度伺服（scene_flat_mjx_v3，M11 實機已驗的 kd 1.0）；
-        True：位置＋速度伺服（scene_flat_mjx_v3p，kp 60，ctrl=累加目標角；實機未驗，v3.1 不用）。`ref`／`weights` 覆寫 REF／W（掃參數用）。"""
+    def __init__(self, scene: str = None, wheel_pos: bool = False, ref: dict = None, weights: dict = None, gains: str = "kp250"):
+        """`wheel_pos=False`（預設）：純速度伺服（M11 實機已驗的 kd 1.0）；
+        True：位置＋速度伺服（scene_flat_mjx_v3p，kp 60，ctrl=累加目標角；實機未驗，v3.1 不用）。
+        `gains="kp250"`＝v3.3；`"factory"`＝馬達增益完全照原廠錄檔動作段（v3.4f）。`ref`／`weights` 覆寫 REF／W（掃參數用）。"""
+        assert gains in GAIN_SETS, f"gains 只能是 {set(GAIN_SETS)}"
+        self.gains = gains
+        G = GAIN_SETS[gains]
         self.w = dict(W, **(weights or {}))
-        self.ref = dict(REF, **(ref or {}))
+        self.ref = dict(REF, **G["ref"], **(ref or {}))
         self.wheel_pos = wheel_pos
         self.wheel_space = self.ref["wheel_space"]
         if scene is None:
-            scene = SCENE_V3P if wheel_pos else SCENE_V3
+            scene = SCENE_V3P if wheel_pos else G["scene"]
         m = mujoco.MjModel.from_xml_path(scene)
         if self.ref.get("floor_mu") is not None:
             m.geom_friction[:, 0] = self.ref["floor_mu"]
@@ -660,37 +681,47 @@ class DualModeEnv(Env):
 _BASE_ID = mm._id(mujoco.MjModel.from_xml_path(SCENE_V3), mujoco.mjtObj.mjOBJ_BODY, "base_link")
 _LEG_DOF, _WHEEL_DOF = jnp.array(mm.LEG_QVEL_IDX), jnp.array(mm.WHEEL_QVEL_IDX)
 _ABAD_DOF = jnp.array(mm.LEG_QVEL_IDX[::3])
-_KP_NOM_j = jnp.array(np.tile(np.asarray(mm.KP3_A), 4))
-_KD_NOM = float(np.asarray(mm.KD3_A)[1])
 ABAD12 = jnp.array([0, 3, 6, 9])
 
 
-def domain_randomize(sys, rng):
-    """v2 那組 ＋ 輪 frictionloss 0.10–0.18、damping 0.005–0.03、ABAD kp ×0.7–1.0（v3.3 由 0.4 縮起）。"""
-    @jax.vmap
-    def per_env(rng):
-        k = jax.random.split(rng, 10)
-        gf = sys.geom_friction.at[:, 0].set(jax.random.uniform(k[0], minval=0.4, maxval=1.4))
-        s_kp = jax.random.uniform(k[1], minval=0.8, maxval=1.2)
-        s_ab = jax.random.uniform(k[2], minval=0.7, maxval=1.0)      # v3.3：×0.4 太寬，平移滑步速度變異蓋掉 vy 訊號
-        kv = jax.random.uniform(k[3], minval=0.5, maxval=2.0) * _KD_NOM
-        kp_leg = _KP_NOM_j * s_kp
-        kp_leg = kp_leg.at[ABAD12].set(_KP_NOM_j[ABAD12] * s_ab)
-        gain = sys.actuator_gainprm.at[LEG_ACT_IDX, 0].set(kp_leg)
-        bias = sys.actuator_biasprm.at[LEG_ACT_IDX, 1].set(-kp_leg).at[LEG_ACT_IDX, 2].set(-kv)
-        bm = sys.body_mass * jax.random.uniform(k[4], (sys.nbody,), minval=0.9, maxval=1.1)
-        bm = bm.at[_BASE_ID].add(jax.random.uniform(k[5], minval=0.0, maxval=5.0))
-        fl = sys.dof_frictionloss
-        fl = fl.at[_LEG_DOF].multiply(jax.random.uniform(k[6], minval=0.5, maxval=1.5))
-        fl = fl.at[_ABAD_DOF].set(sys.dof_frictionloss[_ABAD_DOF] * jax.random.uniform(k[7], minval=0.6, maxval=1.4))
-        fl = fl.at[_WHEEL_DOF].set(jax.random.uniform(k[8], minval=0.10, maxval=0.18))
-        dmp = sys.dof_damping.at[_WHEEL_DOF].set(jax.random.uniform(k[9], minval=0.005, maxval=0.03))
-        return gf, gain, bias, bm, fl, dmp
+def make_domain_randomize(gains: str = "kp250"):
+    """回傳對應增益組的 domain_randomize。標稱 kp/kd 必須跟著模型走，
+    否則 factory 線會被隨機化拉回 kp250 附近（DR 是乘在標稱值上的）。"""
+    G = GAIN_SETS[gains]
+    _KP_NOM_j = jnp.array(np.tile(np.asarray(G["kp3"]), 4))
+    _KD_NOM = float(np.asarray(G["kd3"])[1])
 
-    gf, gain, bias, bm, fl, dmp = per_env(rng)
-    in_axes = jax.tree_util.tree_map(lambda x: None, sys)
-    in_axes = in_axes.replace(geom_friction=0, actuator_gainprm=0, actuator_biasprm=0, body_mass=0,
-                              dof_frictionloss=0, dof_damping=0)
-    sys = sys.replace(geom_friction=gf, actuator_gainprm=gain, actuator_biasprm=bias, body_mass=bm,
-                      dof_frictionloss=fl, dof_damping=dmp)
-    return sys, in_axes
+    def domain_randomize(sys, rng):
+        """v2 那組 ＋ 輪 frictionloss 0.10–0.18、damping 0.005–0.03、ABAD kp ×0.7–1.0（v3.3 由 0.4 縮起）。"""
+        @jax.vmap
+        def per_env(rng):
+            k = jax.random.split(rng, 10)
+            gf = sys.geom_friction.at[:, 0].set(jax.random.uniform(k[0], minval=0.4, maxval=1.4))
+            s_kp = jax.random.uniform(k[1], minval=0.8, maxval=1.2)
+            s_ab = jax.random.uniform(k[2], minval=0.7, maxval=1.0)      # v3.3：×0.4 太寬，平移滑步速度變異蓋掉 vy 訊號
+            kv = jax.random.uniform(k[3], minval=0.5, maxval=2.0) * _KD_NOM
+            kp_leg = _KP_NOM_j * s_kp
+            kp_leg = kp_leg.at[ABAD12].set(_KP_NOM_j[ABAD12] * s_ab)
+            gain = sys.actuator_gainprm.at[LEG_ACT_IDX, 0].set(kp_leg)
+            bias = sys.actuator_biasprm.at[LEG_ACT_IDX, 1].set(-kp_leg).at[LEG_ACT_IDX, 2].set(-kv)
+            bm = sys.body_mass * jax.random.uniform(k[4], (sys.nbody,), minval=0.9, maxval=1.1)
+            bm = bm.at[_BASE_ID].add(jax.random.uniform(k[5], minval=0.0, maxval=5.0))
+            fl = sys.dof_frictionloss
+            fl = fl.at[_LEG_DOF].multiply(jax.random.uniform(k[6], minval=0.5, maxval=1.5))
+            fl = fl.at[_ABAD_DOF].set(sys.dof_frictionloss[_ABAD_DOF] * jax.random.uniform(k[7], minval=0.6, maxval=1.4))
+            fl = fl.at[_WHEEL_DOF].set(jax.random.uniform(k[8], minval=0.10, maxval=0.18))
+            dmp = sys.dof_damping.at[_WHEEL_DOF].set(jax.random.uniform(k[9], minval=0.005, maxval=0.03))
+            return gf, gain, bias, bm, fl, dmp
+
+        gf, gain, bias, bm, fl, dmp = per_env(rng)
+        in_axes = jax.tree_util.tree_map(lambda x: None, sys)
+        in_axes = in_axes.replace(geom_friction=0, actuator_gainprm=0, actuator_biasprm=0, body_mass=0,
+                                  dof_frictionloss=0, dof_damping=0)
+        sys = sys.replace(geom_friction=gf, actuator_gainprm=gain, actuator_biasprm=bias, body_mass=bm,
+                          dof_frictionloss=fl, dof_damping=dmp)
+        return sys, in_axes
+
+    return domain_randomize
+
+
+domain_randomize = make_domain_randomize("kp250")     # 舊名保留：v3.3 的 notebook 不用改

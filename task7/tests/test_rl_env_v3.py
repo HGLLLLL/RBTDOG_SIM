@@ -343,3 +343,60 @@ def test_cycle_offsets_returns_wheel_torque_in_newton_metres():
     out = v3.cycle_offsets(jnp.zeros(()), jnp.array([0.0, 0.0, 1.3]), v3.activity(jnp.array([0.0, 0.0, 1.3])))
     assert "wheel_tau" in out and "wheel" not in out
     assert float(jnp.max(jnp.abs(out["wheel_tau"]))) < 6.0, "錄檔輪 τ 峰值只有 ±4.6 N·m，超過代表單位錯了"
+
+
+def test_gain_sets_match_factory_recording():
+    """GAIN_SETS 的兩組要分別對上「我們 kp250 線」與「原廠動作段」（spec §0.1）。"""
+    import max_model as mm
+    assert set(v3.GAIN_SETS) == {"kp250", "factory"}
+    np.testing.assert_allclose(v3.GAIN_SETS["factory"]["kp3"], [60.0, 120.0, 120.0])
+    np.testing.assert_allclose(v3.GAIN_SETS["factory"]["kd3"], [1.0, 1.0, 1.0])
+    assert v3.GAIN_SETS["factory"]["scene"] == mm.SCENE_MJX_V3F
+    np.testing.assert_allclose(v3.GAIN_SETS["kp250"]["kp3"], [60.0, 250.0, 250.0])
+
+
+def test_factory_env_reads_gains_from_model_and_switches_ref():
+    """gains="factory" 要真的載到 v3f 模型，而且 REF 的四項一起換過去。"""
+    env = v3.DualModeEnv(gains="factory", ref=dict(cyc_amp_rand=False))
+    assert env.wheel_space == "tau"
+    assert abs(env.kv_wheel - 0.1) < 1e-9
+    kp = np.asarray(env._mj.actuator_gainprm[v3.mm.LEG_ACT_IDX, 0])
+    np.testing.assert_allclose(kp, np.tile([60.0, 120.0, 120.0], 4))
+    np.testing.assert_allclose(np.asarray(env.err_bar12), np.tile([1.05, 0.45, 0.45], 4))
+    assert env.ref["z_sag"] == 0.072
+    assert (env.obs_dim, env.action_size) == (88, 24)          # 介面與 v3.3 相同，狗端推論路徑不變
+
+
+def test_factory_env_steps_and_wheel_torque_is_in_range():
+    """v3f env 能跑，而且原地轉時輪子拿得到力矩權限（kd 0.1 下速度殘差只有 0.2 N·m 是不夠的）。"""
+    env = v3.DualModeEnv(gains="factory", ref=dict(cyc_amp_rand=False))
+    jit_reset, jit_step = jax.jit(env.reset), jax.jit(env.step)
+    s = jit_reset(jax.random.PRNGKey(0))
+    s = s.replace(info={**s.info, "cmd": jnp.array([0.0, 0.0, 1.3]), "cmd2": jnp.array([0.0, 0.0, 1.3]), "t_switch": 10 ** 6})
+    tau = []
+    for _ in range(20):
+        s = jit_step(s, jnp.zeros(v3.ACT_DIM))
+        tau.append(np.asarray(s.pipeline_state.actuator_force[v3.WHEEL_ACT_IDX]))
+        assert np.isfinite(np.asarray(s.obs)).all()
+    pk = np.abs(np.array(tau)).max()
+    assert 0.5 < pk < 33.0, f"輪力矩峰 {pk:.2f} N·m 不合理（原廠錄檔動作段是 ±2~4.6）"
+
+
+def test_kp250_env_is_still_the_default():
+    """不給 gains 時必須完全是 v3.3。"""
+    env = v3.DualModeEnv()
+    assert env.wheel_space == "vel"
+    assert abs(env.kv_wheel - 1.0) < 1e-9
+    np.testing.assert_allclose(np.asarray(env.err_bar12), np.tile([0.60, 0.45, 0.45], 4))
+
+
+def test_domain_randomize_uses_the_right_nominal_gains():
+    """DR 的標稱增益要跟著模型走，否則 factory 線會被隨機化拉回 kp250 附近。"""
+    env = v3.DualModeEnv(gains="factory", ref=dict(cyc_amp_rand=False))
+    dr = v3.make_domain_randomize("factory")
+    sys2, _ = dr(env.sys, jax.random.split(jax.random.PRNGKey(0), 4))
+    kp = np.asarray(sys2.actuator_gainprm[:, np.asarray(v3.mm.LEG_ACT_IDX), 0])
+    hip = kp[:, 1]                                              # HIP 標稱 120，DR ×0.8–1.2
+    assert hip.min() >= 120 * 0.8 - 1e-3 and hip.max() <= 120 * 1.2 + 1e-3, f"HIP kp 範圍 {hip.min()}–{hip.max()}"
+    abad = kp[:, 0]                                             # ABAD 標稱 60，DR ×0.7–1.0
+    assert abad.min() >= 60 * 0.7 - 1e-3 and abad.max() <= 60 * 1.0 + 1e-3, f"ABAD kp 範圍 {abad.min()}–{abad.max()}"

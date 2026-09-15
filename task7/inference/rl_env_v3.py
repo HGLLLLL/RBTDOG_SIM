@@ -70,9 +70,9 @@ REF = dict(
     cyc_lat_amp0=0.64, cyc_lat_vy0=0.04, cyc_lat_slope=1.23, cyc_lat_amp_clip=(0.55, 1.0), cyc_amp_lat=1.0,   # 上限放到原廠全幅（0.96 ≈ 0.30 m/s）
     cyc_amp_turn=0.7, cyc_amp_turn_range=(0.3, 0.9), cyc_amp_rand=True,   # 訓練時每回合抽幅度（小幅度站得住、大幅度轉得快＝用隨機化代替課程）；eval 用 cyc_amp_turn
     cyc_wheel=1.0, cyc_recenter=True, cyc_hz_scale=1.0,
-    # 關節偏移的分關節縮放（ABAD, HIP, KNEE）。原地轉用等力矩換算 kp_原廠/kp_我們（60/60、120/250）：全幅度力矩峰 96→77，
-    # 全在終止線 90 下。平移**不能**用：髖膝偏移負責卸重讓側滑發生，砍半後 vy 0.30→0.13 且倒（G0 2026-09-15 晚）→ 平移維持 (1,1,1)
-    cyc_joint_scale_turn=(1.0, 0.48, 0.48), cyc_joint_scale_lat=(1.0, 1.0, 1.0),
+    # 關節偏移的分關節縮放（ABAD, HIP, KNEE）。試過等力矩換算 (1, 0.48, 0.48)：力矩峰降但旋轉也掉（幅度 0.9 倒前偏航 55→23°/s），
+    # 多活的 1–2 s 是靠不動換的；平移更是砍半就不滑。兩族都維持統一縮放，力矩峰交給 RL 的 58 護欄（spec §10.2）
+    cyc_joint_scale_turn=(1.0, 1.0, 1.0), cyc_joint_scale_lat=(1.0, 1.0, 1.0),
     # 相位組："factory"＝原廠四腿相位（配 duty ≥ 0.7 才有三腳著地）；"trot"＝對角對交替（duty 0.5 用，任何時刻兩對角腳著地）
     phase_set_turn="trot", phase_set_lat="factory",
     trans_s=1.0,

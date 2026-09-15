@@ -1,6 +1,6 @@
 # task7 交接：D1 Max 現況與下一步
 
-- 最後更新：**2026-09-15（v3.1 統一運動學產生器，G0 5/6 過、平移 10 s 站住；待 Colab）**
+- 最後更新：**2026-09-15 下午（v3.2：平移改原廠命令週期、原地轉退回小跑；G0 六指令 10 s 全過；等使用者確認影片 → Colab）**
 - 分支：`feat/d1-edu-cpg-rl`
 - **接手先讀這份，再讀 `README.md`。** 查狗的規格／SHM／座標／IMU 慣例／原廠參數 → `docs/D1Max_機器狗資訊.md`（2026-09-09 由 11 份偵察文件整合；原件與舊操作卡都在 `docs/archive/`）。
 
@@ -13,8 +13,13 @@
 修掉 v3.0 的相位 bug ＝ 週期分數當弧度加）；原廠回放 `diag/replay_factory.py`（平移 8 s 不倒，模擬器可信；`outputs/replay_factory_trip21*.md`、spec §8.1）；
 G0 六指令（`outputs/g0_v31_final.txt`、spec §8.2）；原廠對標表（`outputs/ref_gait_dataset.md` 末段：側傾／偏航率／速度／腿力矩峰值 RMS／抬腳）。
 
+**下午追加（v3.2，spec §9／§9.1）**：使用者看了 v3.1 影片說平移亂跳、原地轉差原廠太多 → 平移族改成**原廠命令週期**（`outputs/ref_cmd_cycles.json`、`rl_env_v3.cycle_offsets`）：
+10 s roll std 0.2–0.4°、vy 0.04/0.06/0.08/0.10 → 0.036/0.048/0.062/0.081、力矩 36–43。原地轉週期在 kp250 各幅度 3–7 s 內倒 → **退回對角小跑**（10 s 偏航 13–28°/s、側傾累積 4–5°，訓完不會像原廠 77°/s，已向使用者說明）。
+⚠️ 平移在模擬是滑步（腳離地 2–4 mm；原廠實機 16–22 mm），是已知 sim2real 差距。誤差護欄改分關節 ABAD 0.6／髖膝 0.45，**M9 上機前要同步**。
+v3.2 影片 `outputs/g0_v32_baseline_small.mp4`。
+
 **下一步（照順序）**：
-1. **Colab 訓 v3.1**：`notebooks/cpg_rl_v3_colab.ipynb`（第 5 格 G0 五個 assert 要過：直走 0.49、弧線 +25°/s、原地轉 +28°/s、平移 0.08→0.080、斜走）→ `weights/cpg_rl_v3_params.pkl`。
+1. **Colab 訓 v3.2**（notebook 同一支）：`notebooks/cpg_rl_v3_colab.ipynb`（第 5 格 G0 五個 assert 要過：直走 0.49、弧線 +25°/s、原地轉 +28°/s、平移 0.08→0.080、斜走）→ `weights/cpg_rl_v3_params.pkl`。
 2. **本機補 `inference/local_infer_v3.py`**（obs 76／act 12），驗收**對標原廠對標表**：每個動作比 roll std／峰、偏航率、v、膝／髖／ABAD 力矩峰值與 RMS、抬腳高度。
    使用者要求：最終訓練結果的峰值力矩、側傾等都要對標原廠運控（原廠膝 τ 峰 28–38、髖 17–26、ABAD 40–60 N·m；roll std 0.5–1.1°）。
 3. 狗上 M9 v3 推論路徑（另開 spec）：obs 第 37–38 格用 `rl_env_v3.activity(cmd)` 的 numpy 版；輪子 = M11 律 kd 1.0 ＋ 前饋 0.13，殘差直接加 v_des。

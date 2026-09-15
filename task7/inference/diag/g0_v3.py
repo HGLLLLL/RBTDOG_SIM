@@ -33,6 +33,7 @@ def run(env, cmd, steps, jit_reset, jit_step, seed=0):
     out["tau_pk"] = float(np.max(M["tau_pk"])); out["err_pk"] = float(np.max(M["err_pk"])); out["knee_v"] = float(np.max(M["knee_v"]))
     out["roll_max"] = float(np.max(M["roll"][half:]))
     out["wz_std"] = float(np.degrees(np.std(M["wz"][half:])))
+    out["roll_std"] = float(np.std(M["roll"][half:]))
     out["done_at"] = done_at
     out["yaw_deg_s"] = np.degrees(out["wz"])
     out["wheel_act"] = np.mean(WV[half:], 0).round(2); out["wheel_cmd"] = np.mean(WC[half:], 0).round(2)
@@ -53,7 +54,7 @@ def verdict(name, r, yaw_scale=1.0):
     elif name.startswith("LAT"):
         # spec §8.2 定案：開迴路 |vy| ≥ 指令 60%、力矩 ≤ 85、側傾峰 ≤ 8°（原廠實測 2–3° 是閉迴路結果，交給 RL）
         vy_cmd = float(name.split("vy")[1])
-        ok &= abs(r["vy"]) >= 0.6 * vy_cmd and r["tau_pk"] <= 85 and r["roll_max"] <= 8.0
+        ok &= abs(r["vy"]) >= 0.6 * vy_cmd and r["tau_pk"] <= 85 and r["roll_max"] <= 8.0 and r["roll_std"] <= 1.5
     elif name.startswith("DIAG"):
         ok &= r["vx"] >= 0.15 and r["vy"] >= 0.03
     return "PASS" if ok else "FAIL"
@@ -64,7 +65,11 @@ def main():
     ap.add_argument("--wheel-pos", action="store_true", dest="wheel_pos", help="用 kp 60 位置環模型（v3.1 預設不用）")
     ap.add_argument("--rot-frac", type=float, default=None, dest="rot_frac"); ap.add_argument("--lift", type=float, default=None)
     ap.add_argument("--duty", type=float, default=None); ap.add_argument("--hz", type=float, default=None)
-    ap.add_argument("--posture", type=int, default=None, help="1 開 0 關（弧線姿態偏移）"); ap.add_argument("--posture-lat", type=float, default=None, dest="posture_lat"); ap.add_argument("--lat-gain", type=float, default=None, dest="lat_gain"); ap.add_argument("--lift-lat", type=float, default=None, dest="lift_lat"); ap.add_argument("--mu", type=float, default=None)
+    ap.add_argument("--posture", type=int, default=None, help="1 開 0 關（弧線姿態偏移）"); ap.add_argument("--posture-lat", type=float, default=None, dest="posture_lat"); ap.add_argument("--lat-gain", type=float, default=None, dest="lat_gain"); ap.add_argument("--lift-lat", type=float, default=None, dest="lift_lat")
+    ap.add_argument("--cyc-amp-turn", type=float, default=None, dest="cyc_amp_turn"); ap.add_argument("--cyc-amp-lat", type=float, default=None, dest="cyc_amp_lat")
+    ap.add_argument("--gen-turn", default=None, dest="gen_turn", help="cycle | kin"); ap.add_argument("--gen-lat", default=None, dest="gen_lat")
+    ap.add_argument("--cyc-abs", action="store_true", dest="cyc_abs", help="週期用原廠絕對 des（不對中到我們站姿）")
+    ap.add_argument("--cyc-wheel", type=float, default=None, dest="cyc_wheel"); ap.add_argument("--cyc-hz", type=float, default=None, dest="cyc_hz"); ap.add_argument("--mu", type=float, default=None)
     ap.add_argument("--yaw-scale", type=float, default=1.0, dest="yaw_scale"); ap.add_argument("--only", default="")
     ap.add_argument("--sweep", action="store_true", help="rot_frac {0.2,0.35,0.5} × duty {0.5,0.6,0.7} × hz {2.0,1.5}")
     ap.add_argument("--sweep-rot", default="0.2,0.35,0.5", dest="sweep_rot"); ap.add_argument("--sweep-duty", default="0.5,0.6,0.7", dest="sweep_duty")
@@ -79,6 +84,11 @@ def main():
     base = {k: v for k, v in dict(rot_step_frac=a.rot_frac, lift=a.lift, floor_mu=a.mu,
                                   step_hz_turn=a.hz or a.hz_turn, step_hz_lat=a.hz or a.hz_lat, duty_turn=a.duty or a.duty_turn, duty_lat=a.duty or a.duty_lat,
                                   phase_set_turn=a.phase or a.phase_turn, phase_set_lat=a.phase or a.phase_lat).items() if v is not None}
+    for k, v in dict(cyc_amp_turn=a.cyc_amp_turn, cyc_amp_lat=a.cyc_amp_lat, step_gen_turn=a.gen_turn, step_gen_lat=a.gen_lat, cyc_wheel=a.cyc_wheel, cyc_hz_scale=a.cyc_hz).items():
+        if v is not None:
+            base[k] = v
+    if a.cyc_abs:
+        base["cyc_recenter"] = False
     if a.lift_lat is not None:
         base["lift_lat"] = a.lift_lat
     if a.lat_gain is not None:
@@ -104,7 +114,7 @@ def main():
             if a.sweep and not a.only and not a.cases and not (name.startswith("TURN") or name.startswith("LAT")):
                 continue
             t0 = time.time(); r = run(env, cmd, a.steps, jit_reset, jit_step)
-            print(f"{verdict(name, r, a.yaw_scale)} {name:18s} vx {r['vx']:+.2f} vy {r['vy']:+.3f} yaw {r['yaw_deg_s']:+.0f}±{r['wz_std']:.0f}°/s | roll {r['roll']:.1f}/{r['roll_max']:.1f} pitch {r['pitch']:.1f} h {r['height']:.3f} | "
+            print(f"{verdict(name, r, a.yaw_scale)} {name:18s} vx {r['vx']:+.2f} vy {r['vy']:+.3f} yaw {r['yaw_deg_s']:+.0f}±{r['wz_std']:.0f}°/s | roll {r['roll']:.1f}/{r['roll_max']:.1f}(std {r['roll_std']:.1f}) pitch {r['pitch']:.1f} h {r['height']:.3f} | "
                   f"lift {r['lift_max']} clr_step {r['clr_step']:.0f} | 輪 cmd {r['wheel_cmd']} act {r['wheel_act']} | tau_pk {r['tau_pk']:.0f} err {r['err_pk']:.2f} knee_v {r['knee_v']:.1f} | "
                   f"s4 {r['s4']:.2f} arc {r['s_arc']:.2f} R {r['reward']:+.2f} | done@{r['done_at']} ({time.time()-t0:.0f}s)", flush=True)
 

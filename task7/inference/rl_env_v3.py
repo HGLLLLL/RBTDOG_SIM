@@ -12,6 +12,7 @@
 """
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -60,6 +61,13 @@ REF = dict(
     posture_arc=dict(front=0.06, rear=-0.03),
     # 平移姿態：四腳外張（原廠平移時 ABAD 平均 +5/−7/+4/−5°）。G0：開 30 mm 讓 vy 掉 25%、斜走 vy 掉到 0.013，預設關
     posture_lat=0.0,
+    # v3.2：四腿踏步族的名目改用原廠命令週期（spec §9）。"cycle"＝原廠週期、"kin"＝v3.1 運動學
+    # G0（spec §9.1）：平移週期 10 s 站住、roll std 0.5°；原地轉週期各幅度 3–7 s 內倒 → 退回 v3.1 對角小跑
+    step_gen_lat="cycle", step_gen_turn="kin",
+    # 平移幅度↔側速在 kp250 下很陡（滑步區）：有效幅度 0.64→0.04、0.80→0.17、0.96→0.30 m/s（0.86 在 10 s 內倒）
+    #   → amp = 0.64 + 1.23·(|vy| − 0.04)，夾 [0.55, 0.78]；u4 只當開關（s4 ≥ 0.3 全開），幅度不再乘活動度
+    cyc_lat_amp0=0.64, cyc_lat_vy0=0.04, cyc_lat_slope=1.23, cyc_lat_amp_clip=(0.55, 0.78), cyc_amp_lat=1.0,
+    cyc_amp_turn=0.7, cyc_wheel=1.0, cyc_recenter=True, cyc_hz_scale=1.0,
     # 相位組："factory"＝原廠四腿相位（配 duty ≥ 0.7 才有三腳著地）；"trot"＝對角對交替（duty 0.5 用，任何時刻兩對角腳著地）
     phase_set_turn="trot", phase_set_lat="factory",
     trans_s=1.0,
@@ -120,6 +128,56 @@ SIDE_Y_j = jnp.array(mm.SIDE_Y)                  # FR −1, FL +1, RR −1, RL +
 HIP_XY = jnp.array([[mm.HIP_X, -mm.HIP_Y], [mm.HIP_X, mm.HIP_Y], [-mm.HIP_X, -mm.HIP_Y], [-mm.HIP_X, mm.HIP_Y]])
 FOOT_XY_BODY = HIP_XY + STANCE_FEET_j[:, :2]     # 站姿足端在機身座標 (4,2)：前 ≈ (+0.38, ±0.17)、後 ≈ (−0.36, ±0.17)
 FRONT_j = jnp.array([1.0, 1.0, 0.0, 0.0])
+
+# ---- v3.2 原廠命令週期（outputs/ref_cmd_cycles.json；ref_extract.cmd_cycle）：序 lat_left, lat_right, turn_left, turn_right
+_CYC_PATH = Path(__file__).resolve().parents[1] / "outputs" / "ref_cmd_cycles.json"
+_CYC = json.loads(_CYC_PATH.read_text(encoding="utf-8"))["cycles"]
+CYC_KEYS = ("lat_left", "lat_right", "turn_left", "turn_right")
+CYC_OFF = jnp.array([np.array(_CYC[k]["des"]) - np.array(_CYC[k]["q_mean"]) for k in CYC_KEYS])   # (4,100,12) 命令 − 實際平均
+CYC_QMEAN = jnp.array([np.array(_CYC[k]["q_mean"]) for k in CYC_KEYS])                            # (4,12)
+CYC_TAU = jnp.array([np.array(_CYC[k]["tau_w"]) for k in CYC_KEYS])                               # (4,100,4) 輪 τ
+CYC_HZ = jnp.array([_CYC[k]["freq_hz"] for k in CYC_KEYS])
+CYC_N = CYC_OFF.shape[1]
+ERR_BAR12 = jnp.tile(jnp.array([0.60, 0.45, 0.45]), 4)      # 分關節誤差護欄：ABAD 0.6（原廠命令差本就 30°）、髖膝 0.45
+
+
+def _cyc_interp(table, phi):
+    """table (4,N,D)、phi 弧度 → (4,D) 線性內插。"""
+    x = jnp.mod(phi / (2 * jnp.pi), 1.0) * CYC_N
+    i0 = jnp.floor(x).astype(jnp.int32) % CYC_N
+    i1 = (i0 + 1) % CYC_N
+    f = x - jnp.floor(x)
+    return table[:, i0] * (1.0 - f) + table[:, i1] * f
+
+
+def cycle_offsets(phi, cmd, A, ref=None):
+    """v3.2：原廠命令週期 → dict(delta(12) 關節目標偏移、wheel(4) 輪速偏移 rad/s、hz、on ∈[0,1] 週期族佔比)。
+    方向用平滑符號選左右檔；幅度隨指令縮放；平移／旋轉依 a_lat:a_turn 混合。"""
+    ref = ref or REF
+    off = _cyc_interp(CYC_OFF, phi)
+    tau = _cyc_interp(CYC_TAU, phi)
+    w_ll = 0.5 * (1.0 + jnp.clip(cmd[1] / 0.02, -1.0, 1.0))
+    w_tl = 0.5 * (1.0 + jnp.clip(cmd[2] / 0.3, -1.0, 1.0))
+    amp_l = jnp.clip(ref["cyc_lat_amp0"] + ref["cyc_lat_slope"] * (jnp.abs(cmd[1]) - ref["cyc_lat_vy0"]), *ref["cyc_lat_amp_clip"]) * ref["cyc_amp_lat"]
+    amp_t = jnp.clip(jnp.abs(cmd[2]) / ref["a_ref"]["wz"], 0.3, 1.2) * ref["cyc_amp_turn"]
+    on_l, on_t = float(ref["step_gen_lat"] == "cycle"), float(ref["step_gen_turn"] == "cycle")
+    wl = _lat_weight(A)
+    def blend(T):
+        lat = w_ll * T[0] + (1.0 - w_ll) * T[1]
+        turn = w_tl * T[2] + (1.0 - w_tl) * T[3]
+        return wl * amp_l * on_l * lat + (1.0 - wl) * amp_t * on_t * turn
+    delta = blend(off)
+    if not ref["cyc_recenter"]:                                  # 絕對模式：中心用原廠實際 q 平均，不是我們的站姿
+        qm = _cyc_interp(CYC_QMEAN[:, None, :].repeat(2, 1), 0.0)
+        delta = delta + (wl * on_l * (w_ll * qm[0] + (1.0 - w_ll) * qm[1]) + (1.0 - wl) * on_t * (w_tl * qm[2] + (1.0 - w_tl) * qm[3])
+                         - (wl * on_l + (1.0 - wl) * on_t) * STANCE_Q12_j)
+    wheel = blend(tau) / KV_WHEEL * ref["cyc_wheel"]
+    hz = wl * (w_ll * CYC_HZ[0] + (1.0 - w_ll) * CYC_HZ[1]) + (1.0 - wl) * (w_tl * CYC_HZ[2] + (1.0 - w_tl) * CYC_HZ[3])
+    return dict(delta=delta, wheel=wheel, hz=hz * ref["cyc_hz_scale"], on=wl * on_l + (1.0 - wl) * on_t)
+
+
+def err_barrier_j(err12):
+    return jnp.sum(jnp.maximum(jnp.abs(err12) - ERR_BAR12, 0.0) ** 2)
 
 
 def _mirror(v, right):
@@ -210,14 +268,18 @@ def step_pattern(cmd, ref=None):
     """指令 → 產生器設定 dict：A、s(4)、g(4)、vec(4,2)、ph(4) 目標、wheel0(4) 無殘差、hz、duty、lift(4)、post_y(4)。"""
     ref = ref or REF
     A = activity(cmd, ref)
-    s = leg_activity(cmd, A)
+    s = leg_activity(cmd, A)                                     # 完整活動度（reward 的抬腿紀律用）
     wl = _lat_weight(A)
+    # v3.2：四腿踏步族若走原廠週期，運動學踏步只留弧線那份
+    cyc_on = wl * float(ref["step_gen_lat"] == "cycle") + (1.0 - wl) * float(ref["step_gen_turn"] == "cycle")
+    A_kin = dict(A, s4=A["s4"] * (1.0 - cyc_on))
+    s_kin = leg_activity(cmd, A_kin)
     hz = wl * ref["step_hz_lat"] + (1.0 - wl) * ref["step_hz_turn"]
     duty = wl * ref["duty_lat"] + (1.0 - wl) * ref["duty_turn"]
     lift = wl * ref["lift_lat"] + (1.0 - wl) * ref["lift"]
-    return dict(A=A, s=s, g=step_gain(s), vec=kin_step_vec(cmd, 1.0 / hz, ref), ph=phase_offsets(cmd, A, ref),
-                wheel0=wheel_cmd(cmd, A, jnp.zeros(4), ref), hz=hz, duty=duty,
-                lift=lift * (s / jnp.maximum(jnp.max(s), 1e-6)) * step_gain(s), post_y=posture_offset(cmd, A, ref))
+    return dict(A=A, s=s, s_kin=s_kin, g=step_gain(s_kin), vec=kin_step_vec(cmd, 1.0 / hz, ref), ph=phase_offsets(cmd, A, ref),
+                wheel0=wheel_cmd(cmd, A, jnp.zeros(4), ref), hz=hz, duty=duty, cyc_on=cyc_on,
+                lift=lift * (s_kin / jnp.maximum(jnp.max(s_kin), 1e-6)) * step_gain(s_kin), post_y=posture_offset(cmd, A, ref))
 
 
 def duty_remap(th, duty):
@@ -329,7 +391,7 @@ class DualModeEnv(Env):
             info["cmd"], jnp.array([info["s4"], info["s_arc"]]),
             jnp.clip(info["head_err"], -1.0, 1.0)[None],
             last_a,
-            c["amp"], jnp.sin(c["theta"]), jnp.cos(c["theta"]), c["vec"][:, 0], c["vec"][:, 1], c["wheel"] / 5.0,
+            c["amp"], jnp.sin(c["theta"]), jnp.cos(c["theta"]), c["cyc_abad"], c["cyc_knee"], c["wheel"] / 5.0,
         ])
 
     def _sample_cmd(self, rng):
@@ -357,10 +419,11 @@ class DualModeEnv(Env):
         t_switch = jnp.where(do_switch, jax.random.randint(ks[3], (), 150, 400), 10 ** 6)
         tilt = jax.random.uniform(ks[4], (2,), minval=-IMU_TILT_DEG, maxval=IMU_TILT_DEG) * jnp.pi / 180
         P0 = step_pattern(cmd, self.ref)
-        c = dict(theta=jnp.zeros(4), amp=jnp.zeros(4), vec=jnp.zeros((4, 2)), wheel=jnp.zeros(4))
+        c = dict(theta=jnp.zeros(4), amp=jnp.zeros(4), vec=jnp.zeros((4, 2)), wheel=jnp.zeros(4), cyc_abad=jnp.zeros(4), cyc_knee=jnp.zeros(4))
         z = jnp.zeros(ACT_DIM)
         info = {"rng": ks[5], "c": c, "cmd": cmd, "cmd2": cmd2, "t_switch": t_switch,
-                "u_mode": jnp.max(P0["s"]), "ph": P0["ph"], "s4": P0["A"]["s4"], "s_arc": P0["A"]["arc"], "gyro_bias": jax.random.uniform(ks[6], (3,), minval=-1.0, maxval=1.0) * GYRO_BIAS,
+                "u_mode": jnp.max(P0["s"]), "ph": P0["ph"], "s4": P0["A"]["s4"], "s_arc": P0["A"]["arc"],
+                "phi_cyc": jnp.zeros(()), "u4": jnp.zeros(()), "gyro_bias": jax.random.uniform(ks[6], (3,), minval=-1.0, maxval=1.0) * GYRO_BIAS,
                 "head_err": jnp.zeros(()), "imu_q": _quat_rp(tilt[0], tilt[1]),
                 "delay": DELAY_BASE + jax.random.bernoulli(ks[7], 0.5).astype(jnp.int32),
                 "a_hist": jnp.zeros((3, ACT_DIM)), "last_a": z, "sway": jnp.zeros(2),
@@ -399,11 +462,19 @@ class DualModeEnv(Env):
         sway = info["sway"] + jnp.clip(A["sway"] * u_mode - info["sway"], -SWAY_SLEW, SWAY_SLEW)
         lift4 = P["lift"] * A["lift"]
         feet = foot_targets(theta, amp, P["g"], P["vec"], lift4, sway, u_mode, A["foot_x"], A["foot_z"], P["duty"], P["post_y"])
-        q_des = jnp.clip(joint_targets(feet), self._lo, self._hi)
-        # ---- 輪速：差速×gate ＋ 平移圖案 ＋ 殘差（rad/s）
-        wheel_v = wheel_cmd(cmd, P["A"], A["wres"], self.ref)
+        # ---- v3.2：原廠命令週期（四腿踏步族），疊在運動學目標上；u4 = 四腿活動度的斜率版
+        u4_tgt = jnp.clip(P["A"]["s4"] / 0.3, 0.0, 1.0) * P["cyc_on"]      # 開關，不是幅度
+        u4 = jnp.clip(info["u4"] + jnp.clip(u4_tgt - info["u4"], -du, du), 0.0, 1.0)
+        CY = cycle_offsets(info["phi_cyc"], cmd, P["A"], self.ref)
+        phi_cyc = jnp.mod(info["phi_cyc"] + 2 * jnp.pi * CY["hz"] * A["om"] * CTRL_DT * (u4 > 0.01), 2 * jnp.pi)
+        delta = (CY["delta"].reshape(4, 3) * A["amp"][:, None] * jnp.array([1.0, 1.0, 1.0])[None, :]
+                 * jnp.array([1.0, A["lift"], A["lift"]])[None, :]).reshape(12) * u4
+        q_des = jnp.clip(joint_targets(feet) + delta, self._lo, self._hi)
+        # ---- 輪速：差速×gate ＋ 平移圖案 ＋ 原廠 τ 週期偏移 ＋ 殘差（rad/s）
+        wheel_v = wheel_cmd(cmd, P["A"], A["wres"], self.ref) + u4 * CY["wheel"]
         wheel_theta = info["wheel_theta"] + wheel_v * CTRL_DT              # 位置環變體用的累加目標角
-        c = dict(theta=theta, amp=amp, vec=P["vec"] * amp[:, None], wheel=wheel_v)
+        d3 = delta.reshape(4, 3)
+        c = dict(theta=theta, amp=amp, vec=P["vec"] * amp[:, None], wheel=wheel_v, cyc_abad=d3[:, 0], cyc_knee=d3[:, 2])
         s_leg, g_leg, duty = P["s"], P["g"], P["duty"]
 
         data = state.pipeline_state
@@ -458,7 +529,7 @@ class DualModeEnv(Env):
             "t_rollrate": w["W_ROLLRATE"] * data.qvel[3] ** 2, "t_pitchrate": w["W_PITCHRATE"] * data.qvel[4] ** 2,
             "t_bias": w["W_BIAS"] * roll_ema ** 2 + w["W_SWAYBIAS"] * sway_ema ** 2,
             "t_act": w["W_ACT"] * c_act, "t_omdot": w["W_OMDOT"] * c_omdot, "t_tau": w["W_TAU"] * c_tau,
-            "t_taubar": w["W_TAUBAR"] * tau_barrier(tau_pk12), "t_errbar": w["W_ERRBAR"] * err_barrier(err12),
+            "t_taubar": w["W_TAUBAR"] * tau_barrier(tau_pk12), "t_errbar": w["W_ERRBAR"] * err_barrier_j(err12),
             "t_kneev": w["W_KNEEV"] * jnp.maximum(knee_v - KNEE_V_BAR, 0.0) ** 2,
             "t_mode": w["W_MODE"] * lift_pen, "t_vz": w["W_VZ"] * data.qvel[2] ** 2,
         }
@@ -470,7 +541,7 @@ class DualModeEnv(Env):
         done = jnp.where((grav[2] > FALL_GRAV_Z) | (data.qpos[2] < MIN_HEIGHT) | (kill >= KILL_STEPS), 1.0, 0.0)
 
         info.update({"rng": rng, "c": c, "cmd": info["cmd"], "u_mode": u_mode, "head_err": head_err,
-                     "ph": ph, "s4": P["A"]["s4"], "s_arc": P["A"]["arc"],
+                     "ph": ph, "s4": P["A"]["s4"], "s_arc": P["A"]["arc"], "phi_cyc": phi_cyc, "u4": u4,
                      "a_hist": a_hist, "last_a": action, "sway": sway, "qvel_prev": data.qvel[LEG_QVEL_IDX],
                      "om_prev": om, "roll_ema": roll_ema, "sway_ema": sway_ema, "kill": kill, "step": step_i + 1,
                      "wheel_theta": wheel_theta})
@@ -484,7 +555,7 @@ class DualModeEnv(Env):
                    "pitch": jnp.abs(grav[0]) * 57.29578, "roll": jnp.abs(grav[1]) * 57.29578, "mode": u_mode,
                    "clr_step": jnp.sum(sw * clr) / jnp.maximum(jnp.sum(sw), 1.0) * 1000.0,
                    "clr_stance": jnp.max(clr * (1 - g_leg)) * 1000.0,
-                   "s4": P["A"]["s4"], "s_arc": P["A"]["arc"],
+                   "s4": P["A"]["s4"], "s_arc": P["A"]["arc"], "cyc": u4,
                    "yawerr": jnp.abs(wz - cmd[2]), "vxerr": jnp.abs(vb[0] - cmd[0]), "vyerr": jnp.abs(vb[1] - cmd[1]),
                    "tau_pk": jnp.max(tau_pk12), "err_pk": jnp.max(jnp.abs(err12)), "knee_v": knee_v, "omega": om,
                    "sway_y": sway[1] * 1000.0, "roll_bias": roll_ema * 57.29578, **T}

@@ -114,7 +114,8 @@ def test_step_pattern_keys_and_foot_targets_shape():
     P = v3.step_pattern(C(0.3, 0.06, 0.4))
     assert set(P) >= {"A", "s", "g", "vec", "ph", "wheel0", "hz", "duty", "lift", "post_y"}
     # 抬高不隨指令大小縮：vy 0.04（s4 0.5）與 vy 0.08 的主導腿抬高一樣，次要腿 0.7 倍
-    l1, l2 = np.asarray(v3.step_pattern(C(0, 0.04, 0))["lift"]), np.asarray(v3.step_pattern(C(0, 0.08, 0))["lift"])
+    kin = dict(v3.REF, step_gen_lat="kin", step_gen_turn="kin")                       # 運動學路徑（v3.2 平移族預設走原廠週期）
+    l1, l2 = np.asarray(v3.step_pattern(C(0, 0.04, 0), kin)["lift"]), np.asarray(v3.step_pattern(C(0, 0.08, 0), kin)["lift"])
     assert np.allclose(l1, l2) and abs(l2[FL] - v3.REF["lift_lat"]) < 1e-6 and abs(l2[FR] - 0.7 * v3.REF["lift_lat"]) < 1e-6   # 平移族用 lift_lat
     assert np.allclose(np.asarray(v3.step_pattern(C(0.5, 0, 0))["lift"]), 0.0)
     # 族別混合：純旋轉用旋轉族步頻，純平移用平移族
@@ -168,7 +169,7 @@ def test_env_shapes_defaults_and_obs_mode_slots():
     env = v3.DualModeEnv()
     assert env.obs_dim == 76 and env.action_size == 12 and env.wheel_pos is False
     s = jax.jit(env.reset)(jax.random.PRNGKey(1))
-    assert s.obs.shape == (76,) and s.info["ph"].shape == (4,)
+    assert s.obs.shape == (76,) and s.info["ph"].shape == (4,) and s.info["phi_cyc"].shape == ()
     cmd = np.asarray(s.obs[34:37]); a = v3.activity(jnp.array(cmd))
     assert abs(float(s.obs[37]) - float(a["s4"])) < 1e-6 and abs(float(s.obs[38]) - float(a["arc"])) < 1e-6
 
@@ -192,3 +193,30 @@ def test_sample_cmd_covers_axes_and_combos():
     assert 0.55 < nz[:, 0].mean() < 0.75 and 0.22 < nz[:, 1].mean() < 0.38 and 0.42 < nz[:, 2].mean() < 0.58
     assert (nz[:, 0] & nz[:, 1]).mean() > 0.1 and (nz[:, 0] & nz[:, 2]).mean() > 0.2      # 斜走、弧線都有
     assert c[:, 0].min() >= -0.4 and c[:, 0].max() <= 0.9 and np.abs(c[nz[:, 1], 1]).min() >= 0.03 and np.abs(c[nz[:, 2], 2]).min() >= 0.2
+
+
+def test_cycle_offsets_direction_amplitude_and_freq():
+    A_ = A(C(0, 0.08, 0))
+    ph = np.linspace(0, 2 * np.pi, 50, endpoint=False)
+    D = np.stack([np.asarray(v3.cycle_offsets(p, C(0, 0.08, 0), A_)["delta"]) for p in ph])          # (50,12)
+    assert np.ptp(D[:, 3]) > 0.5 and np.ptp(D[:, 9]) > 0.5                                             # 左移：FL、RL 的 ABAD 命令偏移擺幅 ≥ 0.5 rad
+    Dr = np.stack([np.asarray(v3.cycle_offsets(p, C(0, -0.08, 0), A(C(0, -0.08, 0)))["delta"]) for p in ph])
+    assert np.ptp(Dr[:, 0]) > 0.5 and np.ptp(Dr[:, 6]) > 0.5                                           # 右移：FR、RR
+    hz_l = float(v3.cycle_offsets(0.0, C(0, 0.08, 0), A_)["hz"]); hz_t = float(v3.cycle_offsets(0.0, C(0, 0, 1.3), A(C(0, 0, 1.3)))["hz"])
+    assert 2.0 < hz_l < 2.2 and 2.4 < hz_t < 2.7
+    # 幅度隨指令（G0 量的映射）：vy 0.04 → amp0、0.08 → amp0 + slope·0.04
+    r = v3.REF; a4, a8 = r["cyc_lat_amp0"], r["cyc_lat_amp0"] + r["cyc_lat_slope"] * 0.04
+    d4 = np.asarray(v3.cycle_offsets(1.0, C(0, 0.04, 0), A(C(0, 0.04, 0)))["delta"]); d8 = np.asarray(v3.cycle_offsets(1.0, C(0, 0.08, 0), A_)["delta"])
+    assert np.allclose(d4 * a8 / a4, d8, atol=1e-5)
+    # 週期族開時，四腿運動學踏步關掉、弧線保留
+    P = v3.step_pattern(C(0, 0.08, 0)); assert float(jnp.max(P["g"])) < 1e-4 and float(jnp.max(P["s"])) == 1.0
+    P = v3.step_pattern(C(0.5, 0, 1.3)); assert float(P["g"][FL]) == 1.0
+    P = v3.step_pattern(C(0, 0, 1.3)); assert float(jnp.max(P["g"])) == 1.0                          # 原地轉走運動學小跑（退路）
+    kin = dict(v3.REF, step_gen_lat="kin", step_gen_turn="kin")
+    assert float(jnp.max(v3.step_pattern(C(0, 0.08, 0), kin)["g"])) == 1.0
+    assert np.allclose(np.asarray(v3.cycle_offsets(1.0, C(0, 0.08, 0), A_, kin)["delta"]), 0.0)
+
+
+def test_err_barrier_per_joint():
+    e = jnp.zeros(12).at[0].set(0.55).at[1].set(0.55)      # ABAD 0.55 < 0.6 免罰；HIP 0.55 > 0.45 罰
+    assert abs(float(v3.err_barrier_j(e)) - 0.10 ** 2) < 1e-6

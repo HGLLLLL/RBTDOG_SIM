@@ -442,7 +442,7 @@ class DualModeEnv(Env):
         z = jnp.zeros(ACT_DIM)
         info = {"rng": ks[5], "c": c, "cmd": cmd, "cmd2": cmd2, "t_switch": t_switch,
                 "u_mode": jnp.max(P0["s"]), "ph": P0["ph"], "s4": P0["A"]["s4"], "s_arc": P0["A"]["arc"],
-                "phi_cyc": jnp.zeros(()), "u4": jnp.zeros(()), "wz_ema": jnp.zeros(()), "gyro_bias": jax.random.uniform(ks[6], (3,), minval=-1.0, maxval=1.0) * GYRO_BIAS,
+                "phi_cyc": jnp.zeros(()), "u4": jnp.zeros(()), "wz_ema": jnp.zeros(()), "vy_ema": jnp.zeros(()), "gyro_bias": jax.random.uniform(ks[6], (3,), minval=-1.0, maxval=1.0) * GYRO_BIAS,
                 "head_err": jnp.zeros(()), "imu_q": _quat_rp(tilt[0], tilt[1]),
                 "delay": DELAY_BASE + jax.random.bernoulli(ks[7], 0.5).astype(jnp.int32),
                 "a_hist": jnp.zeros((3, ACT_DIM)), "last_a": z, "sway": jnp.zeros(2),
@@ -532,10 +532,11 @@ class DualModeEnv(Env):
         # 相對進度（只在有該軸指令時作用；偏航用 0.5 s 低通，否則小跑的 ±60°/s 來回擺也能拿分）：
         #   進度 = 沿指令方向的分量 / 指令大小，開根號讓 25% 的追蹤已值一半分 —— 零動作名目要明確贏過「站著不動」（spec §9.2）
         wz_ema = info["wz_ema"] + w["WZ_EMA"] * (wz - info["wz_ema"])
+        vy_ema = info["vy_ema"] + w["WZ_EMA"] * (vb[1] - info["vy_ema"])          # 滑步的瞬時 vy ±0.3 來回擺，低通後才是真的側移
         has_wz = (jnp.abs(cmd[2]) > 0.1).astype(jnp.float32)
         has_vy = (jnp.abs(cmd[1]) > 0.02).astype(jnp.float32)
         prog_yaw = jnp.clip(wz_ema * jnp.sign(cmd[2]) / jnp.maximum(jnp.abs(cmd[2]), 0.1), 0.0, 1.0)
-        prog_vy = jnp.clip(vb[1] * jnp.sign(cmd[1]) / jnp.maximum(jnp.abs(cmd[1]), 0.02), 0.0, 1.0)
+        prog_vy = jnp.clip(vy_ema * jnp.sign(cmd[1]) / jnp.maximum(jnp.abs(cmd[1]), 0.02), 0.0, 1.0)
         r_yawrel = has_wz * jnp.sqrt(prog_yaw + 1e-6)
         r_vyrel = has_vy * jnp.sqrt(prog_vy + 1e-6)
         k_post = 1.0 - w["POST_STEP_SCALE"] * u_mode
@@ -574,7 +575,7 @@ class DualModeEnv(Env):
         done = jnp.where((grav[2] > FALL_GRAV_Z) | (data.qpos[2] < MIN_HEIGHT) | (kill >= KILL_STEPS), 1.0, 0.0)
 
         info.update({"rng": rng, "c": c, "cmd": info["cmd"], "u_mode": u_mode, "head_err": head_err,
-                     "ph": ph, "s4": P["A"]["s4"], "s_arc": P["A"]["arc"], "phi_cyc": phi_cyc, "u4": u4, "wz_ema": wz_ema,
+                     "ph": ph, "s4": P["A"]["s4"], "s_arc": P["A"]["arc"], "phi_cyc": phi_cyc, "u4": u4, "wz_ema": wz_ema, "vy_ema": vy_ema,
                      "a_hist": a_hist, "last_a": action, "sway": sway, "qvel_prev": data.qvel[LEG_QVEL_IDX],
                      "om_prev": om, "roll_ema": roll_ema, "sway_ema": sway_ema, "kill": kill, "step": step_i + 1,
                      "wheel_theta": wheel_theta})

@@ -24,9 +24,9 @@ def A(cmd):
 def test_activity_table():
     a = A(C(0.5, 0, 0));      assert float(a["s4"]) == 0 and float(a["arc"]) == 0 and float(a["wheel"]) == 1
     a = A(C(0, 0, 1.3));      assert float(a["s4"]) == 1 and float(a["arc"]) == 0
-    a = A(C(0, 0.08, 0));     assert float(a["s4"]) == 1 and float(a["arc"]) == 0
+    a = A(C(0, 0.15, 0));     assert float(a["s4"]) == 1 and float(a["arc"]) == 0
     a = A(C(0.5, 0, 0.5));    assert abs(float(a["arc"]) - 0.5 / 1.3) < 1e-6 and float(a["s4"]) == 0   # 弧線
-    a = A(C(0.3, 0.06, 0));   assert abs(float(a["s4"]) - 0.75) < 1e-6 and float(a["arc"]) == 0       # 斜走
+    a = A(C(0.3, 0.06, 0));   assert abs(float(a["s4"]) - 0.4) < 1e-6 and float(a["arc"]) == 0        # 斜走
     a = A(C(0, 0, 0));        assert float(a["s4"]) == 0 and float(a["arc"]) == 0
 
 
@@ -35,7 +35,7 @@ def test_leg_activity_dominant_and_secondary():
     assert np.allclose(s[[FL, RR]], 1.0) and np.allclose(s[[FR, RL]], 0.7)                    # 左轉主導 FL+RR
     cmd = C(0, 0, -1.3); s = np.asarray(v3.leg_activity(cmd, A(cmd)))
     assert np.allclose(s[[FR, RL]], 1.0) and np.allclose(s[[FL, RR]], 0.7)
-    cmd = C(0, 0.08, 0); s = np.asarray(v3.leg_activity(cmd, A(cmd)))
+    cmd = C(0, 0.15, 0); s = np.asarray(v3.leg_activity(cmd, A(cmd)))
     assert np.allclose(s[[FL, RL]], 1.0) and np.allclose(s[[FR, RR]], 0.7)                    # 左移主導 FL+RL
     cmd = C(0.5, 0, 1.3); s = np.asarray(v3.leg_activity(cmd, A(cmd)))
     assert s[FL] == 1 and abs(s[RR] - 0.5) < 1e-6 and s[FR] == 0 and s[RL] == 0               # 左弧線：內前 FL、對角 RR
@@ -62,11 +62,11 @@ def test_phase_offsets_mirror_and_blend():
     assert np.allclose(ph_t, np.asarray(v3.PH_TURN_L))
     ph_tr = np.asarray(v3.phase_offsets(C(0, 0, -1.3), A(C(0, 0, -1.3)), fac))
     assert np.allclose(ph_tr, np.asarray(v3.PH_TURN_L)[[FL, FR, RL, RR]])
-    ph_l = np.asarray(v3.phase_offsets(C(0, 0.08, 0), A(C(0, 0.08, 0)), fac))
+    ph_l = np.asarray(v3.phase_offsets(C(0, 0.15, 0), A(C(0, 0.15, 0)), fac))
     assert np.allclose(ph_l, np.asarray(v3.PH_LAT_L))
     # 預設：旋轉族小跑（FL+RR 0、FR+RL 0.5）、平移族原廠
     assert np.allclose(np.asarray(v3.phase_offsets(C(0, 0, 1.3), A(C(0, 0, 1.3)))), np.asarray(v3.PH_TROT))
-    assert np.allclose(np.asarray(v3.phase_offsets(C(0, 0.08, 0), A(C(0, 0.08, 0)))), np.asarray(v3.PH_LAT_L))
+    assert np.allclose(np.asarray(v3.phase_offsets(C(0, 0.15, 0), A(C(0, 0.15, 0)))), np.asarray(v3.PH_LAT_L))
     mix = np.asarray(v3.phase_offsets(C(0, 0.08, 1.3), A(C(0, 0.08, 1.3)), fac))
     for k in range(4):
         gap = abs((ph_t[k] - ph_l[k] + 0.5) % 1 - 0.5)
@@ -113,9 +113,9 @@ def test_act_split_wheel_residual_units():
 def test_step_pattern_keys_and_foot_targets_shape():
     P = v3.step_pattern(C(0.3, 0.06, 0.4))
     assert set(P) >= {"A", "s", "g", "vec", "ph", "wheel0", "hz", "duty", "lift", "post_y"}
-    # 抬高不隨指令大小縮：vy 0.04（s4 0.5）與 vy 0.08 的主導腿抬高一樣，次要腿 0.7 倍
+    # 抬高不隨指令大小縮：vy 0.08（s4 0.53）與 vy 0.15 的主導腿抬高一樣，次要腿 0.7 倍
     kin = dict(v3.REF, step_gen_lat="kin", step_gen_turn="kin")                       # 運動學路徑（v3.2 平移族預設走原廠週期）
-    l1, l2 = np.asarray(v3.step_pattern(C(0, 0.04, 0), kin)["lift"]), np.asarray(v3.step_pattern(C(0, 0.08, 0), kin)["lift"])
+    l1, l2 = np.asarray(v3.step_pattern(C(0, 0.08, 0), kin)["lift"]), np.asarray(v3.step_pattern(C(0, 0.15, 0), kin)["lift"])
     assert np.allclose(l1, l2) and abs(l2[FL] - v3.REF["lift_lat"]) < 1e-6 and abs(l2[FR] - 0.7 * v3.REF["lift_lat"]) < 1e-6   # 平移族用 lift_lat
     assert np.allclose(np.asarray(v3.step_pattern(C(0.5, 0, 0))["lift"]), 0.0)
     # 族別混合：純旋轉用旋轉族步頻，純平移用平移族
@@ -195,7 +195,7 @@ def test_sample_cmd_covers_axes_and_combos():
     nz = np.abs(c) > 1e-9
     assert 0.55 < nz[:, 0].mean() < 0.75 and 0.22 < nz[:, 1].mean() < 0.38 and 0.42 < nz[:, 2].mean() < 0.58
     assert (nz[:, 0] & nz[:, 1]).mean() > 0.1 and (nz[:, 0] & nz[:, 2]).mean() > 0.2      # 斜走、弧線都有
-    assert c[:, 0].min() >= -0.4 and c[:, 0].max() <= 0.9 and np.abs(c[nz[:, 1], 1]).min() >= 0.03 and np.abs(c[nz[:, 2], 2]).min() >= 0.2
+    assert c[:, 0].min() >= -0.4 and c[:, 0].max() <= 0.9 and np.abs(c[nz[:, 1], 1]).min() >= 0.04 and np.abs(c[nz[:, 2], 2]).min() >= 0.2
 
 
 def test_cycle_offsets_direction_amplitude_and_freq():
@@ -212,12 +212,12 @@ def test_cycle_offsets_direction_amplitude_and_freq():
     d4 = np.asarray(v3.cycle_offsets(1.0, C(0, 0.04, 0), A(C(0, 0.04, 0)))["delta"]); d8 = np.asarray(v3.cycle_offsets(1.0, C(0, 0.08, 0), A_)["delta"])
     assert np.allclose(d4 * a8 / a4, d8, atol=1e-5)
     # 週期族開時，四腿運動學踏步關掉、弧線保留
-    P = v3.step_pattern(C(0, 0.08, 0)); assert float(jnp.max(P["g"])) < 1e-4 and float(jnp.max(P["s"])) == 1.0
+    P = v3.step_pattern(C(0, 0.15, 0)); assert float(jnp.max(P["g"])) < 1e-4 and float(jnp.max(P["s"])) == 1.0
     P = v3.step_pattern(C(0.5, 0, 1.3)); assert float(P["g"][FL]) == 1.0
     kin = dict(v3.REF, step_gen_lat="kin", step_gen_turn="kin")
     P = v3.step_pattern(C(0, 0, 1.3), kin); assert float(jnp.max(P["g"])) == 1.0                     # 退路：原地轉走運動學小跑
     P = v3.step_pattern(C(0, 0, 1.3)); assert float(jnp.max(P["g"])) < 1e-4                          # v3.3 預設：原地轉走原廠週期
-    assert float(jnp.max(v3.step_pattern(C(0, 0.08, 0), kin)["g"])) == 1.0
+    assert float(jnp.max(v3.step_pattern(C(0, 0.15, 0), kin)["g"])) == 1.0
     assert np.allclose(np.asarray(v3.cycle_offsets(1.0, C(0, 0.08, 0), A_, kin)["delta"]), 0.0)
 
 

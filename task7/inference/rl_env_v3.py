@@ -55,7 +55,7 @@ REF = dict(
     # 側向命令增益：原廠平移的 ABAD 命令擺幅 60°（腳側向命令 ±220 mm）對實際每步 40 mm ≈ 5×；位置伺服要靠命令放大才推得動側向（同 Z_SAG 的道理）
     lat_cmd_gain=1.5,          # G0：1.5 → vy 0.08 指令得 0.090、0.04 得 0.035；2.0 過衝到 0.125；1.3 Hz 配增益會倒，2.1 Hz 才穩
     # 活動度分母
-    a_ref=dict(vy=0.08, wz=1.3, vx=0.25),
+    a_ref=dict(vy=0.15, wz=1.3, vx=0.25),      # 原廠平移實測約 0.3–0.5 m/s（IMU 積分＋現場目視，2026-09-15 晚修正；之前 0.08 是腳重放距離推的、低估 4 倍）
     # 平移輪速圖案（左移 FL +Ω / RL −0.67Ω；運動學推不出，照錄檔）
     lat_wheel=dict(FL=1.0, RL=-0.67), lat_omega=3.3, lat_vy_ref=0.06,
     # 弧線姿態：內側前腳往中線 60 mm、內側後腳往外 30 mm（正 = 往中線）
@@ -67,7 +67,7 @@ REF = dict(
     step_gen_lat="cycle", step_gen_turn="cycle",      # v3.3：原地轉也走原廠週期（開迴路 3–7 s 會倒，靠 RL 關節殘差平衡）
     # 平移幅度↔側速在 kp250 下很陡（滑步區）：有效幅度 0.64→0.04、0.80→0.17、0.96→0.30 m/s（0.86 在 10 s 內倒）
     #   → amp = 0.64 + 1.23·(|vy| − 0.04)，夾 [0.55, 0.78]；u4 只當開關（s4 ≥ 0.3 全開），幅度不再乘活動度
-    cyc_lat_amp0=0.64, cyc_lat_vy0=0.04, cyc_lat_slope=1.23, cyc_lat_amp_clip=(0.55, 0.78), cyc_amp_lat=1.0,
+    cyc_lat_amp0=0.64, cyc_lat_vy0=0.04, cyc_lat_slope=1.23, cyc_lat_amp_clip=(0.55, 1.0), cyc_amp_lat=1.0,   # 上限放到原廠全幅（0.96 ≈ 0.30 m/s）
     cyc_amp_turn=0.7, cyc_amp_turn_range=(0.3, 0.9), cyc_amp_rand=True,   # 訓練時每回合抽幅度（小幅度站得住、大幅度轉得快＝用隨機化代替課程）；eval 用 cyc_amp_turn
     cyc_wheel=1.0, cyc_recenter=True, cyc_hz_scale=1.0,
     # 相位組："factory"＝原廠四腿相位（配 duty ≥ 0.7 才有三腳著地）；"trot"＝對角對交替（duty 0.5 用，任何時刻兩對角腳著地）
@@ -96,7 +96,7 @@ W = dict(W_VX=2.0, W_VY=3.0, W_YAW=2.0, W_YAWI=0.5, W_YAWLIN=1.0, YAW_LIN_E=1.5,
          W_ROLL=150.0, W_PITCH=100.0, W_ROLLRATE=0.5, W_PITCHRATE=0.3, W_BIAS=100.0, W_SWAYBIAS=30.0,
          W_ACT=0.05, W_OMDOT=0.5, W_QRES=0.5, W_TAU=1e-5, W_TAUBAR=0.05, W_ERRBAR=1.0, W_KNEEV=0.02, W_MODE=2.0, W_VZ=0.05,
          VX_SIG2=0.02, VY_SIG2=0.005, YAW_SIG2=0.0005, YAW_SIG2_WIDE=0.02, YAW_INST_SIG2=0.05, HEAD_SIG=0.15,
-         CMD_VX=(-0.4, 0.9), CMD_VY=(0.03, 0.10), CMD_WZ=(0.2, 1.3), P_VX=0.65, P_VY=0.30, P_WZ=0.50,
+         CMD_VX=(-0.4, 0.9), CMD_VY=(0.04, 0.30), CMD_WZ=(0.2, 1.3), P_VX=0.65, P_VY=0.30, P_WZ=0.50,
          P_SWITCH=0.4, RAMP_STEPS=50, BIAS_EMA=0.02)
 T_KEYS = ("t_vx", "t_vy", "t_yaw", "t_yawi", "t_yawlin", "t_yawrel", "t_vyrel", "t_head", "t_h", "t_lift", "t_stance", "t_roll", "t_pitch", "t_rollrate",
           "t_pitchrate", "t_bias", "t_act", "t_omdot", "t_qres", "t_tau", "t_taubar", "t_errbar", "t_kneev", "t_mode", "t_vz")

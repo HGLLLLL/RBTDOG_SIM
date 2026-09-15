@@ -62,7 +62,7 @@ def main():
     ap.add_argument("--wheel-pos", action="store_true", dest="wheel_pos", help="用 kp 60 位置環模型（v3.1 預設不用）")
     ap.add_argument("--rot-frac", type=float, default=None, dest="rot_frac"); ap.add_argument("--lift", type=float, default=None)
     ap.add_argument("--duty", type=float, default=None); ap.add_argument("--hz", type=float, default=None)
-    ap.add_argument("--posture", type=int, default=None, help="1 開 0 關（弧線姿態偏移）"); ap.add_argument("--posture-lat", type=float, default=None, dest="posture_lat"); ap.add_argument("--mu", type=float, default=None)
+    ap.add_argument("--posture", type=int, default=None, help="1 開 0 關（弧線姿態偏移）"); ap.add_argument("--posture-lat", type=float, default=None, dest="posture_lat"); ap.add_argument("--lat-gain", type=float, default=None, dest="lat_gain"); ap.add_argument("--lift-lat", type=float, default=None, dest="lift_lat"); ap.add_argument("--mu", type=float, default=None)
     ap.add_argument("--yaw-scale", type=float, default=1.0, dest="yaw_scale"); ap.add_argument("--only", default="")
     ap.add_argument("--sweep", action="store_true", help="rot_frac {0.2,0.35,0.5} × duty {0.5,0.6,0.7} × hz {2.0,1.5}")
     ap.add_argument("--sweep-rot", default="0.2,0.35,0.5", dest="sweep_rot"); ap.add_argument("--sweep-duty", default="0.5,0.6,0.7", dest="sweep_duty")
@@ -77,6 +77,10 @@ def main():
     base = {k: v for k, v in dict(rot_step_frac=a.rot_frac, lift=a.lift, floor_mu=a.mu,
                                   step_hz_turn=a.hz or a.hz_turn, step_hz_lat=a.hz or a.hz_lat, duty_turn=a.duty or a.duty_turn, duty_lat=a.duty or a.duty_lat,
                                   phase_set_turn=a.phase or a.phase_turn, phase_set_lat=a.phase or a.phase_lat).items() if v is not None}
+    if a.lift_lat is not None:
+        base["lift_lat"] = a.lift_lat
+    if a.lat_gain is not None:
+        base["lat_cmd_gain"] = a.lat_gain
     if a.posture_lat is not None:
         base["posture_lat"] = a.posture_lat
     if a.posture is not None:

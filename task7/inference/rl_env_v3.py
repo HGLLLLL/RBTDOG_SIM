@@ -45,11 +45,13 @@ REF = dict(
     L_eff=0.375, r_wheel=0.096, v_max=0.92,
     # 踏步名目，旋轉族（原地轉／弧線）與平移族（平移／斜走）各一組，依 a_lat:a_turn 混合；
     # 原廠 2.5／2.1 Hz、duty 0.8、抬 22 mm 是 kp250 做不到的，留作對照
-    # G0 掃描定案（spec §8.2）：旋轉族 1.8 Hz／duty 0.5／小跑相位；平移族 1.3 Hz／duty 0.7／原廠相位；抬高 35 mm
-    step_hz_turn=1.8, duty_turn=0.50, step_hz_lat=1.3, duty_lat=0.70, lift=0.035,
+    # G0 掃描定案（spec §8.2）：旋轉族 1.8 Hz／duty 0.5／小跑相位；平移族 2.1 Hz（＝原廠）／duty 0.7／原廠相位；抬高 35 mm
+    step_hz_turn=1.8, duty_turn=0.50, step_hz_lat=2.1, duty_lat=0.70, lift=0.035, lift_lat=0.025,   # 平移抬高貼原廠 22 mm；35 mm 時 vy 0.08 力矩峰 92 > 終止線
     factory_hz_turn=2.5, factory_hz_lat=2.1, factory_duty=0.80, factory_lift=0.022,
     # 旋轉需要的地面位移裡用踏步做掉的比例（原廠 ≈ 0.2、其餘輪子刮地；G0 掃 0.2/0.5/1.0）
     rot_step_frac=0.4,
+    # 側向命令增益：原廠平移的 ABAD 命令擺幅 60°（腳側向命令 ±220 mm）對實際每步 40 mm ≈ 5×；位置伺服要靠命令放大才推得動側向（同 Z_SAG 的道理）
+    lat_cmd_gain=1.5,          # G0：1.5 → vy 0.08 指令得 0.090、0.04 得 0.035；2.0 過衝到 0.125；1.3 Hz 配增益會倒，2.1 Hz 才穩
     # 活動度分母
     a_ref=dict(vy=0.08, wz=1.3, vx=0.25),
     # 平移輪速圖案（左移 FL +Ω / RL −0.67Ω；運動學推不出，照錄檔）
@@ -170,9 +172,10 @@ def slew_phase(ph, ph_tgt, max_step=PH_SLEW):
 
 def kin_step_vec(cmd, T, ref=None):
     """每腳每週期踏步位移 (4,2) m：vy 全給踏步；旋轉只給 rot_step_frac；vx 不踏步（輪子滾）。"""
-    rot = (ref or REF)["rot_step_frac"] * cmd[2]
+    ref = ref or REF
+    rot = ref["rot_step_frac"] * cmd[2]
     dx = T * (-rot * FOOT_XY_BODY[:, 1])
-    dy = T * (cmd[1] + rot * FOOT_XY_BODY[:, 0])
+    dy = T * (ref["lat_cmd_gain"] * cmd[1] + rot * FOOT_XY_BODY[:, 0])
     return jnp.stack([dx, dy], 1)
 
 
@@ -211,9 +214,10 @@ def step_pattern(cmd, ref=None):
     wl = _lat_weight(A)
     hz = wl * ref["step_hz_lat"] + (1.0 - wl) * ref["step_hz_turn"]
     duty = wl * ref["duty_lat"] + (1.0 - wl) * ref["duty_turn"]
+    lift = wl * ref["lift_lat"] + (1.0 - wl) * ref["lift"]
     return dict(A=A, s=s, g=step_gain(s), vec=kin_step_vec(cmd, 1.0 / hz, ref), ph=phase_offsets(cmd, A, ref),
                 wheel0=wheel_cmd(cmd, A, jnp.zeros(4), ref), hz=hz, duty=duty,
-                lift=ref["lift"] * (s / jnp.maximum(jnp.max(s), 1e-6)) * step_gain(s), post_y=posture_offset(cmd, A, ref))
+                lift=lift * (s / jnp.maximum(jnp.max(s), 1e-6)) * step_gain(s), post_y=posture_offset(cmd, A, ref))
 
 
 def duty_remap(th, duty):

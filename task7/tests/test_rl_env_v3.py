@@ -51,7 +51,7 @@ def test_kin_step_vec_directions():
     assert v[FR][0] > 0 and v[FR][1] > 0 and v[RL][0] < 0 and v[RL][1] < 0          # ω×r：FR (+,+)、RL (−,−)
     assert abs(v[FL][1] - v3.REF["rot_step_frac"] * T * 1.3 * float(v3.FOOT_XY_BODY[FL, 0])) < 1e-6
     v = np.asarray(v3.kin_step_vec(C(0, 0.08, 0), T))
-    assert np.allclose(v[:, 1], 0.04) and np.allclose(v[:, 0], 0.0)                  # 左移：四腿同 +40 mm
+    assert np.allclose(v[:, 1], 0.04 * v3.REF["lat_cmd_gain"]) and np.allclose(v[:, 0], 0.0)   # 左移：四腿同向，40 mm × 側向命令增益
     v = np.asarray(v3.kin_step_vec(C(0.5, 0, 0), T))
     assert np.allclose(v, 0.0)                                                        # 純 vx 不踏步
 
@@ -115,7 +115,7 @@ def test_step_pattern_keys_and_foot_targets_shape():
     assert set(P) >= {"A", "s", "g", "vec", "ph", "wheel0", "hz", "duty", "lift", "post_y"}
     # 抬高不隨指令大小縮：vy 0.04（s4 0.5）與 vy 0.08 的主導腿抬高一樣，次要腿 0.7 倍
     l1, l2 = np.asarray(v3.step_pattern(C(0, 0.04, 0))["lift"]), np.asarray(v3.step_pattern(C(0, 0.08, 0))["lift"])
-    assert np.allclose(l1, l2) and abs(l2[FL] - v3.REF["lift"]) < 1e-6 and abs(l2[FR] - 0.7 * v3.REF["lift"]) < 1e-6
+    assert np.allclose(l1, l2) and abs(l2[FL] - v3.REF["lift_lat"]) < 1e-6 and abs(l2[FR] - 0.7 * v3.REF["lift_lat"]) < 1e-6   # 平移族用 lift_lat
     assert np.allclose(np.asarray(v3.step_pattern(C(0.5, 0, 0))["lift"]), 0.0)
     # 族別混合：純旋轉用旋轉族步頻，純平移用平移族
     assert abs(float(v3.step_pattern(C(0, 0, 1.3))["hz"]) - v3.REF["step_hz_turn"]) < 1e-6

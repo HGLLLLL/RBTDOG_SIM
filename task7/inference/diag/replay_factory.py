@@ -86,6 +86,8 @@ def replay(m, q, des, tau_w, i0: int, n: int, v0=None) -> dict:
     r = float(m.geom_size[gids[0]][0])
     yaw, clr, wv, fell = np.zeros(n), np.zeros((n, 4)), np.zeros((n, 4)), False
     zfk = np.zeros((n, 4))                      # 與錄檔同定義：FK 高度（相對 ABAD）
+    pos0 = d.xpos[base].copy(); R0 = d.xmat[base].reshape(3, 3).copy()
+    roll = np.zeros(n); disp = np.zeros((n, 2))
     j = 0
     for j in range(n):
         i = min(i0 + j, len(des) - 1)
@@ -97,11 +99,15 @@ def replay(m, q, des, tau_w, i0: int, n: int, v0=None) -> dict:
         wv[j] = d.qvel[mm.WHEEL_QVEL_IDX]
         qq = d.qpos[mm.LEG_QPOS_IDX]
         zfk[j] = [kin.fk(SHM_OF[L], *qq[3 * k:3 * k + 3])[2] for k, L in enumerate(mm.LEGS)]
+        R = d.xmat[base].reshape(3, 3)
+        roll[j] = np.degrees(np.arctan2(R[2, 1], R[2, 2]))
+        disp[j] = (R0.T @ (d.xpos[base] - pos0))[:2]          # 起點機身座標的位移 (x 前, y 左)
         if d.xmat[base].reshape(3, 3)[2, 2] < 0.5 or d.qpos[2] < 0.25:
             fell = True
             break
     lift_fk = zfk[:j + 1] - zfk[:j + 1].min(0)
-    return dict(yaw_rad_s=yaw[:j + 1], clr=clr[:j + 1], lift_fk=lift_fk, wheel_v=wv[:j + 1], fell=fell, height=float(d.qpos[2]))
+    return dict(yaw_rad_s=yaw[:j + 1], clr=clr[:j + 1], lift_fk=lift_fk, wheel_v=wv[:j + 1], fell=fell, height=float(d.qpos[2]),
+                roll_deg=roll[:j + 1], disp=disp[:j + 1])
 
 
 def _q_dict(rec):
@@ -116,8 +122,9 @@ def run_file(path: str, window: float, starts: int, mu=None) -> list:
     mv = rga.moving_mask(rec, _q_dict(rec), v_w)
     idx = np.nonzero(mv)[0]
     a, b = int(idx[0]) + int(rga.HZ), int(idx[-1]) - n
-    if b <= a:
-        a, b = int(idx[0]), max(int(idx[0]) + 1, int(idx[-1]) - n)
+    if b <= a:                                   # 視窗比動作段長：從動作段起點放到底
+        a, b = int(idx[0]), int(idx[0])
+        n = min(n, int(idx[-1]) - a)
     rows = []
     for i0 in np.linspace(a, b, starts).astype(int):
         v0 = (float(mm.WHEEL_RADIUS * v_w[i0].mean()), float(rec.gyro[i0, 2]), v_w[i0])
@@ -128,7 +135,9 @@ def run_file(path: str, window: float, starts: int, mu=None) -> list:
             yaw_sim=float(np.degrees(r["yaw_rad_s"].mean())), yaw_rec=float(np.degrees(rec.gyro[i0:i0 + k, 2].mean())),
             lift_sim=(r["clr"].max(0) * 1000).round(0).tolist(), lift_fk_sim=(r["lift_fk"].max(0) * 1000).round(0).tolist(),
             lift_rec=(lift[i0:i0 + k].max(0) * 1000).round(0).tolist(),
-            wheel_sim=r["wheel_v"].mean(0).round(1).tolist(), wheel_rec=v_w[i0:i0 + k].mean(0).round(1).tolist()))
+            wheel_sim=r["wheel_v"].mean(0).round(1).tolist(), wheel_rec=v_w[i0:i0 + k].mean(0).round(1).tolist(),
+            roll_max=float(np.abs(r["roll_deg"]).max()), disp_xy=(r["disp"][-1] * 1000).round(0).tolist(),
+            roll_rec_max=float(np.degrees(np.abs(np.cumsum(rec.gyro[i0:i0 + k, 0]) / rga.HZ).max()))))
     return rows
 
 
@@ -159,7 +168,7 @@ def main() -> int:
         path = next(Path(a.logdir).glob(f"M6_*_{tag}.json"))
         results[tag] = run_file(str(path), a.window, a.starts, a.mu)
         for r in results[tag]:
-            print(f"{TAGS.get(tag, tag):11s} t0 {r['t0']:5.1f} yaw {r['yaw_sim']:+5.0f}/{r['yaw_rec']:+5.0f} clr {r['lift_sim']} fk {r['lift_fk_sim']} / rec {r['lift_rec']} 輪 {r['wheel_sim']} / {r['wheel_rec']} fell {r['fell']}")
+            print(f"{TAGS.get(tag, tag):11s} t0 {r['t0']:5.1f} 放 {r['secs']:.1f}s yaw {r['yaw_sim']:+5.0f}/{r['yaw_rec']:+5.0f} | roll_max 模擬 {r['roll_max']:.1f}° (原廠 gyro 積分 {r['roll_rec_max']:.1f}°) | 位移 x/y {r['disp_xy']} mm | clr {r['lift_sim']} fk {r['lift_fk_sim']} / rec {r['lift_rec']} | 輪 {r['wheel_sim']} / {r['wheel_rec']} | fell {r['fell']}")
     txt = md(results, a.mu)
     out = Path(a.out) if a.mu is None else Path(a.out).with_name(f"replay_factory_trip21_mu{a.mu}.md")
     out.write_text(txt + "\n", encoding="utf-8")

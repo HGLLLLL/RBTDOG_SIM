@@ -56,3 +56,23 @@ def test_notebook_v2_4_contract():
     src = "\n".join("".join(c["source"]) for c in nb["cells"] if c["cell_type"] == "code")
     assert 'PRESET = "v2.4"' in src and "cpg_rl_max_v2_4_params.pkl" in src and "--preset v2.4" in src
     assert "(10, 67)" in src
+
+
+def test_v34f_notebook_trains_the_factory_gain_env():
+    """v3.4f notebook 必須每一處都用 factory 增益：env、eval_env、domain randomization。
+
+    漏掉 domain_randomize 會是最難發現的一種錯：訓練照跑、曲線照畫，
+    但隨機化是乘在 kp250 標稱值上，等於根本沒在訓原廠增益。
+    """
+    import json
+    from pathlib import Path
+    nb = Path(__file__).resolve().parents[1] / "notebooks" / "cpg_rl_v3_4f_colab.ipynb"
+    assert nb.exists(), "尚未產生 cpg_rl_v3_4f_colab.ipynb"
+    cells = json.loads(nb.read_text(encoding="utf-8"))["cells"]
+    src = "\n".join("".join(c["source"]) for c in cells)
+    assert 'DualModeEnv(gains="factory"' in src
+    assert 'make_domain_randomize("factory")' in src
+    assert src.count('gains="factory"') >= 2, "env 與 eval_env 都要帶 gains"
+    assert "cpg_rl_v3_4f_params.pkl" in src
+    heading = "".join(cells[0]["source"]).splitlines()[0]
+    assert "v3.4f" in heading and "v3.3" not in heading, f"第一個 cell 的標題行還在講 v3.3：{heading}"

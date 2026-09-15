@@ -1,12 +1,13 @@
-"""CPG-RL v3：雙模式（輪行／踏步）模仿原廠步態的 MJX 訓練環境（spec `docs/superpowers/specs/2026-09-09-cpg-rl-v3-dual-mode-design.md`）。
+"""CPG-RL v3.1：統一運動學產生器，模仿原廠步態（spec `docs/superpowers/specs/2026-09-15-cpg-rl-v3.1-unified-kinematic-generator-design.md`）。
 
-與 v2（rl_env_max）的差別：
-  - 指令 (vx, vy, wz) 決定模式：WHEEL（腿站姿＋差速輪）／STEP（原廠式踏步：對角同相旋轉、同側交替平移＋固定輪速圖案）
-  - 輪子是主動的速度伺服：ctrl = v_des + sign·τ_ff/kv（等價於 kd·(v_des−v)+τ_ff，M11 定案 kd 1.0、τ_ff 0.13）
-  - 動作 12 維：[ω_scale, amp×4, lift, sway×2, wheel_res×4]；零動作＝純開迴路原廠模式表（G0 有標準答案）
-  - 觀測 76 維（狗上全部拿得到）：gravity 3 | gyro 3 | jpos 12 | jvel 12 | wheel_vel 4 | cmd 3 | mode 2 | head 1 | last_a 12 | cpg 24
-  - reward 加 vy／wz 追蹤、靜態偏置罰（roll、sway_y 的 EMA）、模式紀律（WHEEL 不抬腿、STEP 非踏步腿不抬）
-原廠參考數字來自 `outputs/ref_gait_dataset.json`（常數釘在 REF；tests 比對 json）。
+  - 指令 (vx, vy, wz) → 活動度 (a_lat, a_turn, a_wheel, s4, s_arc) → 每腿活動度 s_k（誰抬、抬多高），沒有離散模式
+  - 每腳每週期位移 vec_k = T·(vy·ŷ + rot_step_frac·wz × r_k)：純 vx 位移全在 x、輪子滾掉、不抬腳；
+    平移／原地轉／弧線有 y 分量才抬腳。旋轉只用踏步做掉一部分（原廠約 0.2，其餘刮地）
+  - 相位：原廠兩組四腿偏移（原地轉／平移），依 a_lat:a_turn 圓周插值，左右鏡像
+  - 輪子：速度伺服 kd 1.0 ＋ 前饋 0.13（M11 實機已驗）；wheel = 差速×gate ＋ 平移圖案 ＋ RL 殘差（±2 rad/s ≈ ±2 N·m）
+  - 動作 12 維：[ω_scale, amp×4, lift, sway×2, wheel_res×4]；零動作＝純開迴路產生器（G0 有標準答案）
+  - 觀測 76 維：gravity 3 | gyro 3 | jpos 12 | jvel 12 | wheel_vel 4 | cmd 3 | [s4, s_arc] 2 | head 1 | last_a 12 | cpg 24
+原廠參考數字來自 `outputs/ref_gait_dataset.json`（常數釘在 REF／PH_*；tests 比對 json）。
 本機 CPU 可跑 reset/step 做測試（慢）；訓練在 Colab GPU。
 """
 from __future__ import annotations
@@ -42,26 +43,25 @@ REF = dict(
     # 輪行站姿（hip/knee 取資料集平均、ABAD 0）：前腿 hip +0.52 / knee −1.20，後腿鏡像
     stance_q12=np.array([0.0, 0.52, -1.20, 0.0, 0.52, -1.20, 0.0, -0.56, 1.20, 0.0, -0.56, 1.20]),
     L_eff=0.375, r_wheel=0.096, v_max=0.92,
-    # 踏步：原廠 2.5 Hz／2.1 Hz、duty 0.8（擺動 0.08 s）、抬高 22 mm —— **kp250 位置伺服做不到**（G0 掃描：
-    #   照原廠參數踏步腿只離地 4 mm、原地轉 5°/s）。名目改 2.0 Hz／duty 0.5（擺動 0.25 s）／抬 40 mm → 26°/s、膝 69 N·m；
-    #   RL 可在 ω ±28%、抬高 ±40% 內調。原廠值留在 factory_* 供模仿獎勵與評估對照。
-    step_hz_turn=2.0, step_hz_lat=1.5, duty=0.50, duty_lat=0.85, lift=0.040, lift_lat=0.030,
+    # 踏步名目（kp250 撓度下 v3.0 G0 掃出來的可行點）；原廠 2.5／2.1 Hz、duty 0.8、抬 22 mm 留作對照
+    step_hz=2.0, duty=0.50, lift=0.040,
     factory_hz_turn=2.5, factory_hz_lat=2.1, factory_duty=0.80, factory_lift=0.022,
-    # ⚠️ 平移（原廠式單側踏步）在 kp250 下只有 duty ≥ 0.85 站得住且膝 > 100 N·m（G0 掃描 2026-09-09）→
-    #   v3.0 **不抽平移指令**（P_LAT = 0），路徑保留；之後另做四腿蟹行。
-    # 旋轉（左轉 wz>0）：踏步腿 fl+br 同相；每步位移 (dx, dy) m；站姿腿的輪 fr +Ω / bl −Ω；Ω 4.1 rad/s @ 1.3 rad/s
-    turn_step=dict(FL=(-0.021, 0.039), RR=(0.016, -0.025)), turn_wheel=dict(FR=1.0, RL=-1.0),
-    turn_omega=4.1, turn_wz_ref=1.3,
-    # 平移（左移 vy>0）：踏步腿 fl+bl 交替；每步 fl (−23, +38)、bl (+20, +29) mm；輪 fl +Ω / bl −0.67Ω；Ω 3.3 @ 0.06 m/s
-    lat_step=dict(FL=(-0.023, 0.038), RL=(0.020, 0.029)), lat_wheel=dict(FL=1.0, RL=-0.67),
-    lat_omega=3.3, lat_vy_ref=0.06,
+    # 旋轉需要的地面位移裡用踏步做掉的比例（原廠 ≈ 0.2、其餘輪子刮地；G0 掃 0.2/0.5/1.0）
+    rot_step_frac=0.5,
+    # 活動度分母
+    a_ref=dict(vy=0.08, wz=1.3, vx=0.25),
+    # 平移輪速圖案（左移 FL +Ω / RL −0.67Ω；運動學推不出，照錄檔）
+    lat_wheel=dict(FL=1.0, RL=-0.67), lat_omega=3.3, lat_vy_ref=0.06,
+    # 弧線姿態：內側前腳往中線 60 mm、內側後腳往外 30 mm（正 = 往中線）
+    posture_arc=dict(front=0.06, rear=-0.03),
     trans_s=1.0,
 )
 KV_WHEEL, TAU_FF, V_DEAD = 1.0, 0.13, 0.3          # M11：kd 1.0、前饋 0.13、|v_des|<0.3 rad/s 視為 0
 Z_SAG = 0.036                                      # ★ kp250 承重撓度（M8 實測 36 mm）：命令抬高 = 目標抬高 + Z_SAG，否則腳離不了地
-MODE_VY_THR, MODE_WZ_THR, MODE_VX_THR = 0.03, 0.3, 0.08
 ACT_DIM = 12
-OMEGA_NOM_SCALE, AMP_SCALE, LIFT_SCALE, SWAY_MAX, SWAY_SLEW, WHEEL_RES = 0.28, 0.5, 0.4, 0.040, 0.004, 0.20
+OMEGA_NOM_SCALE, AMP_SCALE, LIFT_SCALE, SWAY_MAX, SWAY_SLEW, WHEEL_RES = 0.28, 0.5, 0.4, 0.040, 0.004, 2.0   # WHEEL_RES：rad/s 偏移（kd 1.0 ≈ N·m）
+STEP_GAIN_S = 0.2              # s_k ≥ 0.2 的腿吃完整步向量（四腿踏步時 stance 腳要同速，不能按 s_k 打折）
+PH_SLEW = 0.02                 # 相位偏移每步最多改 0.02 週期
 FOOT_OFF_MAX = 0.020                    # WHEEL 模式腿的順從空間（±20 mm）
 NOISE_WHEEL = 0.10
 TAU_BAR, ERR_BAR = 58.0, 0.45
@@ -75,9 +75,9 @@ W = dict(W_VX=2.0, W_VY=2.0, W_YAW=2.0, W_YAWI=0.5, W_HEAD=1.0, W_H=0.3, W_LIFT=
          W_ROLL=150.0, W_PITCH=100.0, W_ROLLRATE=0.5, W_PITCHRATE=0.3, W_BIAS=100.0, W_SWAYBIAS=30.0,
          W_ACT=0.05, W_OMDOT=0.5, W_TAU=1e-5, W_TAUBAR=0.05, W_ERRBAR=1.0, W_KNEEV=0.02, W_MODE=2.0, W_VZ=0.05,
          VX_SIG2=0.02, VY_SIG2=0.005, YAW_SIG2=0.0005, YAW_SIG2_WIDE=0.02, YAW_INST_SIG2=0.05, HEAD_SIG=0.15,
-         CMD_VX=(-0.4, 0.9), CMD_WZ_WHEEL=0.4, CMD_WZ_TURN=(0.5, 1.3), CMD_VY=(0.03, 0.08),
-         P_WHEEL=0.65, P_TURN=0.35, P_SWITCH=0.4, RAMP_STEPS=50, BIAS_EMA=0.02)   # P_LAT = 1 − P_WHEEL − P_TURN = 0
-METRIC_KEYS = ("height", "vx", "vy", "wz", "reward", "pitch", "roll", "mode", "clr_step", "clr_stance",
+         CMD_VX=(-0.4, 0.9), CMD_VY=(0.03, 0.10), CMD_WZ=(0.2, 1.3), P_VX=0.65, P_VY=0.30, P_WZ=0.50,
+         P_SWITCH=0.4, RAMP_STEPS=50, BIAS_EMA=0.02)
+METRIC_KEYS = ("height", "vx", "vy", "wz", "reward", "pitch", "roll", "mode", "s4", "s_arc", "clr_step", "clr_stance",
                "yawerr", "vxerr", "vyerr", "tau_pk", "err_pk", "knee_v", "omega", "sway_y", "roll_bias")
 
 
@@ -98,71 +98,92 @@ def _vec4(d: dict, default=0.0):
     return jnp.array(out)
 
 
-def _vec42(d: dict):
-    out = np.zeros((4, 2))
-    for k, v in d.items():
-        out[LEG_IDX[k]] = v
-    return jnp.array(out)
+# 序 FR, FL, RR, RL。錄檔（shm 序 fl, fr, bl, br；bl=RL、br=RR）：左轉 fl 0／fr .25／bl .59／br .06；左移 fl 0／fr .19／bl .51／br .72
+PH_TURN_L = jnp.array([0.25, 0.00, 0.06, 0.59])
+PH_LAT_L = jnp.array([0.19, 0.00, 0.72, 0.51])
+W_LAT_L = jnp.array([0.7, 1.0, 0.7, 1.0])        # 左移：主導 FL+RL，另一側 0.7（抬高比 16/23）
+W_TURN_L = jnp.array([0.7, 1.0, 1.0, 0.7])       # 左轉：主導對角 FL+RR
+W_ARC_L = jnp.array([0.0, 1.0, 0.5, 0.0])        # 左弧線：內側前 FL 1.0、對角外側後 RR 0.5
+DOM_TURN_L = jnp.array([0.0, 1.0, 1.0, 0.0])     # 左轉主導對（輪 gate 用）
+LAT_WHEEL_L = _vec4(REF["lat_wheel"])
+MIRROR_LR = jnp.array([1, 0, 3, 2])              # FR↔FL、RR↔RL
+SIDE_Y_j = jnp.array(mm.SIDE_Y)                  # FR −1, FL +1, RR −1, RL +1
+HIP_XY = jnp.array([[mm.HIP_X, -mm.HIP_Y], [mm.HIP_X, mm.HIP_Y], [-mm.HIP_X, -mm.HIP_Y], [-mm.HIP_X, mm.HIP_Y]])
+FOOT_XY_BODY = HIP_XY + STANCE_FEET_j[:, :2]     # 站姿足端在機身座標 (4,2)：前 ≈ (+0.38, ±0.17)、後 ≈ (−0.36, ±0.17)
+FRONT_j = jnp.array([1.0, 1.0, 0.0, 0.0])
 
 
-TURN_STEP_L = _vec42(REF["turn_step"])          # 左轉：FL/RR 踏步
-TURN_WHEEL_L = _vec4(REF["turn_wheel"])         # 左轉：FR +1 / RL −1
-LAT_STEP_L = _vec42(REF["lat_step"])            # 左移：FL/RL 踏步
-LAT_WHEEL_L = _vec4(REF["lat_wheel"])           # 左移：FL +1 / RL −0.67
-MIRROR_LR = jnp.array([1, 0, 3, 2])             # FR↔FL、RR↔RL
+def _mirror(v, right):
+    """right 為 True（右向指令）→ 左右鏡像。"""
+    return jnp.where(right, v[MIRROR_LR], v)
 
 
-def mode_of(cmd):
-    """→ (u_step ∈ {0,1}, is_turn, is_lat)。"""
-    vx, vy, wz = cmd[0], cmd[1], cmd[2]
-    is_lat = jnp.abs(vy) >= MODE_VY_THR
-    is_turn = (~is_lat) & (jnp.abs(wz) >= MODE_WZ_THR) & (jnp.abs(vx) < MODE_VX_THR)
-    return (is_lat | is_turn).astype(jnp.float32), is_turn, is_lat
+def activity(cmd, ref=None):
+    """→ dict(lat, turn, wheel, s4, arc)，全是 0–1 純量。"""
+    ar = (ref or REF)["a_ref"]
+    a_lat = jnp.clip(jnp.abs(cmd[1]) / ar["vy"], 0.0, 1.0)
+    a_turn = jnp.clip(jnp.abs(cmd[2]) / ar["wz"], 0.0, 1.0)
+    a_wheel = jnp.clip(jnp.abs(cmd[0]) / ar["vx"], 0.0, 1.0)
+    return dict(lat=a_lat, turn=a_turn, wheel=a_wheel,
+                s4=jnp.maximum(a_lat, a_turn * (1.0 - a_wheel)), arc=a_turn * a_wheel)
 
 
-def step_pattern(cmd, ref=None):
+def _lat_weight(A):
+    return A["lat"] / (A["lat"] + A["turn"] + 1e-6)
+
+
+def leg_activity(cmd, A):
+    """每腿活動度 s_k (4,)：四腿踏步（平移／原地轉，主導 1.0 次要 0.7）與弧線（內前 1.0、對角後 0.5）取大。"""
+    w_lat = _mirror(W_LAT_L, cmd[1] < 0)
+    w_turn = _mirror(W_TURN_L, cmd[2] < 0)
+    w_arc = _mirror(W_ARC_L, cmd[2] < 0)
+    wl = _lat_weight(A)
+    return jnp.maximum(A["s4"] * (wl * w_lat + (1.0 - wl) * w_turn), A["arc"] * w_arc)
+
+
+def step_gain(s):
+    """吃步向量的比例：s_k ≥ STEP_GAIN_S 就是 1（stance 腳要同速）。"""
+    return jnp.clip(s / STEP_GAIN_S, 0.0, 1.0)
+
+
+def phase_offsets(cmd, A):
+    """四腿相位偏移目標 (4,)：原地轉組與平移組依 a_lat:a_turn 圓周插值；方向鏡像。"""
+    ph_t = _mirror(PH_TURN_L, cmd[2] < 0)
+    ph_l = _mirror(PH_LAT_L, cmd[1] < 0)
+    wl = _lat_weight(A)
+    z = wl * jnp.exp(2j * jnp.pi * ph_l) + (1.0 - wl) * jnp.exp(2j * jnp.pi * ph_t)
+    return jnp.mod(jnp.angle(z) / (2 * jnp.pi), 1.0)
+
+
+def slew_phase(ph, ph_tgt, max_step=PH_SLEW):
+    d = jnp.mod(ph_tgt - ph + 0.5, 1.0) - 0.5
+    return jnp.mod(ph + jnp.clip(d, -max_step, max_step), 1.0)
+
+
+def kin_step_vec(cmd, T, ref=None):
+    """每腳每週期踏步位移 (4,2) m：vy 全給踏步；旋轉只給 rot_step_frac；vx 不踏步（輪子滾）。"""
+    rot = (ref or REF)["rot_step_frac"] * cmd[2]
+    dx = T * (-rot * FOOT_XY_BODY[:, 1])
+    dy = T * (cmd[1] + rot * FOOT_XY_BODY[:, 0])
+    return jnp.stack([dx, dy], 1)
+
+
+def posture_offset(cmd, A, ref=None):
+    """弧線姿態：內側腿 y 偏移 (4,)，正值定義在 REF 是「往中線」。"""
+    p = (ref or REF)["posture_arc"]
+    inner = jnp.where(cmd[2] > 0, jnp.array([0.0, 1.0, 0.0, 1.0]), jnp.array([1.0, 0.0, 1.0, 0.0]))
+    amount = FRONT_j * p["front"] + (1.0 - FRONT_j) * p["rear"]
+    return A["arc"] * inner * amount * (-SIDE_Y_j)
+
+
+def wheel_cmd(cmd, A, res, ref=None):
+    """每輪 rad/s (4,)：差速 × gate ＋ 平移圖案 ＋ 殘差。gate：原地轉主導對 0、另兩輪 2；vx 大或沒轉時 1。"""
     ref = ref or REF
-    """踏步模式的四腿設定：→ (active(4)∈{0,1}, step_vec(4,2) m, phase_off(4) ∈[0,1), wheel_cmd(4) rad/s, omega_hz)。
-    旋轉：對角同相；平移：同側交替。方向靠左右鏡像（x 不變、y 反號、腿對調）。"""
-    vy, wz = cmd[1], cmd[2]
-    u_step, is_turn, is_lat = mode_of(cmd)
-    # --- 旋轉（以左轉為基準）
-    turn_scale = jnp.clip(jnp.abs(wz) / ref["turn_wz_ref"], 0.2, 1.5)
-    t_act = (jnp.abs(TURN_STEP_L).sum(1) > 0).astype(jnp.float32)
-    t_vec = TURN_STEP_L * turn_scale
-    t_wheel = TURN_WHEEL_L * ref["turn_omega"] * turn_scale
-    t_ph = jnp.zeros(4)                                          # 同相
-    # 右轉：鏡像
-    right = wz < 0
-    t_act = jnp.where(right, t_act[MIRROR_LR], t_act)
-    t_vec = jnp.where(right, (t_vec[MIRROR_LR]) * jnp.array([1.0, -1.0]), t_vec)
-    t_wheel = jnp.where(right, t_wheel[MIRROR_LR], t_wheel)        # 右轉 FL +Ω / RR −Ω（資料：fl +3.8、br −4.1）
-    # --- 平移（以左移為基準）
-    lat_scale = jnp.clip(jnp.abs(vy) / ref["lat_vy_ref"], 0.3, 1.5)
-    l_act = (jnp.abs(LAT_STEP_L).sum(1) > 0).astype(jnp.float32)
-    l_vec = LAT_STEP_L * lat_scale
-    l_wheel = LAT_WHEEL_L * ref["lat_omega"] * lat_scale
-    l_ph = jnp.array([0.0, 0.0, 0.5, 0.5])                       # 前後交替
-    rightward = vy < 0
-    l_act = jnp.where(rightward, l_act[MIRROR_LR], l_act)
-    l_vec = jnp.where(rightward, (l_vec[MIRROR_LR]) * jnp.array([1.0, -1.0]), l_vec)
-    l_wheel = jnp.where(rightward, l_wheel[MIRROR_LR], l_wheel)
-    active = jnp.where(is_lat, l_act, jnp.where(is_turn, t_act, jnp.zeros(4)))
-    vec = jnp.where(is_lat, l_vec, jnp.where(is_turn, t_vec, jnp.zeros((4, 2))))
-    ph = jnp.where(is_lat, l_ph, t_ph)
-    wheel = jnp.where(is_lat, l_wheel, jnp.where(is_turn, t_wheel, jnp.zeros(4)))
-    hz = jnp.where(is_lat, ref["step_hz_lat"], ref["step_hz_turn"])
-    duty = jnp.where(is_lat, ref["duty_lat"], ref["duty"])
-    lift = jnp.where(is_lat, ref["lift_lat"], ref["lift"])
-    return active, vec, ph, wheel, hz, duty, lift
-
-
-def wheel_cmd_wheelmode(cmd):
-    """差速：v_L = vx − wz·L/2、v_R = vx + wz·L/2 → 每輪 rad/s（MJCF 序 FR, FL, RR, RL）。"""
-    vx, wz = cmd[0], cmd[2]
-    vl = (vx - wz * REF["L_eff"] / 2) / REF["r_wheel"]
-    vr = (vx + wz * REF["L_eff"] / 2) / REF["r_wheel"]
-    return jnp.array([vr, vl, vr, vl])
+    diff = (cmd[0] - cmd[2] * SIDE_Y_j * ref["L_eff"] / 2) / ref["r_wheel"]
+    dom = _mirror(DOM_TURN_L, cmd[2] < 0)
+    gate = 1.0 + A["turn"] * (1.0 - A["wheel"]) * (1.0 - 2.0 * dom)
+    lw = _mirror(LAT_WHEEL_L, cmd[1] < 0) * ref["lat_omega"] * jnp.clip(jnp.abs(cmd[1]) / ref["lat_vy_ref"], 0.0, 1.5)
+    return diff * gate + lw + res
 
 
 def wheel_ctrl(v_des):
@@ -171,29 +192,42 @@ def wheel_ctrl(v_des):
     return jnp.where(dead, 0.0, v_des + jnp.sign(v_des) * TAU_FF / KV_WHEEL)
 
 
+def step_pattern(cmd, ref=None):
+    """指令 → 產生器設定 dict：A、s(4)、g(4)、vec(4,2)、ph(4) 目標、wheel0(4) 無殘差、hz、duty、lift(4)、post_y(4)。"""
+    ref = ref or REF
+    A = activity(cmd, ref)
+    s = leg_activity(cmd, A)
+    T = 1.0 / ref["step_hz"]
+    return dict(A=A, s=s, g=step_gain(s), vec=kin_step_vec(cmd, T, ref), ph=phase_offsets(cmd, A),
+                wheel0=wheel_cmd(cmd, A, jnp.zeros(4), ref), hz=ref["step_hz"], duty=ref["duty"],
+                lift=s * ref["lift"], post_y=posture_offset(cmd, A, ref))
+
+
 def duty_remap(th, duty):
     return v2.duty_remap(th, duty)
 
 
 def act_split(a):
-    """tanh 後的 12 維動作 → 各尺度。"""
+    """tanh 後的 12 維動作 → 各尺度。wres 是 rad/s 偏移（kd 1.0 下 ≈ N·m）。"""
     a = jnp.tanh(a)
     return dict(om=1.0 + OMEGA_NOM_SCALE * a[0], amp=1.0 + AMP_SCALE * a[1:5], lift=1.0 + LIFT_SCALE * a[5],
-                sway=SWAY_MAX * a[6:8], wres=1.0 + WHEEL_RES * a[8:12],
+                sway=SWAY_MAX * a[6:8], wres=WHEEL_RES * a[8:12],
                 foot_x=FOOT_OFF_MAX * a[1:5], foot_z=FOOT_OFF_MAX * a[5])
 
 
-def foot_targets(theta, amp, active, vec, lift, sway, u_step, foot_x, foot_z, duty=None):
-    duty = REF["duty"] if duty is None else duty
-    """(4,3) 足端目標。STEP：站姿 + 踏步位移（swing 往 +vec、stance 往 −vec）＋ 抬高；WHEEL：站姿 + 小偏移。混合比例 u_step。"""
+def foot_targets(theta, amp, g, vec, lift4, sway, u, foot_x, foot_z, duty, post_y):
+    """(4,3) 足端目標（相對各腿 ABAD）。
+    踏步：站姿 ＋ 姿態偏移 ＋ g·amp·vec 的往返（swing 往 +vec、stance 往 −vec）＋ 抬高（只在 swing，加 g·Z_SAG）；
+    輪行：站姿 ＋ RL 小偏移。u = max_k s_k（斜率限制）做兩者混合。"""
     th = duty_remap(theta, duty)
     s = jnp.sin(th)
-    prog = -0.5 * jnp.cos(th)                                  # −0.5 → +0.5 across a cycle
-    dxy = (vec * (amp * active)[:, None]) * prog[:, None]
-    dz = jnp.where(s > 0, (lift + Z_SAG) * s, 0.0) * active        # 只加在擺動相（同 v2）
+    prog = -0.5 * jnp.cos(th)                                  # −0.5 → +0.5 across swing, back across stance
+    dxy = (vec * (amp * g)[:, None]) * prog[:, None]
+    dz = jnp.where(s > 0, (lift4 + Z_SAG * g) * s, 0.0)
     step_off = jnp.concatenate([dxy, dz[:, None]], 1) + jnp.array([sway[0], sway[1], 0.0])
+    post = jnp.stack([jnp.zeros(4), post_y, jnp.zeros(4)], 1)
     wheel_off = jnp.stack([foot_x, jnp.zeros(4), jnp.full(4, foot_z)], 1)
-    return STANCE_FEET_j + u_step * step_off + (1 - u_step) * wheel_off
+    return STANCE_FEET_j + post + u * step_off + (1.0 - u) * wheel_off
 
 
 def joint_targets(feet):

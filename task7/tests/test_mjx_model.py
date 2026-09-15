@@ -215,3 +215,39 @@ def test_kp250_model_walks_A_gait_like_mesh():
                    solver_iters=(6, 6), **kw)
     assert a["fell"] is None and b["fell"] is None
     assert abs(b["speed_travel"] - a["speed_travel"]) < 0.10 * max(a["speed_travel"], 1e-3)
+
+
+V3F_SCENE = _ROOT / "model" / "zgws" / "scene_flat_mjx_v3f.xml"
+
+
+def test_v3f_model_uses_factory_action_gains():
+    """v3.4f 模型＝原廠錄檔動作段的增益（spec §0.1，17 檔實測）。
+
+    腿 60/120/120 kd 1.0、輪純速度伺服 kv 0.1（原廠 kp 0）。
+    輪關節的 frictionloss／damping／armature 是 M11 實機辨識的硬體特性，不隨增益改。
+    """
+    m = mujoco.MjModel.from_xml_path(str(V3F_SCENE))
+    kp = m.actuator_gainprm[mm.LEG_ACT_IDX, 0]
+    kd = -m.actuator_biasprm[mm.LEG_ACT_IDX, 2]
+    np.testing.assert_allclose(kp, np.tile([60.0, 120.0, 120.0], 4))
+    np.testing.assert_allclose(kd, np.full(12, 1.0))
+    # 輪：速度伺服（位置項為 0）、kv 0.1
+    np.testing.assert_allclose(m.actuator_biasprm[mm.WHEEL_ACT_IDX, 1], 0.0)
+    np.testing.assert_allclose(-m.actuator_biasprm[mm.WHEEL_ACT_IDX, 2], 0.1)
+    # 輪關節物理照 M11，與 v3 模型一致
+    v3m = mujoco.MjModel.from_xml_path(mm.SCENE_MJX_V3)
+    np.testing.assert_allclose(m.dof_frictionloss[mm.WHEEL_QVEL_IDX], v3m.dof_frictionloss[mm.WHEEL_QVEL_IDX])
+    np.testing.assert_allclose(m.dof_damping[mm.WHEEL_QVEL_IDX], v3m.dof_damping[mm.WHEEL_QVEL_IDX])
+    np.testing.assert_allclose(m.dof_armature[mm.WHEEL_QVEL_IDX], v3m.dof_armature[mm.WHEEL_QVEL_IDX])
+
+
+def test_v3f_differs_from_v3_only_in_gains():
+    """v3f 與 v3 只能差增益 —— 質量、慣量、關節、碰撞幾何一項都不准變。"""
+    a = mujoco.MjModel.from_xml_path(mm.SCENE_MJX_V3)
+    b = mujoco.MjModel.from_xml_path(str(V3F_SCENE))
+    np.testing.assert_allclose(a.body_mass, b.body_mass, rtol=0, atol=0)
+    np.testing.assert_allclose(a.body_inertia, b.body_inertia, rtol=0, atol=0)
+    np.testing.assert_allclose(a.jnt_range, b.jnt_range, rtol=0, atol=0)
+    np.testing.assert_allclose(a.geom_size, b.geom_size, rtol=0, atol=0)
+    assert (a.nq, a.nv, a.nu) == (b.nq, b.nv, b.nu)
+    assert a.opt.timestep == b.opt.timestep

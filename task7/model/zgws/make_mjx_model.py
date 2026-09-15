@@ -364,6 +364,8 @@ DIAG_VARIANTS = {
 
 WHEEL_MODEL_V3 = dict(kv=1.0, frictionloss=0.13, damping=0.015, armature=0.004)   # results/K_輪子系統辨識_M11（純速度伺服，實機已驗）
 WHEEL_MODEL_V3P = dict(WHEEL_MODEL_V3, kp=60.0)   # ★ 位置＋速度伺服（原廠 Wheel_Kp 60；差速轉向需要，**實機未驗**）
+# ★ v3.4f：輪增益照原廠錄檔動作段（kp 0、kd 0.1）。輪關節的摩擦／阻尼／慣量是 M11 實機辨識的硬體特性，不隨增益改。
+WHEEL_MODEL_V3F = dict(WHEEL_MODEL_V3, kv=0.1)
 
 
 def build_all() -> None:
@@ -397,6 +399,11 @@ def build_all() -> None:
     build(dst=str(xml), kp3=KP3_A, kd3=KD3_A, wheel_model=WHEEL_MODEL_V3P)
     build_scene(str(HERE / "scene_flat_mjx_v3p.xml"), xml.name)
     print(f"[產生] {xml.name}  輪 {WHEEL_MODEL_V3P}")
+    # ★ v3.4f 訓練模型：腿與輪的增益**完全等於**原廠錄檔動作段（trip21 17 檔實測，spec §0.1）
+    xml = HERE / "zgws_mjx_v3f.xml"
+    build(dst=str(xml), kp3=KP3, kd3=KD3, wheel_model=WHEEL_MODEL_V3F)
+    build_scene(str(HERE / "scene_flat_mjx_v3f.xml"), xml.name)
+    print(f"[產生] {xml.name}  kp={KP3.tolist()} kd={KD3.tolist()} 輪 kv={WHEEL_MODEL_V3F['kv']}")
 
 
 

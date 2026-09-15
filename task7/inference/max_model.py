@@ -28,6 +28,7 @@ SCENE_MJX = str(_MODEL_DIR / "scene_flat_mjx.xml")
 SCENE_MJX_KP250 = str(_MODEL_DIR / "scene_flat_mjx_kp250.xml")   # RL v2 訓練模型（增益 KP3_A/KD3_A）
 SCENE_MJX_V3 = str(_MODEL_DIR / "scene_flat_mjx_v3.xml")         # RL v3：kp250 ＋ 輪子照 M11（kv 1.0、摩擦 0.13、阻尼 0.015）
 SCENE_MJX_V3P = str(_MODEL_DIR / "scene_flat_mjx_v3p.xml")       # RL v3：同上但輪子 kp 60 位置環（差速轉向用，實機未驗）
+SCENE_MJX_V3F = str(_MODEL_DIR / "scene_flat_mjx_v3f.xml")       # ★ v3.4f：腿增益也照原廠動作段（60/120/120 kd 1.0）、輪 kv 0.1
 
 # =============================================================================
 # 機構

@@ -230,3 +230,17 @@ def test_yaw_reward_has_gradient_over_full_error_range():
         lin = 1.0 - min(e / w["YAW_LIN_E"], 1.0)
         assert lin > 0.05 and lin < 1.0
     assert (1.0 - 0.6 / w["YAW_LIN_E"]) > (1.0 - 1.0 / w["YAW_LIN_E"])       # 誤差越小獎勵越高
+
+
+def test_metrics_keys_match_between_reset_and_step_under_brax_wrapper():
+    """brax 訓練 wrapper 用 lax.scan：reset/step 的 metrics 與 info 結構必須一致（Colab 2026-09-15 炸過）。"""
+    from brax.envs.wrappers import training as tw
+    env = tw.wrap(v3.DualModeEnv(), episode_length=5, action_repeat=1)
+    keys = jax.random.split(jax.random.PRNGKey(0), 2)
+    s = jax.jit(env.reset)(keys)
+    step = jax.jit(env.step)
+    for _ in range(3):
+        s = step(s, jnp.zeros((2, 12)))
+    assert set(s.metrics) >= set(v3.METRIC_KEYS) and s.obs.shape == (2, 76)
+    T = [k for k in s.metrics if k.startswith("t_")]
+    assert set(T) == set(v3.T_KEYS)

@@ -93,8 +93,11 @@ W = dict(W_VX=2.0, W_VY=2.0, W_YAW=2.0, W_YAWI=0.5, W_YAWLIN=1.0, YAW_LIN_E=1.5,
          VX_SIG2=0.02, VY_SIG2=0.005, YAW_SIG2=0.0005, YAW_SIG2_WIDE=0.02, YAW_INST_SIG2=0.05, HEAD_SIG=0.15,
          CMD_VX=(-0.4, 0.9), CMD_VY=(0.03, 0.10), CMD_WZ=(0.2, 1.3), P_VX=0.65, P_VY=0.30, P_WZ=0.50,
          P_SWITCH=0.4, RAMP_STEPS=50, BIAS_EMA=0.02)
-METRIC_KEYS = ("height", "vx", "vy", "wz", "reward", "pitch", "roll", "mode", "s4", "s_arc", "clr_step", "clr_stance",
-               "yawerr", "vxerr", "vyerr", "tau_pk", "err_pk", "knee_v", "omega", "sway_y", "roll_bias")
+T_KEYS = ("t_vx", "t_vy", "t_yaw", "t_yawi", "t_yawlin", "t_head", "t_h", "t_lift", "t_stance", "t_roll", "t_pitch", "t_rollrate",
+          "t_pitchrate", "t_bias", "t_act", "t_omdot", "t_tau", "t_taubar", "t_errbar", "t_kneev", "t_mode", "t_vz")
+METRIC_KEYS = ("height", "vx", "vy", "wz", "reward", "pitch", "roll", "mode", "s4", "s_arc", "cyc", "clr_step", "clr_stance",
+               "yawerr", "vxerr", "vyerr", "tau_pk", "err_pk", "knee_v", "omega", "sway_y", "roll_bias") + T_KEYS
+# ⚠️ reset 與 step 的 metrics 鍵集合必須相同（brax EpisodeWrapper 用 lax.scan，結構不同會炸）；tests 有 wrapper 檢查
 
 
 # ---------------------------------------------------------------- 幾何

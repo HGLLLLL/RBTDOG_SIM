@@ -19,7 +19,7 @@ G0 六指令（`outputs/g0_v31_final.txt`、spec §8.2）；原廠對標表（`o
 v3.2 影片 `outputs/g0_v32_baseline_small.mp4`。
 
 **下一步（照順序）**：
-1. **Colab 訓 v3.2**（notebook 同一支）：`notebooks/cpg_rl_v3_colab.ipynb`（第 5 格 G0 五個 assert 要過：直走 0.49、弧線 +25°/s、原地轉 +28°/s、平移 0.08→0.080、斜走）→ `weights/cpg_rl_v3_params.pkl`。
+1. **Colab 訓 v3.2**（notebook 同一支，2026-09-15 下午已 push、G0 格本機驗過；1 億步）：`notebooks/cpg_rl_v3_colab.ipynb`（第 5 格 G0 五個 assert 要過：直走 0.49、弧線 +25°/s、原地轉 +28°/s、平移 0.08→0.080、斜走）→ `weights/cpg_rl_v3_params.pkl`。
 2. **本機補 `inference/local_infer_v3.py`**（obs 76／act 12），驗收**對標原廠對標表**：每個動作比 roll std／峰、偏航率、v、膝／髖／ABAD 力矩峰值與 RMS、抬腳高度。
    使用者要求：最終訓練結果的峰值力矩、側傾等都要對標原廠運控（原廠膝 τ 峰 28–38、髖 17–26、ABAD 40–60 N·m；roll std 0.5–1.1°）。
 3. 狗上 M9 v3 推論路徑（另開 spec）：obs 第 37–38 格用 `rl_env_v3.activity(cmd)` 的 numpy 版；輪子 = M11 律 kd 1.0 ＋ 前饋 0.13，殘差直接加 v_des。

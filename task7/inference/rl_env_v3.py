@@ -97,6 +97,7 @@ W = dict(W_VX=2.0, W_VY=3.0, W_YAW=2.0, W_YAWI=0.5, W_YAWLIN=1.0, YAW_LIN_E=1.5,
          W_ACT=0.05, W_OMDOT=0.5, W_QRES=0.5, W_TAU=1e-5, W_TAUBAR=0.05, W_ERRBAR=1.0, W_KNEEV=0.02, W_MODE=2.0, W_VZ=0.05,
          VX_SIG2=0.02, VY_SIG2=0.005, YAW_SIG2=0.0005, YAW_SIG2_WIDE=0.02, YAW_INST_SIG2=0.05, HEAD_SIG=0.15,
          CMD_VX=(-0.4, 0.9), CMD_VY=(0.04, 0.30), CMD_WZ=(0.2, 1.3), P_VX=0.65, P_VY=0.30, P_WZ=0.50,
+         P_TURN_ONLY=0.35,        # 有 wz 時有 35% 把 vx、vy 歸零 → 純原地轉由 12% 提到約 25%（v3.3 最難的任務練最少）
          P_SWITCH=0.4, RAMP_STEPS=50, BIAS_EMA=0.02)
 T_KEYS = ("t_vx", "t_vy", "t_yaw", "t_yawi", "t_yawlin", "t_yawrel", "t_vyrel", "t_head", "t_h", "t_lift", "t_stance", "t_roll", "t_pitch", "t_rollrate",
           "t_pitchrate", "t_bias", "t_act", "t_omdot", "t_qres", "t_tau", "t_taubar", "t_errbar", "t_kneev", "t_mode", "t_vz")
@@ -417,8 +418,8 @@ class DualModeEnv(Env):
         ])
 
     def _sample_cmd(self, rng):
-        """三軸獨立抽：vx 65%、vy 30%、wz 50% 非零；全零（站立）自然約 12%。"""
-        k = jax.random.split(rng, 8)
+        """三軸獨立抽：vx 65%、vy 30%、wz 50% 非零；有 wz 時 35% 機率只留 wz（純原地轉）；全零（站立）自然約 10%。"""
+        k = jax.random.split(rng, 9)
         w = self.w
         sgn = lambda kk: jnp.sign(jax.random.uniform(kk) - 0.5)   # noqa: E731
         vx = jnp.where(jax.random.uniform(k[0]) < w["P_VX"],
@@ -427,6 +428,9 @@ class DualModeEnv(Env):
                        jax.random.uniform(k[3], minval=w["CMD_VY"][0], maxval=w["CMD_VY"][1]) * sgn(k[4]), 0.0)
         wz = jnp.where(jax.random.uniform(k[5]) < w["P_WZ"],
                        jax.random.uniform(k[6], minval=w["CMD_WZ"][0], maxval=w["CMD_WZ"][1]) * sgn(k[7]), 0.0)
+        turn_only = (jnp.abs(wz) > 0) & (jax.random.uniform(k[8]) < w["P_TURN_ONLY"])
+        vx = jnp.where(turn_only, 0.0, vx)
+        vy = jnp.where(turn_only, 0.0, vy)
         return jnp.array([vx, vy, wz])
 
     def reset(self, rng):

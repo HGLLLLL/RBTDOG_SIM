@@ -1,0 +1,36 @@
+== ref {'rot_step_frac': 0.2, 'duty': 0.5, 'step_hz': 2.0}  wheel_pos False  obs 76 act 12
+FAIL TURN wz1.3         vx +0.03 vy +0.002 yaw +7±22°/s | roll 0.3/0.8 pitch 0.6 h 0.515 | lift [21.  9.  4. 24.] clr_step 1 | 輪 cmd [ 5.08  0.    0.   -5.08] act [ 5.5   0.9  -0.6  -5.77] | tau_pk 74 err 0.22 knee_v 12.5 | s4 1.00 arc 0.00 R +3.39 | done@None (17s)
+== ref {'rot_step_frac': 0.35, 'duty': 0.5, 'step_hz': 2.0}  wheel_pos False  obs 76 act 12
+FAIL TURN wz1.3         vx +0.11 vy -0.093 yaw -1±52°/s | roll 1.2/3.3 pitch 1.2 h 0.520 | lift [48. 36. 17. 25.] clr_step 1 | 輪 cmd [ 5.08  0.    0.   -5.08] act [ 5.62  0.65 -0.6  -5.69] | tau_pk 93 err 0.39 knee_v 12.5 | s4 1.00 arc 0.00 R -2.40 | done@None (16s)
+== ref {'rot_step_frac': 0.5, 'duty': 0.5, 'step_hz': 2.0}  wheel_pos False  obs 76 act 12
+FAIL TURN wz1.3         vx +0.05 vy -0.050 yaw -10±59°/s | roll 1.9/3.3 pitch 1.8 h 0.522 | lift [55. 41. 29. 34.] clr_step 1 | 輪 cmd [ 5.08  0.    0.   -5.08] act [ 5.48  0.4  -0.08 -5.71] | tau_pk 92 err 0.47 knee_v 12.6 | s4 1.00 arc 0.00 R -1.10 | done@None (16s)
+== ref {'rot_step_frac': 0.2, 'duty': 0.6, 'step_hz': 2.0}  wheel_pos False  obs 76 act 12
+FAIL TURN wz1.3         vx +0.02 vy -0.000 yaw +14±17°/s | roll 1.1/3.2 pitch 2.1 h 0.531 | lift [86. 83. 48. 62.] clr_step 1 | 輪 cmd [ 5.08  0.    0.   -5.08] act [ 6.18  1.07 -1.2  -5.97] | tau_pk 101 err 0.34 knee_v 14.8 | s4 1.00 arc 0.00 R -7.36 | done@184 (16s)
+== ref {'rot_step_frac': 0.35, 'duty': 0.6, 'step_hz': 2.0}  wheel_pos False  obs 76 act 12
+FAIL TURN wz1.3         vx -0.00 vy -0.035 yaw +3±32°/s | roll 1.6/4.6 pitch 3.0 h 0.531 | lift [89. 93. 59. 65.] clr_step 1 | 輪 cmd [ 5.08  0.    0.   -5.08] act [ 6.23  0.55 -0.82 -5.86] | tau_pk 106 err 0.36 knee_v 14.8 | s4 1.00 arc 0.00 R -11.73 | done@84 (16s)
+== ref {'rot_step_frac': 0.5, 'duty': 0.6, 'step_hz': 2.0}  wheel_pos False  obs 76 act 12
+FAIL TURN wz1.3         vx -0.01 vy -0.069 yaw -17±42°/s | roll 2.1/6.3 pitch 2.3 h 0.534 | lift [101.  91.  86.  77.] clr_step 2 | 輪 cmd [ 5.08  0.    0.   -5.08] act [ 6.28  0.4  -0.42 -5.83] | tau_pk 117 err 0.52 knee_v 14.8 | s4 1.00 arc 0.00 R -17.49 | done@85 (16s)
+== ref {'rot_step_frac': 0.2, 'duty': 0.7, 'step_hz': 2.0}  wheel_pos False  obs 76 act 12
+FAIL TURN wz1.3         vx +0.20 vy +0.002 yaw +13±15°/s | roll 0.6/2.2 pitch 1.9 h 0.541 | lift [74. 79. 50. 53.] clr_step 1 | 輪 cmd [ 5.08  0.    0.   -5.08] act [ 6.09  0.84 -1.3  -5.69] | tau_pk 103 err 0.33 knee_v 17.1 | s4 1.00 arc 0.00 R -10.35 | done@None (16s)
+== ref {'rot_step_frac': 0.35, 'duty': 0.7, 'step_hz': 2.0}  wheel_pos False  obs 76 act 12
+FAIL TURN wz1.3         vx -0.03 vy -0.035 yaw -2±27°/s | roll 1.3/2.8 pitch 2.0 h 0.543 | lift [ 80. 110.  64.  68.] clr_step 2 | 輪 cmd [ 5.08  0.    0.   -5.08] act [ 5.98  0.93 -1.26 -6.09] | tau_pk 124 err 0.40 knee_v 17.1 | s4 1.00 arc 0.00 R -14.85 | done@133 (16s)
+== ref {'rot_step_frac': 0.5, 'duty': 0.7, 'step_hz': 2.0}  wheel_pos False  obs 76 act 12
+FAIL TURN wz1.3         vx +0.14 vy -0.125 yaw -28±50°/s | roll 1.7/6.2 pitch 4.0 h 0.547 | lift [200. 261.  74.  79.] clr_step 6 | 輪 cmd [ 5.08  0.    0.   -5.08] act [ 5.9   0.87 -1.21 -5.64] | tau_pk 148 err 0.50 knee_v 17.8 | s4 1.00 arc 0.00 R -35.24 | done@58 (16s)
+== ref {'rot_step_frac': 0.2, 'duty': 0.5, 'step_hz': 1.5}  wheel_pos False  obs 76 act 12
+FAIL TURN wz1.3         vx +0.01 vy -0.003 yaw +2±48°/s | roll 0.5/1.5 pitch 0.7 h 0.515 | lift [15.  3.  0. 14.] clr_step 0 | 輪 cmd [ 5.08  0.    0.   -5.08] act [ 4.47  0.47  0.18 -5.01] | tau_pk 60 err 0.22 knee_v 11.7 | s4 1.00 arc 0.00 R +3.57 | done@None (16s)
+== ref {'rot_step_frac': 0.35, 'duty': 0.5, 'step_hz': 1.5}  wheel_pos False  obs 76 act 12
+FAIL TURN wz1.3         vx +0.05 vy -0.031 yaw -11±73°/s | roll 1.8/4.5 pitch 0.9 h 0.520 | lift [28. 21. 23. 22.] clr_step -2 | 輪 cmd [ 5.08  0.    0.   -5.08] act [ 4.19  0.14  0.5  -5.02] | tau_pk 62 err 0.53 knee_v 11.7 | s4 1.00 arc 0.00 R +2.16 | done@None (16s)
+== ref {'rot_step_frac': 0.5, 'duty': 0.5, 'step_hz': 1.5}  wheel_pos False  obs 76 act 12
+FAIL TURN wz1.3         vx +0.10 vy -0.048 yaw -20±87°/s | roll 3.2/7.6 pitch 1.6 h 0.518 | lift [32. 39. 54. 39.] clr_step -1 | 輪 cmd [ 5.08  0.    0.   -5.08] act [ 4.33  0.07  0.41 -5.4 ] | tau_pk 63 err 0.61 knee_v 12.3 | s4 1.00 arc 0.00 R +0.71 | done@None (16s)
+== ref {'rot_step_frac': 0.2, 'duty': 0.6, 'step_hz': 1.5}  wheel_pos False  obs 76 act 12
+FAIL TURN wz1.3         vx +0.01 vy -0.001 yaw +6±45°/s | roll 0.7/2.4 pitch 0.8 h 0.522 | lift [22.  4.  0. 24.] clr_step 1 | 輪 cmd [ 5.08  0.    0.   -5.08] act [ 4.66  0.71 -0.03 -5.26] | tau_pk 75 err 0.24 knee_v 13.9 | s4 1.00 arc 0.00 R +3.66 | done@None (16s)
+== ref {'rot_step_frac': 0.35, 'duty': 0.6, 'step_hz': 1.5}  wheel_pos False  obs 76 act 12
+FAIL TURN wz1.3         vx +0.06 vy -0.038 yaw -4±76°/s | roll 2.0/5.2 pitch 1.0 h 0.526 | lift [38. 21.  6. 38.] clr_step -0 | 輪 cmd [ 5.08  0.    0.   -5.08] act [ 5.09  0.05  0.11 -5.41] | tau_pk 77 err 0.50 knee_v 14.0 | s4 1.00 arc 0.00 R +1.65 | done@None (16s)
+== ref {'rot_step_frac': 0.5, 'duty': 0.6, 'step_hz': 1.5}  wheel_pos False  obs 76 act 12
+FAIL TURN wz1.3         vx +0.13 vy -0.034 yaw -10±68°/s | roll 4.3/10.5 pitch 1.9 h 0.525 | lift [47. 49. 43. 57.] clr_step -1 | 輪 cmd [ 5.08  0.    0.   -5.08] act [ 4.74  0.12 -0.17 -5.26] | tau_pk 80 err 0.62 knee_v 14.0 | s4 1.00 arc 0.00 R -0.68 | done@None (16s)
+== ref {'rot_step_frac': 0.2, 'duty': 0.7, 'step_hz': 1.5}  wheel_pos False  obs 76 act 12
+FAIL TURN wz1.3         vx +0.08 vy -0.025 yaw +11±31°/s | roll 1.1/3.7 pitch 1.4 h 0.533 | lift [61. 64. 23. 46.] clr_step 2 | 輪 cmd [ 5.08  0.    0.   -5.08] act [ 5.73  0.92 -0.82 -5.82] | tau_pk 96 err 0.30 knee_v 16.6 | s4 1.00 arc 0.00 R -1.63 | done@None (16s)
+== ref {'rot_step_frac': 0.35, 'duty': 0.7, 'step_hz': 1.5}  wheel_pos False  obs 76 act 12
+FAIL TURN wz1.3         vx +0.08 vy -0.076 yaw +13±65°/s | roll 1.6/4.4 pitch 1.8 h 0.537 | lift [92. 99. 44. 61.] clr_step 2 | 輪 cmd [ 5.08  0.    0.   -5.08] act [ 6.04  0.41 -0.35 -5.93] | tau_pk 93 err 0.38 knee_v 16.6 | s4 1.00 arc 0.00 R -2.79 | done@None (16s)
+== ref {'rot_step_frac': 0.5, 'duty': 0.7, 'step_hz': 1.5}  wheel_pos False  obs 76 act 12
+FAIL TURN wz1.3         vx +0.08 vy -0.079 yaw +10±72°/s | roll 3.4/8.6 pitch 2.3 h 0.543 | lift [109. 147.  65.  80.] clr_step 2 | 輪 cmd [ 5.08  0.    0.   -5.08] act [ 5.98  0.17 -0.44 -5.86] | tau_pk 109 err 0.61 knee_v 16.6 | s4 1.00 arc 0.00 R -13.96 | done@76 (16s)

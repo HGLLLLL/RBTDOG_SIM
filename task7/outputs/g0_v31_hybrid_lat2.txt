@@ -1,0 +1,10 @@
+PASS ARC vx0.5 wz0.5    vx +0.47 vy -0.030 yaw +25±39°/s | roll 0.5/2.5 pitch 0.7 h 0.533 | lift [21. 33. 21. 15.] clr_step 5 | 輪 cmd [6.18 4.23 6.18 
+FAIL LAT vy0.08         vx +0.07 vy +0.058 yaw +2±10°/s | roll 7.9/10.9 pitch 2.1 h 0.525 | lift [57. -4. 55. -2.] clr_step 14 | 輪 cmd [ 0.    4.4   0
+PASS DIAG vx0.3 vy0.06  vx +0.36 vy +0.034 yaw -1±13°/s | roll 5.1/8.7 pitch 1.9 h 0.529 | lift [42. -1. 38.  1.] clr_step 11 | 輪 cmd [3.13 6.42 3.13 
+FAIL LAT vy0.04         vx +0.07 vy -0.001 yaw -2±26°/s | roll 3.5/7.9 pitch 1.8 h 0.532 | lift [34.  2. 30.  4.] clr_step 9 | 輪 cmd [ 0.    2.2   0. 
+FAIL LAT vy0.06         vx +0.06 vy +0.035 yaw -1±13°/s | roll 5.3/8.9 pitch 1.9 h 0.529 | lift [43. -1. 39.  1.] clr_step 11 | 輪 cmd [ 0.    3.3   0.
+PASS ARC vx0.5 wz0.5    vx +0.47 vy -0.030 yaw +25±39°/s | roll 0.5/2.5 pitch 0.7 h 0.533 | lift [21. 33. 21. 15.] clr_step 5 | 輪 cmd [6.18 4.23 6.18 
+FAIL LAT vy0.08         vx +0.12 vy +0.042 yaw +2±19°/s | roll 3.3/7.5 pitch 2.1 h 0.533 | lift [38.  2. 27.  8.] clr_step 8 | 輪 cmd [ 0.    4.4   0. 
+FAIL DIAG vx0.3 vy0.06  vx +0.42 vy +0.013 yaw +1±22°/s | roll 3.0/7.2 pitch 2.0 h 0.534 | lift [34.  1. 26.  5.] clr_step 7 | 輪 cmd [3.13 6.42 3.13 0
+FAIL LAT vy0.04         vx +0.05 vy -0.029 yaw +1±28°/s | roll 3.0/7.4 pitch 1.9 h 0.535 | lift [31.  3. 24. 13.] clr_step 7 | 輪 cmd [ 0.    2.2   0. 
+FAIL LAT vy0.06         vx +0.12 vy +0.016 yaw +0±23°/s | roll 3.1/7.3 pitch 2.0 h 0.534 | lift [34.  1. 28.  6.] clr_step 7 | 輪 cmd [ 0.    3.3   0. 

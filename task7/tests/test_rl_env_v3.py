@@ -57,13 +57,17 @@ def test_kin_step_vec_directions():
 
 
 def test_phase_offsets_mirror_and_blend():
-    ph_t = np.asarray(v3.phase_offsets(C(0, 0, 1.3), A(C(0, 0, 1.3))))
+    fac = dict(v3.REF, phase_set_turn="factory", phase_set_lat="factory")
+    ph_t = np.asarray(v3.phase_offsets(C(0, 0, 1.3), A(C(0, 0, 1.3)), fac))
     assert np.allclose(ph_t, np.asarray(v3.PH_TURN_L))
-    ph_tr = np.asarray(v3.phase_offsets(C(0, 0, -1.3), A(C(0, 0, -1.3))))
+    ph_tr = np.asarray(v3.phase_offsets(C(0, 0, -1.3), A(C(0, 0, -1.3)), fac))
     assert np.allclose(ph_tr, np.asarray(v3.PH_TURN_L)[[FL, FR, RL, RR]])
-    ph_l = np.asarray(v3.phase_offsets(C(0, 0.08, 0), A(C(0, 0.08, 0))))
+    ph_l = np.asarray(v3.phase_offsets(C(0, 0.08, 0), A(C(0, 0.08, 0)), fac))
     assert np.allclose(ph_l, np.asarray(v3.PH_LAT_L))
-    mix = np.asarray(v3.phase_offsets(C(0, 0.08, 1.3), A(C(0, 0.08, 1.3))))
+    # 預設：旋轉族小跑（FL+RR 0、FR+RL 0.5）、平移族原廠
+    assert np.allclose(np.asarray(v3.phase_offsets(C(0, 0, 1.3), A(C(0, 0, 1.3)))), np.asarray(v3.PH_TROT))
+    assert np.allclose(np.asarray(v3.phase_offsets(C(0, 0.08, 0), A(C(0, 0.08, 0)))), np.asarray(v3.PH_LAT_L))
+    mix = np.asarray(v3.phase_offsets(C(0, 0.08, 1.3), A(C(0, 0.08, 1.3)), fac))
     for k in range(4):
         gap = abs((ph_t[k] - ph_l[k] + 0.5) % 1 - 0.5)
         d1 = abs((mix[k] - ph_l[k] + 0.5) % 1 - 0.5); d2 = abs((mix[k] - ph_t[k] + 0.5) % 1 - 0.5)
@@ -109,6 +113,13 @@ def test_act_split_wheel_residual_units():
 def test_step_pattern_keys_and_foot_targets_shape():
     P = v3.step_pattern(C(0.3, 0.06, 0.4))
     assert set(P) >= {"A", "s", "g", "vec", "ph", "wheel0", "hz", "duty", "lift", "post_y"}
+    # 抬高不隨指令大小縮：vy 0.04（s4 0.5）與 vy 0.08 的主導腿抬高一樣，次要腿 0.7 倍
+    l1, l2 = np.asarray(v3.step_pattern(C(0, 0.04, 0))["lift"]), np.asarray(v3.step_pattern(C(0, 0.08, 0))["lift"])
+    assert np.allclose(l1, l2) and abs(l2[FL] - v3.REF["lift"]) < 1e-6 and abs(l2[FR] - 0.7 * v3.REF["lift"]) < 1e-6
+    assert np.allclose(np.asarray(v3.step_pattern(C(0.5, 0, 0))["lift"]), 0.0)
+    # 族別混合：純旋轉用旋轉族步頻，純平移用平移族
+    assert abs(float(v3.step_pattern(C(0, 0, 1.3))["hz"]) - v3.REF["step_hz_turn"]) < 1e-6
+    assert abs(float(v3.step_pattern(C(0, 0.08, 0))["hz"]) - v3.REF["step_hz_lat"]) < 1e-6
     feet = v3.foot_targets(jnp.zeros(4), jnp.ones(4), P["g"], P["vec"], P["lift"], jnp.zeros(2), 1.0, jnp.zeros(4), 0.0, P["duty"], P["post_y"])
     assert feet.shape == (4, 3)
     feet0 = v3.foot_targets(jnp.zeros(4), jnp.ones(4), jnp.zeros(4), jnp.zeros((4, 2)), jnp.zeros(4), jnp.zeros(2), 0.0, jnp.zeros(4), 0.0, 0.5, jnp.zeros(4))
@@ -137,3 +148,47 @@ def test_obs_layout_pinned():
     """狗上 obs 組裝要照這個切；改了就要一起改 realbot。第 37–38 格是 [s4, s_arc]。"""
     assert v3.ACT_DIM == 12
     assert 3 + 3 + 12 + 12 + 4 + 3 + 2 + 1 + 12 + 24 == 76
+
+
+def _rollout(env, cmd, steps, jit_reset, jit_step):
+    s = jit_reset(jax.random.PRNGKey(0))
+    s = s.replace(info={**s.info, "cmd": cmd, "cmd2": cmd, "t_switch": 10 ** 6})
+    a = jnp.zeros(12)
+    M = {k: [] for k in ("vx", "vy", "wz", "tau_pk", "clr_step", "clr_stance", "s4", "s_arc")}
+    done = []
+    for _ in range(steps):
+        s = jit_step(s, a)
+        for k in M:
+            M[k].append(float(s.metrics[k]))
+        done.append(float(s.done))
+    return s, {k: np.array(v) for k, v in M.items()}, max(done)
+
+
+def test_env_shapes_defaults_and_obs_mode_slots():
+    env = v3.DualModeEnv()
+    assert env.obs_dim == 76 and env.action_size == 12 and env.wheel_pos is False
+    s = jax.jit(env.reset)(jax.random.PRNGKey(1))
+    assert s.obs.shape == (76,) and s.info["ph"].shape == (4,)
+    cmd = np.asarray(s.obs[34:37]); a = v3.activity(jnp.array(cmd))
+    assert abs(float(s.obs[37]) - float(a["s4"])) < 1e-6 and abs(float(s.obs[38]) - float(a["arc"])) < 1e-6
+
+
+def test_env_g0_wheel_and_turn():
+    env = v3.DualModeEnv()
+    jit_reset, jit_step = jax.jit(env.reset), jax.jit(env.step)
+    s, M, done = _rollout(env, jnp.array([0.5, 0.0, 0.0]), 80, jit_reset, jit_step)
+    assert done == 0.0 and M["tau_pk"].max() < v3.TAU_KILL
+    assert abs(M["vx"][40:].mean() - 0.5) < 0.08 and M["clr_stance"][40:].max() < 10.0 and M["s4"].max() == 0.0
+    s, M, done = _rollout(env, jnp.array([0.0, 0.0, 1.3]), 80, jit_reset, jit_step)
+    assert done == 0.0 and M["tau_pk"].max() < v3.TAU_KILL
+    assert np.degrees(M["wz"][40:].mean()) > 10.0 and M["s4"].max() == 1.0
+
+
+def test_sample_cmd_covers_axes_and_combos():
+    env = v3.DualModeEnv()
+    f = jax.jit(jax.vmap(env._sample_cmd))
+    c = np.asarray(f(jax.random.split(jax.random.PRNGKey(0), 4000)))
+    nz = np.abs(c) > 1e-9
+    assert 0.55 < nz[:, 0].mean() < 0.75 and 0.22 < nz[:, 1].mean() < 0.38 and 0.42 < nz[:, 2].mean() < 0.58
+    assert (nz[:, 0] & nz[:, 1]).mean() > 0.1 and (nz[:, 0] & nz[:, 2]).mean() > 0.2      # 斜走、弧線都有
+    assert c[:, 0].min() >= -0.4 and c[:, 0].max() <= 0.9 and np.abs(c[nz[:, 1], 1]).min() >= 0.03 and np.abs(c[nz[:, 2], 2]).min() >= 0.2

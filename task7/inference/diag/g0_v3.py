@@ -63,6 +63,7 @@ def verdict(name, r, yaw_scale=1.0):
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--steps", type=int, default=200)
     ap.add_argument("--wheel-pos", action="store_true", dest="wheel_pos", help="用 kp 60 位置環模型（v3.1 預設不用）")
+    ap.add_argument("--gains", default="kp250", choices=("kp250", "factory"), help="factory＝馬達增益完全照原廠（v3.4f）")
     ap.add_argument("--rot-frac", type=float, default=None, dest="rot_frac"); ap.add_argument("--lift", type=float, default=None)
     ap.add_argument("--duty", type=float, default=None); ap.add_argument("--hz", type=float, default=None)
     ap.add_argument("--posture", type=int, default=None, help="1 開 0 關（弧線姿態偏移）"); ap.add_argument("--posture-lat", type=float, default=None, dest="posture_lat"); ap.add_argument("--lat-gain", type=float, default=None, dest="lat_gain"); ap.add_argument("--lift-lat", type=float, default=None, dest="lift_lat")
@@ -70,6 +71,7 @@ def main():
     ap.add_argument("--gen-turn", default=None, dest="gen_turn", help="cycle | kin"); ap.add_argument("--gen-lat", default=None, dest="gen_lat")
     ap.add_argument("--cyc-abs", action="store_true", dest="cyc_abs", help="週期用原廠絕對 des（不對中到我們站姿）")
     ap.add_argument("--cyc-wheel", type=float, default=None, dest="cyc_wheel"); ap.add_argument("--cyc-hz", type=float, default=None, dest="cyc_hz"); ap.add_argument("--uniform", action="store_true", help="關節偏移統一縮放（舊法），不做等力矩換算"); ap.add_argument("--mu", type=float, default=None)
+    ap.add_argument("--z-sag", type=float, default=None, dest="z_sag"); ap.add_argument("--wheel-gain", type=float, default=None, dest="wheel_gain")
     ap.add_argument("--yaw-scale", type=float, default=1.0, dest="yaw_scale"); ap.add_argument("--only", default="")
     ap.add_argument("--sweep", action="store_true", help="rot_frac {0.2,0.35,0.5} × duty {0.5,0.6,0.7} × hz {2.0,1.5}")
     ap.add_argument("--sweep-rot", default="0.2,0.35,0.5", dest="sweep_rot"); ap.add_argument("--sweep-duty", default="0.5,0.6,0.7", dest="sweep_duty")
@@ -95,6 +97,10 @@ def main():
         base["lift_lat"] = a.lift_lat
     if a.lat_gain is not None:
         base["lat_cmd_gain"] = a.lat_gain
+    if a.z_sag is not None:
+        base["z_sag"] = a.z_sag
+    if a.wheel_gain is not None:
+        base["wheel_outer_gain"] = a.wheel_gain
     if a.posture_lat is not None:
         base["posture_lat"] = a.posture_lat
     if a.posture is not None:
@@ -107,9 +113,9 @@ def main():
         f = lambda s: [float(x) for x in s.split(",")]   # noqa: E731
         grid = [dict(base, rot_step_frac=rf, duty_turn=d, duty_lat=d, step_hz_turn=hz, step_hz_lat=hz) for hz, d, rf in itertools.product(f(a.sweep_hz), f(a.sweep_duty), f(a.sweep_rot))]
     for ref in grid:
-        env = v3.DualModeEnv(wheel_pos=a.wheel_pos, ref=dict(ref, cyc_amp_rand=False))   # G0：幅度固定
+        env = v3.DualModeEnv(wheel_pos=a.wheel_pos, gains=a.gains, ref=dict(ref, cyc_amp_rand=False))   # G0：幅度固定
         jit_reset, jit_step = jax.jit(env.reset), jax.jit(env.step)
-        print(f"\n== ref {ref}  wheel_pos {env.wheel_pos}  obs {env.obs_dim} act {env.action_size}", flush=True)
+        print(f"\n== ref {ref}  gains {env.gains} wheel_pos {env.wheel_pos}  obs {env.obs_dim} act {env.action_size}", flush=True)
         for name, cmd in cases:
             if a.only and a.only not in name:
                 continue

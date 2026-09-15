@@ -25,6 +25,7 @@ import kin  # noqa: E402
 import m6_rec  # noqa: E402
 import max_model as mm  # noqa: E402
 import ref_gait_analysis as rga  # noqa: E402
+import rl_env_v3 as v3  # noqa: E402
 
 SHM_OF = {"FR": "fr", "FL": "fl", "RR": "br", "RL": "bl"}
 KINDS = ("1_hip_roll", "2_hip_pitch", "3_knee_pitch")
@@ -45,13 +46,17 @@ def load_ctrl_frame(path: str):
     return rec, q, des, tau_w, v_w, lift
 
 
-def make_model(mu: float | None = None) -> mujoco.MjModel:
-    m = mujoco.MjModel.from_xml_path(mm.SCENE_MJX)
+def make_model(mu: float | None = None, scene: str | None = None, actuator: bool = False) -> mujoco.MjModel:
+    """`scene` 預設 `scene_flat_mjx.xml`（腿 60/120/120 kd 1.0 ＝ 原廠動作段）。
+    `actuator=True`：輪子保留致動器（v3.4f 的 kv 0.1 速度伺服，力矩由 ctrl 指定）；
+    False（預設）：關掉輪致動器、錄檔 τ 直接進 qfrc_applied（v3.1 步驟 0 的做法）。"""
+    m = mujoco.MjModel.from_xml_path(scene or mm.SCENE_MJX)
     kp = m.actuator_gainprm[mm.LEG_ACT_IDX, 0]
-    assert np.allclose(kp, np.tile([60.0, 120.0, 120.0], 4)), f"scene_flat_mjx 腿增益不是原廠動作組：{kp}"
+    assert np.allclose(kp, np.tile([60.0, 120.0, 120.0], 4)), f"腿增益不是原廠動作組：{kp}"
     assert np.allclose(-m.actuator_biasprm[mm.LEG_ACT_IDX, 2], 1.0)
-    m.actuator_gainprm[mm.WHEEL_ACT_IDX, :] = 0.0
-    m.actuator_biasprm[mm.WHEEL_ACT_IDX, :] = 0.0
+    if not actuator:
+        m.actuator_gainprm[mm.WHEEL_ACT_IDX, :] = 0.0
+        m.actuator_biasprm[mm.WHEEL_ACT_IDX, :] = 0.0
     # 輪關節照 M11 實測（與 scene_flat_mjx_v3 同）：τ_f 0.13、b 0.015、armature 0.004
     m.dof_frictionloss[mm.WHEEL_QVEL_IDX] = 0.13
     m.dof_damping[mm.WHEEL_QVEL_IDX] = 0.015
@@ -72,7 +77,7 @@ def _settle(m, d, q12, secs=1.0):
         mujoco.mj_step(m, d)
 
 
-def replay(m, q, des, tau_w, i0: int, n: int, v0=None) -> dict:
+def replay(m, q, des, tau_w, i0: int, n: int, v0=None, actuator: bool = False) -> dict:
     """v0 = (v_body_x, yaw_rate, wheel_v(4))：錄檔在 i0 已在動，給模擬同樣的初速（沒有外部定位，v_body 由四輪平均估）。"""
     d = mujoco.MjData(m)
     _settle(m, d, q[i0])
@@ -81,6 +86,7 @@ def replay(m, q, des, tau_w, i0: int, n: int, v0=None) -> dict:
         d.qvel[0], d.qvel[5] = vb, wz
         d.qvel[mm.WHEEL_QVEL_IDX] = wv0
         mujoco.mj_forward(m, d)
+    kv_wheel = float(-m.actuator_biasprm[mm.WHEEL_ACT_IDX[0], 2]) if actuator else 0.0
     base = mm._id(m, mujoco.mjtObj.mjOBJ_BODY, "base_link")
     gids = [mm._id(m, mujoco.mjtObj.mjOBJ_GEOM, f"{mm.PREFIX[L]}_FOOT_LINK_COLL") for L in mm.LEGS]
     r = float(m.geom_size[gids[0]][0])
@@ -92,7 +98,11 @@ def replay(m, q, des, tau_w, i0: int, n: int, v0=None) -> dict:
     for j in range(n):
         i = min(i0 + j, len(des) - 1)
         d.ctrl[mm.LEG_ACT_IDX] = des[i]
-        d.qfrc_applied[mm.WHEEL_QVEL_IDX] = tau_w[i]
+        if actuator:
+            # v3.4f 路徑：同一份錄檔 τ 由 kv 0.1 的速度伺服產生（與 rl_env_v3 訓練時走的是同一條控制律）
+            d.ctrl[mm.WHEEL_ACT_IDX] = np.asarray(v3.wheel_ctrl_tau(tau_w[i], d.qvel[mm.WHEEL_QVEL_IDX], kv_wheel))
+        else:
+            d.qfrc_applied[mm.WHEEL_QVEL_IDX] = tau_w[i]
         mujoco.mj_step(m, d)
         yaw[j] = d.qvel[5]
         clr[j] = d.geom_xpos[gids, 2] - r
@@ -115,9 +125,9 @@ def _q_dict(rec):
     return {l: {k: coord.to_ctrl(l + k, rec.j[l + k]["q"]) for k in coord.LEG_KINDS} for l in rga.LEGS}
 
 
-def run_file(path: str, window: float, starts: int, mu=None) -> list:
+def run_file(path: str, window: float, starts: int, mu=None, scene=None, actuator: bool = False) -> list:
     rec, q, des, tau_w, v_w, lift = load_ctrl_frame(path)
-    m = make_model(mu)
+    m = make_model(mu, scene, actuator)
     n = int(window * rga.HZ)
     mv = rga.moving_mask(rec, _q_dict(rec), v_w)
     idx = np.nonzero(mv)[0]
@@ -128,7 +138,7 @@ def run_file(path: str, window: float, starts: int, mu=None) -> list:
     rows = []
     for i0 in np.linspace(a, b, starts).astype(int):
         v0 = (float(mm.WHEEL_RADIUS * v_w[i0].mean()), float(rec.gyro[i0, 2]), v_w[i0])
-        r = replay(m, q, des, tau_w, i0, n, v0)
+        r = replay(m, q, des, tau_w, i0, n, v0, actuator)
         k = len(r["yaw_rad_s"])
         rows.append(dict(
             t0=float(rec.t[i0]), fell=r["fell"], secs=k / rga.HZ,
@@ -161,12 +171,14 @@ def main() -> int:
     ap.add_argument("--window", type=float, default=1.5)
     ap.add_argument("--starts", type=int, default=3)
     ap.add_argument("--mu", type=float, default=None)
+    ap.add_argument("--scene", default=None, help="預設 scene_flat_mjx.xml；v3.4f 驗證用 task7/model/zgws/scene_flat_mjx_v3f.xml")
+    ap.add_argument("--actuator", action="store_true", help="輪子走 kv 0.1 致動器（v3.4f 力矩空間），不用 qfrc_applied")
     ap.add_argument("--out", default=str(HERE.parent / "outputs" / "replay_factory_trip21.md"))
     a = ap.parse_args()
     results = {}
     for tag in a.tags:
         path = next(Path(a.logdir).glob(f"M6_*_{tag}.json"))
-        results[tag] = run_file(str(path), a.window, a.starts, a.mu)
+        results[tag] = run_file(str(path), a.window, a.starts, a.mu, a.scene, a.actuator)
         for r in results[tag]:
             print(f"{TAGS.get(tag, tag):11s} t0 {r['t0']:5.1f} 放 {r['secs']:.1f}s yaw {r['yaw_sim']:+5.0f}/{r['yaw_rec']:+5.0f} | roll_max 模擬 {r['roll_max']:.1f}° (原廠 gyro 積分 {r['roll_rec_max']:.1f}°) | 位移 x/y {r['disp_xy']} mm | clr {r['lift_sim']} fk {r['lift_fk_sim']} / rec {r['lift_rec']} | 輪 {r['wheel_sim']} / {r['wheel_rec']} | fell {r['fell']}")
     txt = md(results, a.mu)

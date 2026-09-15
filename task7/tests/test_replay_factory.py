@@ -32,3 +32,25 @@ def test_replay_smoke():
     r = rf.replay(m, q, des, tau_w, i0, 100)
     assert r["yaw_rad_s"].shape == (100,) and r["clr"].shape == (100, 4)
     assert np.all(np.isfinite(r["clr"])) and not r["fell"]
+
+
+def test_actuator_path_produces_recorded_torque():
+    """走「kv 0.1 致動器」的路徑，實際產生的輪力矩要等於錄檔 τ ＋ 摩擦前饋。
+
+    這是 v3.4f 力矩空間控制律的端對端驗證：若這裡不成立，
+    G0 與訓練用的輪力矩就不是錄檔那個值（而 qfrc_applied 那條舊路是對的，兩者會對不起來）。
+    """
+    import mujoco
+    import rl_env_v3 as v3
+
+    m = rf.make_model(scene=mm.SCENE_MJX_V3F, actuator=True)
+    d = mujoco.MjData(m)
+    tau_rec = np.array([1.5, -1.0, 0.8, -0.2])
+    d.qvel[mm.WHEEL_QVEL_IDX] = [10.0, -10.0, 3.0, 0.0]
+    mujoco.mj_forward(m, d)
+    v_meas = d.qvel[mm.WHEEL_QVEL_IDX].copy()
+    d.ctrl[mm.WHEEL_ACT_IDX] = np.asarray(v3.wheel_ctrl_tau(tau_rec, v_meas, 0.1))
+    mujoco.mj_forward(m, d)
+    got = d.actuator_force[mm.WHEEL_ACT_IDX]
+    want = tau_rec + np.sign(tau_rec) * v3.TAU_FF
+    np.testing.assert_allclose(got, want, rtol=1e-5, atol=1e-6)

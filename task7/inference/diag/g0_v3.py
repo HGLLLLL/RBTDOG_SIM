@@ -72,6 +72,7 @@ def main():
     ap.add_argument("--cyc-abs", action="store_true", dest="cyc_abs", help="週期用原廠絕對 des（不對中到我們站姿）")
     ap.add_argument("--cyc-wheel", type=float, default=None, dest="cyc_wheel"); ap.add_argument("--cyc-hz", type=float, default=None, dest="cyc_hz"); ap.add_argument("--uniform", action="store_true", help="關節偏移統一縮放（舊法），不做等力矩換算"); ap.add_argument("--mu", type=float, default=None)
     ap.add_argument("--z-sag", type=float, default=None, dest="z_sag"); ap.add_argument("--wheel-gain", type=float, default=None, dest="wheel_gain")
+    ap.add_argument("--lat-omega", type=float, default=None, dest="lat_omega", help="側向輪圖案幅度 rad/s（kp250 擬的是 3.3，kp120 要 2.2，見 v3.4f spec §11.2）")
     ap.add_argument("--yaw-scale", type=float, default=1.0, dest="yaw_scale"); ap.add_argument("--only", default="")
     ap.add_argument("--sweep", action="store_true", help="rot_frac {0.2,0.35,0.5} × duty {0.5,0.6,0.7} × hz {2.0,1.5}")
     ap.add_argument("--sweep-rot", default="0.2,0.35,0.5", dest="sweep_rot"); ap.add_argument("--sweep-duty", default="0.5,0.6,0.7", dest="sweep_duty")
@@ -101,6 +102,8 @@ def main():
         base["z_sag"] = a.z_sag
     if a.wheel_gain is not None:
         base["wheel_outer_gain"] = a.wheel_gain
+    if a.lat_omega is not None:
+        base["lat_omega"] = a.lat_omega
     if a.posture_lat is not None:
         base["posture_lat"] = a.posture_lat
     if a.posture is not None:

@@ -93,7 +93,12 @@ REF_FACTORY = dict(
     z_sag=0.072,                        # M8 實機：kp120 撓度 72 mm（kp250 是 36）
     err_bar3=(1.05, 0.45, 0.45),        # 原廠 ABAD 命令差實測 max 1.02 rad；髖膝 max 0.32 < 0.45 不動（spec §0.3）
     wheel_space="tau",
-    wheel_outer_gain=1.0,               # 起點＝kd 1.0 的等效行為
+    wheel_outer_gain=1.0,               # G0 掃過 0／0.3／1.0：1.0 最穩（＝kd 1.0 的等效行為），低增益等於把側向輪圖案一起打折
+    # ---- 以下三項是 G0 掃出來的（spec §11）。根因：撓度 36→72 mm 把腳壓在地上，
+    #      輪子卸不了重就拖不動 41 kg —— 平移不是「力矩不夠」而是「腳沒離地」。
+    cyc_amp_lat=1.6,                    # 命令幅度補撓度：amp 1.0 腳只離地 0.4 mm、vy 剩 17%；1.6 時腳 22–47 mm（原廠實測 16–22）、vy 達指令 64–94%
+    lat_omega=2.2,                      # 3.3 是 kp250 下擬的；腿軟了同一組輪圖案讓側速衝到 4 倍（0.34 對指令 0.08）然後翻車
+    posture_lat=0.06,                   # 四腳外張加寬支撐面。kp250 時因為吃掉 vy 所以關著（=0），kp120 不開就翻
 )
 
 GAIN_SETS = {
@@ -391,7 +396,7 @@ class DualModeEnv(Env):
         self.gains = gains
         G = GAIN_SETS[gains]
         self.w = dict(W, **(weights or {}))
-        self.ref = dict(REF, **G["ref"], **(ref or {}))
+        self.ref = {**REF, **G["ref"], **(ref or {})}      # 用 dict(REF, **a, **b) 會在 key 重複時炸（掃描時覆寫 REF_FACTORY 的鍵就會踩到）
         self.wheel_pos = wheel_pos
         self.wheel_space = self.ref["wheel_space"]
         if scene is None:

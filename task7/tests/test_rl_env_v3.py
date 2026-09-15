@@ -400,3 +400,15 @@ def test_domain_randomize_uses_the_right_nominal_gains():
     assert hip.min() >= 120 * 0.8 - 1e-3 and hip.max() <= 120 * 1.2 + 1e-3, f"HIP kp 範圍 {hip.min()}–{hip.max()}"
     abad = kp[:, 0]                                             # ABAD 標稱 60，DR ×0.7–1.0
     assert abad.min() >= 60 * 0.7 - 1e-3 and abad.max() <= 60 * 1.0 + 1e-3, f"ABAD kp 範圍 {abad.min()}–{abad.max()}"
+
+
+def test_ref_override_wins_over_gain_set():
+    """掃描時 ref= 會覆寫 REF_FACTORY 裡的同名鍵（g0_v3 --z-sag 就是這樣用的）。
+
+    這條是回歸測試：`dict(REF, **G["ref"], **ref)` 在 key 重複時會丟
+    TypeError: got multiple values for keyword argument，整個掃描跑不起來。
+    """
+    env = v3.DualModeEnv(gains="factory", ref=dict(z_sag=0.05, cyc_amp_rand=False))
+    assert env.ref["z_sag"] == 0.05                      # 使用者覆寫贏
+    assert env.ref["wheel_space"] == "tau"               # 沒覆寫的仍然來自 REF_FACTORY
+    assert env.ref["lat_cmd_gain"] == v3.REF["lat_cmd_gain"]   # 都沒動的來自 REF

@@ -105,7 +105,7 @@ def main():
         f = lambda s: [float(x) for x in s.split(",")]   # noqa: E731
         grid = [dict(base, rot_step_frac=rf, duty_turn=d, duty_lat=d, step_hz_turn=hz, step_hz_lat=hz) for hz, d, rf in itertools.product(f(a.sweep_hz), f(a.sweep_duty), f(a.sweep_rot))]
     for ref in grid:
-        env = v3.DualModeEnv(wheel_pos=a.wheel_pos, ref=ref)
+        env = v3.DualModeEnv(wheel_pos=a.wheel_pos, ref=dict(ref, cyc_amp_rand=False))   # G0：幅度固定
         jit_reset, jit_step = jax.jit(env.reset), jax.jit(env.step)
         print(f"\n== ref {ref}  wheel_pos {env.wheel_pos}  obs {env.obs_dim} act {env.action_size}", flush=True)
         for name, cmd in cases:

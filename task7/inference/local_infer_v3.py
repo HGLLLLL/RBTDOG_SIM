@@ -27,12 +27,12 @@ CASES = (("直走 0.5", (0.5, 0.0, 0.0), "fwd"), ("弧線 0.5+0.5", (0.5, 0.0, 0
 ABAD, HIP, KNEE = [0, 3, 6, 9], [1, 4, 7, 10], [2, 5, 8, 11]
 
 
-def load_policy(path: str):
+def load_policy(path: str, obs_dim: int = 88):
     from brax.io import model
     from brax.training.acme import running_statistics
     from brax.training.agents.ppo import networks as ppo_networks
     factory = functools.partial(ppo_networks.make_ppo_networks, policy_hidden_layer_sizes=POLICY_HIDDEN, value_hidden_layer_sizes=VALUE_HIDDEN)
-    net = factory(76, v3.ACT_DIM, preprocess_observations_fn=running_statistics.normalize)
+    net = factory(obs_dim, v3.ACT_DIM, preprocess_observations_fn=running_statistics.normalize)
     pol = jax.jit(ppo_networks.make_inference_fn(net)(model.load_params(path), deterministic=True))
     key = jax.random.PRNGKey(0)
     return lambda obs: pol(obs, key)[0]
@@ -82,8 +82,8 @@ def main() -> int:
     ap.add_argument("--mesh", action="store_true", help="影片用官方 STL 網格模型渲染（scene_flat.xml；物理仍是訓練模型，只換外觀）")
     ap.add_argument("--title", default="", help="影片標題前綴")
     a = ap.parse_args()
-    env = v3.DualModeEnv(); jr, js = jax.jit(env.reset), jax.jit(env.step)
-    pol = load_policy(a.weights); steps = int(a.secs / v3.CTRL_DT); F = factory_ref()
+    env = v3.DualModeEnv(ref=dict(cyc_amp_rand=False)); jr, js = jax.jit(env.reset), jax.jit(env.step)   # eval：原地轉幅度固定 REF cyc_amp_turn
+    pol = load_policy(a.weights, env.obs_dim); steps = int(a.secs / v3.CTRL_DT); F = factory_ref()
     rows, traj = [], {}
     for name, cmd, fam in CASES:
         if a.only and a.only not in name:

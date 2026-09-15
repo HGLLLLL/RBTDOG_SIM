@@ -1,0 +1,9 @@
+PASS WHEEL vx0.5        vx +0.50 vy +0.001 yaw +0±1°/s | roll 0.3/0.8(std 0.2) pitch 0.2 h 0.518 | lift [-0. -0. -0.   ... tau_pk 25 done@None
+PASS ARC vx0.5 wz0.5    vx +0.45 vy -0.015 yaw +23±33°/s | roll 1.0/4.7(std 1.0) pitch 1.2 h 0.532 | lift [22. 50. 38. ... tau_pk 65 done@None
+FAIL TURN wz1.3         vx -0.02 vy -0.003 yaw +1±36°/s | roll 56.9/57.3(std 0.4) pitch 1.9 h 0.169 | lift [148.  44.  ... tau_pk 94 done@183
+PASS LAT vy0.08         vx +0.03 vy +0.061 yaw -3±6°/s | roll 1.3/1.9(std 0.3) pitch 0.9 h 0.541 | lift [0. 2. 2. 1.]  ... tau_pk 40 done@None
+PASS DIAG vx0.3 vy0.06  vx +0.33 vy +0.049 yaw -3±9°/s | roll 0.7/1.4(std 0.2) pitch 0.8 h 0.540 | lift [0. 3. 2. 2.]  ... tau_pk 36 done@None
+PASS STAND              vx +0.01 vy +0.001 yaw +0±1°/s | roll 0.3/0.7(std 0.2) pitch 0.3 h 0.518 | lift [-0. -0. -0.   ... tau_pk 25 done@None
+PASS LAT vy0.04         vx +0.02 vy +0.036 yaw -2±12°/s | roll 0.2/1.0(std 0.2) pitch 0.8 h 0.539 | lift [0. 3. 1. 2.] ... tau_pk 37 done@None
+amp=0.3 FAIL TURN wz1.3         vx +0.03 vy -0.144 yaw +2±30°/s | roll 29.6/57.3(std 24.7) pitch 2.2 h 0.369 | ... done@397
+amp=0.5 FAIL TURN wz1.3         vx -0.00 vy -0.077 yaw -6±35°/s | roll 56.2/57.3(std 3.4) pitch 2.1 h 0.175 |  ... done@261

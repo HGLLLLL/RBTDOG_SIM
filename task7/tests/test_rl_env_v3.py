@@ -106,7 +106,7 @@ def test_posture_offset_arc_only():
 
 
 def test_act_split_wheel_residual_units():
-    a = jnp.zeros(12).at[8].set(10.0)
+    a = jnp.zeros(v3.ACT_DIM).at[8].set(10.0)
     assert abs(float(v3.act_split(a)["wres"][0]) - v3.WHEEL_RES) < 1e-4 and v3.WHEEL_RES == 2.0
 
 
@@ -146,15 +146,15 @@ def test_ref_constants_match_dataset():
 
 
 def test_obs_layout_pinned():
-    """狗上 obs 組裝要照這個切；改了就要一起改 realbot。第 37–38 格是 [s4, s_arc]。"""
-    assert v3.ACT_DIM == 12
-    assert 3 + 3 + 12 + 12 + 4 + 3 + 2 + 1 + 12 + 24 == 76
+    """狗上 obs 組裝要照這個切；改了就要一起改 realbot。第 37–38 格是 [s4, s_arc]，40–63 是上一步 24 維動作。"""
+    assert v3.ACT_DIM == 24
+    assert 3 + 3 + 12 + 12 + 4 + 3 + 2 + 1 + 24 + 24 == 88
 
 
 def _rollout(env, cmd, steps, jit_reset, jit_step):
     s = jit_reset(jax.random.PRNGKey(0))
     s = s.replace(info={**s.info, "cmd": cmd, "cmd2": cmd, "t_switch": 10 ** 6})
-    a = jnp.zeros(12)
+    a = jnp.zeros(v3.ACT_DIM)
     M = {k: [] for k in ("vx", "vy", "wz", "tau_pk", "clr_step", "clr_stance", "s4", "s_arc")}
     done = []
     for _ in range(steps):
@@ -167,9 +167,10 @@ def _rollout(env, cmd, steps, jit_reset, jit_step):
 
 def test_env_shapes_defaults_and_obs_mode_slots():
     env = v3.DualModeEnv()
-    assert env.obs_dim == 76 and env.action_size == 12 and env.wheel_pos is False
+    assert env.obs_dim == 88 and env.action_size == 24 and env.wheel_pos is False
     s = jax.jit(env.reset)(jax.random.PRNGKey(1))
-    assert s.obs.shape == (76,) and s.info["ph"].shape == (4,) and s.info["phi_cyc"].shape == ()
+    assert s.obs.shape == (88,) and s.info["ph"].shape == (4,) and s.info["phi_cyc"].shape == () and s.info["qres"].shape == (12,)
+    assert 0.3 <= float(s.info["cyc_amp"]) <= 0.9
     cmd = np.asarray(s.obs[34:37]); a = v3.activity(jnp.array(cmd))
     assert abs(float(s.obs[37]) - float(a["s4"])) < 1e-6 and abs(float(s.obs[38]) - float(a["arc"])) < 1e-6
 
@@ -181,8 +182,10 @@ def test_env_g0_wheel_and_turn():
     assert done == 0.0 and M["tau_pk"].max() < v3.TAU_KILL
     assert abs(M["vx"][40:].mean() - 0.5) < 0.08 and M["clr_stance"][40:].max() < 10.0 and M["s4"].max() == 0.0
     s, M, done = _rollout(env, jnp.array([0.0, 0.0, 1.3]), 80, jit_reset, jit_step)
-    assert done == 0.0 and M["tau_pk"].max() < v3.TAU_KILL
-    assert np.degrees(M["wz"][40:].mean()) > 10.0 and M["s4"].max() == 1.0
+    assert done == 0.0 and M["tau_pk"].max() < v3.TAU_KILL and M["s4"].max() == 1.0     # v3.3 原地轉名目是原廠週期，開迴路 3–7 s 才倒，80 步內不倒
+    envk = v3.DualModeEnv(ref=dict(step_gen_turn="kin"))
+    s, M, done = _rollout(envk, jnp.array([0.0, 0.0, 1.3]), 80, jax.jit(envk.reset), jax.jit(envk.step))
+    assert done == 0.0 and np.degrees(M["wz"][40:].mean()) > 10.0                           # 退路（小跑）仍然可用
 
 
 def test_sample_cmd_covers_axes_and_combos():
@@ -211,8 +214,9 @@ def test_cycle_offsets_direction_amplitude_and_freq():
     # 週期族開時，四腿運動學踏步關掉、弧線保留
     P = v3.step_pattern(C(0, 0.08, 0)); assert float(jnp.max(P["g"])) < 1e-4 and float(jnp.max(P["s"])) == 1.0
     P = v3.step_pattern(C(0.5, 0, 1.3)); assert float(P["g"][FL]) == 1.0
-    P = v3.step_pattern(C(0, 0, 1.3)); assert float(jnp.max(P["g"])) == 1.0                          # 原地轉走運動學小跑（退路）
     kin = dict(v3.REF, step_gen_lat="kin", step_gen_turn="kin")
+    P = v3.step_pattern(C(0, 0, 1.3), kin); assert float(jnp.max(P["g"])) == 1.0                     # 退路：原地轉走運動學小跑
+    P = v3.step_pattern(C(0, 0, 1.3)); assert float(jnp.max(P["g"])) < 1e-4                          # v3.3 預設：原地轉走原廠週期
     assert float(jnp.max(v3.step_pattern(C(0, 0.08, 0), kin)["g"])) == 1.0
     assert np.allclose(np.asarray(v3.cycle_offsets(1.0, C(0, 0.08, 0), A_, kin)["delta"]), 0.0)
 
@@ -240,7 +244,28 @@ def test_metrics_keys_match_between_reset_and_step_under_brax_wrapper():
     s = jax.jit(env.reset)(keys)
     step = jax.jit(env.step)
     for _ in range(3):
-        s = step(s, jnp.zeros((2, 12)))
-    assert set(s.metrics) >= set(v3.METRIC_KEYS) and s.obs.shape == (2, 76)
+        s = step(s, jnp.zeros((2, v3.ACT_DIM)))
+    assert set(s.metrics) >= set(v3.METRIC_KEYS) and s.obs.shape == (2, 88)
     T = [k for k in s.metrics if k.startswith("t_")]
     assert set(T) == set(v3.T_KEYS)
+
+
+def test_qres_action_is_slewed_and_bounded():
+    """關節殘差：第 12–23 維，±0.12 rad，每步最多 0.01 rad。"""
+    env = v3.DualModeEnv(); jr, js = jax.jit(env.reset), jax.jit(env.step)
+    s = jr(jax.random.PRNGKey(0)); s = s.replace(info={**s.info, "cmd": C(0.5, 0, 0), "cmd2": C(0.5, 0, 0), "t_switch": 10 ** 6})
+    a = jnp.zeros(v3.ACT_DIM).at[12].set(10.0)          # tanh → 1 → 目標 +0.12
+    for i in range(60):
+        s = js(s, a)
+        if i == 2:
+            assert 0 < float(s.info["qres"][0]) <= 3 * v3.QRES_SLEW + 1e-6
+    assert abs(float(s.info["qres"][0]) - v3.QRES_MAX) < 1e-5 and float(jnp.abs(s.info["qres"][1:]).max()) < 1e-6
+
+
+def test_turn_cycle_amp_override_and_random():
+    A_ = A(C(0, 0, 1.3))
+    d5 = np.asarray(v3.cycle_offsets(1.0, C(0, 0, 1.3), A_, amp_turn=0.5)["delta"]); d9 = np.asarray(v3.cycle_offsets(1.0, C(0, 0, 1.3), A_, amp_turn=0.9)["delta"])
+    assert np.allclose(d5 * 0.9 / 0.5, d9, atol=1e-5)
+    env = v3.DualModeEnv(); amps = [float(jax.jit(env.reset)(jax.random.PRNGKey(k)).info["cyc_amp"]) for k in range(20)]
+    assert min(amps) >= 0.3 and max(amps) <= 0.9 and (max(amps) - min(amps)) > 0.3
+    env2 = v3.DualModeEnv(ref=dict(cyc_amp_rand=False)); assert abs(float(jax.jit(env2.reset)(jax.random.PRNGKey(3)).info["cyc_amp"]) - v3.REF["cyc_amp_turn"]) < 1e-6

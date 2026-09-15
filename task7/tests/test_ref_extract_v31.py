@@ -44,3 +44,20 @@ def test_phases_relative_to_ref():
     other = np.array([148, 388, 628])                               # 落後 0.2 週期
     assert abs(rx.phase_rel(other, ref, 240) - 0.2) < 0.01
     assert abs(rx.phase_rel(ref + 230, ref, 240) - (230 / 240)) < 0.01
+
+
+CYC = ROOT / "outputs" / "ref_cmd_cycles.json"
+
+
+@pytest.mark.skipif(not CYC.exists(), reason="週期檔未產生")
+def test_cmd_cycles_json_shape_and_content():
+    import json
+    c = json.loads(CYC.read_text(encoding="utf-8"))["cycles"]
+    assert set(c) == {"lat_left", "lat_right", "turn_left", "turn_right"}
+    for k, v in c.items():
+        assert np.array(v["des"]).shape == (100, 12) and np.array(v["tau_w"]).shape == (100, 4) and len(v["q_mean"]) == 12
+        assert 2.0 <= v["freq_hz"] <= 2.7 and v["n_cycles"] >= 5
+    # 左平移：主導腿 FL(1)、RL(3) 的 ABAD 命令偏移擺幅 ≥ 0.5 rad（原廠 60°）
+    off = np.array(c["lat_left"]["des"]) - np.array(c["lat_left"]["q"])
+    assert np.ptp(off[:, 3]) >= 0.5 and np.ptp(off[:, 9]) >= 0.5
+    assert c["turn_left"]["yaw_rate_deg_s"] > 40 and c["turn_right"]["yaw_rate_deg_s"] < -40

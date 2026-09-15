@@ -290,6 +290,48 @@ def factory_benchmark(path: str) -> dict:
         lift_apex_mm=float(np.median(apex) * 1000) if apex else 0.0, n_swings=int(sum(len(v) for v in ev.values())))
 
 
+# ---------------------------------------------------------------- v3.2（2026-09-15 下午）：原廠命令週期
+CYCLE_FILES = {"lat_left": "161123", "lat_right": "161223", "turn_left": "161316", "turn_right": "161342"}
+_MJCF_LEGS = ("fr", "fl", "br", "bl")          # MJCF 序 FR, FL, RR(=br), RL(=bl)
+_KINDS = ("1_hip_roll", "2_hip_pitch", "3_knee_pitch")
+
+
+def cmd_cycle(path: str, npts: int = 100) -> dict:
+    """原廠一個平均命令週期：以 fl 擺動起點切週期、正規化 npts 點。
+    → des (npts,12) / q (npts,12) / q_mean (12)：MJCF 序、控制器座標；tau_w (npts,4)：正 = 向前滾；freq_hz、n_cycles。"""
+    rec, q, tau, wv = rga.load(path)
+    m = rga.moving_mask(rec, q, wv)
+    idx = np.nonzero(m)[0]
+    i0, i1 = int(idx[0]), int(idx[-1])
+    Q = np.stack([coord.to_ctrl(l + k, rec.j[l + k]["q"]) for l in _MJCF_LEGS for k in _KINDS], 1)
+    D = np.stack([coord.to_ctrl(l + k, rec.j[l + k]["des"]) for l in _MJCF_LEGS for k in _KINDS], 1)
+    TW = np.stack([rec.j[l + "4_foot"]["tau"] / coord.SIGN[coord.KIND_WHEEL][l] for l in _MJCF_LEGS], 1)
+    zfl = foot_xyz(q, "fl")[:, 2]
+    starts = np.array([s for s, _, _ in swing_events31(zfl) if i0 + int(0.5 * HZ) <= s <= i1 - int(0.5 * HZ)])
+    per = np.diff(starts)
+    ok = (per > 0.3 * HZ) & (per < 0.8 * HZ)
+    T = float(np.median(per[ok]))
+    u = np.linspace(0, 1, npts)
+    cd, cq, ct = [], [], []
+    for a, b in zip(starts[:-1], starts[1:]):
+        if not (0.3 * HZ < b - a < 0.8 * HZ):
+            continue
+        t = np.linspace(0, 1, b - a)
+        cd.append(np.stack([np.interp(u, t, D[a:b, k]) for k in range(12)], 1))
+        cq.append(np.stack([np.interp(u, t, Q[a:b, k]) for k in range(12)], 1))
+        ct.append(np.stack([np.interp(u, t, TW[a:b, k]) for k in range(4)], 1))
+    des, qq, tw = np.mean(cd, 0), np.mean(cq, 0), np.mean(ct, 0)
+    return dict(label=json.loads(Path(path).read_text(encoding="utf-8")).get("label", ""), freq_hz=float(HZ / T), period_s=float(T / HZ),
+                n_cycles=len(cd), des=des.round(5).tolist(), q=qq.round(5).tolist(), q_mean=qq.mean(0).round(5).tolist(),
+                tau_w=tw.round(4).tolist(), des_minus_q_ptp_deg=np.degrees(np.ptp(des - qq, 0)).round(1).tolist(),
+                yaw_rate_deg_s=float(np.degrees(rec.gyro[i0:i1, 2].mean())))
+
+
+def build_cycles(logdir: Path) -> dict:
+    return {"source": "trip21 原廠命令週期（fl 擺動起點切、100 點平均；MJCF 序 FR,FL,RR,RL；控制器座標；輪 τ 正=向前滾）",
+            "cycles": {k: cmd_cycle(_path(t, logdir)) for k, t in CYCLE_FILES.items()}}
+
+
 def build(logdir: Path) -> dict:
     ds = {"source": "trip21 2026-09-09 原廠遙控錄製（M6 500 Hz）", "wheel_mode": {}, "step_mode": {}, "transitions": {}}
     for k in ("fwd", "back", "arc_left", "arc_right", "startstop"):
@@ -398,7 +440,12 @@ def main() -> int:
     ap.add_argument("--logdir", default=str(HERE.parent / "logs" / "m_logs_trip21"))
     ap.add_argument("--out", default=str(HERE.parent / "outputs" / "ref_gait_dataset.json"))
     ap.add_argument("--md", default=str(HERE.parent / "outputs" / "ref_gait_dataset.md"))
+    ap.add_argument("--cycles", default=str(HERE.parent / "outputs" / "ref_cmd_cycles.json"))
     a = ap.parse_args()
+    cyc = build_cycles(Path(a.logdir))
+    Path(a.cycles).write_text(json.dumps(cyc, ensure_ascii=False), encoding="utf-8")
+    for k, c in cyc["cycles"].items():
+        print(f"[cycle] {k}: {c['freq_hz']:.2f} Hz × {c['n_cycles']} 週期；des−q 擺幅 ° {c['des_minus_q_ptp_deg']}")
     ds = build(Path(a.logdir))
     Path(a.out).write_text(json.dumps(ds, ensure_ascii=False, indent=1), encoding="utf-8")
     txt = md(ds)

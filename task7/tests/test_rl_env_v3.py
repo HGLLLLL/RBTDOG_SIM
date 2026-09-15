@@ -305,3 +305,41 @@ def test_wheel_ctrl_tau_matches_velocity_law_in_the_clean_region():
     got = v3.wheel_ctrl_tau(tau_cmd, v_meas, 1.0)
     want = v3.wheel_ctrl(v_des)
     np.testing.assert_allclose(np.asarray(got), np.asarray(want), rtol=1e-6)
+
+
+def test_ref_exposes_gain_dependent_constants():
+    """撓度、站高、護欄、輪空間都必須是 REF 的鍵，v3.4f 才切得動整組。"""
+    for k in ("z_sag", "nominal_height", "settle_h_range", "err_bar3", "wheel_space", "wheel_outer_gain"):
+        assert k in v3.REF, f"REF 缺鍵 {k}"
+    assert v3.REF["z_sag"] == v3.Z_SAG == 0.036                 # v3.3：kp250 撓度 36 mm
+    assert v3.REF["err_bar3"] == (0.60, 0.45, 0.45)             # v3.3 護欄
+    assert v3.REF["wheel_space"] == "vel"                       # v3.3：速度空間
+    assert v3.REF["wheel_outer_gain"] == 1.0
+
+
+def test_foot_targets_z_sag_is_a_parameter():
+    """抬高補償要能由外面給，否則 kp120 的 72 mm 換不進去。"""
+    args = dict(theta=jnp.full(4, 1.0), amp=jnp.ones(4), g=jnp.ones(4), vec=jnp.zeros((4, 2)),
+                lift4=jnp.full(4, 0.03), sway=jnp.zeros(2), u=1.0, foot_x=jnp.zeros(4), foot_z=0.0,
+                duty=0.5, post_y=jnp.zeros(4))
+    a = np.asarray(v3.foot_targets(**args, z_sag=0.0))
+    b = np.asarray(v3.foot_targets(**args, z_sag=0.072))
+    sin_th = np.asarray(jnp.sin(v3.duty_remap(args["theta"], args["duty"])))
+    swing = sin_th > 0
+    assert swing.any(), "測試設定沒有任何一腿在擺動相，量不到 z_sag"
+    np.testing.assert_allclose((b - a)[swing, 2], 0.072 * sin_th[swing], rtol=1e-5)
+
+
+def test_err_barrier_takes_per_joint_bar():
+    """護欄要能由外面給：ABAD 放寬到 1.05 之後，0.8 的誤差不該再被罰。"""
+    err = jnp.array([0.8, 0.0, 0.0] * 4)
+    assert float(v3.err_barrier_j(err)) > 0.0                                   # 預設 0.60：罰
+    wide = jnp.tile(jnp.array([1.05, 0.45, 0.45]), 4)
+    assert float(v3.err_barrier_j(err, wide)) == 0.0                            # 放寬後：不罰
+
+
+def test_cycle_offsets_returns_wheel_torque_in_newton_metres():
+    """cycle_offsets 的輪輸出改成錄檔原始 τ（N·m），由呼叫端決定要不要除 kv。"""
+    out = v3.cycle_offsets(jnp.zeros(()), jnp.array([0.0, 0.0, 1.3]), v3.activity(jnp.array([0.0, 0.0, 1.3])))
+    assert "wheel_tau" in out and "wheel" not in out
+    assert float(jnp.max(jnp.abs(out["wheel_tau"]))) < 6.0, "錄檔輪 τ 峰值只有 ±4.6 N·m，超過代表單位錯了"

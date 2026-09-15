@@ -87,7 +87,7 @@ LEG_IDX = {"FR": 0, "FL": 1, "RR": 2, "RL": 3}
 LEFT_LEGS, RIGHT_LEGS = jnp.array([1, 3]), jnp.array([0, 2])
 KNEE12 = jnp.array([2, 5, 8, 11])
 
-W = dict(W_VX=2.0, W_VY=2.0, W_YAW=2.0, W_YAWI=0.5, W_HEAD=1.0, W_H=0.3, W_LIFT=0.5, W_STANCE=0.5,
+W = dict(W_VX=2.0, W_VY=2.0, W_YAW=2.0, W_YAWI=0.5, W_YAWLIN=1.0, YAW_LIN_E=1.5, W_HEAD=1.0, W_H=0.3, W_LIFT=0.5, W_STANCE=0.5,
          W_ROLL=150.0, W_PITCH=100.0, W_ROLLRATE=0.5, W_PITCHRATE=0.3, W_BIAS=100.0, W_SWAYBIAS=30.0,
          W_ACT=0.05, W_OMDOT=0.5, W_TAU=1e-5, W_TAUBAR=0.05, W_ERRBAR=1.0, W_KNEEV=0.02, W_MODE=2.0, W_VZ=0.05,
          VX_SIG2=0.02, VY_SIG2=0.005, YAW_SIG2=0.0005, YAW_SIG2_WIDE=0.02, YAW_INST_SIG2=0.05, HEAD_SIG=0.15,
@@ -508,6 +508,8 @@ class DualModeEnv(Env):
         r_vy = jnp.exp(-(vb[1] - cmd[1]) ** 2 / w["VY_SIG2"])
         r_yaw = yaw_reward(wz, cmd[2], w["YAW_SIG2"], w["YAW_SIG2_WIDE"])
         r_yawi = yaw_reward(wz, cmd[2], w["YAW_INST_SIG2"])
+        # 線性偏航追蹤：高斯核在誤差 ≥ 0.5 rad/s 全為 0、沒有梯度（原地轉名目 0.25 對指令 1.3），這一項在整個範圍給斜率
+        r_yawlin = 1.0 - jnp.clip(jnp.abs(wz - cmd[2]) / w["YAW_LIN_E"], 0.0, 1.0)
         r_head = jnp.exp(-(head_err / w["HEAD_SIG"]) ** 2)
         r_h = jnp.exp(-400.0 * (data.qpos[2] - NOMINAL_HEIGHT) ** 2)
         sw = (jnp.sin(duty_remap(theta, duty)) > 0).astype(jnp.float32) * g_leg
@@ -524,6 +526,7 @@ class DualModeEnv(Env):
         c_tau = jnp.sum(data.actuator_force[LEG_ACT_IDX] ** 2)
         T = {
             "t_vx": w["W_VX"] * r_vx, "t_vy": w["W_VY"] * r_vy, "t_yaw": w["W_YAW"] * r_yaw, "t_yawi": w["W_YAWI"] * r_yawi,
+            "t_yawlin": w["W_YAWLIN"] * r_yawlin,
             "t_head": w["W_HEAD"] * r_head, "t_h": w["W_H"] * r_h, "t_lift": w["W_LIFT"] * r_lift, "t_stance": w["W_STANCE"] * r_stance,
             "t_roll": w["W_ROLL"] * grav[1] ** 2, "t_pitch": w["W_PITCH"] * grav[0] ** 2,
             "t_rollrate": w["W_ROLLRATE"] * data.qvel[3] ** 2, "t_pitchrate": w["W_PITCHRATE"] * data.qvel[4] ** 2,
@@ -533,7 +536,7 @@ class DualModeEnv(Env):
             "t_kneev": w["W_KNEEV"] * jnp.maximum(knee_v - KNEE_V_BAR, 0.0) ** 2,
             "t_mode": w["W_MODE"] * lift_pen, "t_vz": w["W_VZ"] * data.qvel[2] ** 2,
         }
-        pos = T["t_vx"] + T["t_vy"] + T["t_yaw"] + T["t_yawi"] + T["t_head"] + T["t_h"] + T["t_lift"] + T["t_stance"]
+        pos = T["t_vx"] + T["t_vy"] + T["t_yaw"] + T["t_yawi"] + T["t_yawlin"] + T["t_head"] + T["t_h"] + T["t_lift"] + T["t_stance"]
         neg = (T["t_roll"] + T["t_pitch"] + T["t_rollrate"] + T["t_pitchrate"] + T["t_bias"] + T["t_act"] + T["t_omdot"]
                + T["t_tau"] + T["t_taubar"] + T["t_errbar"] + T["t_kneev"] + T["t_mode"] + T["t_vz"])
         reward = pos - neg

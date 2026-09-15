@@ -220,3 +220,13 @@ def test_cycle_offsets_direction_amplitude_and_freq():
 def test_err_barrier_per_joint():
     e = jnp.zeros(12).at[0].set(0.55).at[1].set(0.55)      # ABAD 0.55 < 0.6 免罰；HIP 0.55 > 0.45 罰
     assert abs(float(v3.err_barrier_j(e)) - 0.10 ** 2) < 1e-6
+
+
+def test_yaw_reward_has_gradient_over_full_error_range():
+    """原地轉名目 0.25 rad/s 對指令 1.3：高斯核全 0；線性項要在整段誤差有斜率。"""
+    w = v3.W
+    for e in (0.3, 0.6, 1.0, 1.4):
+        g = float(v3.yaw_reward(jnp.array(e), jnp.array(0.0), w["YAW_SIG2"], w["YAW_SIG2_WIDE"]))
+        lin = 1.0 - min(e / w["YAW_LIN_E"], 1.0)
+        assert lin > 0.05 and lin < 1.0
+    assert (1.0 - 0.6 / w["YAW_LIN_E"]) > (1.0 - 1.0 / w["YAW_LIN_E"])       # 誤差越小獎勵越高

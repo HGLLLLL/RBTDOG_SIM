@@ -77,7 +77,7 @@ def main():
             dr.text((14, 46), f"t {i*v3.CTRL_DT:4.1f} s   vx {mi['vx']:+.2f}  vy {mi['vy']:+.3f} m/s   偏航 {mi['yaw']:+4.0f}°/s   側傾 {mi['roll']:4.1f}°   力矩峰(累計) {mi['tau_max']:3.0f} N·m",
                     font=f_txt, fill=(255, 235, 120))
             dr.rectangle([0, H - 30, W, H], fill=(0, 0, 0, 120))
-            dr.text((14, H - 28), "CPG-RL v3.1 零動作基準（未訓練，純開迴路產生器；kp 60/250/250、輪 kd 1.0）  2026-09-15", font=ImageFont.truetype(FONT, 17), fill=(220, 220, 220))
+            dr.text((14, H - 28), "CPG-RL v3.2 零動作基準（未訓練；平移＝原廠命令週期、原地轉＝對角小跑、弧線＝內側前腿踏步；kp 60/250/250）  2026-09-15", font=ImageFont.truetype(FONT, 17), fill=(220, 220, 220))
             if mi["done"] > 0:
                 dr.text((W // 2 - 60, H // 2), "終止", font=f_title, fill=(255, 80, 80))
             wr.append_data(np.asarray(img))

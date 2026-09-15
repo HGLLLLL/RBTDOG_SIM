@@ -266,6 +266,30 @@ def analyze31(path: str) -> dict:
     return out
 
 
+def factory_benchmark(path: str) -> dict:
+    """訓練後對標用：動作段的側傾／俯仰 std 與峰值（gyro 積分去趨勢）、偏航率、機身速度、腿力矩峰值與 RMS（|τ| 依關節類型）、抬腳高度、步頻。"""
+    rec, q, tau, wv = rga.load(path)
+    m = rga.moving_mask(rec, q, wv)
+    idx = np.nonzero(m)[0]
+    i0, i1 = int(idx[0]), int(idx[-1])
+    sl = slice(i0, i1)
+    ang = np.cumsum(rec.gyro[sl, :2], 0) / HZ
+    ang -= np.linspace(0, 1, ang.shape[0])[:, None] * ang[-1] + ang[0]      # 去線性趨勢（gyro 偏置）
+    T = {k: np.stack([np.abs(tau[l][k][sl]) for l in LEGS], 1) for k in coord.LEG_KINDS}
+    ev = {l: [e for e in swing_events31(foot_xyz(q, l)[:, 2]) if i0 <= e[0] <= i1] for l in LEGS}
+    apex = [a for l in LEGS for _, _, a in ev[l]]
+    return dict(
+        label=json.loads(Path(path).read_text(encoding="utf-8")).get("label", ""), secs=float((i1 - i0) / HZ),
+        roll_std_deg=float(np.degrees(ang[:, 0].std())), roll_pk_deg=float(np.degrees(np.abs(ang[:, 0]).max())),
+        pitch_std_deg=float(np.degrees(ang[:, 1].std())), pitch_pk_deg=float(np.degrees(np.abs(ang[:, 1]).max())),
+        gyro_xy_std_deg_s=float(np.degrees(rec.gyro[sl, :2].std())),
+        yaw_rate_deg_s=float(np.degrees(rec.gyro[sl, 2].mean())), v_body=float(rga.R_WHEEL * wv[sl].mean()),
+        tau_pk={k: float(T[k].max()) for k in coord.LEG_KINDS}, tau_p98={k: float(np.percentile(T[k], 98)) for k in coord.LEG_KINDS},
+        tau_rms={k: float(np.sqrt((T[k] ** 2).mean())) for k in coord.LEG_KINDS},
+        wheel_v_p98=float(np.percentile(np.abs(wv[sl]), 98)),
+        lift_apex_mm=float(np.median(apex) * 1000) if apex else 0.0, n_swings=int(sum(len(v) for v in ev.values())))
+
+
 def build(logdir: Path) -> dict:
     ds = {"source": "trip21 2026-09-09 原廠遙控錄製（M6 500 Hz）", "wheel_mode": {}, "step_mode": {}, "transitions": {}}
     for k in ("fwd", "back", "arc_left", "arc_right", "startstop"):
@@ -276,6 +300,8 @@ def build(logdir: Path) -> dict:
         ds["transitions"][k] = analyze_transition(_path(FILES[k][0], logdir))
     ds["v31"] = {k: [analyze31(_path(t, logdir)) for t in FILES[k]]
                  for k in ("turn_left", "turn_right", "lat_left", "lat_right", "arc_left", "arc_right", "fwd")}
+    ds["factory_benchmark"] = {k: [factory_benchmark(_path(t, logdir)) for t in FILES[k]]
+                               for k in ("fwd", "back", "arc_left", "arc_right", "turn_left", "turn_right", "lat_left", "lat_right")}
     # 彙總：輪行站姿（fwd 三檔平均）、有效輪距（arc 四檔中位）
     fw = ds["wheel_mode"]["fwd"]
     ds["summary"] = {
@@ -349,6 +375,15 @@ def md(ds: dict) -> str:
               f"- 弧線：內側前腿 {V['arc_inner_front_leg']} 踏步 {V['arc_inner_front_hz']:.2f} Hz、抬 {V['arc_inner_front_apex_m'] * 1000:.0f} mm",
               f"- 動作段增益：{V['gains_motion']}",
               f"- 前進段增益：{V['gains_fwd']}"]
+        B = ds.get("factory_benchmark", {})
+        if B:
+            L += ["", "### 對標表（訓練後 local_infer 要比的原廠數字；動作段）", "",
+                  "| 動作 | 秒 | v m/s | 偏航 °/s | roll std/峰 ° | pitch std/峰 ° | 膝 τ 峰/p98/RMS | 髖 τ 峰/p98/RMS | ABAD τ 峰/RMS | 抬腳 mm |", "|---|---|---|---|---|---|---|---|---|---|"]
+            for k, files in B.items():
+                for b in files:
+                    L.append(f"| {b['label']} | {b['secs']:.1f} | {b['v_body']:+.2f} | {b['yaw_rate_deg_s']:+.0f} | {b['roll_std_deg']:.1f}/{b['roll_pk_deg']:.1f} | {b['pitch_std_deg']:.1f}/{b['pitch_pk_deg']:.1f} | "
+                             f"{b['tau_pk']['3_knee_pitch']:.0f}/{b['tau_p98']['3_knee_pitch']:.0f}/{b['tau_rms']['3_knee_pitch']:.0f} | {b['tau_pk']['2_hip_pitch']:.0f}/{b['tau_p98']['2_hip_pitch']:.0f}/{b['tau_rms']['2_hip_pitch']:.0f} | "
+                             f"{b['tau_pk']['1_hip_roll']:.0f}/{b['tau_rms']['1_hip_roll']:.0f} | {b['lift_apex_mm']:.0f} |")
         L += ["", "| 檔 | 偏航 °/s | 步頻 | fl n/apex/dy | fr | bl | br | 輪 fl/fr/bl/br |", "|---|---|---|---|---|---|---|---|"]
         for k, files in ds["v31"].items():
             for f in files:

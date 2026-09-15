@@ -1,30 +1,30 @@
 # task7 交接：D1 Max 現況與下一步
 
-- 最後更新：**2026-09-09（trip19：RL v2.3 首次上機成功）**
+- 最後更新：**2026-09-15（v3.1 統一運動學產生器，G0 5/6 過、平移 10 s 站住；待 Colab）**
 - 分支：`feat/d1-edu-cpg-rl`
 - **接手先讀這份，再讀 `README.md`。** 查狗的規格／SHM／座標／IMU 慣例／原廠參數 → `docs/D1Max_機器狗資訊.md`（2026-09-09 由 11 份偵察文件整合；原件與舊操作卡都在 `docs/archive/`）。
 
 ---
 
-## ▶▶ 下次上班從這裡開始（2026-09-09 收工，全部已 push 到 `main`）
+## ▶▶ 下次上班從這裡開始（2026-09-15 收工，全部已 commit 到 `main`）
 
-**今天做完的**：RL v2.3 首次上機（trip19，四趟乾淨＋遙控 7.6 s）→ I／J 報告；M11 輪子辨識（K）；原廠遙控錄製 17 段（L）＋參考資料集
-`outputs/ref_gait_dataset.json`；v3 雙模式 env（`inference/rl_env_v3.py`）G0 過；架構圖 `docs/figs/圖P12_v3雙模式架構.png`。
+**今天做完的**：重看 trip21 錄檔 → L 報告兩處結論錯（平移四腿都踏、弧線內側前腿踏步）、原廠動作段用軟增益＋大幅命令（spec v3.1 §0–§0.1）→
+**v3.1 統一運動學產生器**（`inference/rl_env_v3.py`；12 維／76 維不變、obs 第 37–38 格改 [s4, s_arc]、輪子回速度伺服＋±2 rad/s 殘差；
+修掉 v3.0 的相位 bug ＝ 週期分數當弧度加）；原廠回放 `diag/replay_factory.py`（平移 8 s 不倒，模擬器可信；`outputs/replay_factory_trip21*.md`、spec §8.1）；
+G0 六指令（`outputs/g0_v31_final.txt`、spec §8.2）；原廠對標表（`outputs/ref_gait_dataset.md` 末段：側傾／偏航率／速度／腿力矩峰值 RMS／抬腳）。
 
 **下一步（照順序）**：
-1. **Colab 訓 v3.0**：`notebooks/cpg_rl_v3_colab.ipynb`（clone `main`，第 5 格 G0 要過：直走 0.49、弧線 11°/s、原地轉 27°/s）→ 權重 `weights/cpg_rl_v3_params.pkl`。
-2. **本機補 `inference/local_infer_v3.py`**（驗收工具：obs 76／act 12，G3–G7 加 vx／wz 追蹤，用 `diag/g0_v3.py` 的 rollout 骨架）。
-3. **狗上 M9 的 v3 推論路徑**（另開 spec）：76 維 obs 組裝（多輪速／指令／模式／航向）、輪子指令（位置環 kp 60 累加目標角＋前饋 0.13）、
-   `policy_np` 12 維動作 → 雙模式產生器的 numpy 版（`teleop_cmd.py` 可擴）。
-4. **實機兩件待驗**（排在 v3 上機前，可與 1 並行）：① 輪子位置環 kp 20–60 會不會抖振（墊高，M11 改 proto）；② 腿站著只給 vx 的輪行上機
-   （承重打滑、L_eff、輪行時 roll）。
-5. 平移：v3.0 不訓（原廠式單側踏步靠輪胎側滑，kp250 站不住）；之後另做四腿蟹行。
-6. v2.4（航向誤差進 obs）notebook 已可跑，但 v3 取代它的方向；除非 v3 卡住，不用回頭。
+1. **Colab 訓 v3.1**：`notebooks/cpg_rl_v3_colab.ipynb`（第 5 格 G0 五個 assert 要過：直走 0.49、弧線 +25°/s、原地轉 +28°/s、平移 0.08→0.080、斜走）→ `weights/cpg_rl_v3_params.pkl`。
+2. **本機補 `inference/local_infer_v3.py`**（obs 76／act 12），驗收**對標原廠對標表**：每個動作比 roll std／峰、偏航率、v、膝／髖／ABAD 力矩峰值與 RMS、抬腳高度。
+   使用者要求：最終訓練結果的峰值力矩、側傾等都要對標原廠運控（原廠膝 τ 峰 28–38、髖 17–26、ABAD 40–60 N·m；roll std 0.5–1.1°）。
+3. 狗上 M9 v3 推論路徑（另開 spec）：obs 第 37–38 格用 `rl_env_v3.activity(cmd)` 的 numpy 版；輪子 = M11 律 kd 1.0 ＋ 前饋 0.13，殘差直接加 v_des。
+4. 實機待驗：腿站著只給 vx 的承重輪行。位置環 kp 60 那項**不用驗了**（v3.1 不用）。
 
-**已知硬限制**（改 env 前先看）：輪速伺服 kd ≤ 1.0（M10）、kp250 撓度 36 mm（抬腿要 +Z_SAG）、原廠 2.5 Hz 跳步做不到（名目 2.0 Hz／duty 0.5／40 mm）、
-RL 趟 `--vmax 18`、ABAD 承重外張 ±4.5°（J 報告第一根源）。
+**已知硬限制（更新）**：輪速伺服 kd ≤ 1.0（M10）、kp250 撓度 36 mm（抬腿 +Z_SAG）、RL 趟 `--vmax 18`、ABAD 承重外張 ±4.5°、
+M9 誤差護欄 0.45 rad（原廠 kp120 命令差 58°，不能照抄原廠命令）。~~原廠 2.5 Hz 跳步做不到~~ → 平移 2.1 Hz 可行（v3.0 那條是相位 bug 掃出來的）；原地轉用原廠相位 2.5 Hz 會踏步但不轉，改對角小跑 1.8 Hz。
+**開迴路平移**：10 s 站住、側傾峰 6–7°（原廠閉迴路 2–3°），交給 RL。
 
-## ▶ ★★★ 2026-09-09 晚：v3 雙模式 env 完成、G0 過 —— **可上 Colab（`notebooks/cpg_rl_v3_colab.ipynb`）**
+## ▶ ★★★ 2026-09-09 晚：v3 雙模式 env 完成、G0 過（**已被 v3.1 取代，見 spec 2026-09-15**）
 
 `inference/rl_env_v3.py`（12 維動作／76 維 obs）、模型 `scene_flat_mjx_v3p.xml`（輪 kp 60 位置環＋M11 摩擦阻尼）。
 G0 零動作：直走 0.49 m/s、弧線 11°/s、原地轉 27°/s（原廠 77；kp250 做不到原廠 2.5 Hz 跳步，名目 2.0 Hz／duty 0.5／抬 40 mm）。

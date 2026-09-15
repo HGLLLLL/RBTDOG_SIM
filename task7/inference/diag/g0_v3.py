@@ -51,7 +51,9 @@ def verdict(name, r, yaw_scale=1.0):
     elif name.startswith("TURN"):
         ok &= r["yaw_deg_s"] >= 27 * yaw_scale and (lm > 12).sum() == 4 and r["tau_pk"] <= 75
     elif name.startswith("LAT"):
-        ok &= abs(r["vy"]) >= 0.04 and r["tau_pk"] <= 75 and r["roll_max"] < 3.0
+        # spec §8.2 定案：開迴路 |vy| ≥ 指令 60%、力矩 ≤ 85、側傾峰 ≤ 8°（原廠實測 2–3° 是閉迴路結果，交給 RL）
+        vy_cmd = float(name.split("vy")[1])
+        ok &= abs(r["vy"]) >= 0.6 * vy_cmd and r["tau_pk"] <= 85 and r["roll_max"] <= 8.0
     elif name.startswith("DIAG"):
         ok &= r["vx"] >= 0.15 and r["vy"] >= 0.03
     return "PASS" if ok else "FAIL"

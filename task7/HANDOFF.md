@@ -1,6 +1,6 @@
 # task7 交接：D1 Max 現況與下一步
 
-- 最後更新：**2026-09-15 下午（v3.2：平移改原廠命令週期、原地轉退回小跑；G0 六指令 10 s 全過；等使用者確認影片 → Colab）**
+- 最後更新：**2026-09-15 晚（v3.3 已 push、明天 Colab；v3.2b 權重 params_1 是第一個可上機候選）**
 - 分支：`feat/d1-edu-cpg-rl`
 - **接手先讀這份，再讀 `README.md`。** 查狗的規格／SHM／座標／IMU 慣例／原廠參數 → `docs/D1Max_機器狗資訊.md`（2026-09-09 由 11 份偵察文件整合；原件與舊操作卡都在 `docs/archive/`）。
 
@@ -19,7 +19,9 @@ G0 六指令（`outputs/g0_v31_final.txt`、spec §8.2）；原廠對標表（`o
 v3.2 影片 `outputs/g0_v32_baseline_small.mp4`。
 
 **下一步（照順序）**：
-0. **v3.3 已 push、等 Colab**（2026-09-15 晚）：原地轉改原廠週期＋幅度隨機、動作 24 維（關節殘差）／obs 88、ABAD DR ×0.7–1.0、ADAPTIVE_KL、2 億步；G0 原地轉開迴路預期倒（spec §10）。停損 1 億步進度 yaw < 3.5。
+0. **明天第一件事：Colab 訓 v3.3**（已 push 到 main、最後 commit 6ef7639）：原地轉名目改原廠命令週期（幅度每回合隨機 0.3–0.9）、動作 24 維（12 關節殘差）／obs 88、ABAD DR ×0.7–1.0、ADAPTIVE_KL、2 億步；平移指令 0.04–0.30（原廠實測 0.3–0.5，§10.1）、純原地轉 24%／帶側向 37%。
+   G0 格原地轉開迴路預期會倒（只 assert 其他四指令）。**停損**：1 億步進度 yaw < 3.5 或 len < 600 → 停，`REF["step_gen_turn"]="kin"` 回 v3.2b。
+   訓完：`local_infer_v3.py --weights <pkl> --seeds 3 --mesh --video ...`，對標表 `outputs/ref_gait_dataset.md`（平移速度改看 §10.1 的 0.3–0.5）。
 1. ~~Colab 訓 v3.2b~~ **已完成**：`weights/cpg_rl_v3_params_1.pkl`，九指令 0 摔、平移追蹤 0.080／0.04→0.029、原地轉 ±22°/s、弧線 +22；驗收表 `outputs/eval_cpg_rl_v3_params_1.md`（spec §9.3）。**這是第一個可上機的候選**（不比 v2.3 差，多了平移與原地轉）。下一輪改 DR／lr／v3.3 見 §9.3。
 2. **本機補 `inference/local_infer_v3.py`**（obs 76／act 12），驗收**對標原廠對標表**：每個動作比 roll std／峰、偏航率、v、膝／髖／ABAD 力矩峰值與 RMS、抬腳高度。
    使用者要求：最終訓練結果的峰值力矩、側傾等都要對標原廠運控（原廠膝 τ 峰 28–38、髖 17–26、ABAD 40–60 N·m；roll std 0.5–1.1°）。

@@ -87,13 +87,15 @@ LEG_IDX = {"FR": 0, "FL": 1, "RR": 2, "RL": 3}
 LEFT_LEGS, RIGHT_LEGS = jnp.array([1, 3]), jnp.array([0, 2])
 KNEE12 = jnp.array([2, 5, 8, 11])
 
-W = dict(W_VX=2.0, W_VY=2.0, W_YAW=2.0, W_YAWI=0.5, W_YAWLIN=1.0, YAW_LIN_E=1.5, W_HEAD=1.0, W_H=0.3, W_LIFT=0.5, W_STANCE=0.5,
+W = dict(W_VX=2.0, W_VY=3.0, W_YAW=2.0, W_YAWI=0.5, W_YAWLIN=1.0, YAW_LIN_E=1.5, W_YAWREL=8.0, W_VYREL=3.0, W_HEAD=0.5, WZ_EMA=0.04,
+         # POST_STEP_SCALE：四腿踏步時姿態類懲罰（roll/pitch/角速度/偏置）乘 (1 − 0.5·u_mode)；v3.2 第一輪策略靠停止轉動避罰（spec §9.2）
+         POST_STEP_SCALE=0.6, W_H=0.3, W_LIFT=0.5, W_STANCE=0.5,
          W_ROLL=150.0, W_PITCH=100.0, W_ROLLRATE=0.5, W_PITCHRATE=0.3, W_BIAS=100.0, W_SWAYBIAS=30.0,
          W_ACT=0.05, W_OMDOT=0.5, W_TAU=1e-5, W_TAUBAR=0.05, W_ERRBAR=1.0, W_KNEEV=0.02, W_MODE=2.0, W_VZ=0.05,
          VX_SIG2=0.02, VY_SIG2=0.005, YAW_SIG2=0.0005, YAW_SIG2_WIDE=0.02, YAW_INST_SIG2=0.05, HEAD_SIG=0.15,
          CMD_VX=(-0.4, 0.9), CMD_VY=(0.03, 0.10), CMD_WZ=(0.2, 1.3), P_VX=0.65, P_VY=0.30, P_WZ=0.50,
          P_SWITCH=0.4, RAMP_STEPS=50, BIAS_EMA=0.02)
-T_KEYS = ("t_vx", "t_vy", "t_yaw", "t_yawi", "t_yawlin", "t_head", "t_h", "t_lift", "t_stance", "t_roll", "t_pitch", "t_rollrate",
+T_KEYS = ("t_vx", "t_vy", "t_yaw", "t_yawi", "t_yawlin", "t_yawrel", "t_vyrel", "t_head", "t_h", "t_lift", "t_stance", "t_roll", "t_pitch", "t_rollrate",
           "t_pitchrate", "t_bias", "t_act", "t_omdot", "t_tau", "t_taubar", "t_errbar", "t_kneev", "t_mode", "t_vz")
 METRIC_KEYS = ("height", "vx", "vy", "wz", "reward", "pitch", "roll", "mode", "s4", "s_arc", "cyc", "clr_step", "clr_stance",
                "yawerr", "vxerr", "vyerr", "tau_pk", "err_pk", "knee_v", "omega", "sway_y", "roll_bias") + T_KEYS
@@ -140,6 +142,20 @@ CYC_OFF = jnp.array([np.array(_CYC[k]["des"]) - np.array(_CYC[k]["q_mean"]) for 
 CYC_QMEAN = jnp.array([np.array(_CYC[k]["q_mean"]) for k in CYC_KEYS])                            # (4,12)
 CYC_TAU = jnp.array([np.array(_CYC[k]["tau_w"]) for k in CYC_KEYS])                               # (4,100,4) 輪 τ
 CYC_HZ = jnp.array([_CYC[k]["freq_hz"] for k in CYC_KEYS])
+
+
+def _mirror_cycle(off, tau):
+    """左向週期 → 右向：腿 FR↔FL、RR↔RL 對調，ABAD 反號（+ABAD 對四腿都是 +y），髖膝、輪 τ 不變號。"""
+    o = off.reshape(off.shape[0], 4, 3)[:, jnp.array([1, 0, 3, 2])]
+    o = o * jnp.array([-1.0, 1.0, 1.0])[None, None, :]
+    return o.reshape(off.shape[0], 12), tau[:, jnp.array([1, 0, 3, 2])]
+
+
+_lat_r_off, _lat_r_tau = _mirror_cycle(CYC_OFF[0], CYC_TAU[0])
+CYC_OFF = CYC_OFF.at[1].set(_lat_r_off)
+CYC_TAU = CYC_TAU.at[1].set(_lat_r_tau)
+CYC_HZ = CYC_HZ.at[1].set(CYC_HZ[0])
+CYC_QMEAN = CYC_QMEAN.at[1].set(_mirror_cycle(CYC_QMEAN[0][None], CYC_TAU[0][:1])[0][0])
 CYC_N = CYC_OFF.shape[1]
 ERR_BAR12 = jnp.tile(jnp.array([0.60, 0.45, 0.45]), 4)      # 分關節誤差護欄：ABAD 0.6（原廠命令差本就 30°）、髖膝 0.45
 
@@ -426,7 +442,7 @@ class DualModeEnv(Env):
         z = jnp.zeros(ACT_DIM)
         info = {"rng": ks[5], "c": c, "cmd": cmd, "cmd2": cmd2, "t_switch": t_switch,
                 "u_mode": jnp.max(P0["s"]), "ph": P0["ph"], "s4": P0["A"]["s4"], "s_arc": P0["A"]["arc"],
-                "phi_cyc": jnp.zeros(()), "u4": jnp.zeros(()), "gyro_bias": jax.random.uniform(ks[6], (3,), minval=-1.0, maxval=1.0) * GYRO_BIAS,
+                "phi_cyc": jnp.zeros(()), "u4": jnp.zeros(()), "wz_ema": jnp.zeros(()), "gyro_bias": jax.random.uniform(ks[6], (3,), minval=-1.0, maxval=1.0) * GYRO_BIAS,
                 "head_err": jnp.zeros(()), "imu_q": _quat_rp(tilt[0], tilt[1]),
                 "delay": DELAY_BASE + jax.random.bernoulli(ks[7], 0.5).astype(jnp.int32),
                 "a_hist": jnp.zeros((3, ACT_DIM)), "last_a": z, "sway": jnp.zeros(2),
@@ -513,6 +529,16 @@ class DualModeEnv(Env):
         r_yawi = yaw_reward(wz, cmd[2], w["YAW_INST_SIG2"])
         # 線性偏航追蹤：高斯核在誤差 ≥ 0.5 rad/s 全為 0、沒有梯度（原地轉名目 0.25 對指令 1.3），這一項在整個範圍給斜率
         r_yawlin = 1.0 - jnp.clip(jnp.abs(wz - cmd[2]) / w["YAW_LIN_E"], 0.0, 1.0)
+        # 相對進度（只在有該軸指令時作用；偏航用 0.5 s 低通，否則小跑的 ±60°/s 來回擺也能拿分）：
+        #   進度 = 沿指令方向的分量 / 指令大小，開根號讓 25% 的追蹤已值一半分 —— 零動作名目要明確贏過「站著不動」（spec §9.2）
+        wz_ema = info["wz_ema"] + w["WZ_EMA"] * (wz - info["wz_ema"])
+        has_wz = (jnp.abs(cmd[2]) > 0.1).astype(jnp.float32)
+        has_vy = (jnp.abs(cmd[1]) > 0.02).astype(jnp.float32)
+        prog_yaw = jnp.clip(wz_ema * jnp.sign(cmd[2]) / jnp.maximum(jnp.abs(cmd[2]), 0.1), 0.0, 1.0)
+        prog_vy = jnp.clip(vb[1] * jnp.sign(cmd[1]) / jnp.maximum(jnp.abs(cmd[1]), 0.02), 0.0, 1.0)
+        r_yawrel = has_wz * jnp.sqrt(prog_yaw + 1e-6)
+        r_vyrel = has_vy * jnp.sqrt(prog_vy + 1e-6)
+        k_post = 1.0 - w["POST_STEP_SCALE"] * u_mode
         r_head = jnp.exp(-(head_err / w["HEAD_SIG"]) ** 2)
         r_h = jnp.exp(-400.0 * (data.qpos[2] - NOMINAL_HEIGHT) ** 2)
         sw = (jnp.sin(duty_remap(theta, duty)) > 0).astype(jnp.float32) * g_leg
@@ -529,17 +555,18 @@ class DualModeEnv(Env):
         c_tau = jnp.sum(data.actuator_force[LEG_ACT_IDX] ** 2)
         T = {
             "t_vx": w["W_VX"] * r_vx, "t_vy": w["W_VY"] * r_vy, "t_yaw": w["W_YAW"] * r_yaw, "t_yawi": w["W_YAWI"] * r_yawi,
-            "t_yawlin": w["W_YAWLIN"] * r_yawlin,
+            "t_yawlin": w["W_YAWLIN"] * r_yawlin, "t_yawrel": w["W_YAWREL"] * r_yawrel, "t_vyrel": w["W_VYREL"] * r_vyrel,
             "t_head": w["W_HEAD"] * r_head, "t_h": w["W_H"] * r_h, "t_lift": w["W_LIFT"] * r_lift, "t_stance": w["W_STANCE"] * r_stance,
-            "t_roll": w["W_ROLL"] * grav[1] ** 2, "t_pitch": w["W_PITCH"] * grav[0] ** 2,
-            "t_rollrate": w["W_ROLLRATE"] * data.qvel[3] ** 2, "t_pitchrate": w["W_PITCHRATE"] * data.qvel[4] ** 2,
-            "t_bias": w["W_BIAS"] * roll_ema ** 2 + w["W_SWAYBIAS"] * sway_ema ** 2,
+            "t_roll": k_post * w["W_ROLL"] * grav[1] ** 2, "t_pitch": k_post * w["W_PITCH"] * grav[0] ** 2,
+            "t_rollrate": k_post * w["W_ROLLRATE"] * data.qvel[3] ** 2, "t_pitchrate": k_post * w["W_PITCHRATE"] * data.qvel[4] ** 2,
+            "t_bias": k_post * (w["W_BIAS"] * roll_ema ** 2 + w["W_SWAYBIAS"] * sway_ema ** 2),
             "t_act": w["W_ACT"] * c_act, "t_omdot": w["W_OMDOT"] * c_omdot, "t_tau": w["W_TAU"] * c_tau,
             "t_taubar": w["W_TAUBAR"] * tau_barrier(tau_pk12), "t_errbar": w["W_ERRBAR"] * err_barrier_j(err12),
             "t_kneev": w["W_KNEEV"] * jnp.maximum(knee_v - KNEE_V_BAR, 0.0) ** 2,
             "t_mode": w["W_MODE"] * lift_pen, "t_vz": w["W_VZ"] * data.qvel[2] ** 2,
         }
-        pos = T["t_vx"] + T["t_vy"] + T["t_yaw"] + T["t_yawi"] + T["t_yawlin"] + T["t_head"] + T["t_h"] + T["t_lift"] + T["t_stance"]
+        pos = (T["t_vx"] + T["t_vy"] + T["t_yaw"] + T["t_yawi"] + T["t_yawlin"] + T["t_yawrel"] + T["t_vyrel"] + T["t_head"] + T["t_h"]
+               + T["t_lift"] + T["t_stance"])
         neg = (T["t_roll"] + T["t_pitch"] + T["t_rollrate"] + T["t_pitchrate"] + T["t_bias"] + T["t_act"] + T["t_omdot"]
                + T["t_tau"] + T["t_taubar"] + T["t_errbar"] + T["t_kneev"] + T["t_mode"] + T["t_vz"])
         reward = pos - neg
@@ -547,7 +574,7 @@ class DualModeEnv(Env):
         done = jnp.where((grav[2] > FALL_GRAV_Z) | (data.qpos[2] < MIN_HEIGHT) | (kill >= KILL_STEPS), 1.0, 0.0)
 
         info.update({"rng": rng, "c": c, "cmd": info["cmd"], "u_mode": u_mode, "head_err": head_err,
-                     "ph": ph, "s4": P["A"]["s4"], "s_arc": P["A"]["arc"], "phi_cyc": phi_cyc, "u4": u4,
+                     "ph": ph, "s4": P["A"]["s4"], "s_arc": P["A"]["arc"], "phi_cyc": phi_cyc, "u4": u4, "wz_ema": wz_ema,
                      "a_hist": a_hist, "last_a": action, "sway": sway, "qvel_prev": data.qvel[LEG_QVEL_IDX],
                      "om_prev": om, "roll_ema": roll_ema, "sway_ema": sway_ema, "kill": kill, "step": step_i + 1,
                      "wheel_theta": wheel_theta})

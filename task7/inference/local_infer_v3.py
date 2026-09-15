@@ -79,6 +79,8 @@ def main() -> int:
     ap.add_argument("--seeds", type=int, default=3); ap.add_argument("--secs", type=float, default=10.0)
     ap.add_argument("--no-baseline", action="store_true", dest="no_baseline"); ap.add_argument("--video", default="")
     ap.add_argument("--only", default="")
+    ap.add_argument("--mesh", action="store_true", help="影片用官方 STL 網格模型渲染（scene_flat.xml；物理仍是訓練模型，只換外觀）")
+    ap.add_argument("--title", default="", help="影片標題前綴")
     a = ap.parse_args()
     env = v3.DualModeEnv(); jr, js = jax.jit(env.reset), jax.jit(env.step)
     pol = load_policy(a.weights); steps = int(a.secs / v3.CTRL_DT); F = factory_ref()
@@ -116,7 +118,7 @@ def main() -> int:
         import mujoco, imageio
         from PIL import Image, ImageDraw, ImageFont
         import max_model as mm
-        m = mujoco.MjModel.from_xml_path(v3.SCENE_V3); d = mujoco.MjData(m)
+        m = mujoco.MjModel.from_xml_path(mm.SCENE if a.mesh else v3.SCENE_V3); d = mujoco.MjData(m)
         m.vis.global_.offwidth, m.vis.global_.offheight = 960, 540
         r = mujoco.Renderer(m, 540, 960); cam = mujoco.MjvCamera(); cam.type = mujoco.mjtCamera.mjCAMERA_FREE
         cam.distance, cam.azimuth, cam.elevation = 3.0, 145.0, -20.0
@@ -127,7 +129,7 @@ def main() -> int:
             for i in range(0, len(Q), 2):
                 d.qpos[:] = Q[i]; mujoco.mj_forward(m, d); cam.lookat[:] = [d.xpos[base][0], d.xpos[base][1], 0.35]
                 r.update_scene(d, camera=cam); im = Image.fromarray(r.render()); dr = ImageDraw.Draw(im, "RGBA")
-                dr.rectangle([0, 0, 960, 74], fill=(0, 0, 0, 150)); dr.text((14, 6), f"{k+1}/{len(rows)}  RL {wname}  {name}", font=font, fill=(255, 255, 255))
+                dr.rectangle([0, 0, 960, 74], fill=(0, 0, 0, 150)); dr.text((14, 6), f"{k+1}/{len(rows)}  {a.title or 'RL ' + wname}  {name}", font=font, fill=(255, 255, 255))
                 dr.text((14, 42), f"t {i*v3.CTRL_DT:4.1f} s   10 s 平均：vx {g['vx']:+.2f}  vy {g['vy']:+.3f}  偏航 {g['yaw']:+.0f}°/s  roll std {g['roll_std']:.2f}°  膝峰 {g['tau_knee_pk']:.0f} N·m  摔 {g['falls']}", font=ImageFont.truetype("/usr/share/fonts/noto-cjk/NotoSansCJK-Light.ttc", 20), fill=(255, 235, 120))
                 wr.append_data(np.asarray(im))
         wr.close(); print("→", a.video)

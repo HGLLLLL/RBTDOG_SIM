@@ -69,7 +69,7 @@ def main():
     ap.add_argument("--cyc-amp-turn", type=float, default=None, dest="cyc_amp_turn"); ap.add_argument("--cyc-amp-lat", type=float, default=None, dest="cyc_amp_lat")
     ap.add_argument("--gen-turn", default=None, dest="gen_turn", help="cycle | kin"); ap.add_argument("--gen-lat", default=None, dest="gen_lat")
     ap.add_argument("--cyc-abs", action="store_true", dest="cyc_abs", help="週期用原廠絕對 des（不對中到我們站姿）")
-    ap.add_argument("--cyc-wheel", type=float, default=None, dest="cyc_wheel"); ap.add_argument("--cyc-hz", type=float, default=None, dest="cyc_hz"); ap.add_argument("--mu", type=float, default=None)
+    ap.add_argument("--cyc-wheel", type=float, default=None, dest="cyc_wheel"); ap.add_argument("--cyc-hz", type=float, default=None, dest="cyc_hz"); ap.add_argument("--uniform", action="store_true", help="關節偏移統一縮放（舊法），不做等力矩換算"); ap.add_argument("--mu", type=float, default=None)
     ap.add_argument("--yaw-scale", type=float, default=1.0, dest="yaw_scale"); ap.add_argument("--only", default="")
     ap.add_argument("--sweep", action="store_true", help="rot_frac {0.2,0.35,0.5} × duty {0.5,0.6,0.7} × hz {2.0,1.5}")
     ap.add_argument("--sweep-rot", default="0.2,0.35,0.5", dest="sweep_rot"); ap.add_argument("--sweep-duty", default="0.5,0.6,0.7", dest="sweep_duty")
@@ -87,6 +87,8 @@ def main():
     for k, v in dict(cyc_amp_turn=a.cyc_amp_turn, cyc_amp_lat=a.cyc_amp_lat, step_gen_turn=a.gen_turn, step_gen_lat=a.gen_lat, cyc_wheel=a.cyc_wheel, cyc_hz_scale=a.cyc_hz).items():
         if v is not None:
             base[k] = v
+    if a.uniform:
+        base["cyc_joint_scale_turn"] = (1.0, 1.0, 1.0)
     if a.cyc_abs:
         base["cyc_recenter"] = False
     if a.lift_lat is not None:

@@ -70,6 +70,9 @@ REF = dict(
     cyc_lat_amp0=0.64, cyc_lat_vy0=0.04, cyc_lat_slope=1.23, cyc_lat_amp_clip=(0.55, 1.0), cyc_amp_lat=1.0,   # 上限放到原廠全幅（0.96 ≈ 0.30 m/s）
     cyc_amp_turn=0.7, cyc_amp_turn_range=(0.3, 0.9), cyc_amp_rand=True,   # 訓練時每回合抽幅度（小幅度站得住、大幅度轉得快＝用隨機化代替課程）；eval 用 cyc_amp_turn
     cyc_wheel=1.0, cyc_recenter=True, cyc_hz_scale=1.0,
+    # 關節偏移的分關節縮放（ABAD, HIP, KNEE）。原地轉用等力矩換算 kp_原廠/kp_我們（60/60、120/250）：全幅度力矩峰 96→77，
+    # 全在終止線 90 下。平移**不能**用：髖膝偏移負責卸重讓側滑發生，砍半後 vy 0.30→0.13 且倒（G0 2026-09-15 晚）→ 平移維持 (1,1,1)
+    cyc_joint_scale_turn=(1.0, 0.48, 0.48), cyc_joint_scale_lat=(1.0, 1.0, 1.0),
     # 相位組："factory"＝原廠四腿相位（配 duty ≥ 0.7 才有三腳著地）；"trot"＝對角對交替（duty 0.5 用，任何時刻兩對角腳著地）
     phase_set_turn="trot", phase_set_lat="factory",
     trans_s=1.0,
@@ -185,11 +188,11 @@ def cycle_offsets(phi, cmd, A, ref=None, amp_turn=None):
     amp_t = jnp.clip(jnp.abs(cmd[2]) / ref["a_ref"]["wz"], 0.3, 1.2) * (ref["cyc_amp_turn"] if amp_turn is None else amp_turn)
     on_l, on_t = float(ref["step_gen_lat"] == "cycle"), float(ref["step_gen_turn"] == "cycle")
     wl = _lat_weight(A)
-    def blend(T):
+    def blend(T, sc_l=1.0, sc_t=1.0):
         lat = w_ll * T[0] + (1.0 - w_ll) * T[1]
         turn = w_tl * T[2] + (1.0 - w_tl) * T[3]
-        return wl * amp_l * on_l * lat + (1.0 - wl) * amp_t * on_t * turn
-    delta = blend(off)
+        return wl * amp_l * on_l * lat * sc_l + (1.0 - wl) * amp_t * on_t * turn * sc_t
+    delta = blend(off, jnp.tile(jnp.array(ref["cyc_joint_scale_lat"]), 4), jnp.tile(jnp.array(ref["cyc_joint_scale_turn"]), 4))
     if not ref["cyc_recenter"]:                                  # 絕對模式：中心用原廠實際 q 平均，不是我們的站姿
         qm = _cyc_interp(CYC_QMEAN[:, None, :].repeat(2, 1), 0.0)
         delta = delta + (wl * on_l * (w_ll * qm[0] + (1.0 - w_ll) * qm[1]) + (1.0 - wl) * on_t * (w_tl * qm[2] + (1.0 - w_tl) * qm[3])

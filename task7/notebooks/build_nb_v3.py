@@ -92,11 +92,11 @@ def progress(step, metrics):
     ps = lambda k: float(metrics.get(f"eval/episode_{{k}}", 0.0)) / L
     el = time.time() - _t0; rate = step / max(el, 1e-9)
     print(f"step {{step:>11,}} R {{r:7.2f}} | roll {{ps('roll'):4.2f}} pitch {{ps('pitch'):4.2f}} bias {{ps('roll_bias'):+.2f}} | "
-          f"vxerr {{ps('vxerr'):.3f}} vyerr {{ps('vyerr'):.3f}} yawerr {{ps('yawerr'):.3f}} | s4 {{ps('s4'):.2f}} arc {{ps('s_arc'):.2f}} clr {{ps('clr_step'):.0f}}/{{ps('clr_stance'):.0f}} | "
+          f"vxerr {{ps('vxerr'):.3f}} vyerr {{ps('vyerr'):.3f}} yawerr {{ps('yawerr'):.3f}} | 進度 yaw {{ps('t_yawrel'):.2f}}/8 vy {{ps('t_vyrel'):.2f}}/3 | s4 {{ps('s4'):.2f}} arc {{ps('s_arc'):.2f}} clr {{ps('clr_step'):.0f}}/{{ps('clr_stance'):.0f}} | "
           f"tau_pk {{ps('tau_pk'):5.1f}} err {{ps('err_pk'):.3f}} knee_v {{ps('knee_v'):.1f}} | len {{L:.0f}} | "
           f"{{el:.0f}}s → {{TIMESTEPS / max(rate, 1) / 60:.0f}} 分")
 
-# 讀法：vxerr/vyerr/yawerr 往下、roll_bias 往 0、tau_pk < 58、clr_stance < 10（輪行不抬腿）、len 1000。
+# 讀法：進度 yaw／vy ＝ 有該軸指令時沿指令方向的相對進度（分母 8／3），要往上；vxerr/vyerr/yawerr 往下、roll_bias 往 0、tau_pk < 58、len 往 1000。
 make_inference_fn, params, _ = train_fn(environment=env, progress_fn=progress)
 print("training done")
 '''

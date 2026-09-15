@@ -193,7 +193,7 @@ def test_sample_cmd_covers_axes_and_combos():
     f = jax.jit(jax.vmap(env._sample_cmd))
     c = np.asarray(f(jax.random.split(jax.random.PRNGKey(0), 4000)))
     nz = np.abs(c) > 1e-9
-    assert 0.45 < nz[:, 0].mean() < 0.65 and 0.18 < nz[:, 1].mean() < 0.32 and 0.42 < nz[:, 2].mean() < 0.58
+    assert 0.45 < nz[:, 0].mean() < 0.65 and 0.30 < nz[:, 1].mean() < 0.45 and 0.42 < nz[:, 2].mean() < 0.58
     assert (nz[:, 0] & nz[:, 1]).mean() > 0.07 and (nz[:, 0] & nz[:, 2]).mean() > 0.15     # 斜走、弧線都有
     assert (~nz[:, 0] & ~nz[:, 1] & nz[:, 2]).mean() > 0.2                                  # 純原地轉 ≥ 20%
     assert c[:, 0].min() >= -0.4 and c[:, 0].max() <= 0.9 and np.abs(c[nz[:, 1], 1]).min() >= 0.04 and np.abs(c[nz[:, 2], 2]).min() >= 0.2

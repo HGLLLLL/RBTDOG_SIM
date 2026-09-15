@@ -179,6 +179,93 @@ def analyze_transition(path: str) -> dict:
                 gap_s=float((first_roll - last_sw) / HZ))
 
 
+# ---------------------------------------------------------------- v3.1（2026-09-15）：擺動事件法、四腿相位、弧線、增益
+LIFT31 = 0.012                 # 相對 1 s 滾動最低點抬 > 12 mm
+DUR31 = (0.04, 0.35)           # 擺動時長（s）；更長的是姿態變化
+FOOT_X_BODY = {"fl": 0.376, "fr": 0.376, "bl": -0.358, "br": -0.358}   # 站姿足端 x（機身座標，m）；旋轉運動學用
+
+
+def swing_events31(z: np.ndarray) -> list:
+    """→ [(s, e, apex_m)]。基線 = 1 s 滾動最低點（吃掉姿態漂移），抬 > LIFT31、時長在 DUR31 內。"""
+    from scipy.ndimage import minimum_filter1d
+    h = z - minimum_filter1d(z, int(HZ))
+    up = h > LIFT31
+    d = np.diff(up.astype(int))
+    starts, ends = np.nonzero(d == 1)[0] + 1, np.nonzero(d == -1)[0] + 1
+    if ends.size and starts.size and ends[0] < starts[0]:
+        ends = ends[1:]
+    lo, hi = DUR31[0] * HZ, DUR31[1] * HZ
+    return [(int(s), int(e), float(h[s:e].max())) for s, e in zip(starts, ends) if lo <= e - s <= hi]
+
+
+def phase_rel(starts: np.ndarray, ref_starts: np.ndarray, period_ticks: float) -> float:
+    """每個 start 對最近一個 ref start 的落後（週期比例），圓形平均。"""
+    ph = []
+    for s in starts:
+        k = np.searchsorted(ref_starts, s, side="right") - 1
+        if 0 <= k < ref_starts.size:
+            ph.append(((s - ref_starts[k]) / period_ticks) % 1.0)
+    return circ_mean(ph) if ph else float("nan")
+
+
+def gains_of(rec, i0: int, i1: int) -> dict:
+    """動作段的增益（取 fl；16 顆同步切換）。"""
+    def u(name, k):
+        return sorted(set(np.round(rec.j[name][k][i0:i1], 2).tolist()))
+    return dict(abad_kp=u("fl1_hip_roll", "kp"), hip_kp=u("fl2_hip_pitch", "kp"), knee_kp=u("fl3_knee_pitch", "kp"),
+                leg_kd=u("fl2_hip_pitch", "kd"), wheel_kp=u("fl4_foot", "kp"), wheel_kd=u("fl4_foot", "kd"),
+                wheel_ff_p98=float(np.percentile(np.abs(rec.j["fl4_foot"]["ff"][i0:i1]), 98)))
+
+
+def analyze31(path: str) -> dict:
+    rec, q, tau, wv = rga.load(path)
+    m = rga.moving_mask(rec, q, wv)
+    idx = np.nonzero(m)[0]
+    i0, i1 = int(idx[0]), int(idx[-1])
+    P = {l: foot_xyz(q, l) for l in LEGS}
+    ev = {l: [e for e in swing_events31(P[l][:, 2]) if i0 <= e[0] <= i1] for l in LEGS}
+    out = {"label": json.loads(Path(path).read_text(encoding="utf-8")).get("label", ""), "legs": {}, "gains": gains_of(rec, i0, i1)}
+    # 穩態偏航：|gyro_z| ≥ 50% 的 p95 那些時刻
+    gz = rec.gyro[:, 2]
+    thr = 0.5 * np.percentile(np.abs(gz[i0:i1]), 95)
+    ss = np.zeros(rec.n, bool)
+    ss[i0:i1] = np.abs(gz[i0:i1]) >= max(thr, 0.05)
+    if ss.sum() < 100:
+        ss[i0:i1] = True
+    out["yaw_rate_deg_s"] = float(np.degrees(gz[ss].mean()))
+    out["wheel_mean_rad_s"] = {l: float(wv[ss, k].mean()) for k, l in enumerate(LEGS)}
+    periods = []
+    for l in LEGS:
+        st = np.array([s for s, _, _ in ev[l]])
+        if st.size >= 3:
+            dp = np.diff(st) / HZ
+            periods += dp[dp < 1.0].tolist()
+    period = float(np.median(periods)) if periods else float("nan")
+    out["period_s"], out["freq_hz"] = period, (1.0 / period if period == period and period > 0 else float("nan"))
+    ref_leg = max(LEGS, key=lambda l: len(ev[l]))
+    out["ref_leg"] = ref_leg
+    ref_starts = np.array([s for s, _, _ in ev[ref_leg]])
+    for l in LEGS:
+        E = ev[l]
+        out["legs"][l] = dict(
+            n=len(E),
+            swing_dur_s=float(np.median([(e - s) / HZ for s, e, _ in E])) if E else float("nan"),
+            apex_m=float(np.median([a for _, _, a in E])) if E else float("nan"),
+            dx_m=float(np.median([P[l][e - 1, 0] - P[l][s, 0] for s, e, _ in E])) if E else float("nan"),
+            dy_m=float(np.median([P[l][e - 1, 1] - P[l][s, 1] for s, e, _ in E])) if E else float("nan"),
+            phase=phase_rel(np.array([s for s, _, _ in E]), ref_starts, period * HZ) if E and period == period else float("nan"),
+            abad_ptp_deg=float(np.degrees(np.ptp(q[l]["1_hip_roll"][i0:i1]))),
+            foot_y_mean_m=float(P[l][ss, 1].mean()), foot_y_idle_m=float(P[l][:i0, 1].mean()) if i0 > 50 else float("nan"))
+    # 旋轉運動學：踏步做掉的比例 = 量到的 dy / (T · ω · x_foot)
+    w = abs(np.radians(out["yaw_rate_deg_s"]))
+    if period == period and w > 0.3 and out["legs"][ref_leg]["n"] >= 3:
+        dy_kin = period * w * abs(FOOT_X_BODY[ref_leg])
+        out["rot_step_frac"] = float(abs(out["legs"][ref_leg]["dy_m"]) / dy_kin)
+    else:
+        out["rot_step_frac"] = float("nan")
+    return out
+
+
 def build(logdir: Path) -> dict:
     ds = {"source": "trip21 2026-09-09 原廠遙控錄製（M6 500 Hz）", "wheel_mode": {}, "step_mode": {}, "transitions": {}}
     for k in ("fwd", "back", "arc_left", "arc_right", "startstop"):
@@ -187,6 +274,8 @@ def build(logdir: Path) -> dict:
         ds["step_mode"][k] = [analyze_step_file(_path(t, logdir)) for t in FILES[k]]
     for k in ("lat_to_fwd", "turn_to_fwd"):
         ds["transitions"][k] = analyze_transition(_path(FILES[k][0], logdir))
+    ds["v31"] = {k: [analyze31(_path(t, logdir)) for t in FILES[k]]
+                 for k in ("turn_left", "turn_right", "lat_left", "lat_right", "arc_left", "arc_right", "fwd")}
     # 彙總：輪行站姿（fwd 三檔平均）、有效輪距（arc 四檔中位）
     fw = ds["wheel_mode"]["fwd"]
     ds["summary"] = {
@@ -203,6 +292,31 @@ def build(logdir: Path) -> dict:
                             "phase": {l: f["legs"][l]["phase"] for l in LEGS}, "ref_leg": f["ref_leg"],
                             "stepping_legs": [l for l in LEGS if f["legs"][l]["n"] >= 5],
                             "wheel_pattern": f["wheel_pattern"], "yaw_rate_deg_s": f["yaw_rate_deg_s"]}
+    v = ds["v31"]
+    tl, ll = v["turn_left"][0], v["lat_left"][0]
+
+    def _ph(f):
+        # 相對 fl 的相位（fl 若不是 ref_leg 就平移）
+        base = f["legs"]["fl"]["phase"]
+        return {l: float((f["legs"][l]["phase"] - base) % 1.0) for l in LEGS}
+
+    def _apex_ratio(f, dom):
+        d = np.nanmean([f["legs"][l]["apex_m"] for l in dom])
+        s_ = np.nanmean([f["legs"][l]["apex_m"] for l in LEGS if l not in dom])
+        return float(s_ / d)
+    arc = [f for k in ("arc_left", "arc_right") for f in v[k]]
+    ds["summary"]["v31"] = {
+        "phase_turn_left": _ph(tl), "phase_lat_left": _ph(ll),
+        "apex_ratio_turn": _apex_ratio(tl, ("fl", "br")), "apex_ratio_lat": _apex_ratio(ll, ("fl", "bl")),
+        "rot_step_frac_turn": float(np.nanmedian([f["rot_step_frac"] for f in v["turn_left"] + v["turn_right"]])),
+        "arc_inner_front_hz": float(np.nanmedian([f["freq_hz"] for f in arc])),
+        "arc_inner_front_apex_m": float(np.nanmedian([f["legs"][f["ref_leg"]]["apex_m"] for f in arc])),
+        "arc_inner_front_leg": [f["ref_leg"] for f in arc],
+        "lat_lead_dy_m": float(np.nanmean([ll["legs"][l]["dy_m"] for l in ("fl", "bl")])),
+        "lat_trail_dy_m": float(np.nanmean([ll["legs"][l]["dy_m"] for l in ("fr", "br")])),
+        "gains_motion": tl["gains"],
+        "gains_fwd": v["fwd"][0]["gains"],
+    }
     return ds
 
 
@@ -227,6 +341,20 @@ def md(ds: dict) -> str:
             g = f["legs"][l]
             L.append(f"| {k} | {l} | {g['n']} | {g['dx_m'] * 1000:+.0f} | {g['dy_m'] * 1000:+.0f} | {g['phase_spread']:.2f} | {g['abad_mean_deg']:+.1f} | {g['abad_ptp_deg']:.1f} |")
     L += ["", "模式切換（踏步最後一次擺動結束 → 四輪同向滾）：" + "；".join(f"{k} {v['gap_s']:.2f} s" for k, v in ds["transitions"].items())]
+    V = S.get("v31")
+    if V:
+        L += ["", "## v3.1（擺動事件法）", "",
+              f"- 原地左轉相位（相對 fl）：{ {l: round(p, 2) for l, p in V['phase_turn_left'].items()} }；次要腿抬高比 {V['apex_ratio_turn']:.2f}；踏步做掉的旋轉位移比例 {V['rot_step_frac_turn']:.2f}",
+              f"- 左平移相位：{ {l: round(p, 2) for l, p in V['phase_lat_left'].items()} }；次要腿抬高比 {V['apex_ratio_lat']:.2f}；移動側每步 dy {V['lat_lead_dy_m'] * 1000:+.0f} mm、另一側 {V['lat_trail_dy_m'] * 1000:+.0f} mm",
+              f"- 弧線：內側前腿 {V['arc_inner_front_leg']} 踏步 {V['arc_inner_front_hz']:.2f} Hz、抬 {V['arc_inner_front_apex_m'] * 1000:.0f} mm",
+              f"- 動作段增益：{V['gains_motion']}",
+              f"- 前進段增益：{V['gains_fwd']}"]
+        L += ["", "| 檔 | 偏航 °/s | 步頻 | fl n/apex/dy | fr | bl | br | 輪 fl/fr/bl/br |", "|---|---|---|---|---|---|---|---|"]
+        for k, files in ds["v31"].items():
+            for f in files:
+                cells = [f"{f['legs'][l]['n']}/{f['legs'][l]['apex_m'] * 1000:.0f}/{f['legs'][l]['dy_m'] * 1000:+.0f}" for l in LEGS]
+                L.append(f"| {f['label']} | {f['yaw_rate_deg_s']:+.0f} | {f['freq_hz']:.2f} | " + " | ".join(cells)
+                         + " | " + "/".join(f"{f['wheel_mean_rad_s'][l]:+.1f}" for l in LEGS) + " |")
     return "\n".join(L)
 
 

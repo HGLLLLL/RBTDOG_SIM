@@ -270,3 +270,38 @@ def test_turn_cycle_amp_override_and_random():
     env = v3.DualModeEnv(); amps = [float(jax.jit(env.reset)(jax.random.PRNGKey(k)).info["cyc_amp"]) for k in range(20)]
     assert min(amps) >= 0.3 and max(amps) <= 0.9 and (max(amps) - min(amps)) > 0.3
     env2 = v3.DualModeEnv(ref=dict(cyc_amp_rand=False)); assert abs(float(jax.jit(env2.reset)(jax.random.PRNGKey(3)).info["cyc_amp"]) - v3.REF["cyc_amp_turn"]) < 1e-6
+
+
+def test_wheel_ctrl_tau_produces_requested_torque():
+    """力矩空間控制律的定義性質：ctrl 餵進 τ = kv·(ctrl − v) 之後，力矩要等於要求值 ＋ 摩擦前饋。
+
+    kv 0.1 時 v_des 幾乎沒有力矩權限（差 5 rad/s 只有 0.5 N·m），所以 v3.4f 直接指定力矩。
+    """
+    kv = 0.1
+    tau_cmd = np.array([2.0, -1.5, 0.5, -0.3])
+    v_meas = np.array([12.0, -8.0, 0.0, 3.0])
+    ctrl = np.asarray(v3.wheel_ctrl_tau(jnp.array(tau_cmd), jnp.array(v_meas), kv))
+    tau_out = kv * (ctrl - v_meas)
+    np.testing.assert_allclose(tau_out, tau_cmd + np.sign(tau_cmd) * v3.TAU_FF, rtol=1e-6)
+
+
+def test_wheel_ctrl_tau_dead_zone_holds_measured_speed():
+    """|tau_cmd| 小於輪摩擦時要輸出零力矩（ctrl = 實測速度），不要用前饋去推一個推不動的指令。"""
+    kv = 0.1
+    v_meas = jnp.array([5.0, -5.0, 0.0, 1.0])
+    ctrl = v3.wheel_ctrl_tau(jnp.array([0.05, -0.12, 0.0, 0.129]), v_meas, kv)
+    np.testing.assert_allclose(np.asarray(ctrl), np.asarray(v_meas), rtol=0, atol=0)
+
+
+def test_wheel_ctrl_tau_matches_velocity_law_in_the_clean_region():
+    """G_w = 1、kv = 1 時，力矩空間與 v3.3 速度空間在「非死區、同號」的區域等價。
+
+    兩者的死區判準不同（0.3 rad/s vs 0.13 N·m），所以只在乾淨區域比。
+    這一項是 v3.4f 輪行族 G_w 起點取 1.0 的依據。
+    """
+    v_des = jnp.array([6.0, -6.0, 4.0, -4.0])
+    v_meas = jnp.array([1.0, -1.0, 0.5, -0.5])
+    tau_cmd = 1.0 * (v_des - v_meas)          # G_w = 1
+    got = v3.wheel_ctrl_tau(tau_cmd, v_meas, 1.0)
+    want = v3.wheel_ctrl(v_des)
+    np.testing.assert_allclose(np.asarray(got), np.asarray(want), rtol=1e-6)

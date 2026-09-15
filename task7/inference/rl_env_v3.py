@@ -290,6 +290,18 @@ def wheel_ctrl(v_des):
     return jnp.where(dead, 0.0, v_des + jnp.sign(v_des) * TAU_FF / KV_WHEEL)
 
 
+def wheel_ctrl_tau(tau_cmd, v_meas, kv):
+    """v3.4f 力矩空間：回傳送給速度伺服的 ctrl，使實際力矩 = tau_cmd ＋ τ_f·sign（克服輪摩擦）。
+
+    原廠輪子 kp 0／kd 0.1 ＋ 大幅速度目標（反推 v_des 20–50 rad/s 對實際 12–17，spec §0.2），
+    等於把 PD 當力矩源。kv 0.1 下速度殘差沒有力矩權限，所以殘差與週期偏移都改成直接指定力矩。
+    |tau_cmd| < τ_f 視為推不動 → 輸出零力矩（ctrl = 實測速度）。
+    """
+    dead = jnp.abs(tau_cmd) < TAU_FF
+    tau = jnp.where(dead, 0.0, tau_cmd + jnp.sign(tau_cmd) * TAU_FF)
+    return v_meas + tau / kv
+
+
 def step_pattern(cmd, ref=None):
     """指令 → 產生器設定 dict：A、s(4)、g(4)、vec(4,2)、ph(4) 目標、wheel0(4) 無殘差、hz、duty、lift(4)、post_y(4)。"""
     ref = ref or REF

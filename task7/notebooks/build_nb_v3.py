@@ -10,12 +10,20 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 _ap = argparse.ArgumentParser()
 _ap.add_argument("--gains", default="kp250", choices=("kp250", "factory"))
+_ap.add_argument("--weights", default="v33", choices=("v33", "v35"), help="v35＝DualModeEnv(weights=v3.W35)（慢漂懲罰＋線性航向，spec 2026-09-16）")
 ARGS = _ap.parse_args()
 FACTORY = ARGS.gains == "factory"
-OUT = HERE / ("cpg_rl_v3_4f_colab.ipynb" if FACTORY else "cpg_rl_v3_colab.ipynb")
-WEIGHTS = "cpg_rl_v3_4f_params.pkl" if FACTORY else "cpg_rl_v3_params.pkl"
+V35 = ARGS.weights == "v35"
+_tag = {(False, False): "v3", (True, False): "v3_4f", (False, True): "v3_5", (True, True): "v3_5f"}[(FACTORY, V35)]
+OUT = HERE / f"cpg_rl_{_tag}_colab.ipynb"
+WEIGHTS = f"cpg_rl_{_tag}_params.pkl"
 GAINS_KW = 'gains="factory"' if FACTORY else ''
 GAINS_KW2 = 'gains="factory", ' if FACTORY else ''    # 後面還有其他參數時用
+W_KW = "weights=v3.W35" if V35 else ""
+ENV_ARGS = ", ".join(x for x in (GAINS_KW, W_KW) if x)        # '' | 'gains="factory"' | 'weights=v3.W35' | 'gains="factory", weights=v3.W35'
+ENV_ARGS2 = ENV_ARGS + ", " if ENV_ARGS else ""              # 後面還有參數時用
+PROG_EXTRA = "abad {ps('abad_bias'):.1f}° drift {ps('vx_drift'):+.3f} head {ps('head_deg'):+.1f}° | " if V35 else ""   # 以值插進 train_src 的 f-string，不會再被展開，所以用單層大括號
+VY_DEN = "6" if V35 else "3"
 # v3.3 的 notebook 要逐字元不變（產生器是共用的），所以這兩行在 kp250 分支輸出舊文字
 ENV_PRINT = ('"gains", env.gains, "wheel_space", env.wheel_space' if FACTORY else '"wheel_pos", env.wheel_pos')
 REF_SRC = "env.ref" if FACTORY else "v3.REF"
@@ -52,6 +60,23 @@ if FACTORY:
 如果它明顯超過原廠的 40–60 而懲罰項一直是 0，代表這一版少了一個約束，要把 `TAU_BAR` 調到 35–40 重訓。
 """
 
+if V35:
+    md0 = f"""# CPG-RL **v3.5{"f" if FACTORY else ""}**：智元 D1 Max · 慢漂懲罰＋線性航向 · MJX · Colab GPU（2026-09-16）
+
+在 v3.3（`weights/cpg_rl_v3_params_2.pkl`：原地轉 ±75°/s 達原廠 97%、九指令 0 摔）之上修使用者看到的兩個問題：
+- **原地轉一條腿慢慢內收再踏出去**：左後腿 ABAD 6–8 s 漂到 +15°（跨種子同腿）。原廠圖案本來就對角不對稱（使用者決定保留），
+  踏步時沒有東西把站立腳拉回名目 → 加 `t_abadbias`：四腿 ABAD 偏離站姿的 1 s 低通平方 × 30，只在踏步時開。
+- **平移「往後漂」**：機身其實只往後 0.02–0.04 m/s，七成是航向轉掉 15–23° 的投影 →
+  加 `t_drift`（機身 vx/vy 低頻誤差平方 × 40）＋ `t_headlin`（線性航向項，到 29° 都有梯度，權重 1.0）。
+- 平移效率：`W_VYREL` 3→6、`P_VY` 0.45→0.60。
+其餘（產生器、obs 88、動作 24、護欄、DR{"、原廠增益" if FACTORY else ""}）與 v3.{"4f" if FACTORY else "3"} 相同。
+設計：`docs/superpowers/specs/2026-09-16-cpg-rl-v3.5-drift-penalties-design.md`；攤帳 `outputs/reward_audit_v35.md`。
+
+**停損**：同 v3.3 —— 1 億步 `進度 yaw` < 3.5 或 len < 600 → 停；**另加**：1 億步 `abad` 沒比 step 0 低、或 `drift`／`head` 沒往 0 走 → 新 reward 沒被學到，停下來查。
+v3.3 在 1 億步時 3.3 沒過線、160M 才破到 4.2 —— 沒存中繼檢查點，決定跑完就別關分頁。
+**注意**：G0 格的原地轉是開迴路原廠週期，**預期會倒**，那格只 assert 其他四個指令。
+"""
+
 clone_src = '''import os, subprocess, sys
 
 REPO = "https://github.com/HGLLLLL/RBTDOG_SIM.git"
@@ -66,7 +91,7 @@ print("clone 到的 commit：",
 
 import_src = f'''import jax, jax.numpy as jnp, numpy as np, mujoco
 import rl_env_v3 as v3
-env = v3.DualModeEnv({GAINS_KW})
+env = v3.DualModeEnv({ENV_ARGS})
 print("obs", env.obs_dim, "act", env.action_size, {ENV_PRINT})
 assert env.wheel_pos is False
 print("REF", {{k: v for k, v in {REF_SRC}.items() if not hasattr(v, "shape")}})
@@ -101,8 +126,8 @@ train_src = f'''import functools, time
 from brax.training.agents.ppo import train as ppo
 from brax.training.agents.ppo import networks as ppo_networks
 
-env = v3.DualModeEnv({GAINS_KW})
-eval_env = v3.DualModeEnv({GAINS_KW2}ref=dict(cyc_amp_rand=False))      # 評估用固定幅度 0.7，曲線才可比
+env = v3.DualModeEnv({ENV_ARGS})
+eval_env = v3.DualModeEnv({ENV_ARGS2}ref=dict(cyc_amp_rand=False))      # 評估用固定幅度 0.7，曲線才可比
 network_factory = functools.partial(ppo_networks.make_ppo_networks,
                                     policy_hidden_layer_sizes=(256, 256, 128), value_hidden_layer_sizes=(256, 256, 256))
 TIMESTEPS = 200_000_000   # v3.3：2 億步（100M 約 60 分鐘）
@@ -121,8 +146,8 @@ def progress(step, metrics):
     ps = lambda k: float(metrics.get(f"eval/episode_{{k}}", 0.0)) / L
     el = time.time() - _t0; rate = step / max(el, 1e-9)
     print(f"step {{step:>11,}} R {{r:7.2f}} | roll {{ps('roll'):4.2f}} pitch {{ps('pitch'):4.2f}} bias {{ps('roll_bias'):+.2f}} | "
-          f"vxerr {{ps('vxerr'):.3f}} vyerr {{ps('vyerr'):.3f}} yawerr {{ps('yawerr'):.3f}} | 進度 yaw {{ps('t_yawrel'):.2f}}/8 vy {{ps('t_vyrel'):.2f}}/3 | s4 {{ps('s4'):.2f}} cyc {{ps('cyc'):.2f}} clr {{ps('clr_step'):.0f}}/{{ps('clr_stance'):.0f}} | "
-          f"tau_pk {{ps('tau_pk'):5.1f}} err {{ps('err_pk'):.3f}} knee_v {{ps('knee_v'):.1f}} | len {{L:.0f}} | "
+          f"vxerr {{ps('vxerr'):.3f}} vyerr {{ps('vyerr'):.3f}} yawerr {{ps('yawerr'):.3f}} | 進度 yaw {{ps('t_yawrel'):.2f}}/8 vy {{ps('t_vyrel'):.2f}}/{VY_DEN} | s4 {{ps('s4'):.2f}} cyc {{ps('cyc'):.2f}} clr {{ps('clr_step'):.0f}}/{{ps('clr_stance'):.0f}} | "
+          f"tau_pk {{ps('tau_pk'):5.1f}} err {{ps('err_pk'):.3f}} knee_v {{ps('knee_v'):.1f}} | {PROG_EXTRA}len {{L:.0f}} | "
           f"{{el:.0f}}s → {{TIMESTEPS / max(rate, 1) / 60:.0f}} 分")
 
 # 讀法：進度 yaw／vy ＝ 有該軸指令時沿指令方向的相對進度（分母 8／3），要往上；vxerr/vyerr/yawerr 往下、roll_bias 往 0、tau_pk < 58、len 往 1000。

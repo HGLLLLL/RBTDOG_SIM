@@ -46,8 +46,9 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--weights", default=str(INF.parent / "weights" / "cpg_rl_v3_params_2.pkl"))
     ap.add_argument("--secs", type=float, default=10.0)
+    ap.add_argument("--gains", default="kp250", choices=("kp250", "factory"), help="factory＝拿 v3.4f 權重在原廠增益線上攤帳（v3.5f）")
     a = ap.parse_args()
-    env = v3.DualModeEnv(ref=dict(cyc_amp_rand=False), weights=v3.W35)
+    env = v3.DualModeEnv(gains=a.gains, ref=dict(cyc_amp_rand=False), weights=v3.W35)
     jr, js = jax.jit(env.reset), jax.jit(env.step)
     pol = L.load_policy(a.weights, env.obs_dim); steps = int(a.secs / v3.CTRL_DT)
     rows, all_ok = [], True
@@ -57,12 +58,12 @@ def main() -> int:
         print(f"{'PASS' if not bad else 'FAIL'} {name:10s} t_abadbias {r['t_abadbias']:.3f} t_drift {r['t_drift']:.3f} t_headlin {r['t_headlin']:.3f} | ABAD 漂 {r['abad_bias']:.1f}° vx 漂 {r['vx_drift']:+.3f} 航向 {r['head_deg']:+.1f}° | R/步 {r['reward']:+.2f} 摔 {r['fell']}"
               + (f"  ← {'; '.join(bad)}" if bad else ""), flush=True)
     wname = Path(a.weights).stem
-    out = ["# v3.5 攤帳（spec §3.3）：v3.3 權重 `" + wname + "` 在 W35 下，後 5 s 每步平均", "",
+    out = [f"# v3.5 攤帳（spec §3.3）：權重 `{wname}`（gains={a.gains}）在 W35 下，後 5 s 每步平均", "",
            "| 指令 | t_abadbias | t_drift | t_headlin | ABAD 漂 ° | vx 漂 m/s | 航向 ° | reward/步 | 摔 | 門檻 |", "|---|---|---|---|---|---|---|---|---|---|"]
     for name, r, bad in rows:
         out.append(f"| {name} | {r['t_abadbias']:.3f} | {r['t_drift']:.3f} | {r['t_headlin']:.3f} | {r['abad_bias']:.1f} | {r['vx_drift']:+.3f} | {r['head_deg']:+.1f} | {r['reward']:+.2f} | {r['fell']} | {'PASS' if not bad else 'FAIL：' + '; '.join(bad)} |")
     out += ["", "門檻：原地轉 t_abadbias ≥ 0.5、平移 t_drift ≥ 0.10 且 t_headlin ≤ 0.8、直走兩項 ≤ 0.05。全過 → 新 reward 咬在對的地方、可上 Colab。"]
-    p = INF.parent / "outputs" / "reward_audit_v35.md"; p.write_text("\n".join(out) + "\n", encoding="utf-8"); print("→", p)
+    p = INF.parent / "outputs" / ("reward_audit_v35.md" if a.gains == "kp250" else "reward_audit_v35f.md"); p.write_text("\n".join(out) + "\n", encoding="utf-8"); print("→", p)
     return 0 if all_ok else 1
 
 

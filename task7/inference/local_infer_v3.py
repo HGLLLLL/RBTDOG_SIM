@@ -84,10 +84,12 @@ def main() -> int:
     ap.add_argument("--seeds", type=int, default=3); ap.add_argument("--secs", type=float, default=10.0)
     ap.add_argument("--no-baseline", action="store_true", dest="no_baseline"); ap.add_argument("--video", default="")
     ap.add_argument("--only", default="")
+    ap.add_argument("--gains", default="kp250", choices=("kp250", "factory"), help="factory＝v3.4f（馬達增益照原廠、力矩空間輪控制）；要與權重的訓練設定一致")
     ap.add_argument("--mesh", action="store_true", help="影片用官方 STL 網格模型渲染（scene_flat.xml；物理仍是訓練模型，只換外觀）")
     ap.add_argument("--title", default="", help="影片標題前綴")
     a = ap.parse_args()
-    env = v3.DualModeEnv(ref=dict(cyc_amp_rand=False)); jr, js = jax.jit(env.reset), jax.jit(env.step)   # eval：原地轉幅度固定 REF cyc_amp_turn
+    env = v3.DualModeEnv(gains=a.gains, ref=dict(cyc_amp_rand=False)); jr, js = jax.jit(env.reset), jax.jit(env.step)   # eval：原地轉幅度固定 REF cyc_amp_turn
+    print(f"gains {env.gains} wheel_space {env.wheel_space} obs {env.obs_dim} act {env.action_size}", flush=True)
     pol = load_policy(a.weights, env.obs_dim); steps = int(a.secs / v3.CTRL_DT); F = factory_ref()
     rows, traj = [], {}
     for name, cmd, fam in CASES:
@@ -107,7 +109,7 @@ def main() -> int:
               + (f" ‖ 零動作: vx {B['vx']:+.2f} vy {B['vy']:+.3f} yaw {B['yaw']:+5.1f} roll std {B['roll_std']:.2f} 膝峰 {B['tau_knee_pk']:.0f} 摔 {B['fell']}" if B else "") + f" ({time.time()-t0:.0f}s)", flush=True)
     # ---- md
     wname = Path(a.weights).stem
-    L = [f"# 驗收 {wname}（{a.seeds} 種子 × {a.secs:.0f} s，前 2 s 不計；對標 = 原廠 trip21 動作段）", "",
+    L = [f"# 驗收 {wname}（gains={a.gains}；{a.seeds} 種子 × {a.secs:.0f} s，前 2 s 不計；對標 = 原廠 trip21 動作段）", "",
          "| 指令 | 摔 | vx | vy | 偏航 °/s（±std） | roll std/峰 ° | 膝 τ 峰/RMS | 髖 τ 峰/RMS | ABAD τ 峰/RMS | 抬腳 mm | ABAD 漂 ° | vx 漂 | 航向 ° | \\|a\\| | 零動作 vx/vy/yaw/roll std/膝峰 | 原廠 v/yaw/roll std/膝峰/膝RMS/抬腳 |",
          "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for name, cmd, fam, g, B in rows:

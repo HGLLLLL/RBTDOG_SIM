@@ -131,12 +131,12 @@ W = dict(W_VX=2.0, W_VY=3.0, W_YAW=2.0, W_YAWI=0.5, W_YAWLIN=1.0, YAW_LIN_E=1.5,
          CMD_VX=(-0.4, 0.9), CMD_VY=(0.04, 0.30), CMD_WZ=(0.2, 1.3), P_VX=0.65, P_VY=0.45, P_WZ=0.50,
          P_TURN_ONLY=0.35,        # 有 wz 時有 35% 把 vx、vy 歸零 → 純原地轉由 12% 提到約 25%（v3.3 最難的任務練最少）
          P_SWITCH=0.4, RAMP_STEPS=50, BIAS_EMA=0.02,
-         W_ABADBIAS=0.0, W_DRIFT=0.0)     # v3.5 兩個慢漂懲罰；預設 0 → v3.3 reward 逐位元不變（golden）
-W35 = dict(W, W_ABADBIAS=30.0, W_DRIFT=40.0, W_VYREL=6.0, P_VY=0.60)   # v3.5（spec 2026-09-16 §2）：DualModeEnv(weights=v3.W35)
+         W_ABADBIAS=0.0, W_DRIFT=0.0, W_HEADLIN=0.0, HEAD_LIN_E=0.5)     # v3.5 三項；預設權重 0 → v3.3 reward 逐位元不變（golden）
+W35 = dict(W, W_ABADBIAS=30.0, W_DRIFT=40.0, W_HEADLIN=1.0, W_VYREL=6.0, P_VY=0.60)   # v3.5（spec 2026-09-16 §2）：DualModeEnv(weights=v3.W35)
 T_KEYS = ("t_vx", "t_vy", "t_yaw", "t_yawi", "t_yawlin", "t_yawrel", "t_vyrel", "t_head", "t_h", "t_lift", "t_stance", "t_roll", "t_pitch", "t_rollrate",
-          "t_pitchrate", "t_bias", "t_act", "t_omdot", "t_qres", "t_tau", "t_taubar", "t_errbar", "t_kneev", "t_mode", "t_vz", "t_abadbias", "t_drift")
+          "t_pitchrate", "t_bias", "t_act", "t_omdot", "t_qres", "t_tau", "t_taubar", "t_errbar", "t_kneev", "t_mode", "t_vz", "t_abadbias", "t_drift", "t_headlin")
 METRIC_KEYS = ("height", "vx", "vy", "wz", "reward", "pitch", "roll", "mode", "s4", "s_arc", "cyc", "clr_step", "clr_stance",
-               "yawerr", "vxerr", "vyerr", "tau_pk", "err_pk", "knee_v", "omega", "sway_y", "roll_bias", "abad_bias", "vx_drift") + T_KEYS
+               "yawerr", "vxerr", "vyerr", "tau_pk", "err_pk", "knee_v", "omega", "sway_y", "roll_bias", "abad_bias", "vx_drift", "head_deg") + T_KEYS
 # ⚠️ reset 與 step 的 metrics 鍵集合必須相同（brax EpisodeWrapper 用 lax.scan，結構不同會炸）；tests 有 wrapper 檢查
 
 
@@ -633,6 +633,7 @@ class DualModeEnv(Env):
         r_vyrel = has_vy * jnp.sqrt(prog_vy + 1e-6)
         k_post = 1.0 - w["POST_STEP_SCALE"] * u_mode
         r_head = jnp.exp(-(head_err / w["HEAD_SIG"]) ** 2)
+        r_headlin = 1.0 - jnp.clip(jnp.abs(head_err) / w["HEAD_LIN_E"], 0.0, 1.0)   # v3.5：高斯核 8.6° 外沒梯度；線性項到 29° 都有（平移時航向轉掉 15–23° 的主因）
         r_h = jnp.exp(-400.0 * (data.qpos[2] - self.ref["nominal_height"]) ** 2)
         sw = (jnp.sin(duty_remap(theta, duty)) > 0).astype(jnp.float32) * g_leg
         wsw = sw * s_leg
@@ -657,10 +658,11 @@ class DualModeEnv(Env):
             "t_taubar": w["W_TAUBAR"] * tau_barrier(tau_pk12), "t_errbar": w["W_ERRBAR"] * err_barrier_j(err12, self.err_bar12),
             "t_kneev": w["W_KNEEV"] * jnp.maximum(knee_v - KNEE_V_BAR, 0.0) ** 2,
             "t_mode": w["W_MODE"] * lift_pen, "t_vz": w["W_VZ"] * data.qvel[2] ** 2,
-            "t_abadbias": t_abadbias, "t_drift": t_drift,        # v3.5；不乘 k_post（漂移就在踏步時發生）
+            "t_abadbias": t_abadbias * u_mode, "t_drift": t_drift,   # v3.5；ABAD 項只在踏步時開（輪行的站姿由 r_stance 管；攤帳：直走本來就有 5° 常態外張，不該罰）
+            "t_headlin": w["W_HEADLIN"] * r_headlin,
         }
         pos = (T["t_vx"] + T["t_vy"] + T["t_yaw"] + T["t_yawi"] + T["t_yawlin"] + T["t_yawrel"] + T["t_vyrel"] + T["t_head"] + T["t_h"]
-               + T["t_lift"] + T["t_stance"])
+               + T["t_lift"] + T["t_stance"] + T["t_headlin"])
         neg = (T["t_roll"] + T["t_pitch"] + T["t_rollrate"] + T["t_pitchrate"] + T["t_bias"] + T["t_act"] + T["t_omdot"]
                + T["t_qres"] + T["t_tau"] + T["t_taubar"] + T["t_errbar"] + T["t_kneev"] + T["t_mode"] + T["t_vz"] + T["t_abadbias"] + T["t_drift"])
         reward = pos - neg
@@ -686,7 +688,7 @@ class DualModeEnv(Env):
                    "yawerr": jnp.abs(wz - cmd[2]), "vxerr": jnp.abs(vb[0] - cmd[0]), "vyerr": jnp.abs(vb[1] - cmd[1]),
                    "tau_pk": jnp.max(tau_pk12), "err_pk": jnp.max(jnp.abs(err12)), "knee_v": knee_v, "omega": om,
                    "sway_y": sway[1] * 1000.0, "roll_bias": roll_ema * 57.29578,
-                   "abad_bias": jnp.max(jnp.abs(abad_ema)) * 57.29578, "vx_drift": drift_ema[0], **T}
+                   "abad_bias": jnp.max(jnp.abs(abad_ema)) * 57.29578, "vx_drift": drift_ema[0], "head_deg": head_err * 57.29578, **T}
         return state.replace(pipeline_state=data, obs=obs, reward=reward, done=done, metrics=metrics, info=info)
 
     @property

@@ -39,7 +39,8 @@ def test_w35_values_pinned():
     assert v3.W["W_ABADBIAS"] == 0.0 and v3.W["W_DRIFT"] == 0.0
     assert v3.W35["W_ABADBIAS"] == 30.0 and v3.W35["W_DRIFT"] == 40.0
     assert v3.W35["W_VYREL"] == 6.0 and v3.W35["P_VY"] == 0.60
-    changed = ("W_ABADBIAS", "W_DRIFT", "W_VYREL", "P_VY")
+    assert v3.W["W_HEADLIN"] == 0.0 and v3.W35["W_HEADLIN"] == 1.0 and v3.W35["HEAD_LIN_E"] == 0.5
+    changed = ("W_ABADBIAS", "W_DRIFT", "W_HEADLIN", "W_VYREL", "P_VY")
     assert {k: v for k, v in v3.W35.items() if k not in changed} == {k: v for k, v in v3.W.items() if k not in changed}
     assert list(v3.ABAD12.tolist()) == [0, 3, 6, 9]
 
@@ -51,16 +52,23 @@ def _run(env, cmd, steps):
     a = jnp.zeros(v3.ACT_DIM); out = []
     for _ in range(steps):
         s = js(s, a)
-        out.append({k: float(s.metrics[k]) for k in ("t_abadbias", "t_drift", "abad_bias", "vx_drift", "reward")})
+        out.append({k: float(s.metrics[k]) for k in ("t_abadbias", "t_drift", "t_headlin", "abad_bias", "vx_drift", "head_deg", "reward")})
     return out
 
 
 def test_env_terms_zero_by_default_and_exactly_subtracted_in_w35():
     """零動作原地轉 30 步：預設 W 兩項精確為 0、診斷量照算；W35 下 reward 剛好少了兩項（物理同 seed 同動作完全一樣）。"""
     M = _run(v3.DualModeEnv(ref=dict(cyc_amp_rand=False)), (0.0, 0.0, 1.3), 30)
-    assert all(m["t_abadbias"] == 0.0 and m["t_drift"] == 0.0 for m in M)
+    assert all(m["t_abadbias"] == 0.0 and m["t_drift"] == 0.0 and m["t_headlin"] == 0.0 for m in M)
     assert M[-1]["abad_bias"] > 0.0 and np.isfinite(M[-1]["vx_drift"])
     M35 = _run(v3.DualModeEnv(ref=dict(cyc_amp_rand=False), weights=v3.W35), (0.0, 0.0, 1.3), 30)
     assert M35[-1]["t_abadbias"] > 0.0
     for m, m35 in zip(M, M35):
-        assert abs(m35["reward"] - (m["reward"] - m35["t_abadbias"] - m35["t_drift"])) < 1e-4     # wz 指令無 vy → t_vyrel=0，差只有這兩項
+        assert abs(m35["reward"] - (m["reward"] - m35["t_abadbias"] - m35["t_drift"] + m35["t_headlin"])) < 1e-4     # wz 指令無 vy → t_vyrel=0，差只有這三項
+    assert 0.0 <= M35[-1]["t_headlin"] <= 1.0
+
+
+def test_headlin_linear_to_29deg():
+    """線性航向項：0 → 1、0.25 rad → 0.5、≥ 0.5 rad → 0（W35 權重 1.0）。用 env 的公式直接算。"""
+    f = lambda h: float(v3.W35["W_HEADLIN"] * (1.0 - jnp.clip(jnp.abs(h) / v3.W35["HEAD_LIN_E"], 0.0, 1.0)))   # noqa: E731
+    assert f(0.0) == 1.0 and abs(f(0.25) - 0.5) < 1e-6 and f(-0.25) == f(0.25) and f(0.6) == 0.0

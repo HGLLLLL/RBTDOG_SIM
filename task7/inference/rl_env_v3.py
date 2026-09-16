@@ -120,6 +120,7 @@ NOMINAL_HEIGHT = 0.54                   # 原廠 stand 站姿高度（M7 實測 
 LEG_IDX = {"FR": 0, "FL": 1, "RR": 2, "RL": 3}
 LEFT_LEGS, RIGHT_LEGS = jnp.array([1, 3]), jnp.array([0, 2])
 KNEE12 = jnp.array([2, 5, 8, 11])
+ABAD12 = jnp.array([0, 3, 6, 9])
 
 W = dict(W_VX=2.0, W_VY=3.0, W_YAW=2.0, W_YAWI=0.5, W_YAWLIN=1.0, YAW_LIN_E=1.5, W_YAWREL=8.0, W_VYREL=3.0, W_HEAD=0.5, WZ_EMA=0.04,
          # POST_STEP_SCALE：四腿踏步時姿態類懲罰（roll/pitch/角速度/偏置）乘 (1 − 0.5·u_mode)；v3.2 第一輪策略靠停止轉動避罰（spec §9.2）
@@ -129,7 +130,9 @@ W = dict(W_VX=2.0, W_VY=3.0, W_YAW=2.0, W_YAWI=0.5, W_YAWLIN=1.0, YAW_LIN_E=1.5,
          VX_SIG2=0.02, VY_SIG2=0.005, YAW_SIG2=0.0005, YAW_SIG2_WIDE=0.02, YAW_INST_SIG2=0.05, HEAD_SIG=0.15,
          CMD_VX=(-0.4, 0.9), CMD_VY=(0.04, 0.30), CMD_WZ=(0.2, 1.3), P_VX=0.65, P_VY=0.45, P_WZ=0.50,
          P_TURN_ONLY=0.35,        # 有 wz 時有 35% 把 vx、vy 歸零 → 純原地轉由 12% 提到約 25%（v3.3 最難的任務練最少）
-         P_SWITCH=0.4, RAMP_STEPS=50, BIAS_EMA=0.02)
+         P_SWITCH=0.4, RAMP_STEPS=50, BIAS_EMA=0.02,
+         W_ABADBIAS=0.0, W_DRIFT=0.0)     # v3.5 兩個慢漂懲罰；預設 0 → v3.3 reward 逐位元不變（golden）
+W35 = dict(W, W_ABADBIAS=30.0, W_DRIFT=40.0, W_VYREL=6.0, P_VY=0.60)   # v3.5（spec 2026-09-16 §2）：DualModeEnv(weights=v3.W35)
 T_KEYS = ("t_vx", "t_vy", "t_yaw", "t_yawi", "t_yawlin", "t_yawrel", "t_vyrel", "t_head", "t_h", "t_lift", "t_stance", "t_roll", "t_pitch", "t_rollrate",
           "t_pitchrate", "t_bias", "t_act", "t_omdot", "t_qres", "t_tau", "t_taubar", "t_errbar", "t_kneev", "t_mode", "t_vz")
 METRIC_KEYS = ("height", "vx", "vy", "wz", "reward", "pitch", "roll", "mode", "s4", "s_arc", "cyc", "clr_step", "clr_stance",
@@ -228,6 +231,17 @@ def cycle_offsets(phi, cmd, A, ref=None, amp_turn=None):
     wheel_tau = blend(tau) * ref["cyc_wheel"]          # 錄檔原始 τ（N·m）；速度空間由呼叫端除 kv
     hz = wl * (w_ll * CYC_HZ[0] + (1.0 - w_ll) * CYC_HZ[1]) + (1.0 - wl) * (w_tl * CYC_HZ[2] + (1.0 - w_tl) * CYC_HZ[3])
     return dict(delta=delta, wheel_tau=wheel_tau, hz=hz * ref["cyc_hz_scale"], on=wl * on_l + (1.0 - wl) * on_t)
+
+
+def ema(prev, x, k):
+    """一階低通 prev + k·(x − prev)。k=0.02 @ 50 Hz ≈ 1 s 時間常數；2.5 Hz 週期擺剩 6%，慢漂全留。"""
+    return prev + k * (x - prev)
+
+
+def drift_terms(abad_ema, drift_ema, w):
+    """v3.5：ABAD 慢漂（4 腿偏離站姿的低通）與機身速度低頻誤差（vx, vy）的平方懲罰 → (t_abadbias, t_drift)。
+    權重 0 時精確為 0.0（0.0·有限數）。"""
+    return w["W_ABADBIAS"] * jnp.sum(abad_ema ** 2), w["W_DRIFT"] * jnp.sum(drift_ema ** 2)
 
 
 def err_barrier_j(err12, bar12=ERR_BAR12):

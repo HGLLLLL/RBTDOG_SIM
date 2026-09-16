@@ -82,9 +82,9 @@ def run(cmd, steps=500):
     for i in range(steps):
         s = jit_step(s, a); M.append({k: float(s.metrics[k]) for k in ("vx", "vy", "wz", "tau_pk", "roll", "clr_stance")} | {"done": float(s.done)})
         if float(s.done) > 0: break
-    h = steps // 2
-    return dict(vx=np.mean([m["vx"] for m in M[h:]]), vy=np.mean([m["vy"] for m in M[h:]]), yaw=np.degrees(np.mean([m["wz"] for m in M[h:]])),
-                tau=max(m["tau_pk"] for m in M), roll_std=float(np.std([m["roll"] for m in M[h:]])), clr_stance=max(m["clr_stance"] for m in M[h:]),
+    h = steps // 2; seg = M[h:] or M      # 5 s 前就倒（v3.3 TURN 開迴路預期）→ 用整段算，讓 fell 能回報而不是 max() 空序列炸掉
+    return dict(vx=np.mean([m["vx"] for m in seg]), vy=np.mean([m["vy"] for m in seg]), yaw=np.degrees(np.mean([m["wz"] for m in seg])),
+                tau=max(m["tau_pk"] for m in M), roll_std=float(np.std([m["roll"] for m in seg])), clr_stance=max(m["clr_stance"] for m in seg),
                 fell=any(m["done"] > 0 for m in M))
 R = {}
 for name, cmd in (("WHEEL", (0.5, 0, 0)), ("ARC", (0.5, 0, 0.5)), ("TURN", (0, 0, 1.3)), ("LAT", (0, 0.08, 0)), ("DIAG", (0.3, 0.06, 0))):

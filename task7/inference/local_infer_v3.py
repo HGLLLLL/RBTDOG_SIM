@@ -88,6 +88,8 @@ def main() -> int:
     ap.add_argument("--gains", default="kp250", choices=("kp250", "factory"), help="factory＝v3.4f（馬達增益照原廠、力矩空間輪控制）；要與權重的訓練設定一致")
     ap.add_argument("--mesh", action="store_true", help="影片用官方 STL 網格模型渲染（scene_flat.xml；物理仍是訓練模型，只換外觀）")
     ap.add_argument("--title", default="", help="影片標題前綴")
+    ap.add_argument("--video-secs", type=float, default=0.0, dest="video_secs", help="影片每個指令只放幾秒（0＝整段）；從 --video-start 起算")
+    ap.add_argument("--video-start", type=float, default=2.0, dest="video_start", help="影片每段從第幾秒開始（預設 2 s，跳過淡入）")
     a = ap.parse_args()
     env = v3.DualModeEnv(gains=a.gains, weights=(v3.W35 if a.preset == "v35" else None), ref=dict(cyc_amp_rand=False)); jr, js = jax.jit(env.reset), jax.jit(env.step)   # eval：原地轉幅度固定 REF cyc_amp_turn；preset 決定產生器設定（v3.5 右轉鏡像）
     print(f"gains {env.gains} wheel_space {env.wheel_space} obs {env.obs_dim} act {env.action_size}", flush=True)
@@ -134,7 +136,11 @@ def main() -> int:
         wr = imageio.get_writer(a.video, fps=25, codec="libx264", quality=8, macro_block_size=None)
         for k, (name, cmd, fam, g, B) in enumerate(rows):
             Q = traj[name]
-            for i in range(0, len(Q), 2):
+            i0, i1 = 0, len(Q)
+            if a.video_secs > 0:                       # 每段只放一個窗口（統計仍用整段）
+                i0 = min(int(a.video_start / v3.CTRL_DT), max(0, len(Q) - 2))
+                i1 = min(i0 + int(a.video_secs / v3.CTRL_DT), len(Q))
+            for i in range(i0, i1, 2):
                 d.qpos[:] = Q[i]; mujoco.mj_forward(m, d); cam.lookat[:] = [d.xpos[base][0], d.xpos[base][1], 0.35]
                 r.update_scene(d, camera=cam); im = Image.fromarray(r.render()); dr = ImageDraw.Draw(im, "RGBA")
                 dr.rectangle([0, 0, 960, 74], fill=(0, 0, 0, 150)); dr.text((14, 6), f"{k+1}/{len(rows)}  {a.title or 'RL ' + wname}  {name}", font=font, fill=(255, 255, 255))

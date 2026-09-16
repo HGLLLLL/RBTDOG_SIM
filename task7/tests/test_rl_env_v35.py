@@ -42,3 +42,25 @@ def test_w35_values_pinned():
     changed = ("W_ABADBIAS", "W_DRIFT", "W_VYREL", "P_VY")
     assert {k: v for k, v in v3.W35.items() if k not in changed} == {k: v for k, v in v3.W.items() if k not in changed}
     assert list(v3.ABAD12.tolist()) == [0, 3, 6, 9]
+
+
+def _run(env, cmd, steps):
+    jr, js = jax.jit(env.reset), jax.jit(env.step)
+    s = jr(jax.random.PRNGKey(0))
+    s = s.replace(info={**s.info, "cmd": jnp.array(cmd), "cmd2": jnp.array(cmd), "t_switch": 10 ** 6})
+    a = jnp.zeros(v3.ACT_DIM); out = []
+    for _ in range(steps):
+        s = js(s, a)
+        out.append({k: float(s.metrics[k]) for k in ("t_abadbias", "t_drift", "abad_bias", "vx_drift", "reward")})
+    return out
+
+
+def test_env_terms_zero_by_default_and_exactly_subtracted_in_w35():
+    """零動作原地轉 30 步：預設 W 兩項精確為 0、診斷量照算；W35 下 reward 剛好少了兩項（物理同 seed 同動作完全一樣）。"""
+    M = _run(v3.DualModeEnv(ref=dict(cyc_amp_rand=False)), (0.0, 0.0, 1.3), 30)
+    assert all(m["t_abadbias"] == 0.0 and m["t_drift"] == 0.0 for m in M)
+    assert M[-1]["abad_bias"] > 0.0 and np.isfinite(M[-1]["vx_drift"])
+    M35 = _run(v3.DualModeEnv(ref=dict(cyc_amp_rand=False), weights=v3.W35), (0.0, 0.0, 1.3), 30)
+    assert M35[-1]["t_abadbias"] > 0.0
+    for m, m35 in zip(M, M35):
+        assert abs(m35["reward"] - (m["reward"] - m35["t_abadbias"] - m35["t_drift"])) < 1e-4     # wz 指令無 vy → t_vyrel=0，差只有這兩項

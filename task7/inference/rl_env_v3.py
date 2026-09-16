@@ -134,9 +134,9 @@ W = dict(W_VX=2.0, W_VY=3.0, W_YAW=2.0, W_YAWI=0.5, W_YAWLIN=1.0, YAW_LIN_E=1.5,
          W_ABADBIAS=0.0, W_DRIFT=0.0)     # v3.5 兩個慢漂懲罰；預設 0 → v3.3 reward 逐位元不變（golden）
 W35 = dict(W, W_ABADBIAS=30.0, W_DRIFT=40.0, W_VYREL=6.0, P_VY=0.60)   # v3.5（spec 2026-09-16 §2）：DualModeEnv(weights=v3.W35)
 T_KEYS = ("t_vx", "t_vy", "t_yaw", "t_yawi", "t_yawlin", "t_yawrel", "t_vyrel", "t_head", "t_h", "t_lift", "t_stance", "t_roll", "t_pitch", "t_rollrate",
-          "t_pitchrate", "t_bias", "t_act", "t_omdot", "t_qres", "t_tau", "t_taubar", "t_errbar", "t_kneev", "t_mode", "t_vz")
+          "t_pitchrate", "t_bias", "t_act", "t_omdot", "t_qres", "t_tau", "t_taubar", "t_errbar", "t_kneev", "t_mode", "t_vz", "t_abadbias", "t_drift")
 METRIC_KEYS = ("height", "vx", "vy", "wz", "reward", "pitch", "roll", "mode", "s4", "s_arc", "cyc", "clr_step", "clr_stance",
-               "yawerr", "vxerr", "vyerr", "tau_pk", "err_pk", "knee_v", "omega", "sway_y", "roll_bias") + T_KEYS
+               "yawerr", "vxerr", "vyerr", "tau_pk", "err_pk", "knee_v", "omega", "sway_y", "roll_bias", "abad_bias", "vx_drift") + T_KEYS
 # ⚠️ reset 與 step 的 metrics 鍵集合必須相同（brax EpisodeWrapper 用 lax.scan，結構不同會炸）；tests 有 wrapper 檢查
 
 
@@ -528,6 +528,7 @@ class DualModeEnv(Env):
                 "a_hist": jnp.zeros((3, ACT_DIM)), "last_a": z, "sway": jnp.zeros(2),
                 "qvel_prev": data.qvel[LEG_QVEL_IDX], "om_prev": jnp.zeros(()), "wheel_theta": wheel_theta,
                 "roll_ema": jnp.zeros(()), "sway_ema": jnp.zeros(()),
+                "abad_ema": jnp.zeros(4), "drift_ema": jnp.zeros(2),
                 "kill": jnp.zeros((), jnp.int32), "step": 0}
         obs = self._obs(data, info, z)
         zz = jnp.zeros(())
@@ -609,6 +610,9 @@ class DualModeEnv(Env):
         knee_v = jnp.max(jnp.abs(data.qvel[LEG_QVEL_IDX][KNEE12]))
         roll_ema = info["roll_ema"] + w["BIAS_EMA"] * (grav[1] - info["roll_ema"])
         sway_ema = info["sway_ema"] + w["BIAS_EMA"] * (sway[1] - info["sway_ema"])
+        abad_ema = ema(info["abad_ema"], q12[ABAD12] - STANCE_Q12_j[ABAD12], w["BIAS_EMA"])   # v3.5：ABAD 偏離站姿的慢漂（cyc_recenter=True 下站姿＝名目中心）
+        drift_ema = ema(info["drift_ema"], vb[0:2] - cmd[0:2], w["BIAS_EMA"])                # v3.5：機身 vx/vy 低頻追蹤誤差（濾掉踏步 ±0.3 的高頻擺）
+        t_abadbias, t_drift = drift_terms(abad_ema, drift_ema, w)
 
         # ---- reward
         r_vx = jnp.exp(-(vb[0] - cmd[0]) ** 2 / w["VX_SIG2"])
@@ -653,11 +657,12 @@ class DualModeEnv(Env):
             "t_taubar": w["W_TAUBAR"] * tau_barrier(tau_pk12), "t_errbar": w["W_ERRBAR"] * err_barrier_j(err12, self.err_bar12),
             "t_kneev": w["W_KNEEV"] * jnp.maximum(knee_v - KNEE_V_BAR, 0.0) ** 2,
             "t_mode": w["W_MODE"] * lift_pen, "t_vz": w["W_VZ"] * data.qvel[2] ** 2,
+            "t_abadbias": t_abadbias, "t_drift": t_drift,        # v3.5；不乘 k_post（漂移就在踏步時發生）
         }
         pos = (T["t_vx"] + T["t_vy"] + T["t_yaw"] + T["t_yawi"] + T["t_yawlin"] + T["t_yawrel"] + T["t_vyrel"] + T["t_head"] + T["t_h"]
                + T["t_lift"] + T["t_stance"])
         neg = (T["t_roll"] + T["t_pitch"] + T["t_rollrate"] + T["t_pitchrate"] + T["t_bias"] + T["t_act"] + T["t_omdot"]
-               + T["t_qres"] + T["t_tau"] + T["t_taubar"] + T["t_errbar"] + T["t_kneev"] + T["t_mode"] + T["t_vz"])
+               + T["t_qres"] + T["t_tau"] + T["t_taubar"] + T["t_errbar"] + T["t_kneev"] + T["t_mode"] + T["t_vz"] + T["t_abadbias"] + T["t_drift"])
         reward = pos - neg
         kill = jnp.where(jnp.max(tau_pk12) > TAU_KILL, info["kill"] + 1, 0)
         done = jnp.where((grav[2] > FALL_GRAV_Z) | (data.qpos[2] < MIN_HEIGHT) | (kill >= KILL_STEPS), 1.0, 0.0)
@@ -665,7 +670,7 @@ class DualModeEnv(Env):
         info.update({"rng": rng, "c": c, "cmd": info["cmd"], "u_mode": u_mode, "head_err": head_err,
                      "ph": ph, "s4": P["A"]["s4"], "s_arc": P["A"]["arc"], "phi_cyc": phi_cyc, "u4": u4, "wz_ema": wz_ema, "vy_ema": vy_ema, "qres": qres,
                      "a_hist": a_hist, "last_a": action, "sway": sway, "qvel_prev": data.qvel[LEG_QVEL_IDX],
-                     "om_prev": om, "roll_ema": roll_ema, "sway_ema": sway_ema, "kill": kill, "step": step_i + 1,
+                     "om_prev": om, "roll_ema": roll_ema, "sway_ema": sway_ema, "abad_ema": abad_ema, "drift_ema": drift_ema, "kill": kill, "step": step_i + 1,
                      "wheel_theta": wheel_theta})
         info_obs = dict(info, cmd=cmd)
         obs = self._obs(data, info_obs, action)
@@ -680,7 +685,8 @@ class DualModeEnv(Env):
                    "s4": P["A"]["s4"], "s_arc": P["A"]["arc"], "cyc": u4,
                    "yawerr": jnp.abs(wz - cmd[2]), "vxerr": jnp.abs(vb[0] - cmd[0]), "vyerr": jnp.abs(vb[1] - cmd[1]),
                    "tau_pk": jnp.max(tau_pk12), "err_pk": jnp.max(jnp.abs(err12)), "knee_v": knee_v, "omega": om,
-                   "sway_y": sway[1] * 1000.0, "roll_bias": roll_ema * 57.29578, **T}
+                   "sway_y": sway[1] * 1000.0, "roll_bias": roll_ema * 57.29578,
+                   "abad_bias": jnp.max(jnp.abs(abad_ema)) * 57.29578, "vx_drift": drift_ema[0], **T}
         return state.replace(pipeline_state=data, obs=obs, reward=reward, done=done, metrics=metrics, info=info)
 
     @property

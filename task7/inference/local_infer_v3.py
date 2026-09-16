@@ -90,6 +90,7 @@ def main() -> int:
     ap.add_argument("--title", default="", help="影片標題前綴")
     ap.add_argument("--video-secs", type=float, default=0.0, dest="video_secs", help="影片每個指令只放幾秒（0＝整段）；從 --video-start 起算")
     ap.add_argument("--video-start", type=float, default=2.0, dest="video_start", help="影片每段從第幾秒開始（預設 2 s，跳過淡入）")
+    ap.add_argument("--video-skip", default="", dest="video_skip", help="影片要略過的指令，逗號分隔的名稱片段（驗收表仍含全部）")
     a = ap.parse_args()
     env = v3.DualModeEnv(gains=a.gains, weights=(v3.W35 if a.preset == "v35" else None), ref=dict(cyc_amp_rand=False)); jr, js = jax.jit(env.reset), jax.jit(env.step)   # eval：原地轉幅度固定 REF cyc_amp_turn；preset 決定產生器設定（v3.5 右轉鏡像）
     print(f"gains {env.gains} wheel_space {env.wheel_space} obs {env.obs_dim} act {env.action_size}", flush=True)
@@ -134,7 +135,9 @@ def main() -> int:
         cam.distance, cam.azimuth, cam.elevation = 3.0, 145.0, -20.0
         base = mm._id(m, mujoco.mjtObj.mjOBJ_BODY, "base_link"); font = ImageFont.truetype("/usr/share/fonts/noto-cjk/NotoSansCJK-Light.ttc", 28)
         wr = imageio.get_writer(a.video, fps=25, codec="libx264", quality=8, macro_block_size=None)
-        for k, (name, cmd, fam, g, B) in enumerate(rows):
+        skip = [x.strip() for x in a.video_skip.split(",") if x.strip()]
+        vrows = [r for r in rows if not any(x in r[0] for x in skip)]      # 影片子集；統計表不受影響
+        for k, (name, cmd, fam, g, B) in enumerate(vrows):
             Q = traj[name]
             i0, i1 = 0, len(Q)
             if a.video_secs > 0:                       # 每段只放一個窗口（統計仍用整段）
@@ -143,7 +146,7 @@ def main() -> int:
             for i in range(i0, i1, 2):
                 d.qpos[:] = Q[i]; mujoco.mj_forward(m, d); cam.lookat[:] = [d.xpos[base][0], d.xpos[base][1], 0.35]
                 r.update_scene(d, camera=cam); im = Image.fromarray(r.render()); dr = ImageDraw.Draw(im, "RGBA")
-                dr.rectangle([0, 0, 960, 74], fill=(0, 0, 0, 150)); dr.text((14, 6), f"{k+1}/{len(rows)}  {a.title or 'RL ' + wname}  {name}", font=font, fill=(255, 255, 255))
+                dr.rectangle([0, 0, 960, 74], fill=(0, 0, 0, 150)); dr.text((14, 6), f"{k+1}/{len(vrows)}  {a.title or 'RL ' + wname}  {name}", font=font, fill=(255, 255, 255))
                 dr.text((14, 42), f"t {i*v3.CTRL_DT:4.1f} s   10 s 平均：vx {g['vx']:+.2f}  vy {g['vy']:+.3f}  偏航 {g['yaw']:+.0f}°/s  roll std {g['roll_std']:.2f}°  膝峰 {g['tau_knee_pk']:.0f} N·m  摔 {g['falls']}", font=ImageFont.truetype("/usr/share/fonts/noto-cjk/NotoSansCJK-Light.ttc", 20), fill=(255, 235, 120))
                 wr.append_data(np.asarray(im))
         wr.close(); print("→", a.video)

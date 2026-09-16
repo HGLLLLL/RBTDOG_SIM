@@ -15,7 +15,7 @@ def test_v35_notebook_uses_w35_and_prints_drift():
     src = _code_src(NB)
     assert src.count("v3.DualModeEnv(weights=v3.W35)") == 2                       # import 格 + train 格
     assert "v3.DualModeEnv(weights=v3.W35, ref=dict(cyc_amp_rand=False))" in src  # eval_env
-    assert "abad {ps('abad_bias'):.1f}" in src and "drift {ps('vx_drift'):+.3f}" in src and "head {ps('head_deg'):+.1f}" in src
+    assert "abad {ps('abad_bias'):.1f}" in src and "drift {ps('vx_drift'):+.3f}" in src and "head {ps('head_abs'):.1f}" in src     # 絕對值：signed 平均會被左右指令抵消
     assert "vy {ps('t_vyrel'):.2f}/6" in src
     assert 'model.save_params("cpg_rl_v3_5_params.pkl", params)' in src
 

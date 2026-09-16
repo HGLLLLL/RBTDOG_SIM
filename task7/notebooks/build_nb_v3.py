@@ -22,7 +22,7 @@ GAINS_KW2 = 'gains="factory", ' if FACTORY else ''    # 後面還有其他參數
 W_KW = "weights=v3.W35" if V35 else ""
 ENV_ARGS = ", ".join(x for x in (GAINS_KW, W_KW) if x)        # '' | 'gains="factory"' | 'weights=v3.W35' | 'gains="factory", weights=v3.W35'
 ENV_ARGS2 = ENV_ARGS + ", " if ENV_ARGS else ""              # 後面還有參數時用
-PROG_EXTRA = "abad {ps('abad_bias'):.1f}° drift {ps('vx_drift'):+.3f} head {ps('head_deg'):+.1f}° | " if V35 else ""   # 以值插進 train_src 的 f-string，不會再被展開，所以用單層大括號
+PROG_EXTRA = "abad {ps('abad_bias'):.1f}° drift {ps('vx_drift'):+.3f} head {ps('head_abs'):.1f}° | " if V35 else ""   # 以值插進 train_src 的 f-string，不會再被展開，所以用單層大括號
 VY_DEN = "6" if V35 else "3"
 # v3.3 的 notebook 要逐字元不變（產生器是共用的），所以這兩行在 kp250 分支輸出舊文字
 ENV_PRINT = ('"gains", env.gains, "wheel_space", env.wheel_space' if FACTORY else '"wheel_pos", env.wheel_pos')

@@ -138,7 +138,7 @@ W35 = dict(W, W_ABADBIAS=30.0, W_DRIFT=40.0, W_HEADLIN=1.0, W_VYREL=6.0, P_VY=0.
 T_KEYS = ("t_vx", "t_vy", "t_yaw", "t_yawi", "t_yawlin", "t_yawrel", "t_vyrel", "t_head", "t_h", "t_lift", "t_stance", "t_roll", "t_pitch", "t_rollrate",
           "t_pitchrate", "t_bias", "t_act", "t_omdot", "t_qres", "t_tau", "t_taubar", "t_errbar", "t_kneev", "t_mode", "t_vz", "t_abadbias", "t_drift", "t_headlin")
 METRIC_KEYS = ("height", "vx", "vy", "wz", "reward", "pitch", "roll", "mode", "s4", "s_arc", "cyc", "clr_step", "clr_stance",
-               "yawerr", "vxerr", "vyerr", "tau_pk", "err_pk", "knee_v", "omega", "sway_y", "roll_bias", "abad_bias", "vx_drift", "head_deg") + T_KEYS
+               "yawerr", "vxerr", "vyerr", "tau_pk", "err_pk", "knee_v", "omega", "sway_y", "roll_bias", "abad_bias", "vx_drift", "head_deg", "head_abs") + T_KEYS
 # ⚠️ reset 與 step 的 metrics 鍵集合必須相同（brax EpisodeWrapper 用 lax.scan，結構不同會炸）；tests 有 wrapper 檢查
 
 
@@ -712,7 +712,8 @@ class DualModeEnv(Env):
                    "yawerr": jnp.abs(wz - cmd[2]), "vxerr": jnp.abs(vb[0] - cmd[0]), "vyerr": jnp.abs(vb[1] - cmd[1]),
                    "tau_pk": jnp.max(tau_pk12), "err_pk": jnp.max(jnp.abs(err12)), "knee_v": knee_v, "omega": om,
                    "sway_y": sway[1] * 1000.0, "roll_bias": roll_ema * 57.29578,
-                   "abad_bias": jnp.max(jnp.abs(abad_ema)) * 57.29578, "vx_drift": drift_ema[0], "head_deg": head_err * 57.29578, **T}
+                   "abad_bias": jnp.max(jnp.abs(abad_ema)) * 57.29578, "vx_drift": drift_ema[0], "head_deg": head_err * 57.29578,
+                   "head_abs": jnp.abs(head_err) * 57.29578, **T}   # 訓練曲線要看絕對值：head_deg 的正負隨左右指令隨機，平均會互相抵消
         return state.replace(pipeline_state=data, obs=obs, reward=reward, done=done, metrics=metrics, info=info)
 
     @property

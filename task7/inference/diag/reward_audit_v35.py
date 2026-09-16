@@ -48,7 +48,7 @@ def main() -> int:
     ap.add_argument("--secs", type=float, default=10.0)
     ap.add_argument("--gains", default="kp250", choices=("kp250", "factory"), help="factory＝拿 v3.4f 權重在原廠增益線上攤帳（v3.5f）")
     a = ap.parse_args()
-    env = v3.DualModeEnv(gains=a.gains, ref=dict(cyc_amp_rand=False), weights=v3.W35)
+    env = v3.DualModeEnv(gains=a.gains, ref=dict(cyc_amp_rand=False), weights=v3.W35)   # W35 含 CYC_TURN_SYM → 右轉鏡像；攤帳看的是 reward 項，圖案差異對 kp250/v3.4f 舊權重只影響右轉
     jr, js = jax.jit(env.reset), jax.jit(env.step)
     pol = L.load_policy(a.weights, env.obs_dim); steps = int(a.secs / v3.CTRL_DT)
     rows, all_ok = [], True

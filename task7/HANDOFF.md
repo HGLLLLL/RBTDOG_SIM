@@ -1,12 +1,20 @@
 # task7 交接：D1 Max 現況與下一步
 
-- 最後更新：**2026-09-16 下午（v3.5 慢漂懲罰＋線性航向做完、golden／G0／攤帳全過、notebook 已 push 等 Colab；v3.4f 訓練中；v3.3 params_2 是目前最佳權重）**
+- 最後更新：**2026-09-16 傍晚（v3.4f 訓完驗收：力矩／平移贏 v3.3、右轉弱、航向轉掉 → 下一個 Colab 跑 v3.5f（原廠增益＋v3.5 三項＋右轉鏡像）；v3.3 params_2 仍是目前最佳可上機權重）**
 - 分支：`feat/d1-edu-cpg-rl`
 - **接手先讀這份，再讀 `README.md`。** 查狗的規格／SHM／座標／IMU 慣例／原廠參數 → `docs/D1Max_機器狗資訊.md`（2026-09-09 由 11 份偵察文件整合；原件與舊操作卡都在 `docs/archive/`）。
 
 ---
 
 ## ▶▶ 下次上班從這裡開始（2026-09-15 收工，全部已 commit 到 `main`）
+
+### ★★★★ 下一步：Colab 跑 `notebooks/cpg_rl_v3_5f_colab.ipynb`（2026-09-16 傍晚定案）
+
+v3.4f（原廠增益，`weights/cpg_rl_v3_4f_params.pkl`，表 `outputs/eval_cpg_rl_v3_4f_params.md`）對 v3.3：
+原地左轉 +78 同級但膝峰 61→51、髖峰 48→30、roll 更好；平移不用學就 115–125%；**右轉只 −56**（右轉錄檔幅度小兩成，軟增益補不回來）；
+平移航向 10 s 轉掉 26–32° 且方向固定（輪 kd 0.1 不抗擾）。→ v3.5 的三項全部對症，再加 **右轉週期＝左轉鏡像平均**（spec §2.6，`W35["CYC_TURN_SYM"]`）。
+訓完驗收：`local_infer_v3.py --gains factory --preset v35 --weights task7/weights/cpg_rl_v3_5f_params.pkl --mesh --video ...`；目標 spec §5（含左右偏航差 < 15%）。
+v3.5（kp250）那本也含鏡像，排 v3.5f 之後。
 
 ### ★★★ v3.5：兩個慢漂懲罰＋線性航向（2026-09-16 下午做完，等 Colab）
 

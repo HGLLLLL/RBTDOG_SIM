@@ -24,3 +24,12 @@ def test_v33_notebook_untouched_by_builder_change():
     """v3.3 那本的 env 行與 progress 行不能帶 v3.5 的東西。"""
     src = _code_src(NB.with_name("cpg_rl_v3_colab.ipynb"))
     assert "W35" not in src and "abad_bias" not in src and "vy {ps('t_vyrel'):.2f}/3" in src
+
+
+def test_v35f_notebook_factory_plus_w35():
+    nbf = NB.with_name("cpg_rl_v3_5f_colab.ipynb")
+    assert nbf.exists(), "先跑 python3 task7/notebooks/build_nb_v3.py --gains factory --weights v35"
+    src = _code_src(nbf)
+    assert src.count('v3.DualModeEnv(gains="factory", weights=v3.W35)') == 2
+    assert 'v3.DualModeEnv(gains="factory", weights=v3.W35, ref=dict(cyc_amp_rand=False))' in src
+    assert 'v3.make_domain_randomize("factory")' in src and 'model.save_params("cpg_rl_v3_5f_params.pkl", params)' in src

@@ -69,7 +69,8 @@ if V35:
 - **平移「往後漂」**：機身其實只往後 0.02–0.04 m/s，七成是航向轉掉 15–23° 的投影 →
   加 `t_drift`（機身 vx/vy 低頻誤差平方 × 40）＋ `t_headlin`（線性航向項，到 29° 都有梯度，權重 1.0）。
 - 平移效率：`W_VYREL` 3→6、`P_VY` 0.45→0.60。
-其餘（產生器、obs 88、動作 24、護欄、DR{"、原廠增益" if FACTORY else ""}）與 v3.{"4f" if FACTORY else "3"} 相同。
+- **右轉週期＝左轉鏡像**（兩段錄檔相位對齊後平均，`CYC_TURN_SYM`）：右轉錄檔幅度小兩成，v3.4f 右轉只 −56°/s 對左轉 +78。對角不對稱保留。
+其餘（obs 88、動作 24、護欄、DR{"、原廠增益" if FACTORY else ""}）與 v3.{"4f" if FACTORY else "3"} 相同。
 設計：`docs/superpowers/specs/2026-09-16-cpg-rl-v3.5-drift-penalties-design.md`；攤帳 `outputs/reward_audit_v35.md`。
 
 **停損**：同 v3.3 —— 1 億步 `進度 yaw` < 3.5 或 len < 600 → 停；**另加**：1 億步 `abad` 沒比 step 0 低、或 `drift`／`head` 沒往 0 走 → 新 reward 沒被學到，停下來查。

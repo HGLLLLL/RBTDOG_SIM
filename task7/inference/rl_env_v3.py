@@ -70,6 +70,7 @@ REF = dict(
     cyc_lat_amp0=0.64, cyc_lat_vy0=0.04, cyc_lat_slope=1.23, cyc_lat_amp_clip=(0.55, 1.0), cyc_amp_lat=1.0,   # 上限放到原廠全幅（0.96 ≈ 0.30 m/s）
     cyc_amp_turn=0.7, cyc_amp_turn_range=(0.3, 0.9), cyc_amp_rand=True,   # 訓練時每回合抽幅度（小幅度站得住、大幅度轉得快＝用隨機化代替課程）；eval 用 cyc_amp_turn
     cyc_wheel=1.0, cyc_recenter=True, cyc_hz_scale=1.0,
+    cyc_turn_sym=False,                 # v3.5：True＝右轉週期＝左轉鏡像、兩段錄檔相位對齊後平均（右轉錄檔幅度小兩成 → v3.4f 右轉只 −56°/s）
     # 關節偏移的分關節縮放（ABAD, HIP, KNEE）。試過等力矩換算 (1, 0.48, 0.48)：力矩峰降但旋轉也掉（幅度 0.9 倒前偏航 55→23°/s），
     # 多活的 1–2 s 是靠不動換的；平移更是砍半就不滑。兩族都維持統一縮放，力矩峰交給 RL 的 58 護欄（spec §10.2）
     cyc_joint_scale_turn=(1.0, 1.0, 1.0), cyc_joint_scale_lat=(1.0, 1.0, 1.0),
@@ -131,8 +132,9 @@ W = dict(W_VX=2.0, W_VY=3.0, W_YAW=2.0, W_YAWI=0.5, W_YAWLIN=1.0, YAW_LIN_E=1.5,
          CMD_VX=(-0.4, 0.9), CMD_VY=(0.04, 0.30), CMD_WZ=(0.2, 1.3), P_VX=0.65, P_VY=0.45, P_WZ=0.50,
          P_TURN_ONLY=0.35,        # 有 wz 時有 35% 把 vx、vy 歸零 → 純原地轉由 12% 提到約 25%（v3.3 最難的任務練最少）
          P_SWITCH=0.4, RAMP_STEPS=50, BIAS_EMA=0.02,
-         W_ABADBIAS=0.0, W_DRIFT=0.0, W_HEADLIN=0.0, HEAD_LIN_E=0.5)     # v3.5 三項；預設權重 0 → v3.3 reward 逐位元不變（golden）
-W35 = dict(W, W_ABADBIAS=30.0, W_DRIFT=40.0, W_HEADLIN=1.0, W_VYREL=6.0, P_VY=0.60)   # v3.5（spec 2026-09-16 §2）：DualModeEnv(weights=v3.W35)
+         W_ABADBIAS=0.0, W_DRIFT=0.0, W_HEADLIN=0.0, HEAD_LIN_E=0.5,     # v3.5 三項；預設權重 0 → v3.3 reward 逐位元不變（golden）
+         CYC_TURN_SYM=False)      # v3.5：True → env 把 ref["cyc_turn_sym"] 打開（放 W 裡是為了讓「權重預設」一個開關就帶齊訓練設定）
+W35 = dict(W, W_ABADBIAS=30.0, W_DRIFT=40.0, W_HEADLIN=1.0, W_VYREL=6.0, P_VY=0.60, CYC_TURN_SYM=True)   # v3.5（spec 2026-09-16 §2）：DualModeEnv(weights=v3.W35)
 T_KEYS = ("t_vx", "t_vy", "t_yaw", "t_yawi", "t_yawlin", "t_yawrel", "t_vyrel", "t_head", "t_h", "t_lift", "t_stance", "t_roll", "t_pitch", "t_rollrate",
           "t_pitchrate", "t_bias", "t_act", "t_omdot", "t_qres", "t_tau", "t_taubar", "t_errbar", "t_kneev", "t_mode", "t_vz", "t_abadbias", "t_drift", "t_headlin")
 METRIC_KEYS = ("height", "vx", "vy", "wz", "reward", "pitch", "roll", "mode", "s4", "s_arc", "cyc", "clr_step", "clr_stance",
@@ -195,6 +197,24 @@ CYC_TAU = CYC_TAU.at[1].set(_lat_r_tau)
 CYC_HZ = CYC_HZ.at[1].set(CYC_HZ[0])
 CYC_QMEAN = CYC_QMEAN.at[1].set(_mirror_cycle(CYC_QMEAN[0][None], CYC_TAU[0][:1])[0][0])
 CYC_N = CYC_OFF.shape[1]
+
+
+def _sym_turn_cycles(off, tau, hz):
+    """v3.5：turn_left 與 mirror(turn_right) 相位對齊（循環相關最大處，實測差 86°）後平均 → 左右一致、對角不對稱保留。
+    回傳 (off_sym, tau_sym, hz_sym)：索引 2／3 換成對稱版，0／1（平移）不動。"""
+    o, t = np.asarray(off), np.asarray(tau)
+    L, TL = o[2], t[2]
+    Rm, TRm = (np.asarray(x) for x in _mirror_cycle(jnp.asarray(o[3]), jnp.asarray(t[3])))
+    n = L.shape[0]
+    shift = int(np.argmax([np.sum(L * np.roll(Rm, k, axis=0)) for k in range(n)]))
+    SL, STL = 0.5 * (L + np.roll(Rm, shift, axis=0)), 0.5 * (TL + np.roll(TRm, shift, axis=0))
+    SR, STR = (np.asarray(x) for x in _mirror_cycle(jnp.asarray(SL), jnp.asarray(STL)))
+    o2, t2 = o.copy(), t.copy(); o2[2], o2[3], t2[2], t2[3] = SL, SR, STL, STR
+    h = np.asarray(hz).copy(); h[2] = h[3] = 0.5 * (h[2] + h[3])
+    return jnp.asarray(o2), jnp.asarray(t2), jnp.asarray(h)
+
+
+CYC_OFF_SYM, CYC_TAU_SYM, CYC_HZ_SYM = _sym_turn_cycles(CYC_OFF, CYC_TAU, CYC_HZ)
 ERR_BAR12 = jnp.tile(jnp.array([0.60, 0.45, 0.45]), 4)      # 分關節誤差護欄：ABAD 0.6（原廠命令差本就 30°）、髖膝 0.45
 
 
@@ -211,8 +231,10 @@ def cycle_offsets(phi, cmd, A, ref=None, amp_turn=None):
     """v3.2：原廠命令週期 → dict(delta(12) 關節目標偏移、wheel_tau(4) 輪力矩偏移 N·m、hz、on ∈[0,1] 週期族佔比)。
     方向用平滑符號選左右檔；幅度隨指令縮放；平移／旋轉依 a_lat:a_turn 混合。"""
     ref = ref or REF
-    off = _cyc_interp(CYC_OFF, phi)
-    tau = _cyc_interp(CYC_TAU, phi)
+    sym = bool(ref.get("cyc_turn_sym", False))                 # Python 層選表，預設路徑逐位元不變
+    T_OFF, T_TAU, T_HZ = (CYC_OFF_SYM, CYC_TAU_SYM, CYC_HZ_SYM) if sym else (CYC_OFF, CYC_TAU, CYC_HZ)
+    off = _cyc_interp(T_OFF, phi)
+    tau = _cyc_interp(T_TAU, phi)
     w_ll = 0.5 * (1.0 + jnp.clip(cmd[1] / 0.02, -1.0, 1.0))
     w_tl = 0.5 * (1.0 + jnp.clip(cmd[2] / 0.3, -1.0, 1.0))
     amp_l = jnp.clip(ref["cyc_lat_amp0"] + ref["cyc_lat_slope"] * (jnp.abs(cmd[1]) - ref["cyc_lat_vy0"]), *ref["cyc_lat_amp_clip"]) * ref["cyc_amp_lat"]
@@ -229,7 +251,7 @@ def cycle_offsets(phi, cmd, A, ref=None, amp_turn=None):
         delta = delta + (wl * on_l * (w_ll * qm[0] + (1.0 - w_ll) * qm[1]) + (1.0 - wl) * on_t * (w_tl * qm[2] + (1.0 - w_tl) * qm[3])
                          - (wl * on_l + (1.0 - wl) * on_t) * STANCE_Q12_j)
     wheel_tau = blend(tau) * ref["cyc_wheel"]          # 錄檔原始 τ（N·m）；速度空間由呼叫端除 kv
-    hz = wl * (w_ll * CYC_HZ[0] + (1.0 - w_ll) * CYC_HZ[1]) + (1.0 - wl) * (w_tl * CYC_HZ[2] + (1.0 - w_tl) * CYC_HZ[3])
+    hz = wl * (w_ll * T_HZ[0] + (1.0 - w_ll) * T_HZ[1]) + (1.0 - wl) * (w_tl * T_HZ[2] + (1.0 - w_tl) * T_HZ[3])
     return dict(delta=delta, wheel_tau=wheel_tau, hz=hz * ref["cyc_hz_scale"], on=wl * on_l + (1.0 - wl) * on_t)
 
 
@@ -411,6 +433,8 @@ class DualModeEnv(Env):
         G = GAIN_SETS[gains]
         self.w = dict(W, **(weights or {}))
         self.ref = {**REF, **G["ref"], **(ref or {})}      # 用 dict(REF, **a, **b) 會在 key 重複時炸（掃描時覆寫 REF_FACTORY 的鍵就會踩到）
+        if self.w["CYC_TURN_SYM"]:
+            self.ref = dict(self.ref, cyc_turn_sym=True)     # v3.5：右轉＝左轉鏡像平均（§2.6）
         self.wheel_pos = wheel_pos
         self.wheel_space = self.ref["wheel_space"]
         if scene is None:

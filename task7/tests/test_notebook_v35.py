@@ -33,3 +33,10 @@ def test_v35f_notebook_factory_plus_w35():
     assert src.count('v3.DualModeEnv(gains="factory", weights=v3.W35)') == 2
     assert 'v3.DualModeEnv(gains="factory", weights=v3.W35, ref=dict(cyc_amp_rand=False))' in src
     assert 'v3.make_domain_randomize("factory")' in src and 'model.save_params("cpg_rl_v3_5f_params.pkl", params)' in src
+
+
+def test_v35_notebook_supports_resume():
+    """續訓：RESUME 變數存在、預設 None、接到 restore_params；v3.3 那本不能有這段。"""
+    src = _code_src(NB)
+    assert "RESUME = None" in src and "restore_params=_restore" in src
+    assert "RESUME" not in _code_src(NB.with_name("cpg_rl_v3_colab.ipynb"))

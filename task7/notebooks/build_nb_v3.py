@@ -24,6 +24,7 @@ ENV_ARGS = ", ".join(x for x in (GAINS_KW, W_KW) if x)        # '' | 'gains="fac
 ENV_ARGS2 = ENV_ARGS + ", " if ENV_ARGS else ""              # 後面還有參數時用
 PROG_EXTRA = "abad {ps('abad_bias'):.1f}° drift {ps('vx_drift'):+.3f} head {ps('head_abs'):.1f}° | " if V35 else ""   # 以值插進 train_src 的 f-string，不會再被展開，所以用單層大括號
 VY_DEN = "6" if V35 else "3"
+RESTORE_KW = ", restore_params=_restore" if V35 else ""
 # v3.3 的 notebook 要逐字元不變（產生器是共用的），所以這兩行在 kp250 分支輸出舊文字
 ENV_PRINT = ('"gains", env.gains, "wheel_space", env.wheel_space' if FACTORY else '"wheel_pos", env.wheel_pos')
 REF_SRC = "env.ref" if FACTORY else "v3.REF"
@@ -123,10 +124,18 @@ assert R["DIAG"]["vx"] >= 0.15 and R["DIAG"]["vy"] >= 0.03
 print("G0 全過 → 可以訓練")
 '''
 
+RESUME_SRC = '''
+# 續訓：把 RESUME 指到已下載的 .pkl（存檔是 (normalizer, policy, value) 三元組，brax train.py:735 正好吃這個形狀）。
+# None = 從頭訓。續訓時 TIMESTEPS 是「這一輪要再跑幾步」，不是總數。
+RESUME = None
+from brax.io import model as _bm
+_restore = None if RESUME is None else _bm.load_params(RESUME)
+''' if V35 else ''
+
 train_src = f'''import functools, time
 from brax.training.agents.ppo import train as ppo
 from brax.training.agents.ppo import networks as ppo_networks
-
+{RESUME_SRC}
 env = v3.DualModeEnv({ENV_ARGS})
 eval_env = v3.DualModeEnv({ENV_ARGS2}ref=dict(cyc_amp_rand=False))      # 評估用固定幅度 0.7，曲線才可比
 network_factory = functools.partial(ppo_networks.make_ppo_networks,
@@ -138,7 +147,7 @@ train_fn = functools.partial(
     num_updates_per_batch=4, learning_rate=3e-4, entropy_cost=1e-2,
     discounting=0.97, normalize_observations=True,
     learning_rate_schedule="ADAPTIVE_KL", desired_kl=0.01, learning_rate_schedule_min_lr=1e-5, learning_rate_schedule_max_lr=1e-3,
-    network_factory=network_factory, randomization_fn={DR_FN}, seed=0, eval_env=eval_env)
+    network_factory=network_factory, randomization_fn={DR_FN}, seed=0, eval_env=eval_env{RESTORE_KW})
 _t0 = time.time(); rewards = []
 
 def progress(step, metrics):

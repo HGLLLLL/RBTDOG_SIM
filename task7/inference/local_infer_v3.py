@@ -49,7 +49,7 @@ def rollout(env, jit_reset, jit_step, cmd, steps, policy=None, seed=0):
         d = s.pipeline_state
         Q.append(np.asarray(d.qpos)); A.append(np.asarray(a))
         TAU.append(np.asarray(d.actuator_force[v3.LEG_ACT_IDX]))
-        M.append({k: float(s.metrics[k]) for k in ("vx", "vy", "wz", "roll", "pitch", "tau_pk", "height")}
+        M.append({k: float(s.metrics[k]) for k in ("vx", "vy", "wz", "roll", "pitch", "tau_pk", "height", "abad_bias", "vx_drift", "head_deg")}
                  | {"clr": np.asarray(env._wheel_clearance(d)) * 1000.0, "done": float(s.done)})
         if float(s.done) > 0:
             break
@@ -64,7 +64,11 @@ def rollout(env, jit_reset, jit_step, cmd, steps, policy=None, seed=0):
         tau_hip_pk=float(tau[:, HIP].max()), tau_hip_rms=float(np.sqrt((tau[:, HIP] ** 2).mean())),
         tau_abad_pk=float(tau[:, ABAD].max()), tau_abad_rms=float(np.sqrt((tau[:, ABAD] ** 2).mean())),
         lift=np.max(np.array([m["clr"] for m in M[h:]]), 0).round(0).tolist() if n > h else [0, 0, 0, 0],
-        act_abs=float(np.abs(np.tanh(np.array(A))).mean()), Q=Q)
+        act_abs=float(np.abs(np.tanh(np.array(A))).mean()),
+        abad_bias=float(g("abad_bias")[-int(5.0 / v3.CTRL_DT):].mean()) if n > h else 0.0,   # 後 5 s 四腿 |ABAD 慢漂| 最大值的平均，度（v3.5 spec §5）
+        vx_drift=float(g("vx_drift")[-int(5.0 / v3.CTRL_DT):].mean()) if n > h else 0.0,     # 後 5 s 機身 vx 低頻誤差平均，m/s
+        head_end=float(M[-1]["head_deg"]),                                                  # 結束時航向誤差（gyro_z − wz 指令的積分），度
+        Q=Q)
 
 
 def factory_ref():
@@ -93,26 +97,26 @@ def main() -> int:
         R = [rollout(env, jr, js, cmd, steps, pol, seed=k) for k in range(a.seeds)]
         B = None if a.no_baseline else rollout(env, jr, js, cmd, steps, None, seed=0)
         ok = [r for r in R if not r["fell"]] or R
-        agg = {k: float(np.mean([r[k] for r in ok])) for k in ("vx", "vy", "yaw", "yaw_std", "roll_std", "roll_max", "tau_pk", "tau_knee_pk", "tau_knee_rms", "tau_hip_pk", "tau_hip_rms", "tau_abad_pk", "tau_abad_rms", "act_abs")}
+        agg = {k: float(np.mean([r[k] for r in ok])) for k in ("vx", "vy", "yaw", "yaw_std", "roll_std", "roll_max", "tau_pk", "tau_knee_pk", "tau_knee_rms", "tau_hip_pk", "tau_hip_rms", "tau_abad_pk", "tau_abad_rms", "act_abs", "abad_bias", "vx_drift", "head_end")}
         agg["lift"] = np.mean([r["lift"] for r in ok], 0).round(0).tolist()
         t_falls = ",".join("%.1fs" % r["t_fall"] for r in R if r["fell"])
         agg["falls"] = "%d/%d" % (sum(r["fell"] for r in R), len(R)) + ("（%s）" % t_falls if t_falls else "")
         rows.append((name, cmd, fam, agg, B)); traj[name] = ok[0]["Q"]
         print(f"{name:12s} 摔 {agg['falls']:14s} vx {agg['vx']:+.2f} vy {agg['vy']:+.3f} yaw {agg['yaw']:+5.1f}±{agg['yaw_std']:.0f} | roll std {agg['roll_std']:.2f} max {agg['roll_max']:.1f} | "
-              f"膝 τ 峰/RMS {agg['tau_knee_pk']:.0f}/{agg['tau_knee_rms']:.0f} 髖 {agg['tau_hip_pk']:.0f}/{agg['tau_hip_rms']:.0f} ABAD {agg['tau_abad_pk']:.0f}/{agg['tau_abad_rms']:.0f} | lift {agg['lift']} | |a| {agg['act_abs']:.2f}"
+              f"膝 τ 峰/RMS {agg['tau_knee_pk']:.0f}/{agg['tau_knee_rms']:.0f} 髖 {agg['tau_hip_pk']:.0f}/{agg['tau_hip_rms']:.0f} ABAD {agg['tau_abad_pk']:.0f}/{agg['tau_abad_rms']:.0f} | lift {agg['lift']} | ABAD漂 {agg['abad_bias']:.1f}° vx漂 {agg['vx_drift']:+.3f} 航向 {agg['head_end']:+.1f}° | |a| {agg['act_abs']:.2f}"
               + (f" ‖ 零動作: vx {B['vx']:+.2f} vy {B['vy']:+.3f} yaw {B['yaw']:+5.1f} roll std {B['roll_std']:.2f} 膝峰 {B['tau_knee_pk']:.0f} 摔 {B['fell']}" if B else "") + f" ({time.time()-t0:.0f}s)", flush=True)
     # ---- md
     wname = Path(a.weights).stem
     L = [f"# 驗收 {wname}（{a.seeds} 種子 × {a.secs:.0f} s，前 2 s 不計；對標 = 原廠 trip21 動作段）", "",
-         "| 指令 | 摔 | vx | vy | 偏航 °/s（±std） | roll std/峰 ° | 膝 τ 峰/RMS | 髖 τ 峰/RMS | ABAD τ 峰/RMS | 抬腳 mm | \\|a\\| | 零動作 vx/vy/yaw/roll std/膝峰 | 原廠 v/yaw/roll std/膝峰/膝RMS/抬腳 |",
-         "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+         "| 指令 | 摔 | vx | vy | 偏航 °/s（±std） | roll std/峰 ° | 膝 τ 峰/RMS | 髖 τ 峰/RMS | ABAD τ 峰/RMS | 抬腳 mm | ABAD 漂 ° | vx 漂 | 航向 ° | \\|a\\| | 零動作 vx/vy/yaw/roll std/膝峰 | 原廠 v/yaw/roll std/膝峰/膝RMS/抬腳 |",
+         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for name, cmd, fam, g, B in rows:
         f = F.get(fam)
         fs = f"{f['v']:+.2f}/{f['yaw']:+.0f}/{f['roll_std']:.1f}/{f['knee_pk']:.0f}/{f['knee_rms']:.0f}/{f['lift']:.0f}" if f else "—"
         bs = f"{B['vx']:+.2f}/{B['vy']:+.3f}/{B['yaw']:+.0f}/{B['roll_std']:.2f}/{B['tau_knee_pk']:.0f}" + ("（摔）" if B and B["fell"] else "") if B else "—"
         L.append(f"| {name} | {g['falls']} | {g['vx']:+.2f} | {g['vy']:+.3f} | {g['yaw']:+.1f}（±{g['yaw_std']:.0f}） | {g['roll_std']:.2f}/{g['roll_max']:.1f} | {g['tau_knee_pk']:.0f}/{g['tau_knee_rms']:.0f} | "
-                 f"{g['tau_hip_pk']:.0f}/{g['tau_hip_rms']:.0f} | {g['tau_abad_pk']:.0f}/{g['tau_abad_rms']:.0f} | {g['lift']} | {g['act_abs']:.2f} | {bs} | {fs} |")
-    L += ["", "判讀規則（spec §5.2）：速度／偏航率到原廠 80%；roll std ≤ 原廠 1.5 倍；膝／髖力矩峰 ≤ 原廠 1.3 倍（RMS 才可比）；抬腳 15–40 mm。原廠 ABAD 峰 40–60 是它 60° 命令差造成的，我們目標 ≤ 原廠。"]
+                 f"{g['tau_hip_pk']:.0f}/{g['tau_hip_rms']:.0f} | {g['tau_abad_pk']:.0f}/{g['tau_abad_rms']:.0f} | {g['lift']} | {g['abad_bias']:.1f} | {g['vx_drift']:+.3f} | {g['head_end']:+.1f} | {g['act_abs']:.2f} | {bs} | {fs} |")
+    L += ["", "判讀規則（spec §5.2）：速度／偏航率到原廠 80%；roll std ≤ 原廠 1.5 倍；膝／髖力矩峰 ≤ 原廠 1.3 倍（RMS 才可比）；抬腳 15–40 mm。原廠 ABAD 峰 40–60 是它 60° 命令差造成的，我們目標 ≤ 原廠。ABAD 漂（原地轉）< 5°、vx 漂（平移，機身系）|·| < 0.02 m/s、航向（平移 10 s）|·| < 8°（v3.5 spec §5）。"]
     out = HERE.parent / "outputs" / f"eval_{wname}.md"; out.write_text("\n".join(L) + "\n", encoding="utf-8"); print("→", out)
     if a.video:
         import os; os.environ.setdefault("MUJOCO_GL", "egl")

@@ -216,10 +216,32 @@ sec "★ 6.2　NPU 驅動與使用率（原廠的推論平台）"
 cat /sys/kernel/debug/rknpu/version 2>/dev/null || echo "version: $(S cat /sys/kernel/debug/rknpu/version)"
 echo "load: $(S cat /sys/kernel/debug/rknpu/load)"
 
-sec "★ 6.1　mc_ctrl 有沒有在跑模型（看它載了什麼庫）"
+sec "★ 6.1　mc_ctrl 載了哪些庫（模型與中介軟體都看）"
+# ⚠️ /proc/<pid>/maps 是 root only（2026-09-22 這段吃了 Permission denied）→ 要走 S()
 for p in $(pgrep -x mc_ctrl 2>/dev/null); do
-  tr '\0' '\n' < "/proc/$p/maps" 2>/dev/null | awk '{print $6}' \
-    | grep -iE "rknn|onnx|torch|openblas|mali|opencl" | sort -u | sed 's/^/  /'
+  echo "pid $p"
+  S cat "/proc/$p/maps" | awk '{print $6}' \
+    | grep -iE "rknn|onnx|torch|openblas|mali|opencl|ecal|zenoh|fastrtps|rcl|protobuf" \
+    | sort -u | sed 's/^/  /'
+done
+
+sec "★★★ 運控板的中介軟體：eCAL 到底用在哪"
+# 背景：D1 EDU（小狗）的中介軟體就是 eCAL；D1 Max 的對外層是 ROS2＋Zenoh，
+# 但 2026-08-25 第一趟就看到 /dev/shm 有約 30 個 ecal_* 段、UDP 14000–14002 有 socket
+# （eCAL v5 的預設埠：14000 註冊／14001 log／14002 payload）。用在哪一段一直沒查。
+echo "-- /dev/shm 裡的 eCAL 段與我們用的三個檔 --"
+ls -l /dev/shm/ 2>/dev/null | head -40
+echo "ecal_* 段數：$(ls /dev/shm 2>/dev/null | grep -c '^ecal')"
+echo "-- 誰佔著 14000–14002（eCAL 預設埠）--"
+S ss -lunp 2>/dev/null | grep -E ":1400[0-2]" | head -20
+echo "-- eCAL 設定檔與函式庫 --"
+ls -l /etc/ecal/ecal.ini /usr/local/etc/ecal/ecal.ini ~/.ecal/ecal.ini 2>/dev/null
+find / -maxdepth 4 -name "ecal.ini" -o -maxdepth 4 -name "libecal_core*" 2>/dev/null | head -10
+command -v ecal_monitor ecal_sample_person_snd 2>/dev/null
+echo "-- 哪些行程開著 eCAL 的共享記憶體段 --"
+for p in $(pgrep -f "mc_ctrl|robot_hal|robot_remote|robot_manager" 2>/dev/null | head -6); do
+  n=$(S cat /proc/$p/maps 2>/dev/null | grep -ci ecal)
+  echo "  pid $p $(cat /proc/$p/comm 2>/dev/null): maps 裡 ecal 相關 $n 筆"
 done
 
 sec "★★★ RK 這側的**全部**節點接線（畫圖用；預期沒有導航，導航全在 NX）"

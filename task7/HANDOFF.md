@@ -1,12 +1,38 @@
 # task7 交接：D1 Max 現況與下一步
 
-- 最後更新：**2026-09-22 夜（v3.7f 訓練中 `step` 停在 0.36 → v3.7b 備好：輪前饋壓掉名目漂移、lift 只能加、W_STEP 2.5；notebook `cpg_rl_v3_7bf_colab.ipynb`。可部署最佳仍是 v3.6f＋`--mirror`）**
+- 最後更新：**2026-09-22 收工（v3.7f 訓完驗收：平移夾抬高後 2.3–2.4 步/秒＝原廠頻率，但原地轉退到 ±58，使用者決定不用；今天報告影片＝v3.6f＋全鏡像 `outputs/report_v36f_mirror_5s.mp4`。明天：Colab 跑 v3.7b `cpg_rl_v3_7bf_colab.ipynb`）**
 - 分支：`feat/d1-edu-cpg-rl`
 - **接手先讀這份，再讀 `README.md`。** 查狗的規格／SHM／座標／IMU 慣例／原廠參數 → `docs/D1Max_機器狗資訊.md`（2026-09-09 由 11 份偵察文件整合；原件與舊操作卡都在 `docs/archive/`）。
 
 ---
 
 ## ▶▶ 下次上班從這裡開始（2026-09-15 收工，全部已 commit 到 `main`）
+
+### ★★★★★ 2026-09-22 收工狀態 —— 明天第一件事：Colab 跑 `notebooks/cpg_rl_v3_7bf_colab.ipynb`（已 push）
+
+**今天交付**：報告影片 `outputs/report_v36f_mirror_5s.mp4`（1.1 MB 版 `_small`）＝ v3.6f 權重、原地轉與平移右邊都鏡像、每段 5 s、無站立、平移只 0.20；
+表 `outputs/eval_cpg_rl_v3_6f_params_mirrorall.md`：左右轉 +83.4／−84.3（差 1%，原廠 108%）、左右平移 0.252／−0.250、0 摔。右平移鏡像的代價是側傾 0.37→0.63°、換航向 +19°→+0.3°。
+報告文字已給使用者（原地轉根因＝policy 不對稱、鏡像推論；平移根因＝reward 恆 0＋抬高跨距耦合）。
+
+**v3.7f 驗收（`weights/cpg_rl_v3_7f_params.pkl`，三種部署設定，表 `outputs/eval_cpg_rl_v3_7f_params_{v37,v37c,v37d}_lat.md`、全表 `..._mirror.md`／`..._v37c_mirror.md`）**：
+
+| 設定 | 左平移 0.20：抬腳／步/秒／vy／航向 | 右平移 0.20 | 0.12 |
+|---|---|---|---|
+| `v37` 如訓練 | 26／24 mm、1.6／1.8、0.268（134%）、+2° | 14／27、1.0／2.3、−0.210、+52° | 10／14、0.2／0.4 |
+| **`v37c` 只夾抬高** | **36／40、2.4／2.3、0.218（109%）、−8°** | 23／43、2.4／2.3、−0.204、**+42°** | 21／17、2.4／1.2、108% |
+| `v37d` 夾抬高＋前饋 | vx 漂 +0.06～+0.14（policy 已在補漂移，前饋過補）| | |
+
+→ **平移第一次用原廠頻率真正踏步**（v3.6f 只 0.3–1.0 步/秒），`v37c` 是平移最佳部署；未解：右平移航向 +42°、vx 漂 0.03–0.06、低速仍偏滑（如訓練時）。
+**原地轉退步**：v3.7f 左轉只 +58.5±40（v3.6f +83.5），鏡像後右 −58 對稱但一樣弱；旋轉設定沒改，是訓練趟間變異 → 使用者決定 v3.7f 不用。
+**按族切換權重**（`local_infer_v3.py --turn-weights`，`rl_env_v3.route_policy`：|wz|>0.1 用一顆、其餘用另一顆）：v3.7f 夾抬高（平移）＋ v3.6f（原地轉）跑過一次，
+原地轉只 +75／−77，因為夾抬高是全域的、v3.6f 的旋轉族 lift 通道也被夾。**「夾抬高只在平移族生效」的修改被使用者中止，沒有寫入**；要做的話在 step 的 `LIFT_NONNEG` 段乘 `_lat_weight(P["A"]) > 0.5`。
+
+**v3.7b（`W37B`，明天跑）**：解耦 1.75×＋ABAD 隨指令＋輪前饋（`CYC_LAT_FF`）＋lift 只能加（`LIFT_NONNEG`，訓練時全域）＋`W_STEP` 2.5＋**鏡像增強 `MIRROR_AUG`**（env 層 50% 回合，policy 本身對稱）。
+停損：1 億步 進度 yaw < 3.5、len < 600、`step` < 0.45。訓完 `local_infer_v3.py --preset v37b --gains factory --mirror --weights task7/weights/cpg_rl_v3_7bf_params.pkl --seeds 3 --mesh --video ...`（`--preset v37b` 驗收時自動關 MIRROR_AUG）。
+若 v3.7b 旋轉也退步，先查是不是 `CMD_VY` 上限 0.22／解耦讓平移族樣本變好學、旋轉族相對吃虧（進度 yaw 曲線對比 v3.6f 的 2.5）。
+
+**驗收工具現況**：`--preset {v33,v35,v36,v37,v37b,v37c,v37d}`、`--mirror`（原地轉鏡像）、`--mirror-lat`（平移也鏡像）、`--turn-weights`、`--tag`、`--push`（預設關）、`--video-secs/--video-start/--video-skip`；比較表 `inference/diag/compare_evals.py`。
+⚠️ v3.7f 訓練時 REF 沒有輪前饋，驗它要用 `--preset v37`（無前饋）；前饋只在 `CYC_LAT_FF=True` 的 preset 生效。
 
 ### ★★★★★ v3.7b 備好（2026-09-22 夜）：v3.7f 若 1 億步 `step` < 0.45 就停，改跑 `notebooks/cpg_rl_v3_7bf_colab.ipynb`
 

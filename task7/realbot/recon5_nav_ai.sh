@@ -234,6 +234,13 @@ ls -l /dev/shm/ 2>/dev/null | head -40
 echo "ecal_* 段數：$(ls /dev/shm 2>/dev/null | grep -c '^ecal')"
 echo "-- 誰佔著 14000–14002（eCAL 預設埠）--"
 S ss -lunp 2>/dev/null | grep -E ":1400[0-2]" | head -20
+echo "-- ★ eCAL 工具鏈（有 mon_cli 就能直接列出 topic 名）--"
+ls /usr/bin /usr/local/bin /opt/*/bin 2>/dev/null | grep -iE "^ecal_(mon|config|rec|play|sys|mma)" | sort -u | head -20
+echo "-- ★★★ eCAL topic 全表（唯讀監看，8 秒）--"
+( set +u
+  [ -f /opt/runtime/env.bash ] && . /opt/runtime/env.bash >/dev/null 2>&1
+  timeout 8 ecal_mon_cli 2>&1 || timeout 8 ecal_sample_monitoring_get_topics 2>&1 ) | head -80
+echo "（⚠️ ecal_stop 絕對不跑：會把 eCAL 停掉、運控就斷了）"
 echo "-- eCAL 設定檔與函式庫 --"
 ls -l /etc/ecal/ecal.ini /usr/local/etc/ecal/ecal.ini ~/.ecal/ecal.ini 2>/dev/null
 find / -maxdepth 4 -name "ecal.ini" -o -maxdepth 4 -name "libecal_core*" 2>/dev/null | head -10

@@ -218,9 +218,26 @@ SDK 編號規則：`1` = hip_roll(abad)、`2` = hip_pitch、`3` = knee_pitch、`
 **訊息定義兩台共用**：`robot_sdk.pb.*`、`hal_fault.*`、`zsibot_msg.*` 這些 protobuf 命名空間，
 與中狗 `mc_ctrl` 字串表裡的 protobuf 一致 → 同一家的訊息定義。
 
-> **中狗的 8 個 topic 叫什麼還沒解**（段名不透明）。下一趟先看機上有沒有 `ecal_mon_tui`：
-> `ssh robot@192.168.234.1 "ls /opt/*/bin /usr/local/bin /usr/bin 2>/dev/null | grep -i ecal"`。
-> 有的話跑一次就會得到跟上表一樣的東西；`recon5_nav_ai.sh` 已加這段檢查。
+#### ★ 中狗機上就有完整的 eCAL 工具鏈（2026-09-22 確認）
+
+`/usr/bin` 底下有 **eCAL 5.13.3 全套**：`ecal_mon_tui`／`ecal_mon_cli`／`ecal_mon_gui`、
+`ecal_rec`／`ecal_play`（錄放）、`ecal_sys`、`ecal_config`、`ecal_mma`，
+以及一整組 `ecal_sample_*` 範例。
+
+→ **中狗那 8 個 topic 的名字可以直接問出來**，用法與小狗那張表相同：
+
+```bash
+# 唯讀：mon_cli 只是以監看身分加入，不送任何資料
+ssh robot@192.168.234.1 "bash -c 'set +u
+. /opt/runtime/env.bash >/dev/null 2>&1
+timeout 8 ecal_mon_cli 2>&1 || timeout 8 ecal_sample_monitoring_get_topics 2>&1'" | head -80
+```
+
+⚠️ **`ecal_stop` 絕對不要跑** —— 那會把 eCAL 的行程停掉，運控就斷了。
+`ecal_rec` 會寫檔到機上，也先別用。
+
+> 版本落差值得記一筆：中狗的 eCAL 是 **5.13.3**。小狗那張 `ecal_mon_tui` 的畫面
+> 沒有版本資訊，但工具名稱一致。
 
 ---
 

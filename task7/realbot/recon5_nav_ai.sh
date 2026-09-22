@@ -236,10 +236,22 @@ echo "-- 誰佔著 14000–14002（eCAL 預設埠）--"
 S ss -lunp 2>/dev/null | grep -E ":1400[0-2]" | head -20
 echo "-- ★ eCAL 工具鏈（有 mon_cli 就能直接列出 topic 名）--"
 ls /usr/bin /usr/local/bin /opt/*/bin 2>/dev/null | grep -iE "^ecal_(mon|config|rec|play|sys|mma)" | sort -u | head -20
-echo "-- ★★★ eCAL topic 全表（唯讀監看，8 秒）--"
-( set +u
-  [ -f /opt/runtime/env.bash ] && . /opt/runtime/env.bash >/dev/null 2>&1
-  timeout 8 ecal_mon_cli 2>&1 || timeout 8 ecal_sample_monitoring_get_topics 2>&1 ) | head -80
+echo "-- ★★★ eCAL topic 全表（唯讀監看）--"
+# ⚠️ 兩個坑（2026-09-22 第一次跑完全沒輸出就是中了第一個）：
+#   1. 寫進管線是**全緩衝**，被 timeout 的 SIGTERM 砍掉時緩衝區沒 flush → 一個字都沒有。
+#      → `stdbuf -oL` 改行緩衝，並用 `timeout -s INT` 讓它自己收尾。
+#   2. 有些 eCAL 工具沒有 TTY 就不印東西 → 失敗時再用 `script` 給一個假終端。
+echo "usage:"; ecal_mon_cli --help 2>&1 | head -20
+for try in "stdbuf -oL -eL timeout -s INT 6 ecal_mon_cli" \
+           "stdbuf -oL -eL timeout -s INT 6 ecal_sample_monitoring_get_topics" \
+           "script -qec 'timeout -s INT 6 ecal_mon_cli' /dev/null"; do
+  echo "---- 嘗試：$try ----"
+  out=$( ( set +u
+           [ -f /opt/runtime/env.bash ] && . /opt/runtime/env.bash >/dev/null 2>&1
+           eval "$try" ) 2>&1 | head -80 )
+  echo "$out"
+  [ -n "$(echo "$out" | tr -d '[:space:]')" ] && break
+done
 echo "（⚠️ ecal_stop 絕對不跑：會把 eCAL 停掉、運控就斷了）"
 echo "-- eCAL 設定檔與函式庫 --"
 ls -l /etc/ecal/ecal.ini /usr/local/etc/ecal/ecal.ini ~/.ecal/ecal.ini 2>/dev/null

@@ -1,0 +1,554 @@
+{
+ "label": "walk",
+ "host": "orin-nx",
+ "secs": 40.4,
+ "ts": "2026-09-22T10:20:37+0800",
+ "uid": 1001,
+ "ncpu": 8,
+ "cpu_overall_pct": 72.0,
+ "per_cpu_pct": [
+  79.1,
+  69.3,
+  67.4,
+  66.6,
+  69.9,
+  79.1,
+  71.4,
+  72.7
+ ],
+ "per_cpu_max_pct": [
+  83.5,
+  100.0,
+  100.0,
+  84.7,
+  91.3,
+  100.0,
+  93.0,
+  100.0
+ ],
+ "loadavg": "13.16 13.62 9.22 10/951 4473",
+ "isolated_cpus": "",
+ "mem_start": {
+  "total_mb": 15656.3,
+  "available_mb": 7962.3,
+  "used_mb": 7694.0,
+  "used_pct": 49.1,
+  "cached_mb": 1958.1,
+  "swap_total_mb": 7828.1,
+  "swap_used_mb": 0.0
+ },
+ "mem_end": {
+  "total_mb": 15656.3,
+  "available_mb": 7977.6,
+  "used_mb": 7678.6,
+  "used_pct": 49.0,
+  "cached_mb": 1991.5,
+  "swap_total_mb": 7828.1,
+  "swap_used_mb": 0.0
+ },
+ "top_proc": [
+  {
+   "pid": 2465,
+   "comm": "robot_slam",
+   "cpu_pct": 103.6,
+   "rss_mb": 1038.2,
+   "cpus_allowed": "0-7",
+   "cmd": "/opt/robot/robot_slam/install/robot_slam/lib/robot_slam/robot_slam"
+  },
+  {
+   "pid": 2752,
+   "comm": "localization",
+   "cpu_pct": 58.8,
+   "rss_mb": 1073.2,
+   "cpus_allowed": "0-7",
+   "cmd": "/opt/robot/robot_localization/install/localization/lib/localization/localization --ros-args --log-level localization:=DE"
+  },
+  {
+   "pid": 2582,
+   "comm": "perception_jobs",
+   "cpu_pct": 46.1,
+   "rss_mb": 845.1,
+   "cpus_allowed": "0-7",
+   "cmd": "/opt/robot/perception/install/perception/bin/perception_jobs /opt/robot/perception/install/perception/config/perception/"
+  },
+  {
+   "pid": 2772,
+   "comm": "arc_lvio",
+   "cpu_pct": 41.8,
+   "rss_mb": 2184.2,
+   "cpus_allowed": "0-7",
+   "cmd": "/opt/robot/robot_arc/install/arc_lvio/lib/arc_lvio/arc_lvio --ros-args -r __node:=arc_lvio_node"
+  },
+  {
+   "pid": 2856,
+   "comm": "rslidar_sdk_nod",
+   "cpu_pct": 41.4,
+   "rss_mb": 80.9,
+   "cpus_allowed": "0-7",
+   "cmd": "/opt/robot/robot-driver/install/rslidar_sdk/lib/rslidar_sdk/rslidar_sdk_node --ros-args -r __ns:=/rslidar_sdk --params-f"
+  },
+  {
+   "pid": 3231,
+   "comm": "component_conta",
+   "cpu_pct": 40.8,
+   "rss_mb": 218.9,
+   "cpus_allowed": "0-7",
+   "cmd": "/opt/ros/humble/lib/rclcpp_components/component_container_isolated --use_multi_threaded_executor --ros-args --log-level "
+  },
+  {
+   "pid": 2512,
+   "comm": "ros2",
+   "cpu_pct": 31.0,
+   "rss_mb": 37.0,
+   "cpus_allowed": "0-7",
+   "cmd": "/usr/bin/python3 /opt/ros/humble/bin/ros2 launch arc_state_machine arc_state_machine.launch.py robot_type:=zgw"
+  },
+  {
+   "pid": 2764,
+   "comm": "arc_state_machi",
+   "cpu_pct": 27.5,
+   "rss_mb": 55.6,
+   "cpus_allowed": "0-7",
+   "cmd": "/opt/robot/robot_arc/install/arc_state_machine/lib/arc_state_machine/arc_state_machine_node --ros-args --log-level info "
+  },
+  {
+   "pid": 2426,
+   "comm": "robot_alg_manag",
+   "cpu_pct": 24.8,
+   "rss_mb": 35.5,
+   "cpus_allowed": "0-7",
+   "cmd": "robot_alg_manager zg-arc"
+  },
+  {
+   "pid": 2500,
+   "comm": "apriltag_locali",
+   "cpu_pct": 23.5,
+   "rss_mb": 144.2,
+   "cpus_allowed": "0-7",
+   "cmd": "./bin/apriltag_localization_node ./config/apriltag_localization_pc_config_middle_dog.yaml"
+  },
+  {
+   "pid": 2730,
+   "comm": "arc_mapping",
+   "cpu_pct": 17.1,
+   "rss_mb": 969.5,
+   "cpus_allowed": "0-7",
+   "cmd": "/opt/robot/robot_arc/install/arc_mapping/lib/arc_mapping/arc_mapping --ros-args -r __node:=arc_mapping_node"
+  },
+  {
+   "pid": 2447,
+   "comm": "ros2",
+   "cpu_pct": 12.6,
+   "rss_mb": 37.3,
+   "cpus_allowed": "0-7",
+   "cmd": "/usr/bin/python3 /opt/ros/humble/bin/ros2 launch navigo_charging_alignment charging_alignment.launch.py robot_type:=zgw"
+  },
+  {
+   "pid": 589,
+   "comm": "sugov:0",
+   "cpu_pct": 9.4,
+   "rss_mb": 0.0,
+   "cpus_allowed": "0-3",
+   "cmd": ""
+  },
+  {
+   "pid": 2812,
+   "comm": "imu_driver",
+   "cpu_pct": 8.0,
+   "rss_mb": 27.9,
+   "cpus_allowed": "0-7",
+   "cmd": "/opt/robot/robot-driver/install/imu_driver/lib/imu_driver/imu_driver --ros-args -r __node:=imu_driver --params-file /opt"
+  },
+  {
+   "pid": 2725,
+   "comm": "charging_alignm",
+   "cpu_pct": 5.6,
+   "rss_mb": 34.3,
+   "cpus_allowed": "0-7",
+   "cmd": "/opt/robot/robot_arc/install/navigo_charging_alignment/lib/navigo_charging_alignment/charging_alignment_server --ros-arg"
+  }
+ ],
+ "top_thread": [
+  {
+   "pid": 2465,
+   "tid": 2801,
+   "proc": "robot_slam",
+   "thread": "robot_slam",
+   "cpu_pct": 93.2,
+   "last_cpu": 1,
+   "cpus_allowed": "0-7"
+  },
+  {
+   "pid": 2856,
+   "tid": 2867,
+   "proc": "rslidar_sdk_nod",
+   "thread": "tx-0",
+   "cpu_pct": 11.4,
+   "last_cpu": 0,
+   "cpus_allowed": "0-7"
+  },
+  {
+   "pid": 2582,
+   "tid": 3220,
+   "proc": "perception_jobs",
+   "thread": "PerceptionManag",
+   "cpu_pct": 10.0,
+   "last_cpu": 0,
+   "cpus_allowed": "0-1"
+  },
+  {
+   "pid": 2812,
+   "tid": 2858,
+   "proc": "imu_driver",
+   "thread": "imu_driver",
+   "cpu_pct": 6.3,
+   "last_cpu": 0,
+   "cpus_allowed": "0-7"
+  },
+  {
+   "pid": 2582,
+   "tid": 3194,
+   "proc": "perception_jobs",
+   "thread": "PerceptionManag",
+   "cpu_pct": 5.4,
+   "last_cpu": 0,
+   "cpus_allowed": "0-1"
+  },
+  {
+   "pid": 2752,
+   "tid": 3094,
+   "proc": "localization",
+   "thread": "localization",
+   "cpu_pct": 4.6,
+   "last_cpu": 4,
+   "cpus_allowed": "0-7"
+  },
+  {
+   "pid": 2752,
+   "tid": 3097,
+   "proc": "localization",
+   "thread": "localization",
+   "cpu_pct": 4.5,
+   "last_cpu": 5,
+   "cpus_allowed": "0-7"
+  },
+  {
+   "pid": 2752,
+   "tid": 3090,
+   "proc": "localization",
+   "thread": "localization",
+   "cpu_pct": 4.4,
+   "last_cpu": 5,
+   "cpus_allowed": "0-7"
+  },
+  {
+   "pid": 2856,
+   "tid": 2895,
+   "proc": "rslidar_sdk_nod",
+   "thread": "rslidar_sdk_nod",
+   "cpu_pct": 4.4,
+   "last_cpu": 4,
+   "cpus_allowed": "0-7"
+  },
+  {
+   "pid": 2752,
+   "tid": 3096,
+   "proc": "localization",
+   "thread": "localization",
+   "cpu_pct": 4.3,
+   "last_cpu": 5,
+   "cpus_allowed": "0-7"
+  },
+  {
+   "pid": 2752,
+   "tid": 3091,
+   "proc": "localization",
+   "thread": "localization",
+   "cpu_pct": 4.2,
+   "last_cpu": 7,
+   "cpus_allowed": "0-7"
+  },
+  {
+   "pid": 2752,
+   "tid": 3095,
+   "proc": "localization",
+   "thread": "localization",
+   "cpu_pct": 4.2,
+   "last_cpu": 4,
+   "cpus_allowed": "0-7"
+  },
+  {
+   "pid": 2752,
+   "tid": 3092,
+   "proc": "localization",
+   "thread": "localization",
+   "cpu_pct": 4.1,
+   "last_cpu": 7,
+   "cpus_allowed": "0-7"
+  },
+  {
+   "pid": 2752,
+   "tid": 3093,
+   "proc": "localization",
+   "thread": "localization",
+   "cpu_pct": 4.1,
+   "last_cpu": 6,
+   "cpus_allowed": "0-7"
+  },
+  {
+   "pid": 2856,
+   "tid": 2936,
+   "proc": "rslidar_sdk_nod",
+   "thread": "rslidar_sdk_nod",
+   "cpu_pct": 4.1,
+   "last_cpu": 0,
+   "cpus_allowed": "0-7"
+  },
+  {
+   "pid": 2856,
+   "tid": 2938,
+   "proc": "rslidar_sdk_nod",
+   "thread": "rslidar_sdk_nod",
+   "cpu_pct": 4.1,
+   "last_cpu": 0,
+   "cpus_allowed": "0-7"
+  },
+  {
+   "pid": 2752,
+   "tid": 2953,
+   "proc": "localization",
+   "thread": "rx-1",
+   "cpu_pct": 3.9,
+   "last_cpu": 7,
+   "cpus_allowed": "0-7"
+  },
+  {
+   "pid": 2772,
+   "tid": 3070,
+   "proc": "arc_lvio",
+   "thread": "arc_lvio",
+   "cpu_pct": 3.9,
+   "last_cpu": 4,
+   "cpus_allowed": "0-7"
+  },
+  {
+   "pid": 2772,
+   "tid": 3067,
+   "proc": "arc_lvio",
+   "thread": "arc_lvio",
+   "cpu_pct": 3.8,
+   "last_cpu": 1,
+   "cpus_allowed": "0-7"
+  },
+  {
+   "pid": 2772,
+   "tid": 3072,
+   "proc": "arc_lvio",
+   "thread": "arc_lvio",
+   "cpu_pct": 3.8,
+   "last_cpu": 6,
+   "cpus_allowed": "0-7"
+  },
+  {
+   "pid": 2772,
+   "tid": 3074,
+   "proc": "arc_lvio",
+   "thread": "arc_lvio",
+   "cpu_pct": 3.8,
+   "last_cpu": 6,
+   "cpus_allowed": "0-7"
+  },
+  {
+   "pid": 2856,
+   "tid": 2896,
+   "proc": "rslidar_sdk_nod",
+   "thread": "rslidar_sdk_nod",
+   "cpu_pct": 3.8,
+   "last_cpu": 4,
+   "cpus_allowed": "0-7"
+  },
+  {
+   "pid": 2465,
+   "tid": 2686,
+   "proc": "robot_slam",
+   "thread": "rx-0",
+   "cpu_pct": 3.7,
+   "last_cpu": 2,
+   "cpus_allowed": "0-7"
+  },
+  {
+   "pid": 2772,
+   "tid": 3073,
+   "proc": "arc_lvio",
+   "thread": "arc_lvio",
+   "cpu_pct": 3.7,
+   "last_cpu": 4,
+   "cpus_allowed": "0-7"
+  },
+  {
+   "pid": 2856,
+   "tid": 2919,
+   "proc": "rslidar_sdk_nod",
+   "thread": "rslidar_sdk_nod",
+   "cpu_pct": 3.7,
+   "last_cpu": 6,
+   "cpus_allowed": "0-7"
+  }
+ ],
+ "gpu_npu": {
+  "devfreq:15340000.vic:cur_freq": {
+   "min": 729600000.0,
+   "mean": 729600000.0,
+   "max": 729600000.0,
+   "n": 40
+  },
+  "devfreq:15380000.nvjpg:cur_freq": {
+   "min": 729600000.0,
+   "mean": 729600000.0,
+   "max": 729600000.0,
+   "n": 40
+  },
+  "devfreq:15480000.nvdec:cur_freq": {
+   "min": 857600000.0,
+   "mean": 857600000.0,
+   "max": 857600000.0,
+   "n": 40
+  },
+  "devfreq:154c0000.nvenc:cur_freq": {
+   "min": 793600000.0,
+   "mean": 793600000.0,
+   "max": 793600000.0,
+   "n": 40
+  },
+  "devfreq:15540000.nvjpg:cur_freq": {
+   "min": 729600000.0,
+   "mean": 729600000.0,
+   "max": 729600000.0,
+   "n": 40
+  },
+  "devfreq:15a50000.ofa:cur_freq": {
+   "min": 780800000.0,
+   "mean": 780800000.0,
+   "max": 780800000.0,
+   "n": 40
+  },
+  "devfreq:17000000.gpu:cur_freq": {
+   "min": 306000000.0,
+   "mean": 367200000.0,
+   "max": 612000000.0,
+   "n": 40
+  },
+  "orin_gpu:load": {
+   "min": 0.0,
+   "mean": 345.1,
+   "max": 995.0,
+   "n": 40
+  },
+  "gpu:17000000.gpu": {
+   "min": 0.0,
+   "mean": 322.3,
+   "max": 995.0,
+   "n": 40
+  }
+ },
+ "thermal_c": {
+  "cpu-thermal": {
+   "mean_c": 44.4,
+   "max_c": 44.718
+  },
+  "gpu-thermal": {
+   "mean_c": 40.9,
+   "max_c": 41.187
+  },
+  "cv0-thermal": {
+   "mean_c": 42.3,
+   "max_c": 42.843
+  },
+  "cv1-thermal": {
+   "mean_c": 42.3,
+   "max_c": 42.531
+  },
+  "cv2-thermal": {
+   "mean_c": 40.2,
+   "max_c": 40.343
+  },
+  "soc0-thermal": {
+   "mean_c": 41.3,
+   "max_c": 41.468
+  },
+  "soc1-thermal": {
+   "mean_c": 43.9,
+   "max_c": 44.093
+  },
+  "soc2-thermal": {
+   "mean_c": 42.3,
+   "max_c": 42.437
+  },
+  "tj-thermal": {
+   "mean_c": 44.4,
+   "max_c": 44.687
+  }
+ },
+ "net_MBps": {
+  "lo": {
+   "rx_MBps": 172.723,
+   "tx_MBps": 172.723
+  },
+  "enxc817f52c3f92": {
+   "rx_MBps": 2.875,
+   "tx_MBps": 0.0
+  },
+  "enxc817f52c3f2c": {
+   "rx_MBps": 2.875,
+   "tx_MBps": 0.0
+  },
+  "enP8p1s0": {
+   "rx_MBps": 3.113,
+   "tx_MBps": 0.09
+  }
+ },
+ "tegrastats_note": null,
+ "tegrastats": [
+  "09-22-2026 10:19:58 RAM 7507/15656MB (lfb 6x4MB) SWAP 0/7828MB (cached 0MB) CPU [82%@1804,75%@1804,70%@1804,73%@1804,67%@1984,69%@1984,71%@1984,91%@1984] GR3D_FREQ 18% cv0@42.125C cpu@44.562C soc2@42.375C soc0@41.281C cv1@42.062C gpu@41.218C tj@44.562C soc1@43.906C cv2@40.218C VDD_IN 13776mW/13776mW VDD_CPU_GPU_CV 7175mW/7175mW VDD_SOC 2343mW/2343mW",
+  "09-22-2026 10:19:59 RAM 7498/15656MB (lfb 5x4MB) SWAP 0/7828MB (cached 0MB) CPU [79%@1574,65%@1574,61%@1574,67%@1574,65%@1984,64%@1984,73%@1984,100%@1984] GR3D_FREQ 99% cv0@42C cpu@44.25C soc2@42.281C soc0@41.437C cv1@42.031C gpu@41.031C tj@44.25C soc1@43.781C cv2@40.093C VDD_IN 13336mW/13556mW VDD_CPU_GPU_CV 6882mW/7029mW VDD_SOC 2197mW/2270mW",
+  "09-22-2026 10:20:00 RAM 7505/15656MB (lfb 7x4MB) SWAP 0/7828MB (cached 0MB) CPU [82%@1804,62%@1804,65%@1804,65%@1804,60%@1984,71%@1984,68%@1984,88%@1984] GR3D_FREQ 0% cv0@42C cpu@44.031C soc2@42.312C soc0@41.281C cv1@42.218C gpu@40.75C tj@44.031C soc1@43.812C cv2@40.093C VDD_IN 13336mW/13483mW VDD_CPU_GPU_CV 6735mW/6931mW VDD_SOC 2197mW/2246mW",
+  "09-22-2026 10:20:01 RAM 7464/15656MB (lfb 7x4MB) SWAP 0/7828MB (cached 0MB) CPU [77%@1984,66%@1984,64%@1984,66%@1984,63%@1984,83%@1984,77%@1984,65%@1984] GR3D_FREQ 40% cv0@42.406C cpu@44.343C soc2@42.343C soc0@41.281C cv1@42.406C gpu@40.968C tj@44.343C soc1@43.906C cv2@40.218C VDD_IN 13483mW/13483mW VDD_CPU_GPU_CV 6882mW/6919mW VDD_SOC 2197mW/2234mW",
+  "09-22-2026 10:20:02 RAM 7473/15656MB (lfb 8x4MB) SWAP 0/7828MB (cached 0MB) CPU [83%@1984,68%@1984,66%@1984,65%@1984,69%@1984,100%@1984,65%@1984,63%@1984] GR3D_FREQ 93% cv0@42.406C cpu@44.468C soc2@42.343C soc0@41.281C cv1@42.437C gpu@40.968C tj@44.468C soc1@43.968C cv2@40.093C VDD_IN 13630mW/13512mW VDD_CPU_GPU_CV 7028mW/6940mW VDD_SOC 2197mW/2226mW",
+  "09-22-2026 10:20:03 RAM 7408/15656MB (lfb 8x4MB) SWAP 0/7828MB (cached 0MB) CPU [83%@1804,69%@1804,67%@1804,69%@1804,59%@1984,100%@1984,63%@1984,60%@1984] GR3D_FREQ 43% cv0@42.343C cpu@44.218C soc2@42.406C soc0@41.437C cv1@42.437C gpu@40.781C tj@44.218C soc1@43.937C cv2@40.25C VDD_IN 13190mW/13459mW VDD_CPU_GPU_CV 6735mW/6906mW VDD_SOC 2197mW/2221mW",
+  "09-22-2026 10:20:04 RAM 7451/15656MB (lfb 8x4MB) SWAP 0/7828MB (cached 0MB) CPU [77%@1651,69%@1651,61%@1651,67%@1651,65%@1984,98%@1984,67%@1984,69%@1984] GR3D_FREQ 0% cv0@42.125C cpu@44.031C soc2@42.375C soc0@41.281C cv1@42.218C gpu@40.812C tj@44.031C soc1@43.906C cv2@40.218C VDD_IN 13043mW/13399mW VDD_CPU_GPU_CV 6738mW/6882mW VDD_SOC 2197mW/2218mW",
+  "09-22-2026 10:20:05 RAM 7449/15656MB (lfb 9x4MB) SWAP 0/7828MB (cached 0MB) CPU [79%@1344,64%@1344,59%@1344,63%@1344,84%@1984,71%@1984,70%@1984,79%@1984] GR3D_FREQ 0% cv0@42.125C cpu@43.906C soc2@42.156C soc0@41.25C cv1@42C gpu@40.843C tj@43.906C soc1@43.781C cv2@40.125C VDD_IN 13043mW/13355mW VDD_CPU_GPU_CV 6735mW/6864mW VDD_SOC 2197mW/2215mW",
+  "09-22-2026 10:20:06 RAM 7434/15656MB (lfb 8x4MB) SWAP 0/7828MB (cached 0MB) CPU [81%@1984,67%@1984,68%@1984,69%@1984,64%@1984,95%@1984,60%@1984,68%@1984] GR3D_FREQ 25% cv0@42.437C cpu@44.375C soc2@42.218C soc0@41.218C cv1@42.5C gpu@40.718C tj@44.375C soc1@43.875C cv2@40.25C VDD_IN 13483mW/13369mW VDD_CPU_GPU_CV 6882mW/6866mW VDD_SOC 2197mW/2213mW",
+  "09-22-2026 10:20:07 RAM 7465/15656MB (lfb 4x4MB) SWAP 0/7828MB (cached 0MB) CPU [81%@1881,67%@1881,63%@1881,67%@1881,68%@1984,100%@1984,68%@1984,68%@1984] GR3D_FREQ 0% cv0@42.468C cpu@44.437C soc2@42.25C soc0@41.281C cv1@42.406C gpu@40.875C tj@44.437C soc1@43.937C cv2@40.156C VDD_IN 13483mW/13380mW VDD_CPU_GPU_CV 6882mW/6867mW VDD_SOC 2197mW/2212mW",
+  "09-22-2026 10:20:08 RAM 7489/15656MB (lfb 4x4MB) SWAP 0/7828MB (cached 0MB) CPU [77%@1958,69%@1958,66%@1958,69%@1958,64%@1984,94%@1984,72%@1984,67%@1984] GR3D_FREQ 0% cv0@42.375C cpu@44.125C soc2@42.25C soc0@41.375C cv1@42.156C gpu@40.687C tj@44.125C soc1@43.843C cv2@40.218C VDD_IN 13483mW/13390mW VDD_CPU_GPU_CV 6882mW/6869mW VDD_SOC 2197mW/2210mW",
+  "09-22-2026 10:20:09 RAM 7523/15656MB (lfb 4x4MB) SWAP 0/7828MB (cached 0MB) CPU [80%@1728,70%@1728,61%@1728,62%@1728,72%@1984,72%@1984,88%@1984,73%@1984] GR3D_FREQ 1% cv0@42.156C cpu@44.093C soc2@42.281C soc0@41.343C cv1@42.093C gpu@40.687C tj@44.093C soc1@43.937C cv2@40.218C VDD_IN 13043mW/13361mW VDD_CPU_GPU_CV 6738mW/6858mW VDD_SOC 2197mW/2209mW",
+  "09-22-2026 10:20:10 RAM 7512/15656MB (lfb 6x4MB) SWAP 0/7828MB (cached 0MB) CPU [76%@1984,69%@1984,63%@1984,63%@1984,64%@1984,71%@1984,94%@1984,72%@1984] GR3D_FREQ 0% cv0@42.218C cpu@44.281C soc2@42.187C soc0@41.343C cv1@42.093C gpu@40.625C tj@44.281C soc1@43.812C cv2@40.062C VDD_IN 13483mW/13370mW VDD_CPU_GPU_CV 6882mW/6860mW VDD_SOC 2197mW/2208mW",
+  "09-22-2026 10:20:11 RAM 7530/15656MB (lfb 7x4MB) SWAP 0/7828MB (cached 0MB) CPU [78%@1804,65%@1804,59%@1804,61%@1804,82%@1984,78%@1984,69%@1984,77%@1984] GR3D_FREQ 0% cv0@42.437C cpu@44.437C soc2@42.281C soc0@41.312C cv1@42.468C gpu@40.875C tj@44.437C soc1@43.875C cv2@40.281C VDD_IN 13483mW/13378mW VDD_CPU_GPU_CV 6882mW/6861mW VDD_SOC 2197mW/2207mW",
+  "09-22-2026 10:20:12 RAM 7545/15656MB (lfb 6x4MB) SWAP 0/7828MB (cached 0MB) CPU [80%@1728,72%@1728,64%@1728,65%@1728,72%@1984,100%@1984,69%@1984,64%@1984] GR3D_FREQ 20% cv0@42.375C cpu@44.468C soc2@42.281C soc0@41.281C cv1@42.437C gpu@40.718C tj@44.468C soc1@43.906C cv2@40.25C VDD_IN 13630mW/13395mW VDD_CPU_GPU_CV 7028mW/6872mW VDD_SOC 2197mW/2207mW",
+  "09-22-2026 10:20:13 RAM 7551/15656MB (lfb 6x4MB) SWAP 0/7828MB (cached 0MB) CPU [81%@1651,78%@1651,63%@1651,68%@1651,64%@1984,89%@1984,66%@1984,66%@1984] GR3D_FREQ 8% cv0@42.281C cpu@44.531C soc2@42.281C soc0@41.25C cv1@42.437C gpu@40.906C tj@44.531C soc1@43.906C cv2@40.218C VDD_IN 13483mW/13400mW VDD_CPU_GPU_CV 6882mW/6873mW VDD_SOC 2197mW/2206mW",
+  "09-22-2026 10:20:14 RAM 7502/15656MB (lfb 12x4MB) SWAP 0/7828MB (cached 0MB) CPU [80%@1984,69%@1984,65%@1984,71%@1984,70%@1984,100%@1984,63%@1984,63%@1984] GR3D_FREQ 0% cv0@42.406C cpu@44.281C soc2@42.281C soc0@41.281C cv1@42.437C gpu@40.906C tj@44.281C soc1@44C cv2@40.343C VDD_IN 13483mW/13405mW VDD_CPU_GPU_CV 7028mW/6882mW VDD_SOC 2197mW/2206mW",
+  "09-22-2026 10:20:15 RAM 7476/15656MB (lfb 12x4MB) SWAP 0/7828MB (cached 0MB) CPU [80%@1728,63%@1728,65%@1728,70%@1728,67%@1984,100%@1984,63%@1984,66%@1984] GR3D_FREQ 0% cv0@42.437C cpu@44.343C soc2@42.343C soc0@41.312C cv1@42.375C gpu@40.718C tj@44.281C soc1@43.843C cv2@40.218C VDD_IN 13336mW/13401mW VDD_CPU_GPU_CV 6882mW/6882mW VDD_SOC 2197mW/2205mW",
+  "09-22-2026 10:20:16 RAM 7464/15656MB (lfb 14x4MB) SWAP 0/7828MB (cached 0MB) CPU [80%@1984,65%@1984,67%@1984,70%@1984,68%@1984,96%@1984,74%@1984,67%@1984] GR3D_FREQ 0% cv0@42.781C cpu@44.562C soc2@42.375C soc0@41.25C cv1@42.406C gpu@40.968C tj@44.562C soc1@43.906C cv2@40.25C VDD_IN 13630mW/13414mW VDD_CPU_GPU_CV 7028mW/6890mW VDD_SOC 2197mW/2205mW",
+  "09-22-2026 10:20:17 RAM 7455/15656MB (lfb 13x4MB) SWAP 0/7828MB (cached 0MB) CPU [81%@1958,60%@1958,66%@1958,68%@1958,81%@1984,87%@1984,69%@1984,66%@1984] GR3D_FREQ 0% cv0@42.906C cpu@44.593C soc2@42.406C soc0@41.281C cv1@42.281C gpu@40.625C tj@44.593C soc1@43.906C cv2@40.375C VDD_IN 13336mW/13410mW VDD_CPU_GPU_CV 6882mW/6889mW VDD_SOC 2197mW/2204mW",
+  "09-22-2026 10:20:18 RAM 7468/15656MB (lfb 13x4MB) SWAP 0/7828MB (cached 0MB) CPU [76%@1804,70%@1804,63%@1804,62%@1804,71%@1984,87%@1984,70%@1984,73%@1984] GR3D_FREQ 0% cv0@42.406C cpu@44.5C soc2@42.218C soc0@41.343C cv1@42.218C gpu@40.656C tj@44.5C soc1@43.937C cv2@40.125C VDD_IN 13336mW/13406mW VDD_CPU_GPU_CV 6882mW/6889mW VDD_SOC 2197mW/2204mW",
+  "09-22-2026 10:20:19 RAM 7480/15656MB (lfb 13x4MB) SWAP 0/7828MB (cached 0MB) CPU [81%@1984,65%@1984,66%@1984,62%@1984,72%@1804,75%@1804,84%@1804,77%@1804] GR3D_FREQ 43% cv0@42.718C cpu@44.406C soc2@42.281C soc0@41.312C cv1@42.343C gpu@40.968C tj@44.406C soc1@43.906C cv2@40.218C VDD_IN 13630mW/13416mW VDD_CPU_GPU_CV 7028mW/6895mW VDD_SOC 2197mW/2204mW",
+  "09-22-2026 10:20:20 RAM 7475/15656MB (lfb 13x4MB) SWAP 0/7828MB (cached 0MB) CPU [74%@1984,71%@1984,77%@1984,84%@1984,68%@1651,64%@1651,72%@1651,67%@1651] GR3D_FREQ 22% cv0@42.281C cpu@44.062C soc2@42.281C soc0@41.281C cv1@42.062C gpu@41.156C tj@44.062C soc1@43.906C cv2@40.218C VDD_IN 13483mW/13419mW VDD_CPU_GPU_CV 7028mW/6901mW VDD_SOC 2197mW/2203mW",
+  "09-22-2026 10:20:21 RAM 7474/15656MB (lfb 13x4MB) SWAP 0/7828MB (cached 0MB) CPU [79%@1984,78%@1984,100%@1984,64%@1984,68%@1574,67%@1574,68%@1574,66%@1574] GR3D_FREQ 70% cv0@42.437C cpu@44.375C soc2@42.5C soc0@41.343C cv1@42.125C gpu@41C tj@44.375C soc1@43.812C cv2@40.156C VDD_IN 13630mW/13428mW VDD_CPU_GPU_CV 7028mW/6906mW VDD_SOC 2197mW/2203mW",
+  "09-22-2026 10:20:22 RAM 7452/15656MB (lfb 14x4MB) SWAP 0/7828MB (cached 0MB) CPU [77%@1984,63%@1984,58%@1984,60%@1984,65%@1984,64%@1984,67%@1984,92%@1984] GR3D_FREQ 0% cv0@41.843C cpu@43.718C soc2@42.156C soc0@41.281C cv1@42C gpu@40.656C tj@43.906C soc1@43.906C cv2@40.156C VDD_IN 12750mW/13401mW VDD_CPU_GPU_CV 6445mW/6888mW VDD_SOC 2197mW/2203mW",
+  "09-22-2026 10:20:23 RAM 7465/15656MB (lfb 14x4MB) SWAP 0/7828MB (cached 0MB) CPU [75%@1984,69%@1984,70%@1984,67%@1984,66%@1984,75%@1984,67%@1984,91%@1984] GR3D_FREQ 0% cv0@42.25C cpu@44.406C soc2@42.281C soc0@41.281C cv1@42.218C gpu@40.468C tj@44.406C soc1@43.937C cv2@40.218C VDD_IN 13043mW/13387mW VDD_CPU_GPU_CV 6735mW/6882mW VDD_SOC 2197mW/2203mW",
+  "09-22-2026 10:20:24 RAM 7486/15656MB (lfb 11x4MB) SWAP 0/7828MB (cached 0MB) CPU [80%@1984,75%@1984,60%@1984,61%@1984,70%@1984,75%@1984,68%@1984,70%@1984] GR3D_FREQ 0% cv0@42.437C cpu@44.437C soc2@42.281C soc0@41.312C cv1@42.437C gpu@40.718C tj@44.281C soc1@43.875C cv2@40.156C VDD_IN 13043mW/13374mW VDD_CPU_GPU_CV 6592mW/6871mW VDD_SOC 2197mW/2202mW",
+  "09-22-2026 10:20:25 RAM 7503/15656MB (lfb 10x4MB) SWAP 0/7828MB (cached 0MB) CPU [81%@1984,64%@1984,66%@1984,62%@1984,65%@1984,84%@1984,71%@1984,78%@1984] GR3D_FREQ 99% cv0@42.093C cpu@44.531C soc2@42.25C soc0@41.281C cv1@42.125C gpu@41C tj@44.093C soc1@43.937C cv2@40.187C VDD_IN 13483mW/13378mW VDD_CPU_GPU_CV 7028mW/6877mW VDD_SOC 2197mW/2202mW",
+  "09-22-2026 10:20:26 RAM 7532/15656MB (lfb 9x4MB) SWAP 0/7828MB (cached 0MB) CPU [79%@1958,65%@1958,61%@1958,67%@1958,61%@1984,66%@1984,92%@1984,76%@1984] GR3D_FREQ 89% cv0@42.25C cpu@44.312C soc2@42.25C soc0@41.25C cv1@42.031C gpu@40.75C tj@44.312C soc1@44C cv2@40.281C VDD_IN 13190mW/13372mW VDD_CPU_GPU_CV 6735mW/6872mW VDD_SOC 2197mW/2202mW",
+  "09-22-2026 10:20:27 RAM 7527/15656MB (lfb 8x4MB) SWAP 0/7828MB (cached 0MB) CPU [80%@1651,62%@1651,60%@1651,66%@1651,91%@1984,62%@1984,74%@1984,68%@1984] GR3D_FREQ 1% cv0@42.5C cpu@44.531C soc2@42.312C soc0@41.375C cv1@42.093C gpu@40.937C tj@44.531C soc1@43.906C cv2@40.125C VDD_IN 13483mW/13375mW VDD_CPU_GPU_CV 7028mW/6877mW VDD_SOC 2197mW/2202mW",
+  "09-22-2026 10:20:28 RAM 7555/15656MB (lfb 7x4MB) SWAP 0/7828MB (cached 0MB) CPU [73%@1984,74%@1984,96%@1984,62%@1984,68%@1984,68%@1984,72%@1984,62%@1984] GR3D_FREQ 1% cv0@42.312C cpu@44.218C soc2@42.312C soc0@41.375C cv1@42.093C gpu@41.062C tj@44.218C soc1@43.906C cv2@40.25C VDD_IN 13630mW/13384mW VDD_CPU_GPU_CV 7028mW/6882mW VDD_SOC 2197mW/2202mW",
+  "09-22-2026 10:20:29 RAM 7569/15656MB (lfb 4x4MB) SWAP 0/7828MB (cached 0MB) CPU [79%@1420,68%@1420,99%@1420,60%@1420,65%@1984,63%@1984,70%@1984,69%@1984] GR3D_FREQ 0% cv0@42.187C cpu@44.187C soc2@42.343C soc0@41.312C cv1@42.031C gpu@40.906C tj@44.187C soc1@43.937C cv2@40.343C VDD_IN 13483mW/13387mW VDD_CPU_GPU_CV 7028mW/6887mW VDD_SOC 2197mW/2202mW",
+  "09-22-2026 10:20:30 RAM 7546/15656MB (lfb 5x4MB) SWAP 0/7828MB (cached 0MB) CPU [77%@1984,65%@1984,60%@1984,61%@1984,76%@1984,66%@1984,64%@1984,95%@1984] GR3D_FREQ 67% cv0@42.843C cpu@44.656C soc2@42.312C soc0@41.343C cv1@42.312C gpu@41.156C tj@44.656C soc1@43.875C cv2@40.156C VDD_IN 13336mW/13385mW VDD_CPU_GPU_CV 6882mW/6887mW VDD_SOC 2197mW/2201mW",
+  "09-22-2026 10:20:31 RAM 7531/15656MB (lfb 5x4MB) SWAP 0/7828MB (cached 0MB) CPU [79%@1728,63%@1728,63%@1728,63%@1728,86%@1984,69%@1984,71%@1984,75%@1984] GR3D_FREQ 0% cv0@42.843C cpu@44.468C soc2@42.375C soc0@41.25C cv1@42.406C gpu@40.812C tj@44.468C soc1@44C cv2@40.281C VDD_IN 13336mW/13384mW VDD_CPU_GPU_CV 6882mW/6886mW VDD_SOC 2197mW/2201mW",
+  "09-22-2026 10:20:32 RAM 7506/15656MB (lfb 6x4MB) SWAP 0/7828MB (cached 0MB) CPU [76%@1984,67%@1984,64%@1984,61%@1984,64%@1984,80%@1984,66%@1984,75%@1984] GR3D_FREQ 39% cv0@42.25C cpu@44.343C soc2@42.375C soc0@41.375C cv1@42.125C gpu@40.937C tj@44.343C soc1@44.125C cv2@40.343C VDD_IN 13336mW/13382mW VDD_CPU_GPU_CV 6882mW/6886mW VDD_SOC 2197mW/2201mW",
+  "09-22-2026 10:20:33 RAM 7498/15656MB (lfb 7x4MB) SWAP 0/7828MB (cached 0MB) CPU [75%@1728,76%@1728,55%@1728,65%@1728,83%@1984,67%@1984,63%@1984,76%@1984] GR3D_FREQ 23% cv0@42.812C cpu@44.531C soc2@42.375C soc0@41.468C cv1@42.375C gpu@41.125C tj@44.531C soc1@43.843C cv2@40.281C VDD_IN 13483mW/13385mW VDD_CPU_GPU_CV 6882mW/6886mW VDD_SOC 2197mW/2201mW",
+  "09-22-2026 10:20:34 RAM 7509/15656MB (lfb 9x4MB) SWAP 0/7828MB (cached 0MB) CPU [78%@1728,68%@1728,65%@1728,66%@1728,84%@1984,72%@1984,69%@1984,62%@1984] GR3D_FREQ 96% cv0@42.281C cpu@44.125C soc2@42.343C soc0@41.281C cv1@42.437C gpu@40.968C tj@44.25C soc1@43.937C cv2@40.312C VDD_IN 13190mW/13380mW VDD_CPU_GPU_CV 6735mW/6882mW VDD_SOC 2197mW/2201mW",
+  "09-22-2026 10:20:35 RAM 7514/15656MB (lfb 10x4MB) SWAP 0/7828MB (cached 0MB) CPU [82%@1984,56%@1984,67%@1984,60%@1984,64%@1958,80%@1958,88%@1958,61%@1958] GR3D_FREQ 57% cv0@42.031C cpu@44.406C soc2@42.312C soc0@41.281C cv1@42.156C gpu@40.843C tj@44.531C soc1@43.843C cv2@40.125C VDD_IN 13190mW/13375mW VDD_CPU_GPU_CV 6738mW/6878mW VDD_SOC 2197mW/2201mW",
+  "09-22-2026 10:20:36 RAM 7504/15656MB (lfb 11x4MB) SWAP 0/7828MB (cached 0MB) CPU [71%@1984,79%@1984,64%@1984,83%@1984,61%@1651,63%@1651,67%@1651,62%@1651] GR3D_FREQ 99% cv0@42.781C cpu@44.531C soc2@42.406C soc0@41.343C cv1@42.25C gpu@41.125C tj@44.531C soc1@43.906C cv2@40.156C VDD_IN 13483mW/13378mW VDD_CPU_GPU_CV 6882mW/6878mW VDD_SOC 2197mW/2201mW",
+  "09-22-2026 10:20:37 RAM 7470/15656MB (lfb 12x4MB) SWAP 0/7828MB (cached 0MB) CPU [81%@1984,100%@1984,76%@1984,69%@1984,57%@1958,61%@1958,65%@1958,65%@1958] GR3D_FREQ 96% cv0@42.656C cpu@44.437C soc2@42.468C soc0@41.343C cv1@42.125C gpu@41.156C tj@44.437C soc1@43.968C cv2@40.25C VDD_IN 13483mW/13380mW VDD_CPU_GPU_CV 6882mW/6878mW VDD_SOC 2197mW/2201mW"
+ ],
+ "psi_cpu": null
+}

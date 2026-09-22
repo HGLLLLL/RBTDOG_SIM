@@ -370,7 +370,8 @@ def main():
         nums = []
         for v in vals:
             try:
-                nums.append(float(v.split()[0]))
+                # RK3588 的 devfreq load 格式是 "<百分比>@<頻率>Hz"（例：'0@300000000Hz'）
+                nums.append(float(v.split()[0].split("@")[0]))
             except Exception:
                 pass
         if len(nums) == len(vals) and nums:
@@ -456,7 +457,13 @@ def main():
         print("GPU / NPU / devfreq:", file=e)
         for tag, s in sorted(series_stat.items()):
             if "mean" in s:
-                print("  %-34s 平均 %s  峰 %s" % (tag, s["mean"], s["max"]), file=e)
+                # Jetson 的 gpu load 是千分比（0–1000），不除 10 會看成 200%
+                if "gpu" in tag and "cur_freq" not in tag and s["max"] > 100:
+                    print("  %-34s 平均 %.1f%%  峰 %.1f%%（原始千分比 %s/%s）"
+                          % (tag, s["mean"] / 10.0, s["max"] / 10.0,
+                             s["mean"], s["max"]), file=e)
+                else:
+                    print("  %-34s 平均 %s  峰 %s" % (tag, s["mean"], s["max"]), file=e)
             else:
                 print("  %-34s %s → %s" % (tag, s["raw_first"], s["raw_last"]), file=e)
     if therm_stat:

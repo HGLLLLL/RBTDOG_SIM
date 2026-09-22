@@ -110,6 +110,24 @@ def fmt(v, suffix="", nd=1):
     return "%s%s" % (v, suffix)
 
 
+def tegrastats_stats(s):
+    """把 tegrastats 的原始行解析成統計值（GPU 使用率、RAM、整機功耗）。
+
+    Orin 的 GPU 使用率在 devfreq 只有千分比的瞬時值，
+    `GR3D_FREQ` 是第二個獨立來源 —— 兩個對得上才敢寫進報告。
+    """
+    out = {}
+    lines = s.get("tegrastats") or []
+    for key, pat, scale in (("gr3d", r"GR3D_FREQ (\d+)%", 1.0),
+                            ("ram_mb", r"RAM (\d+)/", 1.0),
+                            ("vdd_in_w", r"VDD_IN (\d+)mW", 0.001)):
+        vals = [float(m.group(1)) * scale
+                for L in lines for m in [re.search(pat, L)] if m]
+        if vals:
+            out[key] = {"min": min(vals), "mean": sum(vals) / len(vals), "max": max(vals)}
+    return out
+
+
 # ----------------------------------------------------------------- 1.3
 def sec_13(d, samples, statics):
     L = ["## 1.3　CPU / GPU / Memory 資源使用情形", "",
@@ -148,10 +166,33 @@ def sec_13(d, samples, statics):
         per = [v for v in (s.get("per_cpu_pct") or []) if v is not None]
         mem = s.get("mem_end") or {}
         gpu = s.get("gpu_npu") or {}
-        gpu_txt = []
+        gpu_txt, npu_note = [], []
         for tag, st in sorted(gpu.items()):
-            if "mean" in st and st.get("max", 0) > 0 and tag.endswith("load"):
-                gpu_txt.append("%s 平均 %s 峰 %s" % (tag.split(":")[1], st["mean"], st["max"]))
+            if "cur_freq" in tag:
+                continue
+            # RK3588 的 devfreq load 是 "<百分比>@<頻率>Hz" 字串 → 取前面的數字
+            if "mean" not in st:
+                first, last = str(st.get("raw_first", "")), str(st.get("raw_last", ""))
+                try:
+                    v0 = float(first.split("@")[0]); v1 = float(last.split("@")[0])
+                except Exception:
+                    continue
+                gpu_txt.append("%s %.0f%% → %.0f%%" % (tag.split(":")[-2], v0, v1))
+                if "npu" in tag and v0 == v1 == 100.0:
+                    npu_note.append(tag)
+                continue
+            if not st.get("max"):
+                continue
+            mean, mx = st["mean"], st["max"]
+            # Jetson 的 gpu load 是千分比（0–1000）→ 除 10 才是 %
+            if "gpu" in tag and mx > 100:
+                mean, mx = mean / 10.0, mx / 10.0
+            gpu_txt.append("%s 平均 %.1f%% 峰 %.1f%%" % (tag.split(":")[-2] if ":" in tag else tag, mean, mx))
+        # tegrastats 的 GR3D_FREQ 是 Orin GPU 使用率的第二個獨立來源
+        teg = tegrastats_stats(s)
+        if teg.get("gr3d"):
+            g = teg["gr3d"]
+            gpu_txt.append("tegrastats GR3D 平均 %.0f%% 峰 %.0f%%" % (g["mean"], g["max"]))
         therm = s.get("thermal_c") or {}
         hot = max(((v["max_c"], k) for k, v in therm.items()), default=(None, None))
         rows.append([
@@ -168,6 +209,12 @@ def sec_13(d, samples, statics):
         ])
     L += [table(["板", "情境", "窗口", "整體 CPU", "最忙的核", "記憶體 已用/總量",
                  "GPU / NPU 負載", "最高溫"], rows), ""]
+    if any("npu" in t for s2 in samples.values() for t in (s2.get("gpu_npu") or {})):
+        L += ["> ⚠️ **RK3588 的 NPU 讀值要小心**：`devfreq` 的 `load` 節點兩個情境都固定 100，"
+              "而 Mali GPU 的 `utilisation` 是 0。固定不動的讀值通常不是真實使用率。"
+              "下一趟用 `sudo cat /sys/kernel/debug/rknpu/load` 對照才能定案 —— "
+              "這件事有意義，因為原廠的運控策略是 RKNN 模型（`librknn_model.so`），"
+              "NPU 若真的被佔著，我們自己要上 NPU 推論就得先確認排擠。", ""]
 
     # 每核對照（運控在 RK，cpu7 被核心隔離 —— 這張表就是在驗它）
     for b in ("rk", "nx"):
@@ -183,14 +230,14 @@ def sec_13(d, samples, statics):
             gwm = (sw.get("per_cpu_max_pct") or [None] * n)[i] if sw else None
             rows.append(["cpu%d" % i, fmt(gi, "%"), fmt(gim, "%"),
                          fmt(gw, "%"), fmt(gwm, "%")])
-        L += ["### 1.3-c　%s 每核使用率（待機 vs 走路）" % BOARD_NAME[b], "",
+        L += ["### 1.3-c%d　%s 每核使用率（待機 vs 走路）"
+              % (1 if b == "rk" else 2, BOARD_NAME[b]), "",
               table(["核", "待機 平均", "待機 峰", "走路 平均", "走路 峰"], rows), ""]
 
         iso = si.get("isolated_cpus")
         if iso:
-            L += ["核心隔離 `isolcpus = %s`。"
-                  "隔離核的使用率要是還很高，那上面跑的就是運控本身；"
-                  "我們自己的推論程式**不能**排到那顆核。" % iso, ""]
+            L += ["核心隔離 `isolcpus = %s`。那顆核上跑什麼，看下面的執行緒表 —— "
+                  "行程層級的 `Cpus_allowed_list` 看不出來（`mc_ctrl` 主執行緒是 0-6）。" % iso, ""]
 
     # 行程層級
     for b, ph in PHASES:
@@ -226,14 +273,33 @@ def sec_13(d, samples, statics):
                 "、".join("`%s/%s`" % (r["proc"], r["thread"]) for r in on_iso)
                 or "這次沒抓到（只代表取樣瞬間，不能斷定沒有）"), ""]
 
+    rows = []
+    for b, ph in PHASES:
+        s = samples.get((b, ph))
+        if not s:
+            continue
+        t = tegrastats_stats(s)
+        if not t:
+            continue
+        rows.append([BOARD_NAME[b], "待機" if ph == "idle" else "走路",
+                     "%.0f%% / %.0f%%" % (t["gr3d"]["mean"], t["gr3d"]["max"])
+                     if t.get("gr3d") else NA,
+                     "%.0f MB" % t["ram_mb"]["mean"] if t.get("ram_mb") else NA,
+                     "%.1f W / %.1f W" % (t["vdd_in_w"]["mean"], t["vdd_in_w"]["max"])
+                     if t.get("vdd_in_w") else NA])
+    if rows:
+        L += ["### 1.3-f　Orin NX 的 GPU 與整機功耗（`tegrastats`，每秒一筆）", "",
+              table(["板", "情境", "GPU 平均/峰", "RAM 平均", "VDD_IN 平均/峰"], rows), "",
+              "`VDD_IN` 是模組輸入功耗，不是整台狗的耗電。", ""]
+
     # tegrastats 原始行（Orin 的 GPU 使用率只有這裡看得到）
     for b in ("nx", "rk"):
         for ph in ("idle", "walk"):
             s = samples.get((b, ph))
             if s and s.get("tegrastats"):
-                L += ["### 1.3-f　%s / %s　tegrastats 原始輸出（前 5 行）" %
+                L += ["### 1.3-g　%s / %s　tegrastats 原始輸出（前 3 行）" %
                       (BOARD_NAME[b], ph), "", "```",
-                      "\n".join(s["tegrastats"][:5]), "```", ""]
+                      "\n".join(s["tegrastats"][:3]), "```", ""]
             elif s and s.get("tegrastats_note") and b == "nx":
                 L += ["> %s / %s tegrastats：%s" %
                       (BOARD_NAME[b], ph, s["tegrastats_note"]), ""]

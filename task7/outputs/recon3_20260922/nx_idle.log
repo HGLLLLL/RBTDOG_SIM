@@ -1,0 +1,46 @@
+[recon3] orin-nx: 採樣 30.0 秒（標籤 idle）…
+
+---- orin-nx / idle：30 秒 ----
+整體 CPU 70.4%   8 核   loadavg 13.62 13.39 8.66 20/943 4293
+  cpu0  平均  78.5%  峰  86.1%  ################
+  cpu1  平均  66.3%  峰  75.5%  #############
+  cpu2  平均  62.4%  峰  88.7%  ############
+  cpu3  平均  63.1%  峰  68.4%  #############
+  cpu4  平均  77.3%  峰 100.0%  ###############
+  cpu5  平均  69.3%  峰 100.0%  ##############
+  cpu6  平均  73.4%  峰 100.0%  ###############
+  cpu7  平均  72.7%  峰 100.0%  ###############
+記憶體 7586 / 15656 MB（48%）  swap 用 0 MB
+前 8 名行程（CPU% / RSS MB / 可用核）:
+   104.5%     963.3 MB  cpus=0-7       robot_slam
+    57.8%    1049.9 MB  cpus=0-7       localization
+    50.7%     839.4 MB  cpus=0-7       perception_jobs
+    42.2%    2200.5 MB  cpus=0-7       arc_lvio
+    40.2%      80.9 MB  cpus=0-7       rslidar_sdk_nod
+    40.0%     218.1 MB  cpus=0-7       component_conta
+    30.0%      37.0 MB  cpus=0-7       ros2
+    27.2%      55.6 MB  cpus=0-7       arc_state_machi
+關鍵行程的執行緒（CPU% / 上次在哪顆核 / 可用核）:
+    94.2%  cpu5   cpus=0-7       robot_slam / robot_slam
+    16.7%  cpu1   cpus=0-1       perception_jobs / PerceptionManag
+    11.3%  cpu7   cpus=0-7       rslidar_sdk_nod / tx-0
+     6.1%  cpu0   cpus=0-7       imu_driver / imu_driver
+     4.9%  cpu6   cpus=0-7       localization / localization
+     4.6%  cpu6   cpus=0-7       localization / localization
+     4.4%  cpu6   cpus=0-7       localization / localization
+     4.4%  cpu2   cpus=0-7       rslidar_sdk_nod / rslidar_sdk_nod
+     4.3%  cpu7   cpus=0-7       localization / localization
+     4.3%  cpu2   cpus=0-7       arc_lvio / arc_lvio
+GPU / NPU / devfreq:
+  devfreq:15340000.vic:cur_freq      平均 729600000.0  峰 729600000.0
+  devfreq:15380000.nvjpg:cur_freq    平均 729600000.0  峰 729600000.0
+  devfreq:15480000.nvdec:cur_freq    平均 857600000.0  峰 857600000.0
+  devfreq:154c0000.nvenc:cur_freq    平均 793600000.0  峰 793600000.0
+  devfreq:15540000.nvjpg:cur_freq    平均 729600000.0  峰 729600000.0
+  devfreq:15a50000.ofa:cur_freq      平均 780800000.0  峰 780800000.0
+  devfreq:17000000.gpu:cur_freq      平均 367200000.0  峰 612000000.0
+  gpu:17000000.gpu                   平均 224.8  峰 995.0
+  orin_gpu:load                      平均 224.8  峰 995.0
+溫度（最高 5 區）: cpu-thermal 44.7°C  tj-thermal 44.6°C  soc1-thermal 43.9°C  cv0-thermal 43.1°C  cv1-thermal 42.3°C
+網路流量: lo rx 172.94 MB/s  enxc817f52c3f92 rx 2.88 MB/s  enxc817f52c3f2c rx 2.88 MB/s  enP8p1s0 rx 3.27 MB/s
+tegrastats 首行: 09-22-2026 10:18:33 RAM 7330/15656MB (lfb 4x4MB) SWAP 0/7828MB (cached 0MB) CPU [78%@1881,69%@1881,48%@1881,60%@1881,71%@1984,72%@1984,98%@1984,73%@1984] GR3D_F

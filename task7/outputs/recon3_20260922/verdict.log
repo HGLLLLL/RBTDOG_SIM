@@ -1,0 +1,90 @@
+------------------------------------------------------------
+### 自動判讀：四個報告項目各拿到什麼
+------------------------------------------------------------
+-- 1.3　CPU / GPU / Memory --
+  ❌ rk_idle.json 沒有內容（RK3588（運控板））
+  ❌ rk_walk.json 沒有內容（RK3588（運控板））
+  ❌ nx_idle.json 沒有內容（Orin NX（應用板））
+  ❌ nx_walk.json 沒有內容（Orin NX（應用板））
+  GPU/NPU 負載節點：
+    (未取到)
+
+-- 7.1　感測器種類與數量 --
+  感測 topic 筆數：25
+    /aligned_points|sensor_msgs/msg/PointCloud2|未取到|1
+    /body_points|sensor_msgs/msg/PointCloud2|未取到|1
+    /front_camera/image_compressed|sensor_msgs/msg/CompressedImage|10.059|1
+    /front_lidar|sensor_msgs/msg/PointCloud2|10.022|1
+    /front_lidar/imu|sensor_msgs/msg/Imu|200.087|1
+    /global_map_points|sensor_msgs/msg/PointCloud2|未取到|1
+    /gnss/data|robots_dog_msgs/msg/Nmea|未取到|0
+    /gps/rtk|sensor_msgs/msg/NavSatFix|未取到|0
+    /imu_driver/imu_central|sensor_msgs/msg/Imu|200.345|1
+    /laser_scan|sensor_msgs/msg/LaserScan|4.547|1
+    /navigo/cs/lpc/vis/laser_point_cloud|sensor_msgs/msg/PointCloud2|9.985|1
+    /navigo/cs/lpc/vis/lookahead_point|visualization_msgs/msg/Marker|未取到|1
+    /battery_controller/battery1|sensor_msgs/msg/BatteryState|1.000|1
+    /battery_controller/battery2|sensor_msgs/msg/BatteryState|1.000|1
+    /battery_controller/battery_all|sensor_msgs/msg/BatteryState|1.000|1
+    /battery_controller/transition_event|lifecycle_msgs/msg/TransitionEvent|未取到|1
+    /front_camera/image_compressed|sensor_msgs/msg/CompressedImage|9.785|1
+    /imu_shm_publisher/imu_central|sensor_msgs/msg/Imu|199.994|1
+    /imu_shm_publisher/transition_event|lifecycle_msgs/msg/TransitionEvent|未取到|1
+    /rear_camera/image_compressed|sensor_msgs/msg/CompressedImage|10.003|1
+    /robot_camera/record_mp4|robot_common_interface/msg/RecordMp4Request|未取到|1
+    /robot_camera/record_mp4_ack|robot_common_interface/msg/RecordMp4Ack|未取到|2
+    /robot_camera/record_mp4_status|robot_common_interface/msg/RecordMp4Status|未取到|2
+    /robot_camera/take_photo|robot_common_interface/msg/RecordPhotoRequest|未取到|1
+    /robot_camera/take_photo_ack|robot_common_interface/msg/RecordPhotoAck|未取到|2
+
+-- 7.2　Camera --
+  @@CAMDEV /dev/video0
+  @@CAMDEV /dev/video1
+  @@CAMDEV /dev/video10
+  @@CAMDEV /dev/video11
+  @@CAMDEV /dev/video12
+  @@CAMDEV /dev/video13
+  @@CAMDEV /dev/video14
+  @@CAMDEV /dev/video15
+  @@CAMDEV /dev/video16
+  @@CAMDEV /dev/video17
+  @@CAMDEV /dev/video18
+  @@CAMDEV /dev/video19
+  @@CAMDEV /dev/video2
+  @@CAMDEV /dev/video20
+  @@CAMDEV /dev/video21
+  @@CAMDEV /dev/video22
+  @@CAMDEV /dev/video23
+  @@CAMDEV /dev/video24
+  @@CAMDEV /dev/video25
+  @@CAMDEV /dev/video26
+  @@CAMDEV /dev/video27
+  @@CAMDEV /dev/video28
+  @@CAMDEV /dev/video29
+  @@CAMDEV /dev/video3
+  @@CAMDEV /dev/video30
+  @@CAMDEV /dev/video31
+  @@CAMDEV /dev/video32
+  @@CAMDEV /dev/video33
+  @@CAMDEV /dev/video34
+  @@CAMDEV /dev/video35
+  @@CAMDEV /dev/video36
+  @@CAMDEV /dev/video37
+  @@CAMDEV /dev/video38
+  @@CAMDEV /dev/video39
+  @@CAMDEV /dev/video4
+  @@CAMDEV /dev/video5
+  @@CAMDEV /dev/video6
+  @@CAMDEV /dev/video7
+  @@CAMDEV /dev/video8
+  @@CAMDEV /dev/video9
+  @@CAMDEV /dev/video-dec0
+  @@CAMDEV /dev/video-enc0
+  ❌ RTSP front 未取到
+  ❌ RTSP back 未取到
+
+-- 7.4　LiDAR 等其他感測器 --
+  光達設定檔關鍵欄位筆數：0
+
+⚠️ ROS2 topic list 是空的不代表沒有 topic —— 先看 log 裡的 DOMAIN_ID 與 RMW 兩行。
+⚠️ 感測 topic 多半是 best_effort，用預設 QoS 訂閱會收不到；腳本已自動退一步重試。

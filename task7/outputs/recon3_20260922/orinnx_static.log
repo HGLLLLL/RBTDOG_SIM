@@ -1,0 +1,2028 @@
+
+======== 身分與韌體 ========
+@@KV host=orin-nx
+@@KV kernel=5.15.148-tegra
+@@KV arch=aarch64
+@@KV os=Ubuntu 22.04.5 LTS
+@@KV board=NVIDIA Jetson Orin NX Engineering Reference Developer Kit
+@@KV python3=Python 3.10.12
+Linux orin-nx 5.15.148-tegra #2 SMP PREEMPT Mon Mar 2 17:33:07 CST 2026 aarch64 aarch64 aarch64 GNU/Linux
+-- /opt/release/version.yaml --
+version: "0.3.6"
+release_date: "2026-02-28"
+description: "A2503 Orin NX Release Image with all modules"
+
+@@KV firmware=version:"0.3.6"
+
+======== ★ 1.3　CPU 規格 ========
+@@KV ncpu=8
+Architecture:                       aarch64
+CPU op-mode(s):                     32-bit, 64-bit
+Byte Order:                         Little Endian
+CPU(s):                             8
+On-line CPU(s) list:                0-7
+Vendor ID:                          ARM
+Model name:                         Cortex-A78AE
+Model:                              1
+Thread(s) per core:                 1
+Core(s) per cluster:                4
+Socket(s):                          -
+Cluster(s):                         2
+Stepping:                           r0p1
+CPU max MHz:                        1984.0000
+CPU min MHz:                        115.2000
+BogoMIPS:                           62.50
+Flags:                              fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm lrcpc dcpop asimddp uscat ilrcpc flagm paca pacg
+L1d cache:                          512 KiB (8 instances)
+L1i cache:                          512 KiB (8 instances)
+L2 cache:                           2 MiB (8 instances)
+L3 cache:                           4 MiB (2 instances)
+NUMA node(s):                       1
+NUMA node0 CPU(s):                  0-7
+Vulnerability Gather data sampling: Not affected
+Vulnerability Itlb multihit:        Not affected
+Vulnerability L1tf:                 Not affected
+Vulnerability Mds:                  Not affected
+Vulnerability Meltdown:             Not affected
+Vulnerability Mmio stale data:      Not affected
+Vulnerability Retbleed:             Not affected
+Vulnerability Spec rstack overflow: Not affected
+Vulnerability Spec store bypass:    Mitigation; Speculative Store Bypass disabled via prctl
+Vulnerability Spectre v1:           Mitigation; __user pointer sanitization
+Vulnerability Spectre v2:           Mitigation; CSV2, but not BHB
+Vulnerability Srbds:                Not affected
+Vulnerability Tsx async abort:      Not affected
+@@KV cpu_model=Cortex-A78AE
+@@KV cpu_maxmhz=1984.0000
+-- /proc/cmdline（看核心隔離）--
+root=PARTUUID=ccf4362b-8d24-4079-8518-be731c15e240 rw rootwait rootfstype=ext4 mminit_loglevel=4 console=ttyTCU0,115200 firmware_class.path=/etc/firmware fbcon=map:0 nospectre_bhb video=efifb:off console=tty0 root=PARTUUID=a3667591-3b06-4bf1-a5b8-3fd1a379ee2c rw rootwait rootfstype=ext4 mminit_loglevel=4 console=ttyTCU0,115200 firmware_class.path=/etc/firmware fbcon=map:0 nospectre_bhb video=efifb:off console=tty0 root=PARTUUID=e2f9cd30-1e0b-4f1b-a2c8-607e5a5cf9ce rw rootwait rootfstype=ext4 mminit_loglevel=4 console=ttyTCU0,115200 firmware_class.path=/etc/firmware fbcon=map:0 nospectre_bhb video=efifb:off console=tty0 root=PARTUUID=d93127e4-c3f3-4baa-9931-df6f73594463 rw rootwait rootfstype=ext4 mminit_loglevel=4 console=ttyTCU0,115200 firmware_class.path=/etc/firmware fbcon=map:0 nospectre_bhb video=efifb:off console=tty0 root=PARTUUID=c0c93467-40c7-42a2-837f-2d94bb090bb8 rw rootwait rootfstype=ext4 mminit_loglevel=4 console=ttyTCU0,115200 firmware_class.path=/etc/firmware fbcon=map:0 nospectre_bhb video=efifb:off console=tty0 root=PARTUUID=ce6caf58-6727-4368-a6da-a08b0f3cd46a rw rootwait rootfstype=ext4 mminit_loglevel=4 console=ttyTCU0,115200 firmware_class.path=/etc/firmware fbcon=map:0 nospectre_bhb video=efifb:off console=tty0 root=PARTUUID=d1ed9fef-55c9-4ffe-a1bf-466a67099ebf rw rootwait rootfstype=ext4 mminit_loglevel=4 console=ttyTCU0,115200 firmware_class.path=/etc/firmware fbcon=map:0 nospectre_bhb video=efifb:off console=tty0  root=PARTUUID=a3906895-8d75-4718-bd5c-2edf73db7099 rw rootwait rootfstype=ext4 mminit_loglevel=4 console=ttyTCU0,115200 firmware_class.path=/etc/firmware fbcon=map:0 nospectre_bhb video=efifb:off console=tty0 bl_prof_dataptr=2031616@0x471E10000 bl_prof_ro_ptr=65536@0x471E00000 
+@@KV isolcpus=
+@@KV nohz_full=
+-- 每核最高頻與 governor --
+policy0  cpus=0 1 2 3  max=1984000  gov=schedutil
+policy4  cpus=4 5 6 7  max=1984000  gov=schedutil
+
+======== ★ 1.3　記憶體 ========
+               total        used        free      shared  buff/cache   available
+Mem:            15Gi       6.6Gi       6.5Gi        36Mi       2.2Gi       8.4Gi
+Swap:          7.6Gi          0B       7.6Gi
+@@KV mem_total_kb=16032020
+@@KV swap_total_kb=8016000
+NAME       TYPE        SIZE USED PRIO
+/dev/zram0 partition 978.5M   0B    5
+/dev/zram1 partition 978.5M   0B    5
+/dev/zram2 partition 978.5M   0B    5
+/dev/zram3 partition 978.5M   0B    5
+/dev/zram4 partition 978.5M   0B    5
+/dev/zram5 partition 978.5M   0B    5
+/dev/zram6 partition 978.5M   0B    5
+/dev/zram7 partition 978.5M   0B    5
+
+======== ★ 1.3　GPU / NPU 裝置與驅動 ========
+-- devfreq 節點（GPU/NPU 的頻率與負載大多掛這裡）--
+/sys/class/devfreq/15340000.vic -> /sys/devices/platform/bus@0/13e00000.host1x/15340000.vic/devfreq/15340000.vic
+   cur_freq=729600000  max=729600000  load=  gov=tegra_wmark
+/sys/class/devfreq/15380000.nvjpg -> /sys/devices/platform/bus@0/13e00000.host1x/15380000.nvjpg/devfreq/15380000.nvjpg
+   cur_freq=729600000  max=729600000  load=  gov=userspace
+/sys/class/devfreq/15480000.nvdec -> /sys/devices/platform/bus@0/13e00000.host1x/15480000.nvdec/devfreq/15480000.nvdec
+   cur_freq=857600000  max=857600000  load=  gov=tegra_wmark
+/sys/class/devfreq/154c0000.nvenc -> /sys/devices/platform/bus@0/13e00000.host1x/154c0000.nvenc/devfreq/154c0000.nvenc
+   cur_freq=793600000  max=793600000  load=  gov=tegra_wmark
+/sys/class/devfreq/15540000.nvjpg -> /sys/devices/platform/bus@0/13e00000.host1x/15540000.nvjpg/devfreq/15540000.nvjpg
+   cur_freq=729600000  max=729600000  load=  gov=userspace
+/sys/class/devfreq/15a50000.ofa -> /sys/devices/platform/bus@0/13e00000.host1x/15a50000.ofa/devfreq/15a50000.ofa
+   cur_freq=780800000  max=780800000  load=  gov=tegra_wmark
+/sys/class/devfreq/17000000.gpu -> /sys/devices/platform/bus@0/17000000.gpu/devfreq/17000000.gpu
+   cur_freq=306000000  max=918000000  load=  gov=nvhost_podgov
+-- 裝置節點 --
+crw-rw---- 1 root video 487,  0  1月  1  1970 /dev/nvhost-as-gpu
+crw-rw---- 1 root video 487,  2  1月  1  1970 /dev/nvhost-ctrl-gpu
+crw-rw---- 1 root video 493,  0  8月 26  2025 /dev/nvhost-ctrl-isp
+crw-rw---- 1 root video 501,  0  8月 26  2025 /dev/nvhost-ctrl-isp-thi
+crw-rw---- 1 root video 494,  0  8月 26  2025 /dev/nvhost-ctrl-nvcsi
+crw-rw---- 1 root video 499,  0  8月 26  2025 /dev/nvhost-ctrl-nvdla0
+crw-rw---- 1 root video 498,  0  8月 26  2025 /dev/nvhost-ctrl-nvdla1
+crw-rw---- 1 root video 497,  0  8月 26  2025 /dev/nvhost-ctrl-pva0
+crw-rw---- 1 root video 492,  0  8月 26  2025 /dev/nvhost-ctrl-vi0
+crw-rw---- 1 root video 505,  0  8月 26  2025 /dev/nvhost-ctrl-vi0-thi
+crw-rw---- 1 root video 491,  0  8月 26  2025 /dev/nvhost-ctrl-vi1
+crw-rw---- 1 root video 504,  0  8月 26  2025 /dev/nvhost-ctrl-vi1-thi
+crw-rw---- 1 root debug 487,  3  1月  1  1970 /dev/nvhost-ctxsw-gpu
+crw-rw---- 1 root debug 487,  4  1月  1  1970 /dev/nvhost-dbg-gpu
+crw-rw---- 1 root video 487,  1  1月  1  1970 /dev/nvhost-gpu
+crw-rw---- 1 root video 487, 10  1月  1  1970 /dev/nvhost-nvsched_ctrl_fifo-gpu
+crw-rw---- 1 root video 487,  9  1月  1  1970 /dev/nvhost-nvsched-gpu
+crw-rw---- 1 root video 506,  0  8月 26  2025 /dev/nvhost-power-gpu
+crw-rw---- 1 root debug 487,  6  1月  1  1970 /dev/nvhost-prof-ctx-gpu
+crw-rw---- 1 root debug 487,  7  1月  1  1970 /dev/nvhost-prof-dev-gpu
+crw-rw---- 1 root debug 487,  5  1月  1  1970 /dev/nvhost-prof-gpu
+crw-rw---- 1 root root  487,  8  1月  1  1970 /dev/nvhost-sched-gpu
+crw-rw---- 1 root video 487, 11  1月  1  1970 /dev/nvhost-tsg-gpu
+
+/dev/dri:
+total 0
+drwxr-xr-x  2 root root         80  8月 26  2025 by-path
+crw-rw----+ 1 root video  226,   0  8月 26  2025 card0
+crw-rw----+ 1 root render 226, 128  8月 26  2025 renderD128
+-- RKNPU（RK3588）--
+@@KV rknpu_version=
+version: (未取到：無 sudo 授權，略過 cat /sys/kernel/debug/rknpu/version)
+load:    (未取到：無 sudo 授權，略過 cat /sys/kernel/debug/rknpu/load)
+-- Jetson（Orin NX）--
+tegrastats 存在：/usr/bin/tegrastats
+09-22-2026 09:55:34 RAM 6866/15656MB (lfb 4x4MB) SWAP 0/7828MB (cached 0MB) CPU [78%@1958,61%@1958,65%@1958,66%@1958,65%@1651,67%@1651,67%@1651,66%@1651] GR3D_FREQ 99% cv0@38.75C cpu@40.656C soc2@39C soc0@38.187C cv1@38.75C gpu@38C tj@40.656C soc1@40.437C cv2@37.093C VDD_IN 12891mW/12891mW VDD_CPU_GPU_CV 6150mW/6150mW VDD_SOC 2343mW/2343mW
+09-22-2026 09:55:35 RAM 6842/15656MB (lfb 4x4MB) SWAP 0/7828MB (cached 0MB) CPU [76%@1728,67%@1728,67%@1728,68%@1728,68%@1497,64%@1497,64%@1497,67%@1497] GR3D_FREQ 99% cv0@38.718C cpu@40.718C soc2@39.062C soc0@38.375C cv1@38.875C gpu@37.968C tj@40.718C soc1@40.5C cv2@37.125C VDD_IN 12598mW/12745mW VDD_CPU_GPU_CV 6003mW/6077mW VDD_SOC 2197mW/2270mW
+09-22-2026 09:55:36 RAM 6814/15656MB (lfb 7x4MB) SWAP 0/7828MB (cached 0MB) CPU [75%@1984,64%@1984,68%@1984,64%@1984,73%@1497,66%@1497,69%@1497,70%@1497] GR3D_FREQ 99% cv0@38.593C cpu@40.656C soc2@39C soc0@38.281C cv1@38.75C gpu@37.843C tj@40.656C soc1@40.5C cv2@37.156C VDD_IN 12598mW/12696mW VDD_CPU_GPU_CV 6003mW/6052mW VDD_SOC 2197mW/2246mW
+NV Power Mode: MAXN
+0
+# R36 (release), REVISION: 4.7, GCID: 42132812, BOARD: generic, EABI: aarch64, DATE: Thu Sep 18 22:54:44 UTC 2025
+# KERNEL_VARIANT: oot
+TARGET_USERSPACE_LIB_DIR=nvidia
+TARGET_USERSPACE_LIB_DIR_PATH=usr/lib/aarch64-linux-gnu/nvidia
+-- OpenCL / CUDA 痕跡 --
+libcudadebugger.so.1
+libcuda.so
+libcudnn_adv.so
+libcudnn_adv.so.9
+libcudnn_adv.so.9.3.0
+libcudnn_cnn.so
+libcudnn_cnn.so.9
+libcudnn_cnn.so.9.3.0
+libcudnn_engines_precompiled.so
+libcudnn_engines_precompiled.so.9
+libcudnn_engines_precompiled.so.9.3.0
+libcudnn_engines_runtime_compiled.so
+libcudnn_engines_runtime_compiled.so.9
+libcudnn_engines_runtime_compiled.so.9.3.0
+libcudnn_graph.so
+libcudnn_graph.so.9
+libcudnn_graph.so.9.3.0
+libcudnn_heuristic.so
+libcudnn_heuristic.so.9
+libcudnn_heuristic.so.9.3.0
+bin
+cuda
+cuda-12
+cuda-12.6
+etc
+games
+include
+jetson_stats
+jtop
+lib
+man
+sbin
+share
+src
+
+======== ★ 1.3　溫度與風扇 ========
+thermal_zone0  cpu-thermal  40937
+thermal_zone1  gpu-thermal  37968
+thermal_zone2  cv0-thermal  38937
+thermal_zone3  cv1-thermal  38875
+thermal_zone4  cv2-thermal  37156
+thermal_zone5  soc0-thermal  38250
+thermal_zone6  soc1-thermal  40500
+thermal_zone7  soc2-thermal  39031
+thermal_zone8  tj-thermal  41000
+/sys/class/hwmon/hwmon0/name: pwmfan
+/sys/class/hwmon/hwmon1/name: ina3221
+/sys/class/hwmon/hwmon2/name: pwm_tach
+/sys/class/hwmon/hwmon3/name: soctherm_oc
+
+======== ★ 7.1　USB / 序列埠 / 影像裝置 ========
+-- lsusb --
+Bus 002 Device 003: ID 1a86:80a1 QinHeng Electronics USB3.0 HUB
+Bus 002 Device 002: ID 1a86:80a1 QinHeng Electronics USB3.0 HUB
+Bus 002 Device 001: ID 1d6b:0003 Linux Foundation 3.0 root hub
+Bus 001 Device 006: ID 1a86:55d9 QinHeng Electronics USB2.0 To Multi Serial Ports
+Bus 001 Device 005: ID 1a86:5397 QinHeng Electronics USB 10/100 LAN
+Bus 001 Device 004: ID 1a86:5397 QinHeng Electronics USB 10/100 LAN
+Bus 001 Device 003: ID 1a86:80a0 QinHeng Electronics USB2.0 HUB
+Bus 001 Device 002: ID 1a86:80a0 QinHeng Electronics USB2.0 HUB
+Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+-- lsusb -t --
+/:  Bus 02.Port 1: Dev 1, Class=root_hub, Driver=tegra-xusb/4p, 10000M
+    |__ Port 1: Dev 2, If 0, Class=Hub, Driver=hub/4p, 5000M
+    |__ Port 2: Dev 3, If 0, Class=Hub, Driver=hub/4p, 5000M
+/:  Bus 01.Port 1: Dev 1, Class=root_hub, Driver=tegra-xusb/4p, 480M
+    |__ Port 2: Dev 2, If 0, Class=Hub, Driver=hub/4p, 480M
+    |__ Port 3: Dev 3, If 0, Class=Hub, Driver=hub/4p, 480M
+        |__ Port 2: Dev 4, If 1, Class=CDC Data, Driver=cdc_ether, 480M
+        |__ Port 2: Dev 4, If 0, Class=Communications, Driver=cdc_ether, 480M
+        |__ Port 3: Dev 5, If 0, Class=Communications, Driver=cdc_ether, 480M
+        |__ Port 3: Dev 5, If 1, Class=CDC Data, Driver=cdc_ether, 480M
+        |__ Port 4: Dev 6, If 0, Class=Vendor Specific Class, Driver=usb_ch9344, 480M
+-- lsusb -v（只留 iProduct / bInterfaceClass，需要 sudo 才完整）--
+(未取到：無 sudo 授權，略過 lsusb -v)
+-- 影像裝置 --
+(沒有 /dev/video*)
+-- 序列埠（IMU / GPS / UWB 常走 UART）--
+crw-rw---- 1 root dialout   4, 64  8月 26  2025 /dev/ttyS0
+crw-rw---- 1 root dialout   4, 65  8月 26  2025 /dev/ttyS1
+crw-rw---- 1 root dialout   4, 66  8月 26  2025 /dev/ttyS2
+crw-rw---- 1 root dialout   4, 67  8月 26  2025 /dev/ttyS3
+crw-rw---- 1 root dialout 240,  1  8月 26  2025 /dev/ttyTHS1
+crw-rw---- 1 root dialout 240,  2  8月 26  2025 /dev/ttyTHS2
+crw-rw---- 1 root dialout 240,  3  9月 22 09:45 /dev/ttyTHS3
+(沒有)
+-- CAN --
+2: can0: <NOARP,ECHO> mtu 16 qdisc noop state DOWN mode DEFAULT group default qlen 10
+    link/can  promiscuity 0 minmtu 0 maxmtu 0 
+    can state STOPPED (berr-counter tx 0 rx 0) restart-ms 0 
+	  mttcan: tseg1 2..255 tseg2 0..127 sjw 1..127 brp 1..511 brp-inc 1
+	  mttcan: dtseg1 1..31 dtseg2 0..15 dsjw 1..15 dbrp 1..15 dbrp-inc 1
+	  clock 50000000 numtxqueues 1 numrxqueues 1 gso_max_size 65536 gso_max_segs 65535 parentbus platform parentdev c310000.mttcan 
+-- i2c / spi --
+/dev/i2c-0
+/dev/i2c-1
+/dev/i2c-2
+/dev/i2c-4
+/dev/i2c-5
+/dev/i2c-7
+/dev/spidev0.0
+/dev/spidev0.1
+/dev/spidev0.2
+-- 網路介面（光達走獨立網段）--
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+can0             DOWN           
+enxc817f52c3f92  UNKNOWN        192.168.1.102/24 fe80::1900:5161:8bee:ce70/64 
+enxc817f52c3f2c  UNKNOWN        192.168.2.102/24 fe80::9c32:2ac0:a20a:594d/64 
+enP8p1s0         UP             192.168.144.100/24 192.168.168.100/24 fe80::74f2:1f58:1693:a1ba/64 
+l4tbr0           DOWN           
+usb0             DOWN           
+usb1             DOWN           
+docker0          DOWN           172.17.0.1/16 
+default via 192.168.144.144 dev enP8p1s0 proto static metric 20102 
+169.254.0.0/16 dev enxc817f52c3f2c scope link metric 1000 
+172.17.0.0/16 dev docker0 proto kernel scope link src 172.17.0.1 linkdown 
+192.168.1.0/24 dev enxc817f52c3f92 proto kernel scope link src 192.168.1.102 metric 101 
+192.168.2.0/24 dev enxc817f52c3f2c proto kernel scope link src 192.168.2.102 metric 100 
+192.168.144.0/24 dev enP8p1s0 proto kernel scope link src 192.168.144.100 metric 102 
+192.168.168.0/24 dev enP8p1s0 proto kernel scope link src 192.168.168.100 metric 102 
+
+======== ★ 7.1／7.4　光達的獨立網段（從狗上看） ========
+✅ ping 192.168.1.102 通
+   HTTP: 000
+✅ ping 192.168.2.102 通
+   HTTP: 000
+-- 光達 UDP 埠有沒有在收（RoboSense msop 6699 / difop 7788 是慣用值）--
+State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess
+UNCONN 0      0      192.168.2.102:6688       0.0.0.0:*          
+UNCONN 0      0      192.168.1.102:6688       0.0.0.0:*          
+UNCONN 0      0      192.168.2.102:6699       0.0.0.0:*          
+UNCONN 2176   0      192.168.1.102:6699       0.0.0.0:*          
+UNCONN 0      0      192.168.2.102:7788       0.0.0.0:*          
+UNCONN 0      0      192.168.1.102:7788       0.0.0.0:*          
+UNCONN 0      0         127.0.0.53:53         0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:111        0.0.0.0:*          
+UNCONN 0      0          127.0.0.1:323        0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:5353       0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:46467      0.0.0.0:*          
+UNCONN 0      0                  *:111              *:*          
+UNCONN 0      0              [::1]:323              *:*          
+UNCONN 0      0                  *:37298            *:*          
+UNCONN 0      0                  *:5353             *:*          
+
+======== ★ 7.1　感測相關行程 ========
+   2788 65.0 1066892 localization  /opt/robot/robot_localization/install/localization/lib/localization/localization --ros-args --log-level localization:=DEBUG --ros-args --params-file /opt/robot/robot_localization/install/localization/share/localization/config/ros_params_loc_zg.yaml
+   3305 44.7 212156 component_conta /opt/ros/humble/lib/rclcpp_components/component_container_isolated --use_multi_threaded_executor --ros-args --log-level info --ros-args -r __node:=nav2_container --params-file /tmp/tmp74k5369s --params-file /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/robot_geometry/zg.yaml --params-file /tmp/launch_params_wntx251o -r /tf:=tf -r /tf_static:=tf_static
+   2998 43.8 83768 rslidar_sdk_nod /opt/robot/robot-driver/install/rslidar_sdk/lib/rslidar_sdk/rslidar_sdk_node --ros-args -r __ns:=/rslidar_sdk --params-file /tmp/launch_params_uonqxa9d
+   2787 43.7 2138116 arc_lvio      /opt/robot/robot_arc/install/arc_lvio/lib/arc_lvio/arc_lvio --ros-args -r __node:=arc_lvio_node
+   2574 32.0 36480 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch arc_state_machine arc_state_machine.launch.py robot_type:=zgw
+   2816 30.0 57116 arc_state_machi /opt/robot/robot_arc/install/arc_state_machine/lib/arc_state_machine/arc_state_machine_node --ros-args --log-level info --ros-args -r __node:=arc_state_machine_node --params-file /opt/robot/robot_arc/install/arc_state_machine/share/arc_state_machine/config/ZGW/arc_state_machine_params.yaml --params-file /tmp/launch_params_mfry7beo
+   2600 28.7 501028 robot_slam     /opt/robot/robot_slam/install/robot_slam/lib/robot_slam/robot_slam
+   2588 25.5 155832 apriltag_locali ./bin/apriltag_localization_node ./config/apriltag_localization_pc_config_middle_dog.yaml
+   2452 21.9 42172 robot_alg_manag robot_alg_manager zg-arc
+   2796 19.1 1058076 arc_mapping   /opt/robot/robot_arc/install/arc_mapping/lib/arc_mapping/arc_mapping --ros-args -r __node:=arc_mapping_node
+   2486 13.3 37580 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch navigo_charging_alignment charging_alignment.launch.py robot_type:=zgw
+   3028  8.4 29996 imu_driver      /opt/robot/robot-driver/install/imu_driver/lib/imu_driver/imu_driver --ros-args -r __node:=imu_driver --params-file /opt/robot/robot-driver/install/imu_driver/share/imu_driver/config/imu_params.yaml
+   2791  6.1 32928 charging_alignm /opt/robot/robot_arc/install/navigo_charging_alignment/lib/navigo_charging_alignment/charging_alignment_server --ros-args --log-level info --ros-args -r __node:=charging_alignment_server --params-file /opt/robot/robot_arc/install/navigo_charging_alignment/share/navigo_charging_alignment/config/ZGW/charging_alignment_params.yaml --params-file /tmp/launch_params_zu99n0jh
+   2695  3.9 136868 robot_forward  ./robot_forward
+   3307  3.3 36840 navigo_error_ag /opt/robot/robot_nav/install/navigo_error_aggregator/lib/navigo_error_aggregator/navigo_error_aggregator_node --ros-args -r __node:=error_aggregator --params-file /opt/robot/robot_nav/install/navigo_error_aggregator/share/navigo_error_aggregator/config/config.yaml --params-file /tmp/launch_params_ef_d4tba
+   2463  2.7 64284 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch robot_nav2 navigation_bringup.launch.py platform:=REAL robot_type:=zg
+   2475  2.7 38568 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch arc_mapping arc_mapping.launch.py
+   2569  1.3 35920 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch arc_lvio arc_lvio.launch.py
+   2612  1.2 35928 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch localization localization_zg.launch.py
+   2799  1.1 34036 sixents_gps_dri /opt/robot/robot-driver/install/sixents_gps_driver/lib/sixents_gps_driver/sixents_gps_driver --ros-args -r __node:=sixents_gps_driver --params-file /tmp/launch_params_e6tk7f6c --params-file /tmp/launch_params_82uwkkd6 --params-file /tmp/launch_params_dq2xme4q --params-file /tmp/launch_params_xm2e5r6b --params-file /tmp/launch_params_0cyz6ey0 --params-file /tmp/launch_params_t5s2m73z --params-file /tmp/launch_params_h1kuopjf --params-file /tmp/launch_params_auygzd9n --params-file /tmp/launch_params_xmzos432 --params-file /tmp/launch_params_m4g6hx_d --params-file /tmp/launch_params_n1r96fyn --params-file /tmp/launch_params_8hujbcqi --params-file /tmp/launch_params_873831xc --params-file /tmp/launch_params_36lgn0c8 --params-file /tmp/launch_params_2cmf7qlv --params-file /tmp/launch_params_4skz9sla --params-file /tmp/launch_params_9czalx3e
+   2688  0.5 48632 meb_node        /opt/robot/robot_meb/install/robot_meb/lib/robot_meb/meb_node --ros-args --log-level info --ros-args -r __node:=MEB --params-file /opt/robot/robot_meb/install/robot_meb/share/robot_meb/config/meb.yaml
+   2839  0.5 28596 uss_node        /opt/robot/robot-driver/install/uss_driver/lib/uss_driver/uss_node --ros-args --params-file /opt/robot/robot-driver/install/uss_driver/share/uss_driver/config/zsm_v4.yaml
+   2702  0.2 36192 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch sixents_gps_driver sixents_gps_driver.launch.py
+   2450  0.1 37380 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch robot_meb meb_node.launch.py log_dir:=/tmp/log/alg_data log_level:=info
+   2999  0.1 29600 uwb_driver_node /opt/robot/robot-driver/install/uwb_driver/lib/uwb_driver/uwb_driver_node --ros-args -r __node:=uwb_driver --params-file /opt/robot/robot-driver/install/uwb_driver/share/uwb_driver/config/uwb_params.yaml
+   1084  0.0  2520 gpsd            /usr/sbin/gpsd -s 460800 -G -n -P NMEA
+   1670  0.0  1580 rtkit-daemon    /usr/libexec/rtkit-daemon
+   2090  0.0  3608 bash            /usr/bin/bash /opt/runtime/bin/robot_start_app.sh
+   2348  0.0  3572 bash            bash /opt/runtime/bin/start_robot_forward.sh
+   2349  0.0  3572 bash            bash /opt/runtime/bin/start_imu_driver.sh
+   2351  0.0  3476 bash            bash /opt/runtime/bin/start_robot_meb.sh
+   2352  0.0  3560 bash            bash /opt/runtime/bin/start_rslidar_driver.sh
+   2354  0.0  3556 bash            bash /opt/runtime/bin/start_rtk_driver.sh
+   2358  0.0  3568 bash            bash /opt/runtime/bin/start_uss_driver.sh
+   2362  0.0  3564 bash            bash /opt/runtime/bin/start_uwb_driver.sh
+   2694  0.0 35920 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch uss_driver zsm_v4.launch.py
+   2781  0.0 35940 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch uwb_driver uwb_driver.launch.py
+   2785  0.0 35936 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch imu_driver imu_driver.launch.py
+   2786  0.0 35988 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch rslidar_sdk start.py
+-- mc_ctrl 的核親和性（cpu7 隔離是不是真的只給運控）--
+-- robot-launch 服務清單 --
+
+[38;5;11m[38;5;11m⬮[39m[39m [2m[2mall info snapshot[0m[0m
+
+
+[38;5;11m[38;5;11m⬮[39m[39m [2m[2meggs snapshot[0m[0m
+
+[0m[2m╭[0m[0m[2m────[0m[0m[2m┬[0m[0m[2m──────[0m[0m[2m┬[0m[0m[2m───────────────────[0m[0m[2m┬[0m[0m[2m─────────[0m[0m[2m┬[0m[0m[2m───[0m[0m[2m┬[0m[0m[2m────────[0m[0m[2m╮[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m# [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34mpid [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34mname             [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34mstatus [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m↺[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34muptime[0m[2m [0m[0m[2m│[0m
+[0m[0m[2m├[0m[0m[2m────[0m[0m[2m┼[0m[0m[2m──────[0m[0m[2m┼[0m[0m[2m───────────────────[0m[0m[2m┼[0m[0m[2m─────────[0m[0m[2m┼[0m[0m[2m───[0m[0m[2m┼[0m[0m[2m────────[0m[0m[2m┤[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m1 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m2352[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mdriver-rslidar   [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m  9m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m2 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m2358[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mdriver-uss       [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m  9m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m3 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m2349[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mdriver-imu       [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m  9m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m4 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m2362[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mdriver-uwb       [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m  9m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m5 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m2354[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mdriver-rtk       [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m  9m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m6 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m2359[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mperception-seg   [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m  9m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m7 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m2348[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mrobot-forward    [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m  9m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m8 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0   [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mtime-sync        [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[33mstopped[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m  _   [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m9 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m2350[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mrobot-alg-manager[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m  9m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m10[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m2351[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mrobot-meb        [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m  9m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m╰[0m[0m[2m────[0m[0m[2m┴[0m[0m[2m──────[0m[0m[2m┴[0m[0m[2m───────────────────[0m[0m[2m┴[0m[0m[2m─────────[0m[0m[2m┴[0m[0m[2m───[0m[0m[2m┴[0m[0m[2m────────[0m[0m[2m╯[0m
+[0m
+
+[38;5;11m[38;5;11m⬮[39m[39m [2m[2mno services[0m[0m
+
+
+======== ★ 7.2　相機設定與能力 ========
+-- RTSP 伺服器（mediamtx）--
+(沒看到 RTSP 埠在 listen)
+(找不到 mediamtx 設定檔)
+
+======== ★ 7.1／7.2／7.4　感測驅動設定檔 ========
+@@FILE /opt/robot/robot_arc/install/apriltag_localization/config/camera_calib.yaml
+%YAML:1.0
+---
+camera_matrix: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 791.5004023272736, 0., 1005.0190564261223, 0.,
+       791.5848171457094, 560.1217000128077, 0., 0., 1. ]
+dist_coeffs: !!opencv-matrix
+   rows: 1
+   cols: 5
+   dt: d
+   data: [ -0.10389823212088466, 0.01117498710777802,
+       3.587135904886769e-05, 8.83939765863256e-05,
+       -0.0003010549043691094 ]   … (截斷於 140 行)
+-- 光達設定的關鍵欄位（挑出來標記，方便產表）--
+
+======== ROS2 環境（第一趟就是死在這一段） ========
+-- /opt/runtime/env.bash --
+export PATH=$PATH:/opt/runtime/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/runtime/lib
+
+source /opt/ros/humble/setup.bash
+source /opt/robot/robot-driver/install/setup.bash
+source /usr/share/colcon_cd/function/colcon_cd.sh
+source /usr/share/colcon_argcomplete/hook/colcon-argcomplete.bash
+export ROS_DOMAIN_ID=24
+export ROS_LOCALHOST_ONLY=0
+export LC_NUMERIC="en_US.UTF-8"
+export _colcon_cd_root=/opt/ros/humble/
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp #rmw_fastrtps_cpp
+export ZENOH_ROUTER_CONFIG_URI=/opt/runtime/config/zenoh_router_config.json5
+export RCUTILS_COLORIZED_OUTPUT=1
+export RCUTILS_LOGGING_USE_STDOUT=1
+export RCUTILS_LOGGING_BUFFERED_STREAM=1
+export RCUTILS_CONSOLE_OUTPUT_FORMAT="[{date}] [{severity}] [{name}]: {message}"
+export ROBOT_LOG_DIR=/home/robot
+# export ROBOT_API_HOST=0.0.0.0
+ROS_DOMAIN_ID=24  RMW=rmw_zenoh_cpp
+ros2: /opt/ros/humble/bin/ros2
+@@KV ros_domain_id=24
+
+======== ★★★ ROS2 topic 全表 ========
+/aligned_points
+/arc/arc_change_flag
+/arc/arc_change_flag_test
+/arc/arc_module_states_debug_info
+/arc/arc_state
+/arc/arc_state_debug_info
+/arc/calibration_state
+/arc/dock_pose
+/arc/dock_state
+/arc_mapping_state
+/arc/mc_mode_cmd
+/arc/mc_state
+/arc/nav_alignment/cmd_vel_raw
+/arc/nav_alignment/debug_info
+/arc/nav_alignment/error_vector
+/arc/nav_coarse_alignment_mode_cmd
+/arc/nav_coarse_alignment_state
+/arc/nav_contact_alignment_mode_cmd
+/arc/nav_contact_alignment_state
+/arc/nav_fine_alignment_mode_cmd
+/arc/nav_fine_alignment_state
+/arc/perception_dock_pose
+/arc/perception_mode_cmd
+/arc/perception_state
+/arc/slam_dock_pose
+/arc/slam_mode_cmd
+/arc/slam_state
+/arc/start_arc
+/body_points
+/cmd_pos
+/cmd_vel
+/cmd_vel_with_mc_trajectory
+/diagnostics
+/electronic_fence
+/electronic_map
+/front_camera/image_compressed
+/front_lidar
+/front_lidar/imu
+/global_map_points
+/gnss/data
+/gps/rtk
+/handle_vel
+/imu_driver/imu_central
+/initialpose
+/laser_scan
+/lio_pose
+/localization_info
+/localization_path
+/localization_state
+/meb_brake
+/meb/collision_debug
+/meb/pred_path
+/meb/safety_corridor
+/meb_status
+/meb_switch
+/navigation_cmd
+/navigation_state
+/navigo/bn/cmn/dbg/behavior_tree_log
+/navigo/bn/cmn/vis/candidate_local_paths
+/navigo/bn/cmn/vis/evaluated_goal
+/navigo/bn/cmn/vis/global_path
+/navigo/bn/cmn/vis/goal
+/navigo/bn/cmn/vis/goals
+/navigo/bn/cmn/vis/local_path
+/navigo/bn/cmn/vis/predicted_goal
+/navigo/bn/cmn/vis/predicted_goal_path
+/navigo/bn/cmn/vis/relocalization_goal
+/navigo/cm/cmn/vis/polygon_stop
+/navigo/cm/cmn/vis/selective_stop
+/navigo/cs/cmn/intf/cmd_vel_raw
+/navigo/cs/cmn/intf/cmd_vel_valid
+/navigo/cs/lpc/vis/base_candidate_plan
+/navigo/cs/lpc/vis/best_local_plan
+/navigo/cs/lpc/vis/footprint_collision
+/navigo/cs/lpc/vis/footprint_samples
+/navigo/cs/lpc/vis/free_paths
+/navigo/cs/lpc/vis/laser_point_cloud
+/navigo/cs/lpc/vis/local_planner_goal
+/navigo/cs/lpc/vis/lookahead_point
+/navigo/cs/lpc/vis/received_global_plan
+/navigo/cs/ppc/vis/curvature_lookahead_point
+/navigo/cs/ppc/vis/lookahead_collision_arc
+/navigo/cs/ppc/vis/lookahead_point
+/navigo/cs/ppc/vis/predicted_points
+/navigo/cs/ppc/vis/received_global_plan
+/navigo/ea/cmn/intf/nav_error
+/navigo/ea/cmn/intf/nav_error_clear
+/navigo/ea/cmn/intf/nav_error_primary
+/navigo/ea/cmn/intf/nav_error_report
+/navigo/ea/cmn/intf/nav_errors
+/navigo/ea/cmn/intf/nav_lifecycle/behavior_server/state
+/navigo/ea/cmn/intf/nav_lifecycle/bt_navigator/state
+/navigo/ea/cmn/intf/nav_lifecycle/collision_monitor/state
+/navigo/ea/cmn/intf/nav_lifecycle/controller_server/state
+/navigo/ea/cmn/intf/nav_lifecycle/global_costmap/global_costmap/state
+/navigo/ea/cmn/intf/nav_lifecycle/local_costmap_controller/local_costmap_controller/state
+/navigo/ea/cmn/intf/nav_lifecycle/local_costmap/local_costmap/state
+/navigo/ea/cmn/intf/nav_lifecycle/map_server/state
+/navigo/ea/cmn/intf/nav_lifecycle/planner_server/state
+/navigo/ea/cmn/intf/nav_lifecycle/velocity_optimizer/state
+/navigo/ea/cmn/intf/nav_lifecycle/waypoint_follower/state
+/navigo/gc/cmn/intf/footprint
+/navigo/gc/cmn/vis/costmap
+/navigo/gc/cmn/vis/costmap_raw
+/navigo/gc/cmn/vis/costmap_updates
+/navigo/gc/cmn/vis/published_footprint
+/navigo/gc/ftr/vis/grouped_frontiers_map
+/navigo/gc/ftr/vis/include_frontiers_map
+/navigo/gc/ftr/vis/processed_map
+/navigo/lcc/cmn/intf/footprint
+/navigo/lcc/cmn/vis/costmap
+/navigo/lcc/cmn/vis/costmap_raw
+/navigo/lcc/cmn/vis/costmap_updates
+/navigo/lcc/cmn/vis/published_footprint
+/navigo/lc/cmn/intf/footprint
+/navigo/lc/cmn/vis/costmap
+/navigo/lc/cmn/vis/costmap_raw
+/navigo/lc/cmn/vis/costmap_updates
+/navigo/lc/cmn/vis/published_footprint
+/navigo/lcc/obs/vis/published_goal_safe_area
+/navigo/lc/obs/vis/published_goal_safe_area
+/navigo/lm/cmn/dbg/behavior_server/transition_event
+/navigo/lm/cmn/dbg/bt_navigator/transition_event
+/navigo/lm/cmn/dbg/collision_monitor/transition_event
+/navigo/lm/cmn/dbg/controller_server/transition_event
+/navigo/lm/cmn/dbg/global_costmap/global_costmap/transition_event
+/navigo/lm/cmn/dbg/local_costmap_controller/local_costmap_controller/transition_event
+/navigo/lm/cmn/dbg/local_costmap/local_costmap/transition_event
+/navigo/lm/cmn/dbg/map_server/transition_event
+/navigo/lm/cmn/dbg/planner_server/transition_event
+/navigo/lm/cmn/dbg/velocity_optimizer/transition_event
+/navigo/lm/cmn/dbg/waypoint_follower/transition_event
+/navigo/lm/cmn/intf/bond
+/navigo/ms/cmn/intf/map
+/navigo/ps/cmn/intf/clean_obstacles_around_goal
+/navigo/ps/cmn/vis/get_optimized_path_all_paths_visualization
+/navigo/ps/cmn/vis/get_optimized_path_corridor_visualization
+/navigo/ps/cmn/vis/get_optimized_path_matched_points_markers
+/navigo/ps/cmn/vis/global_esdf_pos_distance
+/navigo/ps/cmn/vis/local_esdf_pos_distance
+/navigo/ps/cmn/vis/planned_path
+/navigo/ps/cmn/vis/planned_trajectories
+/navigo/ps/cmn/vis/quadtree_topo_graph
+/navigo/ps/slp/vis/start_end_visualization
+/navigo/ps/stp/dbg/planner_debug_info
+/navigo/ps/stp/vis/corridor_clearance_visualization
+/navigo/ps/stp/vis/front_end_exploration_traj_visualization
+/navigo/ps/stp/vis/front_end_goal_connection_traj_visualization
+/navigo/ps/stp/vis/front_end_middle_traj_visualization
+/navigo/ps/stp/vis/front_end_shot_traj_visualization
+/navigo/ps/stp/vis/front_end_start_connection_traj_visualization
+/navigo/ps/stp/vis/front_end_traj_visualization
+/navigo/ps/stp/vis/guidance_path
+/navigo/ps/stp/vis/hybrid_astar_exploration_points
+/navigo/ps/stp/vis/hybrid_astar_search/candidate_inputs
+/navigo/ps/stp/vis/hybrid_astar_search/cost_indicators
+/navigo/ps/stp/vis/hybrid_astar_search/direction_arrows
+/navigo/ps/stp/vis/hybrid_astar_search/explored_nodes
+/navigo/ps/stp/vis/hybrid_astar_search/robot_footprint
+/navigo/ps/stp/vis/hybrid_astar_search/selected_input
+/navigo/ps/stp/vis/hybrid_astar_search/shot_path
+/navigo/ps/stp/vis/hybrid_astar_start_end_sampling_points
+/navigo/ps/stp/vis/quadtree_dijkstra_progress
+/navigo/ps/stp/vis/quadtree_multi_inflation_results
+/navigo/ps/stp/vis/quadtree_path_visualization
+/navigo/ps/stp/vis/quadtree_start_goal_grids
+/navigo/ps/stp/vis/safe_drive_corridor
+/navigo/ps/stp/vis/start_end_visualization
+/navigo/ps/stp/vis/tracking_searcher_each_expansion_step_planner_goal
+/navigo/ps/tpg/vis/centerline_points
+/navigo/ps/tpg/vis/esdf_cloud
+/navigo/ps/tpg/vis/esdf_slice
+/navigo/ps/tpg/vis/pcd_overlay
+/navigo/ps/tpg/vis/three_dim_search_path
+/navigo/ps/tpg/vis/three_dim_topo_edges
+/navigo/ps/tpg/vis/three_dim_topo_nodes
+/navigo/ps/tpg/vis/virtual_walls
+/navigo/wf/cmn/intf/update_tracking_goal
+/navigo/wf/cmn/vis/original_reference_path
+/odom/current_pose
+/odom/current_pose/history
+/odom/gazebo_odom
+/odom/localization_odom
+/odom/mc_odom
+/odom/mujoco_odom
+/odom/slam_odom
+/parameter_events
+/perception/detection3d
+/perception_points
+/perception_state
+/pers/state
+/polygons
+/predicted_paths
+/pub_slam_state
+/rear_camera/image_compressed
+/rear_lidar
+/rear_lidar/imu
+/rosout
+/rtk_pvh
+/seg_vis/compressed
+/set_desired_angular_vel_z
+/set_desired_linear_vel_x
+/set_desired_linear_vel_y
+/set_lookahead_distance
+/set_speed_limit
+/slam/manual_loop
+/start_navigation
+/tf
+/tf_manager/odom_type
+/tf_static
+/uni_best_nav
+/uni_heading
+/uni_rtk_pvh
+/uss_driver/uss_left/range
+/uss_driver/uss_right/range
+/uwb
+/uwb_point
+/world_points
+@@KV topic_count=218
+
+======== ROS2 node 全表 ========
+/arc_lvio_node
+/arc_mapping_node
+/arc_state_machine_node
+/aritag_location_pipline
+/behavior_server
+/bridge_image_topics_24
+/bt_navigator
+/bt_navigator_navigate_through_poses_rclcpp_node
+/bt_navigator_navigate_to_pose_rclcpp_node
+/charging_alignment_server
+/collision_monitor
+/controller_server
+/error_aggregator
+/global_costmap/global_costmap
+/imu_driver
+/launch_ros_2463
+/lifecycle_manager_navigation
+/local_costmap_controller/local_costmap_controller
+/local_costmap/local_costmap
+/localization
+/map_server
+/MEB
+/nav2_container
+/perception_jobs
+/planner_server
+/remoix_rust_interface
+/robot_slam
+/robot_tf
+/rslidar_sdk/param_handle
+/rslidar_sdk/rslidar_points_destination_0
+/rslidar_sdk/rslidar_points_destination_1
+/sixents_gps_driver
+/uss_driver
+/uwb_driver
+/velocity_optimizer
+/waypoint_follower
+
+======== ★★★ 7.1／7.2／7.4　感測 topic 的型別、QoS、發布者、實測頻率 ========
+---------------- /aligned_points ----------------
+@@TOPIC /aligned_points|sensor_msgs/msg/PointCloud2|未取到|1
+-- topic info -v（含 QoS）--
+Type: sensor_msgs/msg/PointCloud2
+
+Publisher count: 1
+
+Node name: localization
+Node namespace: /
+Topic type: sensor_msgs/msg/PointCloud2
+Endpoint type: PUBLISHER
+GID: dd.ca.92.c0.6f.59.ec.8e.4c.6e.01.aa.4e.d5.09.1e.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 0
+-- 一筆內容（陣列截斷 120）--
+!rclpy.ok()
+
+---------------- /body_points ----------------
+@@TOPIC /body_points|sensor_msgs/msg/PointCloud2|未取到|1
+-- topic info -v（含 QoS）--
+Type: sensor_msgs/msg/PointCloud2
+
+Publisher count: 1
+
+Node name: localization
+Node namespace: /
+Topic type: sensor_msgs/msg/PointCloud2
+Endpoint type: PUBLISHER
+GID: 93.ea.f2.46.5f.f2.a4.10.4f.80.9a.1c.2d.62.9f.c2.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 0
+-- 一筆內容（陣列截斷 120）--
+
+
+---------------- /front_camera/image_compressed ----------------
+@@TOPIC /front_camera/image_compressed|sensor_msgs/msg/CompressedImage|10.059|1
+-- topic info -v（含 QoS）--
+Type: sensor_msgs/msg/CompressedImage
+
+Publisher count: 1
+
+Node name: bridge_image_topics_24
+Node namespace: /
+Topic type: sensor_msgs/msg/CompressedImage
+Endpoint type: PUBLISHER
+GID: 99.1a.e1.4a.b9.69.cd.cf.c1.1f.d5.21.a3.5d.57.e6.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 6
+
+Node name: robot_slam
+Node namespace: /
+Topic type: sensor_msgs/msg/CompressedImage
+Endpoint type: SUBSCRIPTION
+GID: 3d.64.73.97.fa.3d.15.a3.6d.4a.9f.42.f2.ef.f8.3b.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (100)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: perception_jobs
+Node namespace: /
+Topic type: sensor_msgs/msg/CompressedImage
+Endpoint type: SUBSCRIPTION
+GID: e4.8c.b5.69.56.f4.e1.89.e8.64.a4.a5.7c.0b.a4.c6.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (5)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: arc_mapping_node
+Node namespace: /
+Topic type: sensor_msgs/msg/CompressedImage
+Endpoint type: SUBSCRIPTION
+GID: f3.be.4d.e0.6c.0b.bd.8a.45.f3.f7.7d.dc.d1.37.82.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (200)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: arc_lvio_node
+Node namespace: /
+Topic type: sensor_msgs/msg/CompressedImage
+Endpoint type: SUBSCRIPTION
+GID: 86.ca.f9.a5.95.cb.32.f8.72.1c.1b.4a.c3.fc.35.c6.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (200)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: localization
+Node namespace: /
+Topic type: sensor_msgs/msg/CompressedImage
+Endpoint type: SUBSCRIPTION
+GID: ed.e3.4a.e1.a9.d6.b8.0d.6f.9a.7a.dd.99.8f.d4.f7.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: aritag_location_pipline
+Node namespace: /
+Topic type: sensor_msgs/msg/CompressedImage
+Endpoint type: SUBSCRIPTION
+GID: 7a.d4.66.98.ce.26.2a.7d.53.49.3f.63.60.ad.1f.b4.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+-- 一筆內容（陣列截斷 120）--
+header:
+  stamp:
+    sec: 1790042266
+    nanosec: 439564847
+  frame_id: camera_front
+format: jpeg
+data:
+- 255
+- 216
+- 255
+- 224
+- 0
+- 16
+- 74
+- 70
+- 73
+- 70
+- 0
+- 1
+- 1
+- 0
+- 0
+- 1
+- 0
+- 1
+- 0
+- 0
+- 255
+- 219
+- 0
+- 67
+- 0
+- 5
+- 3
+- 4
+- 4
+- 4
+- 3
+- 5
+- 4
+- 4
+- 4
+- 5
+- 5
+- 5
+- 6
+- 7
+- 12
+- 8
+- 7
+- 7
+- 7
+- 7
+- 15
+- 11
+- 11
+- 9
+- 12
+- 17
+- 15
+- 18
+- 18
+- 17
+- 15
+- 17
+- 17
+- 19
+- 22
+- 28
+- 23
+- 19
+- 20
+- 26
+- 21
+- 17
+- 17
+- 24
+- 33
+- 24
+- 26
+- 29
+- 29
+- 31
+- 31
+- 31
+- 19
+- 23
+- 34
+- 36
+- 34
+- 30
+- 36
+- 28
+- 30
+- 31
+- 30
+- 255
+- 219
+- 0
+- 67
+- 1
+- 5
+- 5
+- 5
+- 7
+- 6
+- 7
+- 14
+- 8
+- 8
+- 14
+- 30
+- 20
+- 17
+- 20
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- '...'
+---
+
+---------------- /front_lidar ----------------
+@@TOPIC /front_lidar|sensor_msgs/msg/PointCloud2|10.022|1
+-- topic info -v（含 QoS）--
+Type: sensor_msgs/msg/PointCloud2
+
+Publisher count: 1
+
+Node name: rslidar_points_destination_0
+Node namespace: /rslidar_sdk
+Topic type: sensor_msgs/msg/PointCloud2
+Endpoint type: PUBLISHER
+GID: ed.7c.a9.73.d8.0d.ec.de.88.50.40.97.a7.0f.fc.4f.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (100)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 5
+
+Node name: robot_slam
+Node namespace: /
+Topic type: sensor_msgs/msg/PointCloud2
+Endpoint type: SUBSCRIPTION
+GID: 5b.c3.4b.ab.bd.de.ca.96.f1.bb.69.c5.fc.38.75.af.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (100)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: localization
+Node namespace: /
+Topic type: sensor_msgs/msg/PointCloud2
+Endpoint type: SUBSCRIPTION
+GID: 92.5f.c4.b6.7c.7f.0b.87.b9.f1.48.20.8b.3a.01.1e.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: perception_jobs
+Node namespace: /
+Topic type: sensor_msgs/msg/PointCloud2
+Endpoint type: SUBSCRIPTION
+GID: b1.15.63.d7.1f.9b.3e.78.d7.80.c6.57.2b.e6.cf.bb.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (5)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: localization
+Node namespace: /
+Topic type: sensor_msgs/msg/PointCloud2
+Endpoint type: SUBSCRIPTION
+GID: 4b.04.aa.06.87.3f.f6.72.b2.2a.cf.fa.11.83.aa.74.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (5)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: arc_lvio_node
+Node namespace: /
+Topic type: sensor_msgs/msg/PointCloud2
+Endpoint type: SUBSCRIPTION
+GID: 5f.87.88.a7.d6.d1.71.84.86.33.68.32.d9.d5.44.dc.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+-- 一筆內容（陣列截斷 120）--
+header:
+  stamp:
+    sec: 1790042278
+    nanosec: 300018311
+  frame_id: rslidar_head
+height: 900
+width: 96
+fields:
+- name: x
+  offset: 0
+  datatype: 7
+  count: 1
+- name: y
+  offset: 4
+  datatype: 7
+  count: 1
+- name: z
+  offset: 8
+  datatype: 7
+  count: 1
+- name: intensity
+  offset: 12
+  datatype: 7
+  count: 1
+- name: ring
+  offset: 16
+  datatype: 4
+  count: 1
+- name: timestamp
+  offset: 18
+  datatype: 8
+  count: 1
+is_bigendian: false
+point_step: 26
+row_step: 2496
+data:
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 0
+- 0
+- 0
+- 0
+- 128
+- 51
+- 147
+- 41
+- 120
+- 172
+- 218
+- 65
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 0
+- 0
+- 1
+- 0
+- 128
+- 51
+- 147
+- 41
+- 120
+- 172
+- 218
+- 65
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 0
+- 0
+- 2
+- 0
+- 128
+- 51
+- 147
+- 41
+- 120
+- 172
+- 218
+- 65
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 0
+- 0
+- 3
+- 0
+- 128
+- 51
+- 147
+- 41
+- 120
+- 172
+- 218
+- 65
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 0
+- 0
+- '...'
+is_dense: false
+---
+
+---------------- /front_lidar/imu ----------------
+@@TOPIC /front_lidar/imu|sensor_msgs/msg/Imu|200.087|1
+-- topic info -v（含 QoS）--
+Type: sensor_msgs/msg/Imu
+
+Publisher count: 1
+
+Node name: rslidar_points_destination_0
+Node namespace: /rslidar_sdk
+Topic type: sensor_msgs/msg/Imu
+Endpoint type: PUBLISHER
+GID: 78.05.01.38.06.39.52.08.30.c1.9e.ee.0f.06.e3.12.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (1000)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 3
+
+Node name: localization
+Node namespace: /
+Topic type: sensor_msgs/msg/Imu
+Endpoint type: SUBSCRIPTION
+GID: 6f.75.f9.4e.c4.98.99.f7.90.10.3c.79.de.e3.6b.5b.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (125)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: robot_slam
+Node namespace: /
+Topic type: sensor_msgs/msg/Imu
+Endpoint type: SUBSCRIPTION
+GID: 4c.01.e1.7f.c3.3d.dc.99.38.c1.03.64.6d.af.8c.00.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (200)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: arc_lvio_node
+Node namespace: /
+Topic type: sensor_msgs/msg/Imu
+Endpoint type: SUBSCRIPTION
+GID: b2.f2.d0.ab.65.de.c4.0d.ef.6f.bd.6d.a7.52.28.e5.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (200)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+-- 一筆內容（陣列截斷 120）--
+header:
+  stamp:
+    sec: 1790042290
+    nanosec: 232422912
+  frame_id: rslidar_head
+orientation:
+  x: 0.0
+  y: 0.0
+  z: 0.0
+  w: 1.0
+orientation_covariance:
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+angular_velocity:
+  x: -0.004261057823896408
+  y: -0.007989482954144478
+  z: -0.006125270389020443
+angular_velocity_covariance:
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+linear_acceleration:
+  x: 0.013427734375
+  y: 0.9981689453125
+  z: -0.024658203125
+linear_acceleration_covariance:
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+---
+
+---------------- /global_map_points ----------------
+@@TOPIC /global_map_points|sensor_msgs/msg/PointCloud2|未取到|1
+-- topic info -v（含 QoS）--
+Type: sensor_msgs/msg/PointCloud2
+
+Publisher count: 1
+
+Node name: localization
+Node namespace: /
+Topic type: sensor_msgs/msg/PointCloud2
+Endpoint type: PUBLISHER
+GID: 8f.c9.8e.f3.08.c7.ea.7c.91.9a.8f.5d.ab.a0.ee.41.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 0
+-- 一筆內容（陣列截斷 120）--
+!rclpy.ok()
+
+---------------- /gnss/data ----------------
+@@TOPIC /gnss/data|robots_dog_msgs/msg/Nmea|未取到|0
+-- topic info -v（含 QoS）--
+Type: robots_dog_msgs/msg/Nmea
+
+Publisher count: 0
+
+Subscription count: 1
+
+Node name: localization
+Node namespace: /
+Topic type: robots_dog_msgs/msg/Nmea
+Endpoint type: SUBSCRIPTION
+GID: f5.f0.c3.b6.e9.8c.01.a1.ef.25.f5.70.01.66.b1.35.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (5)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+-- 一筆內容（陣列截斷 120）--
+
+
+---------------- /gps/rtk ----------------
+@@TOPIC /gps/rtk|sensor_msgs/msg/NavSatFix|未取到|0
+-- topic info -v（含 QoS）--
+Type: sensor_msgs/msg/NavSatFix
+
+Publisher count: 0
+
+Subscription count: 1
+
+Node name: localization
+Node namespace: /
+Topic type: sensor_msgs/msg/NavSatFix
+Endpoint type: SUBSCRIPTION
+GID: 8b.cd.69.e1.22.4a.62.62.71.c2.3d.97.b3.0d.f9.f7.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+-- 一筆內容（陣列截斷 120）--
+!rclpy.ok()
+
+---------------- /imu_driver/imu_central ----------------
+@@TOPIC /imu_driver/imu_central|sensor_msgs/msg/Imu|200.345|1
+-- topic info -v（含 QoS）--
+Type: sensor_msgs/msg/Imu
+
+Publisher count: 1
+
+Node name: imu_driver
+Node namespace: /
+Topic type: sensor_msgs/msg/Imu
+Endpoint type: PUBLISHER
+GID: 5e.78.93.fd.c2.50.3f.d9.d5.41.e9.e4.a0.61.ad.d2.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 0
+-- 一筆內容（陣列截斷 120）--
+header:
+  stamp:
+    sec: 1790042448
+    nanosec: 315213684
+  frame_id: imu_link
+orientation:
+  x: 0.0
+  y: 0.0
+  z: 0.0
+  w: 1.0
+orientation_covariance:
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+angular_velocity:
+  x: 0.0001756610364586115
+  y: 0.0007316406900200993
+  z: -0.003165884036922455
+angular_velocity_covariance:
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+linear_acceleration:
+  x: 0.006411371286958456
+  y: -0.012972989119589329
+  z: -1.0017962455749512
+linear_acceleration_covariance:
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+---
+
+---------------- /laser_scan ----------------
+@@TOPIC /laser_scan|sensor_msgs/msg/LaserScan|4.547|1
+-- topic info -v（含 QoS）--
+Type: sensor_msgs/msg/LaserScan
+
+Publisher count: 1
+
+Node name: perception_jobs
+Node namespace: /
+Topic type: sensor_msgs/msg/LaserScan
+Endpoint type: PUBLISHER
+GID: 82.d1.77.9c.6b.51.00.fa.fd.06.fa.48.55.56.ed.f2.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 6
+
+Node name: error_aggregator
+Node namespace: /
+Topic type: sensor_msgs/msg/LaserScan
+Endpoint type: SUBSCRIPTION
+GID: 5a.8e.8d.8f.75.9b.0c.9d.7f.c4.71.8e.2e.db.17.98.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (5)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: controller_server
+Node namespace: /
+Topic type: sensor_msgs/msg/LaserScan
+Endpoint type: SUBSCRIPTION
+GID: ed.8a.5a.07.8a.68.a8.ed.97.30.b6.c1.fb.77.89.08.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (42)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: MEB
+Node namespace: /
+Topic type: sensor_msgs/msg/LaserScan
+Endpoint type: SUBSCRIPTION
+GID: 3b.77.86.30.d0.1b.b3.e6.83.66.a8.cf.ad.4a.52.e8.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (5)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: collision_monitor
+Node namespace: /
+Topic type: sensor_msgs/msg/LaserScan
+Endpoint type: SUBSCRIPTION
+GID: 1e.77.08.96.b8.b2.b5.13.f0.f0.ee.02.52.0e.cc.59.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (5)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: local_costmap_controller
+Node namespace: /local_costmap_controller
+Topic type: sensor_msgs/msg/LaserScan
+Endpoint type: SUBSCRIPTION
+GID: cd.b0.0d.0f.47.f5.55.a8.e6.f1.2a.2b.ca.38.08.c3.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (50)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: local_costmap
+Node namespace: /local_costmap
+Topic type: sensor_msgs/msg/LaserScan
+Endpoint type: SUBSCRIPTION
+GID: 38.1b.a7.a6.2b.86.aa.64.df.3d.91.e5.bd.2d.de.1d.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (50)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+-- 一筆內容（陣列截斷 120）--
+header:
+  stamp:
+    sec: 1790042459
+    nanosec: 900007963
+  frame_id: base_link
+angle_min: -3.1415927410125732
+angle_max: 3.1415927410125732
+angle_increment: 0.003490000031888485
+time_increment: 5.55555998289492e-05
+scan_time: 0.10000000149011612
+range_min: 0.20000000298023224
+range_max: 15.0
+ranges:
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- '...'
+intensities:
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- '...'
+---
+
+---------------- /navigo/cs/lpc/vis/laser_point_cloud ----------------
+@@TOPIC /navigo/cs/lpc/vis/laser_point_cloud|sensor_msgs/msg/PointCloud2|9.985|1
+-- topic info -v（含 QoS）--
+Type: sensor_msgs/msg/PointCloud2
+
+Publisher count: 1
+
+Node name: controller_server
+Node namespace: /
+Topic type: sensor_msgs/msg/PointCloud2
+Endpoint type: PUBLISHER
+GID: 2e.2e.49.5f.22.29.ac.f1.ed.43.c3.a3.fa.8c.53.6e.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 0
+-- 一筆內容（陣列截斷 120）--
+header:
+  stamp:
+    sec: 1790042472
+    nanosec: 258288699
+  frame_id: base_link
+height: 1
+width: 205
+fields:
+- name: x
+  offset: 0
+  datatype: 7
+  count: 1
+- name: y
+  offset: 4
+  datatype: 7
+  count: 1
+- name: z
+  offset: 8
+  datatype: 7
+  count: 1
+- name: intensity
+  offset: 16
+  datatype: 7
+  count: 1
+is_bigendian: false
+point_step: 32
+row_step: 6560
+data:
+- 47
+- 105
+- 93
+- 63
+- 202
+- 92
+- 187
+- 191
+- 0
+- 0
+- 0
+- 63
+- 0
+- 0
+- 128
+- 63
+- 0
+- 0
+- 0
+- 0
+- 255
+- 255
+- 0
+- 0
+- 56
+- 105
+- 191
+- 169
+- 255
+- 255
+- 0
+- 0
+- 172
+- 201
+- 161
+- 63
+- 138
+- 9
+- 218
+- 191
+- 0
+- 0
+- 0
+- 63
+- 0
+- 0
+- 128
+- 63
+- 0
+- 0
+- 0
+- 0
+- 255
+- 255
+- 0
+- 0
+- 56
+- 105
+- 191
+- 169
+- 255
+- 255
+- 0
+- 0
+- 169
+- 154
+- 155
+- 63
+- 103
+- 172
+- 206
+- 191
+- 0
+- 0
+- 0
+- 63
+- 0
+- 0
+- 128
+- 63
+- 0
+- 0
+- 0
+- 0
+- 255
+- 255
+- 0
+- 0
+- 56
+- 105
+- 191
+- 169
+- 255
+- 255
+- 0
+- 0
+- 107
+- 49
+- 113
+- 63
+- 118
+- 155
+- 155
+- 191
+- 0
+- 0
+- 0
+- 63
+- 0
+- 0
+- 128
+- 63
+- 0
+- 0
+- 0
+- 0
+- 255
+- 255
+- 0
+- 0
+- '...'
+is_dense: true
+---
+
+---------------- /navigo/cs/lpc/vis/lookahead_point ----------------
+@@TOPIC /navigo/cs/lpc/vis/lookahead_point|visualization_msgs/msg/Marker|未取到|1
+-- topic info -v（含 QoS）--
+Type: visualization_msgs/msg/Marker
+
+Publisher count: 1
+
+Node name: controller_server
+Node namespace: /
+Topic type: visualization_msgs/msg/Marker
+Endpoint type: PUBLISHER
+GID: d4.fa.28.62.7c.5e.71.d3.a7.db.17.ac.22.86.1d.e2.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (1)
+  Durability: TRANSIENT_LOCAL
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 0
+-- 一筆內容（陣列截斷 120）--

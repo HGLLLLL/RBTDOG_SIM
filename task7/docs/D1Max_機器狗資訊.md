@@ -138,7 +138,7 @@ SDK 編號規則：`1` = hip_roll(abad)、`2` = hip_pitch、`3` = knee_pitch、`
 | 重量 | 20.6 kg | 41 kg | 68 kg |
 | SDK 命名空間 | `mc_sdk::zsl_1w::HighLevel` | `robot_sdk::SDKClient` | `high_level_remote_tcp_client` |
 | repo | `zsibot/genisom_L1_sdk` | `AgibotTech/Agibot_D1_Max` | `AgibotTech/Agibot_D1_MaxPro` |
-| 中介軟體 | **eCAL**（ROS2 只是橋接） | **ROS2 Humble + Zenoh** | **ROS 1**（底層 SDK 強制） |
+| 中介軟體 | **eCAL**（ROS2 只是橋接） | **eCAL（內部）＋ ROS2 Humble + Zenoh（對外）** ⟵ 2026-09-22 更正，見 §4.1b | **ROS 1**（底層 SDK 強制） |
 | 官方底層馬達控制 | ❌ 明文不提供 | ❌ 不提供 | ✅ **官方提供** `rt/lowcmd` |
 | 我們實際做到的路 | `/spline_shm`（已端到端驗證） | **`/dev/shm/joint_cmd`（已端到端驗證）** | 未實測 |
 | 關節狀態可讀 | 16 軸 pos/vel/tau | 16 軸 pos/vel/tau **＋每關節溫度** | 12 軸 pos/vel/tau |
@@ -281,27 +281,38 @@ RK 的 sudo 免密碼；驅動 `RKNPU driver: v0.9.2`）：
 **插入點是 `/dev/shm/joint_cmd`。** 所有 command interface 都被 `joint_shm_controller` claimed，
 「自己 spawn 一個 controller 去搶介面」要先卸載活的控制路徑，風險高。**寫 shm 是原廠自己在用的同一條路。**
 
-### 4.1b ★ eCAL 有在運控板上跑（用在哪還沒查）
+### 4.1b ★★★ 運控板的中介軟體是 **eCAL**（2026-09-22 實測確認）
 
-| 證據 | 內容 | 來源 |
-|---|---|---|
-| `/dev/shm` | 三個運控用的具名段（`joint_cmd`／`joint_state`／`imu_central`，各 1 MB）**之外，另有約 30 個 `ecal_*` IPC 段** | 偵察一，2026-08-25 |
-| UDP 埠 | `0.0.0.0:14000` ×4、`:14001` ×4、`:14002` ×3 —— **eCAL v5 的預設埠**（14000 註冊／14001 log／14002 payload） | 感測器盤點，2026-09-22 |
-| 行程名 | **沒有任何 `ecal_*` 行程**；RK 上跑的是 `mc_ctrl`、`robot_hal_node`(ros2_control)、`robot_*` 那些 ROS2 節點 | 同上 |
+**四個行程都是 eCAL 參與者**（`sudo ss -lunp`，eCAL v5 預設埠）：
 
-**所以三層要分清楚**：
+| 行程 | 14000 註冊 | 14001 log | 14002 payload |
+|---|---|---|---|
+| `mc_ctrl`（閉源運控核心） | ✅ | ✅ | ✅ |
+| `robot_hal_node`（ros2_control 硬體層） | ✅ | ✅ | ❌ |
+| `robot_roamerx_node`（導航應用轉接） | ✅ | ✅ | ✅ |
+| `robot_remote`（遙控器） | ✅ | ✅ | ✅ |
 
-1. **對外的 topic 層 = ROS 2 Humble ＋ `rmw_zenoh_cpp`**（`ROS_DOMAIN_ID=66`）。
-   `robot_hal_node` 走 ros2_control（`controller_manager`、`zsi_actuator_driver`、
-   `zsi_imu_driver`），`joint_shm_controller` 與 `imu_shm_publisher` 把 shm 內容發成 topic。
-2. **eCAL 有在跑**，但**用在哪一段沒有證據**。合理推測是 `mc_ctrl`（閉源）內部的 IPC ——
-   D1 EDU（小狗）的中介軟體就是 eCAL，廠商沿用很合理 —— 但**這是推測，還沒驗**。
-3. **我們自己用的底層介面不是 eCAL**：`/dev/shm/{joint_cmd,joint_state,imu_central}`
-   是三個具名的 POSIX 共享記憶體檔（不是 `ecal_*` 段），我們直接讀寫，已端到端驗證。
+`/dev/shm` 另有 **30 個 `ecal_*` 段** —— eCAL 的本機傳輸預設走共享記憶體，
+UDP 那三個埠主要是註冊與跨主機用。
 
-**下一趟一行就能問完**（`recon5_nav_ai.sh` 已加這段）：
+**所以運控板是三層，不要混為一談**：
+
+| 層 | 用什麼 | 誰在上面 | 我們的關係 |
+|---|---|---|---|
+| 對外 topic 層 | **ROS 2 Humble ＋ `rmw_zenoh_cpp`**（`ROS_DOMAIN_ID=66`） | 21 個節點、56 個 topic；`robot_hal_node` 走 ros2_control（`controller_manager`／`zsi_actuator_driver`／`zsi_imu_driver`） | 唯讀驗證用得上（`joint_cmd_echo` 可回看我們寫進去的指令） |
+| **廠商內部控制匯流排** | **eCAL** | `mc_ctrl` ⟷ `robot_hal_node`／`robot_remote`／`robot_roamerx_node` | ❌ 我們沒有走這條，也沒有它的 topic 定義 |
+| 高速關節資料 | **具名 POSIX 共享記憶體** `/dev/shm/{joint_cmd,joint_state,imu_central}`（各 1 MB，**不是 `ecal_*` 段**） | `mc_ctrl` ⟷ `robot_hal_node` | ✅ **我們走的就是這條**，已端到端驗證 |
+
+**這修正了三機型對照表的說法**：原本寫「D1 EDU 用 eCAL（ROS2 只是橋接）、D1 Max 用 ROS2＋Zenoh」。
+實際上 **D1 Max 內部同樣是 eCAL**，差別在它**另外疊了一層完整的 ROS 2**對外。
+→ 兩台狗的運控核心是同一套範式，task6 對 eCAL 的理解沒有白費。
+
+**推測（未驗）**：`robot_remote`（遙控器指令）與 `robot_roamerx_node`（NX 來的導航指令）
+應該是經 eCAL 把命令送給 `mc_ctrl`，而每毫秒等級的關節指令與狀態走那三個具名 shm 段。
+**要證實得看 eCAL 的 topic 名稱**：
 ```bash
-ssh robot@192.168.234.1 "ls /dev/shm | grep -c '^ecal'; sudo -n ss -lunp | grep -E ':1400[0-2]'"
+ssh robot@192.168.234.1 "ls /dev/shm | grep '^ecal' "      # 段名常帶 topic 名
+ssh robot@192.168.234.1 "sudo -n grep -i ecal /proc/\$(pgrep -x mc_ctrl)/maps | head"   # libecal 版本
 ```
 
 ---

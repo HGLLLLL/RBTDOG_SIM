@@ -19,6 +19,21 @@ spec `docs/superpowers/specs/2026-09-22-cpg-rl-v3.6-step-apex-linear-penalties-d
 訓完：`local_infer_v3.py --preset v36 --gains factory --weights task7/weights/cpg_rl_v3_6f_params.pkl --seeds 3 --mesh --video task7/outputs/eval_v36f_mesh.mp4`，對 spec §5 表（平移主動側 步/秒 ≥ 1.5、抬腳 ≥ 15 mm；其餘同 v3.5）。
 ⚠️ 2026-09-22 前的所有 `outputs/eval_*.md` 都含每 2 s 的推力（roll std 直走 0.36 其實是 0.06）；v3.5f 已重跑無推力版當基準，右轉弱／ABAD 漂／平移不踏步在無推力下仍成立。
 
+### ★★ 2026-09-22：**運控板的中介軟體是 eCAL**（實測確認，修正舊說法）
+
+`sudo ss -lunp` 看到 eCAL v5 的三個預設埠上有四個行程：
+`mc_ctrl`（14000/14001/14002）、`robot_hal_node`（14000/14001）、
+`robot_roamerx_node`、`robot_remote`（都三個）；`/dev/shm` 另有 **30 個 `ecal_*` 段**。
+
+**運控板是三層，別混為一談**（詳見 `docs/D1Max_機器狗資訊.md` §4.1b）：
+① 對外 = ROS 2 Humble + rmw_zenoh（DOMAIN 66，21 節點）
+② **廠商內部控制匯流排 = eCAL**（`mc_ctrl` ⟷ `robot_hal_node`／`robot_remote`／`robot_roamerx`）
+③ 高速關節資料 = `/dev/shm/{joint_cmd,joint_state,imu_central}` 三個具名段（**不是 ecal_\* 段**）
+→ **我們走的是第 ③ 條**，不碰 eCAL，所以廠商改 eCAL 那層不影響我們。
+
+★ 這修正了三機型對照表「D1 Max 用 ROS2+Zenoh」的寫法 ——
+**D1 Max 內部同樣是 eCAL**，只是多疊了一層 ROS 2 對外。task6 對 eCAL 的理解沒白費。
+
 ### ★★★ 2026-09-22 下午：報告 **5.1–5.4／6.1–6.4** 也做完（不含導航效果實測，使用者指定）
 
 結果 `docs/results/O_導航與AI架構_2026-09-22.md`；原始資料 `outputs/recon5_20260922/`

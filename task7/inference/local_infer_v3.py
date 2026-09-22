@@ -26,6 +26,17 @@ CASES = (("直走 0.5", (0.5, 0.0, 0.0), "fwd"), ("弧線 0.5+0.5", (0.5, 0.0, 0
          ("左平移 0.12", (0.0, 0.12, 0.0), "lat"), ("斜走 0.3+0.15", (0.3, 0.15, 0.0), "diag"), ("站立", (0.0, 0.0, 0.0), "stand"))
 # 平移指令 2026-09-16 起改 0.20／0.12（v3.3 訓練範圍 0.04–0.30，原廠實測 0.3–0.5）；0.08／0.04 是 v3.2b 時代的數字，舊表不可比。
 ABAD, HIP, KNEE = [0, 3, 6, 9], [1, 4, 7, 10], [2, 5, 8, 11]
+STEP_THR_MM = 8.0     # 步/秒門檻：clr 由 ≤ 8 mm 上穿 > 8 mm 算一步（原廠平移抬 21 mm；v3.5f 滑步 p95 只有 2–8 mm）
+
+
+def _steps_per_sec(clr, secs):
+    """(T,4) clr[mm] → 每腿每秒上穿 STEP_THR_MM 的次數。"""
+    up = (clr[1:] > STEP_THR_MM) & (clr[:-1] <= STEP_THR_MM)
+    return [float(x) for x in (up.sum(0) / secs).round(2)]
+
+
+def preset_weights(preset):
+    return {"v33": None, "v35": v3.W35, "v36": v3.W36}[preset]
 
 
 def load_policy(path: str, obs_dim: int = 88):
@@ -64,6 +75,7 @@ def rollout(env, jit_reset, jit_step, cmd, steps, policy=None, seed=0):
         tau_hip_pk=float(tau[:, HIP].max()), tau_hip_rms=float(np.sqrt((tau[:, HIP] ** 2).mean())),
         tau_abad_pk=float(tau[:, ABAD].max()), tau_abad_rms=float(np.sqrt((tau[:, ABAD] ** 2).mean())),
         lift=np.max(np.array([m["clr"] for m in M[h:]]), 0).round(0).tolist() if n > h else [0, 0, 0, 0],
+        steps_s=_steps_per_sec(np.array([m["clr"] for m in M[h:]]), max(1, n - h) * v3.CTRL_DT) if n > h else [0.0, 0.0, 0.0, 0.0],
         act_abs=float(np.abs(np.tanh(np.array(A))).mean()),
         abad_bias=float(g("abad_bias")[-int(5.0 / v3.CTRL_DT):].mean()) if n > h else 0.0,   # 後 5 s 四腿 |ABAD 慢漂| 最大值的平均，度（v3.5 spec §5）
         vx_drift=float(g("vx_drift")[-int(5.0 / v3.CTRL_DT):].mean()) if n > h else 0.0,     # 後 5 s 機身 vx 低頻誤差平均，m/s
@@ -78,21 +90,29 @@ def factory_ref():
                     hip_pk=b["tau_pk"]["2_hip_pitch"], abad_pk=b["tau_pk"]["1_hip_roll"], lift=b["lift_apex_mm"]) for k, b in pick.items()}
 
 
-def main() -> int:
+def build_parser():
     ap = argparse.ArgumentParser()
     ap.add_argument("--weights", default=str(HERE.parent / "weights" / "cpg_rl_v3_params.pkl"))
     ap.add_argument("--seeds", type=int, default=3); ap.add_argument("--secs", type=float, default=10.0)
     ap.add_argument("--no-baseline", action="store_true", dest="no_baseline"); ap.add_argument("--video", default="")
     ap.add_argument("--only", default="")
-    ap.add_argument("--preset", default="v33", choices=("v33", "v35"), help="v35＝weights=W35（含右轉鏡像 CYC_TURN_SYM）；驗 v3.5／v3.5f 權重要用")
+    ap.add_argument("--preset", default="v33", choices=("v33", "v35", "v36"), help="v35＝weights=W35（含右轉鏡像 CYC_TURN_SYM）；驗 v3.5／v3.5f 權重要用；v36＝W36（抬腳頂點獎勵＋hinge 懲罰，2026-09-22）")
+    ap.add_argument("--push", action="store_true", help="統計 rollout 也開訓練用的隨機推力（預設關：推力每 2 s 一次，會污染 roll／航向／vx 漂；摔欄永遠另跑一組有推力的）")
     ap.add_argument("--gains", default="kp250", choices=("kp250", "factory"), help="factory＝v3.4f（馬達增益照原廠、力矩空間輪控制）；要與權重的訓練設定一致")
     ap.add_argument("--mesh", action="store_true", help="影片用官方 STL 網格模型渲染（scene_flat.xml；物理仍是訓練模型，只換外觀）")
     ap.add_argument("--title", default="", help="影片標題前綴")
     ap.add_argument("--video-secs", type=float, default=0.0, dest="video_secs", help="影片每個指令只放幾秒（0＝整段）；從 --video-start 起算")
     ap.add_argument("--video-start", type=float, default=2.0, dest="video_start", help="影片每段從第幾秒開始（預設 2 s，跳過淡入）")
     ap.add_argument("--video-skip", default="", dest="video_skip", help="影片要略過的指令，逗號分隔的名稱片段（驗收表仍含全部）")
-    a = ap.parse_args()
-    env = v3.DualModeEnv(gains=a.gains, weights=(v3.W35 if a.preset == "v35" else None), ref=dict(cyc_amp_rand=False)); jr, js = jax.jit(env.reset), jax.jit(env.step)   # eval：原地轉幅度固定 REF cyc_amp_turn；preset 決定產生器設定（v3.5 右轉鏡像）
+    return ap
+
+
+def main() -> int:
+    a = build_parser().parse_args()
+    W_ = preset_weights(a.preset)          # eval：原地轉幅度固定 REF cyc_amp_turn；preset 決定產生器設定（v3.5 右轉鏡像）
+    env = v3.DualModeEnv(gains=a.gains, weights=W_, ref=dict(cyc_amp_rand=False), push=a.push); jr, js = jax.jit(env.reset), jax.jit(env.step)
+    env_p = env if a.push else v3.DualModeEnv(gains=a.gains, weights=W_, ref=dict(cyc_amp_rand=False), push=True)   # 摔欄用：有推力那組
+    jrp, jsp = (jr, js) if a.push else (jax.jit(env_p.reset), jax.jit(env_p.step))
     print(f"gains {env.gains} wheel_space {env.wheel_space} obs {env.obs_dim} act {env.action_size}", flush=True)
     pol = load_policy(a.weights, env.obs_dim); steps = int(a.secs / v3.CTRL_DT); F = factory_ref()
     rows, traj = [], {}
@@ -101,29 +121,31 @@ def main() -> int:
             continue
         t0 = time.time()
         R = [rollout(env, jr, js, cmd, steps, pol, seed=k) for k in range(a.seeds)]
+        RP = R if a.push else [rollout(env_p, jrp, jsp, cmd, steps, pol, seed=k) for k in range(a.seeds)]
         B = None if a.no_baseline else rollout(env, jr, js, cmd, steps, None, seed=0)
         ok = [r for r in R if not r["fell"]] or R
         agg = {k: float(np.mean([r[k] for r in ok])) for k in ("vx", "vy", "yaw", "yaw_std", "roll_std", "roll_max", "tau_pk", "tau_knee_pk", "tau_knee_rms", "tau_hip_pk", "tau_hip_rms", "tau_abad_pk", "tau_abad_rms", "act_abs", "abad_bias", "vx_drift", "head_end")}
         agg["lift"] = np.mean([r["lift"] for r in ok], 0).round(0).tolist()
-        t_falls = ",".join("%.1fs" % r["t_fall"] for r in R if r["fell"])
-        agg["falls"] = "%d/%d" % (sum(r["fell"] for r in R), len(R)) + ("（%s）" % t_falls if t_falls else "")
+        agg["steps_s"] = np.mean([r["steps_s"] for r in ok], 0).round(1).tolist()
+        t_falls = ",".join("%.1fs" % r["t_fall"] for r in RP if r["fell"])
+        agg["falls"] = "%d/%d｜推 %d/%d" % (sum(r["fell"] for r in R), len(R), sum(r["fell"] for r in RP), len(RP)) + ("（%s）" % t_falls if t_falls else "")
         rows.append((name, cmd, fam, agg, B)); traj[name] = ok[0]["Q"]
         print(f"{name:12s} 摔 {agg['falls']:14s} vx {agg['vx']:+.2f} vy {agg['vy']:+.3f} yaw {agg['yaw']:+5.1f}±{agg['yaw_std']:.0f} | roll std {agg['roll_std']:.2f} max {agg['roll_max']:.1f} | "
-              f"膝 τ 峰/RMS {agg['tau_knee_pk']:.0f}/{agg['tau_knee_rms']:.0f} 髖 {agg['tau_hip_pk']:.0f}/{agg['tau_hip_rms']:.0f} ABAD {agg['tau_abad_pk']:.0f}/{agg['tau_abad_rms']:.0f} | lift {agg['lift']} | ABAD漂 {agg['abad_bias']:.1f}° vx漂 {agg['vx_drift']:+.3f} 航向 {agg['head_end']:+.1f}° | |a| {agg['act_abs']:.2f}"
+              f"膝 τ 峰/RMS {agg['tau_knee_pk']:.0f}/{agg['tau_knee_rms']:.0f} 髖 {agg['tau_hip_pk']:.0f}/{agg['tau_hip_rms']:.0f} ABAD {agg['tau_abad_pk']:.0f}/{agg['tau_abad_rms']:.0f} | lift {agg['lift']} 步/秒 {agg['steps_s']} | ABAD漂 {agg['abad_bias']:.1f}° vx漂 {agg['vx_drift']:+.3f} 航向 {agg['head_end']:+.1f}° | |a| {agg['act_abs']:.2f}"
               + (f" ‖ 零動作: vx {B['vx']:+.2f} vy {B['vy']:+.3f} yaw {B['yaw']:+5.1f} roll std {B['roll_std']:.2f} 膝峰 {B['tau_knee_pk']:.0f} 摔 {B['fell']}" if B else "") + f" ({time.time()-t0:.0f}s)", flush=True)
     # ---- md
     wname = Path(a.weights).stem
-    L = [f"# 驗收 {wname}（gains={a.gains} preset={a.preset}；{a.seeds} 種子 × {a.secs:.0f} s，前 2 s 不計；對標 = 原廠 trip21 動作段）", "",
-         "| 指令 | 摔 | vx | vy | 偏航 °/s（±std） | roll std/峰 ° | 膝 τ 峰/RMS | 髖 τ 峰/RMS | ABAD τ 峰/RMS | 抬腳 mm | ABAD 漂 ° | vx 漂 | 航向 ° | \\|a\\| | 零動作 vx/vy/yaw/roll std/膝峰 | 原廠 v/yaw/roll std/膝峰/膝RMS/抬腳 |",
-         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+    L = [f"# 驗收 {wname}（gains={a.gains} preset={a.preset}；{a.seeds} 種子 × {a.secs:.0f} s，前 2 s 不計；推力 {'開' if a.push else '關（摔欄另跑有推力）'}；對標 = 原廠 trip21 動作段）", "",
+         "| 指令 | 摔 | vx | vy | 偏航 °/s（±std） | roll std/峰 ° | 膝 τ 峰/RMS | 髖 τ 峰/RMS | ABAD τ 峰/RMS | 抬腳 mm | 步/秒 @8mm | ABAD 漂 ° | vx 漂 | 航向 ° | \\|a\\| | 零動作 vx/vy/yaw/roll std/膝峰 | 原廠 v/yaw/roll std/膝峰/膝RMS/抬腳 |",
+         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for name, cmd, fam, g, B in rows:
         f = F.get(fam)
         fs = f"{f['v']:+.2f}/{f['yaw']:+.0f}/{f['roll_std']:.1f}/{f['knee_pk']:.0f}/{f['knee_rms']:.0f}/{f['lift']:.0f}" if f else "—"
         bs = f"{B['vx']:+.2f}/{B['vy']:+.3f}/{B['yaw']:+.0f}/{B['roll_std']:.2f}/{B['tau_knee_pk']:.0f}" + ("（摔）" if B and B["fell"] else "") if B else "—"
         L.append(f"| {name} | {g['falls']} | {g['vx']:+.2f} | {g['vy']:+.3f} | {g['yaw']:+.1f}（±{g['yaw_std']:.0f}） | {g['roll_std']:.2f}/{g['roll_max']:.1f} | {g['tau_knee_pk']:.0f}/{g['tau_knee_rms']:.0f} | "
-                 f"{g['tau_hip_pk']:.0f}/{g['tau_hip_rms']:.0f} | {g['tau_abad_pk']:.0f}/{g['tau_abad_rms']:.0f} | {g['lift']} | {g['abad_bias']:.1f} | {g['vx_drift']:+.3f} | {g['head_end']:+.1f} | {g['act_abs']:.2f} | {bs} | {fs} |")
-    L += ["", "判讀規則（spec §5.2）：速度／偏航率到原廠 80%；roll std ≤ 原廠 1.5 倍；膝／髖力矩峰 ≤ 原廠 1.3 倍（RMS 才可比）；抬腳 15–40 mm。原廠 ABAD 峰 40–60 是它 60° 命令差造成的，我們目標 ≤ 原廠。ABAD 漂（原地轉）< 5°、vx 漂（平移，機身系）|·| < 0.02 m/s、航向（平移 10 s）|·| < 8°（v3.5 spec §5）。"]
-    out = HERE.parent / "outputs" / f"eval_{wname}.md"; out.write_text("\n".join(L) + "\n", encoding="utf-8"); print("→", out)
+                 f"{g['tau_hip_pk']:.0f}/{g['tau_hip_rms']:.0f} | {g['tau_abad_pk']:.0f}/{g['tau_abad_rms']:.0f} | {g['lift']} | {g['steps_s']} | {g['abad_bias']:.1f} | {g['vx_drift']:+.3f} | {g['head_end']:+.1f} | {g['act_abs']:.2f} | {bs} | {fs} |")
+    L += ["", "判讀規則（spec §5.2）：速度／偏航率到原廠 80%；roll std ≤ 原廠 1.5 倍；膝／髖力矩峰 ≤ 原廠 1.3 倍（RMS 才可比）；抬腳 15–40 mm。原廠 ABAD 峰 40–60 是它 60° 命令差造成的，我們目標 ≤ 原廠。ABAD 漂（原地轉）< 5°、vx 漂（平移，機身系）|·| < 0.02 m/s、航向（平移 10 s）|·| < 8°（v3.5 spec §5）。平移主動側兩腿 步/秒 ≥ 1.5 且抬腳 ≥ 15 mm（v3.6 spec §5）。"]
+    out = HERE.parent / "outputs" / f"eval_{wname}{'_push' if a.push else ''}.md"; out.write_text("\n".join(L) + "\n", encoding="utf-8"); print("→", out)
     if a.video:
         import os; os.environ.setdefault("MUJOCO_GL", "egl")
         import mujoco, imageio

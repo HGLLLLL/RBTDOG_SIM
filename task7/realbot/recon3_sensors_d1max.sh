@@ -42,6 +42,8 @@ DO_RTSP=1
 USE_SUDO=1
 RK_ONLY=0
 NX_ONLY=0
+SAMPLE_ONLY=0
+STATIC_ONLY=0
 POS=()
 
 while [ $# -gt 0 ]; do
@@ -54,6 +56,8 @@ while [ $# -gt 0 ]; do
     --no-rtsp)  DO_RTSP=0; shift ;;
     --no-sudo)  USE_SUDO=0; shift ;;
     --rk-only)  RK_ONLY=1; shift ;;
+    --sample-only) SAMPLE_ONLY=1; shift ;;
+    --static-only) STATIC_ONLY=1; shift ;;
     --nx-only)  NX_ONLY=1; shift ;;
     -h|--help)  sed -n '2,40p' "$0"; exit 0 ;;
     *)          POS+=("$1"); shift ;;
@@ -328,33 +332,55 @@ command -v robot-launch >/dev/null 2>&1 && timeout 10 robot-launch list 2>&1 | h
 
 # ---------------------------------------------------------------- 7.2 相機
 sec "★ 7.2　相機設定與能力"
+# ⚠️ RK3588 有 40 幾個 /dev/video*（rkisp 的 statistics / params / rawrd 全算一個節點）。
+#    第一趟對每一個都跑兩次 v4l2-ctl，光這段就兩千多行。這裡只留真正會出畫面的。
+if command -v v4l2-ctl >/dev/null 2>&1; then
+  echo "-- v4l2-ctl --list-devices（一次看完拓樸）--"
+  v4l2-ctl --list-devices 2>&1 | head -60
+fi
+NCAM=0
 for d in /dev/video*; do
   [ -e "$d" ] || continue
   echo "@@CAMDEV $d"
-  if command -v v4l2-ctl >/dev/null 2>&1; then
-    v4l2-ctl -d "$d" --all 2>&1 | head -30
-    echo "  -- 支援的格式 --"
-    v4l2-ctl -d "$d" --list-formats-ext 2>&1 | head -60
-  else
-    echo "(無 v4l2-ctl → 只能靠設定檔與 RTSP 實測)"
-  fi
+  command -v v4l2-ctl >/dev/null 2>&1 || { echo "(無 v4l2-ctl)"; continue; }
+  CARD=$(v4l2-ctl -d "$d" --info 2>/dev/null | grep -m1 "Card type" | cut -d: -f2- | xargs)
+  echo "   Card: ${CARD:-未取到}"
+  case "$CARD" in
+    *statistic*|*params*|*iqtool*|*rawrd*|*selfpath*|*fbcpath*|*dec*|*enc*|"")
+      echo "   （非擷取節點，略過格式列舉）"; continue ;;
+  esac
+  [ "$NCAM" -ge 6 ] && { echo "   （已列舉 6 個擷取節點，其餘略過）"; continue; }
+  NCAM=$((NCAM+1))
+  v4l2-ctl -d "$d" --list-formats-ext 2>&1 | grep -E "\[|Size: Discrete|Interval" | sort -u | head -20
 done
 echo "-- RTSP 伺服器（mediamtx）--"
 (ss -lntp 2>/dev/null || netstat -lntp 2>/dev/null) | grep -E "8554|8082|1935" || echo "(沒看到 RTSP 埠在 listen)"
 MTX=$(find /opt /etc /home/robot -maxdepth 6 -type f \( -iname "mediamtx*.yml" -o -iname "mediamtx*.yaml" -o -iname "mediamtx*.conf" \) 2>/dev/null | head -5)
 for f in $MTX; do
   echo "@@FILE $f"
-  grep -vE "^\s*#" "$f" 2>/dev/null | grep -vE "^\s*$" | head -80
+  echo "  -- 全域設定（前 40 行）--"
+  grep -vE "^\s*#" "$f" 2>/dev/null | grep -vE "^\s*$" | head -40
+  echo "  -- ★ paths 段（RTSP 的路徑名稱與來源就在這，第一趟被 head 截掉了）--"
+  sed -n '/^paths:/,$p' "$f" 2>/dev/null | head -60
+  echo "  -- rtsp 相關設定 --"
+  grep -inE "^rtsp|^rtmp|^hls|^webrtc|encryption" "$f" 2>/dev/null | head -20
 done
 [ -z "$MTX" ] && echo "(找不到 mediamtx 設定檔)"
 
 # ---------------------------------------------------------------- 感測驅動設定檔
 sec "★ 7.1／7.2／7.4　感測驅動設定檔"
-CFG=$(find /opt /etc/robot /home/robot -maxdepth 7 -type f \
+# ⚠️ 2026-09-22 第一趟就是這裡漏掉光達設定：檔名叫 `config.yaml`，
+#    只用檔名 pattern 找一定找不到。改成**按內容**找關鍵字。
+CFG_NAME=$(find /opt/robot /opt/export /opt/runtime /etc/robot /home/robot -maxdepth 8 -type f \
         \( -iname "*lidar*" -o -iname "*uss*" -o -iname "*uwb*" -o -iname "*imu*" \
            -o -iname "*gps*" -o -iname "*rtk*" -o -iname "*camera*" -o -iname "*sensor*" \) \
         \( -name "*.yaml" -o -name "*.yml" -o -name "*.json" -o -name "*.conf" -o -name "*.ini" \) \
-        2>/dev/null | head -40)
+        2>/dev/null | head -30)
+CFG_BODY=$(timeout 90 grep -rls --include="*.yaml" --include="*.yml" \
+        -e lidar_type -e msop_port -e difop -e rslidar -e uss_ -e ultrasonic \
+        -e camera_name -e frame_rate -e resolution \
+        /opt/robot /opt/export /opt/runtime 2>/dev/null | head -30)
+CFG=$(printf '%s\n%s\n' "$CFG_NAME" "$CFG_BODY" | grep -v '^$' | sort -u)
 if [ -z "$CFG" ]; then
   echo "(找不到感測驅動設定檔 —— 換條路：看 /opt/robot/install/*/share/*/config)"
   ls -d /opt/robot/install/*/share/*/config 2>/dev/null | head -20
@@ -367,11 +393,8 @@ else
 fi
 echo "-- 光達設定的關鍵欄位（挑出來標記，方便產表）--"
 for f in $CFG; do
-  case "$f" in
-    *[Ll]idar*)
-      grep -inE "lidar_type|model|device_ip|msop|difop|rps|echo_mode|frame_id|min_dist|max_dist|angle|split|dense|point|freq|hz|line" "$f" 2>/dev/null \
-        | sed "s|^|@@LIDARCFG $f:|" | head -40 ;;
-  esac
+  grep -inE "lidar_type|device_ip|dest_ip|msop|difop|rps|echo_mode|frame_id|min_dist|max_dist|angle|split|dense|point_cloud|line|frame_rate|resolution|fps|width|height" "$f" 2>/dev/null \
+    | sed "s|^|@@LIDARCFG $f:|" | head -25
 done
 
 # ---------------------------------------------------------------- ROS2
@@ -401,62 +424,88 @@ ros2run() {
   ) 2>&1
 }
 
-# 感測 topic 多半是 best_effort（光達文件寫明）。ros2cli 預設用可靠 QoS 會**收不到**，
-# 看起來就像「topic 存在但沒有資料」。所以每個量測都先試預設、空的再試 best_effort。
-BE=(--qos-reliability best_effort --qos-durability volatile)
+# ★ 2026-09-22 的教訓：第一趟每個 topic 都「先試預設 QoS、空的再試 best_effort」，
+#   每個沒資料的 topic 就吃滿兩次 14 秒的 timeout，25 個 topic 收了 12 分鐘。
+#   而且實測發布者全是 **RELIABLE**（文件說 best_effort 是錯的）→ 第二次嘗試純浪費。
+#   改法：先用 `topic info -v` 讀出發布者數與它的 Reliability，然後**只查一次**，
+#   發布者數 0 的直接跳過。timeout 也收緊（10 Hz 的 topic 1 秒就有平均值）。
+qos_flags_of() {   # 從 info 的 QoS 決定要用什麼訂閱，回傳要加的旗標
+  case "$1" in
+    *BEST_EFFORT*) echo "--qos-reliability best_effort --qos-durability volatile" ;;
+    *)             echo "" ;;
+  esac
+}
 
 hz_of() {
-  local t="$1" o
-  o=$(ros2run 14 ros2 topic hz -w 20 "$t" | grep -m1 'average rate')
-  [ -z "$o" ] && o=$(ros2run 14 ros2 topic hz -w 20 "${BE[@]}" "$t" | grep -m1 'average rate')
-  echo "$o" | sed 's/.*average rate: *//' | xargs
+  local t="$1" flags="$2"
+  ros2run 7 ros2 topic hz -w 10 $flags "$t" \
+    | grep -m1 'average rate' | sed 's/.*average rate: *//' | xargs
 }
 
 echo_once() {
-  local t="$1" o
-  o=$(ros2run 15 ros2 topic echo --once --truncate-length 120 "$t")
-  [ -z "$o" ] && o=$(ros2run 15 ros2 topic echo --once --truncate-length 120 "${BE[@]}" "$t")
-  echo "$o"
+  local t="$1" flags="$2"
+  ros2run 9 ros2 topic echo --once --truncate-length 120 $flags "$t"
 }
 
 if [ -x /opt/ros/humble/bin/ros2 ] || command -v ros2 >/dev/null 2>&1; then
-  sec "★★★ ROS2 topic 全表"
-  TOPICS=$(ros2run 30 ros2 topic list | sort)
+  sec "★★★ ROS2 topic 全表（含型別，一次撈完）"
+  # `topic list -t` 一次就把型別帶回來 → 不必對每個 topic 再呼叫一次 `topic type`
+  TOPICS_T=$(ros2run 30 ros2 topic list -t | sort)
+  TOPICS=$(echo "$TOPICS_T" | awk '{print $1}')
   if [ -z "$TOPICS" ]; then
     echo "(topic list 是空的 —— 不代表沒有 topic，先看上面的 DOMAIN_ID 與 RMW)"
   else
-    echo "$TOPICS"
+    echo "$TOPICS_T"
     kv topic_count "$(echo "$TOPICS" | grep -c . )"
   fi
 
   sec "ROS2 node 全表"
   ros2run 30 ros2 node list | sort
 
-  sec "★★★ 7.1／7.2／7.4　感測 topic 的型別、QoS、發布者、實測頻率"
-  HITS=$(echo "$TOPICS" | grep -iE "lidar|imu|uss|ultra|range|camera|image|rtk|gps|gnss|uwb|scan|point|depth|battery|temp" || true)
+  # 要細量的 topic：報告 7.1／7.2／7.4 真正要的那些。白名單而非關鍵字比對 ——
+  # 第一趟的關鍵字命中了 navigo 的視覺化 marker 與 0 發布者的 topic，每個都吃滿 timeout。
+  CORE_RE='^/(front|rear)_lidar(/imu)?$|^/(front|rear)_camera/image_compressed$|imu_central$|^/uss_driver/[^/]+/range$|^/uwb$|^/uwb_point$|^/rtk_pvh$|^/uni_rtk_pvh$|^/gnss/data$|^/gps/rtk$|^/laser_scan$|^/battery_controller/battery_all$|^/joint_shm_controller/joint_sensor$'
+  SENSOR_RE='lidar|imu|uss|ultra|range|camera|image|rtk|gps|gnss|uwb|scan|point|depth|battery'
+
+  sec "★★★ 7.1／7.2／7.4　核心感測 topic：QoS、發布者、實測頻率、一筆內容"
+  HITS=$(echo "$TOPICS" | grep -E "$CORE_RE" || true)
   if [ -z "$HITS" ]; then
-    echo "(沒有名稱像感測器的 topic)"
+    echo "(白名單沒有命中 —— 看上面的 topic 全表，可能名稱換了)"
   else
     for t in $HITS; do
       echo "---------------- $t ----------------"
-      TYPE=$(ros2run 15 ros2 topic type "$t" | head -1)
-      INFO=$(ros2run 15 ros2 topic info -v "$t")
+      T0=$(date +%s)
+      TYPE=$(echo "$TOPICS_T" | grep -m1 -E "^$t " | sed 's/.*\[\(.*\)\].*/\1/')
+      INFO=$(ros2run 12 ros2 topic info -v "$t")
       PUBS=$(echo "$INFO" | grep -m1 -i "Publisher count" | grep -oE '[0-9]+')
-      HZ=$(hz_of "$t")
-      echo "@@TOPIC $t|${TYPE:-未取到}|${HZ:-未取到}|${PUBS:-未取到}"
-      echo "-- topic info -v（含 QoS）--"
+      # 只看「發布者」那一段的 Reliability（訂閱者的 QoS 與我們無關）
+      PUBQOS=$(echo "$INFO" | sed -n '/Endpoint type: PUBLISHER/,/^$/p' | grep -m1 "Reliability:")
+      FLAGS=$(qos_flags_of "$PUBQOS")
+      if [ "${PUBS:-0}" = 0 ]; then
+        echo "@@TOPIC $t|${TYPE:-未取到}|無發布者|0"
+        echo "（發布者數 0 → 不量頻率也不 echo，這種 topic 只會吃滿 timeout）"
+      else
+        HZ=$(hz_of "$t" "$FLAGS")
+        echo "@@TOPIC $t|${TYPE:-未取到}|${HZ:-未取到}|${PUBS}"
+        echo "-- 發布者 QoS: ${PUBQOS:-未取到}  訂閱旗標: ${FLAGS:-（預設 reliable）} --"
+        echo "-- 一筆內容（陣列截斷 120）--"
+        echo_once "$t" "$FLAGS"
+      fi
+      echo "-- topic info -v --"
       echo "$INFO"
-      echo "-- 一筆內容（陣列截斷 120）--"
-      echo_once "$t"
+      echo "（本 topic 花了 $(( $(date +%s) - T0 )) 秒）"
       echo
     done
   fi
 
+  sec "7.1　其他名稱像感測器的 topic（只列型別，不量頻率）"
+  echo "$TOPICS_T" | grep -iE "$SENSOR_RE" | grep -vE "^($(echo "$HITS" | paste -sd'|')) " \
+    | sed 's/^/@@TOPIC2 /' | head -60
+
   sec "感測 msg 的欄位定義（7.4 要引用的規格欄位）"
-  for ty in sensor_msgs/msg/PointCloud2 sensor_msgs/msg/Range sensor_msgs/msg/Imu \
-            sensor_msgs/msg/Image sensor_msgs/msg/CameraInfo sensor_msgs/msg/NavSatFix; do
+  for ty in sensor_msgs/msg/PointCloud2 sensor_msgs/msg/Range sensor_msgs/msg/Imu; do
     echo "---- $ty ----"
-    ros2run 12 ros2 interface show "$ty" | head -40
+    ros2run 10 ros2 interface show "$ty" | head -30
   done
 
   sec "廠商自訂 msg 介面"
@@ -480,16 +529,29 @@ fi
 sec "靜態盤點結束"
 EOS
 
-static_probe() {
-  local b="$1" ip label tag
-  ip="$(ip_of "$b")"; label="$(label_of "$b")"
-  tag="$([ "$b" = rk ] && echo rk3588 || echo orinnx)"
-  hdr "靜態盤點：$label  (robot@$ip)"
-  if [ "${ALIVE[$b]}" != 1 ]; then
-    echo "(連不上，跳過)"; return
-  fi
-  ssh "${SSH_OPTS[@]}" "robot@$ip" "SUDO_OK=${SUDO_OK[$b]} bash -s" <<< "$PROBE" \
-    2>&1 | tee "$OUT_DIR/${tag}_static.log"
+tag_of() { [ "$1" = rk ] && echo rk3588 || echo orinnx; }
+
+# ★ 兩塊板**並行**跑。第一趟是依序跑，各約 6 分鐘 —— 一半的時間是白等的。
+#   代價是過程中看不到即時輸出，所以跑完會把兩份 log 依序印出來。
+static_probe_all() {
+  hdr "靜態盤點（兩塊板並行；每塊板的輸出跑完才會印出來）"
+  local pids=() b ip tag
+  for b in "${BOARDS[@]}"; do
+    [ "${ALIVE[$b]}" = 1 ] || { echo "（$(label_of "$b") 連不上，跳過）"; continue; }
+    ip="$(ip_of "$b")"; tag="$(tag_of "$b")"
+    echo "→ $(label_of "$b") 開始盤點…（log: ${tag}_static.log）"
+    ( ssh "${SSH_OPTS[@]}" "robot@$ip" "SUDO_OK=${SUDO_OK[$b]} bash -s" <<< "$PROBE" \
+        > "$OUT_DIR/${tag}_static.log" 2>&1 ) &
+    pids+=($!)
+  done
+  [ ${#pids[@]} -eq 0 ] && return
+  wait "${pids[@]}" 2>/dev/null
+  for b in "${BOARDS[@]}"; do
+    tag="$(tag_of "$b")"
+    [ -s "$OUT_DIR/${tag}_static.log" ] || continue
+    hdr "靜態盤點結果：$(label_of "$b")"
+    cat "$OUT_DIR/${tag}_static.log"
+  done
   echo
 }
 
@@ -554,7 +616,14 @@ rtsp_probe() {
   preflight
   warmup
 
-  for b in "${BOARDS[@]}"; do static_probe "$b"; done
+  # ★ 順序：先做要人配合的 1.3 採樣，再做機器自己慢慢跑的靜態盤點。
+  #   2026-09-22 第一趟是反過來的，結果人在等靜態盤點，12 分鐘後被停掉，1.3 一個字都沒拿到。
+  if [ "$STATIC_ONLY" = 1 ]; then
+    echo "（--static-only：跳過資源採樣）"
+    static_probe_all
+    rtsp_probe
+    exit 0
+  fi
 
   sample_phase idle "$IDLE_SECS"
 
@@ -580,7 +649,12 @@ MSG
     echo "（--no-walk：跳過走路採樣，1.3 只會有待機數字）"
   fi
 
-  rtsp_probe
+  if [ "$SAMPLE_ONLY" = 1 ]; then
+    echo "（--sample-only：跳過靜態盤點與 RTSP）"
+  else
+    static_probe_all
+    rtsp_probe
+  fi
 } 2>&1 | tee "$OUT_DIR/recon3.log"
 
 # 關掉共用連線

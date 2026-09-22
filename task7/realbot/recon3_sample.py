@@ -155,6 +155,67 @@ def proc_snapshot():
     return out
 
 
+THREAD_PATTERNS = ("mc_ctrl", "robot_hal", "robot_camera", "rslidar", "nav2",
+                   "arc_", "localization", "perception", "robot_slam", "uss_", "imu_")
+
+
+def threads_info():
+    """關鍵行程的**每個執行緒**：綁哪幾顆核、上次跑在哪顆核、用了多少 tick。
+
+    為什麼要到執行緒層級：`/proc/<pid>/status` 給的是主執行緒的 mask。
+    2026-09-22 量到 mc_ctrl 主執行緒是 0-6，但核心明明隔離了 cpu7
+    —— 那顆核上跑的是誰，只有看 task/*/status 才知道。
+    """
+    out = {}
+    for d in os.listdir("/proc"):
+        if not d.isdigit():
+            continue
+        comm = read_text("/proc/%s/comm" % d, 64) or ""
+        if not any(pat in comm for pat in THREAD_PATTERNS):
+            continue
+        for t in os.listdir("/proc/%s/task" % d) if os.path.isdir("/proc/%s/task" % d) else []:
+            base = "/proc/%s/task/%s" % (d, t)
+            stat = read_text(base + "/stat", 4096)
+            if not stat:
+                continue
+            try:
+                rest = stat[stat.rindex(")") + 2:].split()
+                ticks = int(rest[11]) + int(rest[12])
+                processor = int(rest[36])          # 上次執行在哪顆核
+            except Exception:
+                continue
+            cpus = None
+            status = read_text(base + "/status", 8192)
+            if status:
+                for line in status.splitlines():
+                    if line.startswith("Cpus_allowed_list:"):
+                        cpus = line.split(":", 1)[1].strip()
+                        break
+            out[(int(d), int(t))] = {
+                "pid": int(d), "tid": int(t),
+                "proc": comm, "thread": read_text(base + "/comm", 64) or "",
+                "ticks": ticks, "last_cpu": processor, "cpus_allowed": cpus,
+            }
+    return out
+
+
+def thread_delta(a, b, secs, topn=25):
+    rows = []
+    for key, tb in b.items():
+        ta = a.get(key)
+        if ta is None:
+            continue
+        d = tb["ticks"] - ta["ticks"]
+        if d < 0:
+            continue
+        rows.append({"pid": tb["pid"], "tid": tb["tid"], "proc": tb["proc"],
+                     "thread": tb["thread"],
+                     "cpu_pct": round(100.0 * d / CLK_TCK / secs, 1),
+                     "last_cpu": tb["last_cpu"], "cpus_allowed": tb["cpus_allowed"]})
+    rows.sort(key=lambda r: r["cpu_pct"], reverse=True)
+    return rows[:topn]
+
+
 def proc_delta(a, b, secs, topn=15):
     rows = []
     for pid, pb in b.items():
@@ -260,6 +321,7 @@ def main():
 
     t0 = time.time()
     cpu_a, proc_a, net_a = cpu_snapshot(), proc_snapshot(), net_snapshot()
+    thr_a = threads_info()
     mem_a = meminfo()
 
     per_sec_cpu, series = [], {tag: [] for tag, _ in series_paths}
@@ -281,6 +343,7 @@ def main():
 
     elapsed = time.time() - t0
     cpu_b, proc_b, net_b = cpu_snapshot(), proc_snapshot(), net_snapshot()
+    thr_b = threads_info()
     mem_b = meminfo()
 
     if teg_proc is not None:
@@ -345,6 +408,7 @@ def main():
         "mem_start": mem_a,
         "mem_end": mem_b,
         "top_proc": proc_delta(proc_a, proc_b, elapsed),
+        "top_thread": thread_delta(thr_a, thr_b, elapsed),
         "gpu_npu": series_stat,
         "thermal_c": therm_stat,
         "net_MBps": net_delta,
@@ -375,6 +439,19 @@ def main():
     for r in result["top_proc"][:8]:
         print("  %6.1f%%  %8s MB  cpus=%-8s  %s"
               % (r["cpu_pct"], r["rss_mb"], r["cpus_allowed"] or "?", r["comm"]), file=e)
+    iso = result["isolated_cpus"]
+    if result["top_thread"]:
+        print("關鍵行程的執行緒（CPU%% / 上次在哪顆核 / 可用核）:".replace("%%", "%"), file=e)
+        for r in result["top_thread"][:10]:
+            print("  %6.1f%%  cpu%-2d  cpus=%-8s  %s / %s"
+                  % (r["cpu_pct"], r["last_cpu"], r["cpus_allowed"] or "?",
+                     r["proc"], r["thread"]), file=e)
+        if iso:
+            on_iso = [r for r in result["top_thread"]
+                      if str(r["last_cpu"]) in iso.replace("-", ",").split(",")]
+            print("  → 隔離核 %s 上抓到的執行緒：%s"
+                  % (iso, "、".join("%s/%s" % (r["proc"], r["thread"]) for r in on_iso)
+                     or "這次取樣沒抓到（只代表取樣瞬間，不代表沒有）"), file=e)
     if series_stat:
         print("GPU / NPU / devfreq:", file=e)
         for tag, s in sorted(series_stat.items()):

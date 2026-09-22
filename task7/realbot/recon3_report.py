@@ -43,7 +43,7 @@ def load_text(path):
 
 def parse_markers(text):
     """撈出靜態盤點刻意印的 @@ 標記。"""
-    kv, topics, camdevs, lidarcfg, files = {}, [], [], [], []
+    kv, topics, topics2, camdevs, lidarcfg, files = {}, [], [], [], [], []
     for line in text.splitlines():
         if line.startswith("@@KV "):
             k, _, v = line[5:].partition("=")
@@ -54,13 +54,19 @@ def parse_markers(text):
                 parts.append(NA)
             topics.append({"topic": parts[0].strip(), "type": parts[1].strip(),
                            "hz": parts[2].strip() or NA, "pubs": parts[3].strip() or NA})
+        elif line.startswith("@@TOPIC2 "):
+            rest = line[9:].strip()
+            name = rest.split()[0] if rest else ""
+            ty = rest[rest.find("[") + 1:rest.find("]")] if "[" in rest else NA
+            if name:
+                topics2.append({"topic": name, "type": ty})
         elif line.startswith("@@CAMDEV "):
             camdevs.append(line[9:].strip())
         elif line.startswith("@@LIDARCFG "):
             lidarcfg.append(line[11:].strip())
         elif line.startswith("@@FILE "):
             files.append(line[7:].strip())
-    return {"kv": kv, "topics": topics, "camdevs": camdevs,
+    return {"kv": kv, "topics": topics, "topics2": topics2, "camdevs": camdevs,
             "lidarcfg": lidarcfg, "files": files}
 
 
@@ -199,12 +205,33 @@ def sec_13(d, samples, statics):
               (BOARD_NAME[b], "待機" if ph == "idle" else "走路"), "",
               table(["PID", "行程", "CPU", "RSS", "可用核", "指令"], rows), ""]
 
+    # 執行緒層級（主執行緒的 mask 騙人：mc_ctrl 主執行緒是 0-6，但 cpu7 是隔離核）
+    for b, ph in PHASES:
+        s = samples.get((b, ph))
+        if not s or not s.get("top_thread"):
+            continue
+        iso = (s.get("isolated_cpus") or "").strip()
+        rows = [[r["proc"], r["thread"], r["pid"], r["tid"], fmt(r["cpu_pct"], "%"),
+                 "cpu%s" % r["last_cpu"], r.get("cpus_allowed") or NA]
+                for r in s["top_thread"][:12]]
+        L += ["### 1.3-e　%s / %s　關鍵行程的執行緒" %
+              (BOARD_NAME[b], "待機" if ph == "idle" else "走路"), "",
+              table(["行程", "執行緒", "PID", "TID", "CPU", "上次在哪顆核",
+                     "可用核"], rows), ""]
+        if iso:
+            on_iso = [r for r in s["top_thread"]
+                      if str(r["last_cpu"]) in iso.replace("-", ",").split(",")]
+            L += ["核心隔離 `isolcpus = %s`。取樣瞬間落在隔離核上的執行緒：%s" % (
+                iso,
+                "、".join("`%s/%s`" % (r["proc"], r["thread"]) for r in on_iso)
+                or "這次沒抓到（只代表取樣瞬間，不能斷定沒有）"), ""]
+
     # tegrastats 原始行（Orin 的 GPU 使用率只有這裡看得到）
     for b in ("nx", "rk"):
         for ph in ("idle", "walk"):
             s = samples.get((b, ph))
             if s and s.get("tegrastats"):
-                L += ["### 1.3-e　%s / %s　tegrastats 原始輸出（前 5 行）" %
+                L += ["### 1.3-f　%s / %s　tegrastats 原始輸出（前 5 行）" %
                       (BOARD_NAME[b], ph), "", "```",
                       "\n".join(s["tegrastats"][:5]), "```", ""]
             elif s and s.get("tegrastats_note") and b == "nx":
@@ -248,6 +275,16 @@ def sec_71(statics):
         hits = [t["topic"] for b, t in all_topics if re.search(pat, t["topic"], re.I)]
         rows.append([name, len(hits), "、".join(hits) if hits else NA])
     L += [table(["種類", "topic 數", "topic"], rows), ""]
+
+    rows2 = []
+    for b in ("rk", "nx"):
+        for t in statics[b].get("topics2", []):
+            rows2.append([BOARD_NAME[b], t["topic"], t["type"]])
+    if rows2:
+        L += ["### 7.1-b2　其他名稱像感測器的 topic（存在，但這趟沒量頻率）", "",
+              table(["板", "Topic", "型別"], rows2), "",
+              "這些多半是導航／SLAM 的中間產物（點雲重投影、視覺化 marker），"
+              "不是獨立的感測器。列出來是為了證明「感測 topic 沒有被漏看」。", ""]
 
     L += ["### 7.1-c　裝置列舉（交叉佐證）", ""]
     rows = []

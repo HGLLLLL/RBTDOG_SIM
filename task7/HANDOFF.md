@@ -1,12 +1,20 @@
 # task7 交接：D1 Max 現況與下一步
 
-- 最後更新：**2026-09-22 傍晚（v3.7f 備好等 Colab：平移抬高／跨距解耦產生器＋側向上限；右轉弱證明是 policy 不對稱、用鏡像推論解掉（v3.6f 右轉 −62→−84，不用重訓）。目前可部署最佳：v3.6f＋`--mirror`，表 `outputs/eval_cpg_rl_v3_6f_params_mirror.md`）**
+- 最後更新：**2026-09-22 夜（v3.7f 訓練中 `step` 停在 0.36 → v3.7b 備好：輪前饋壓掉名目漂移、lift 只能加、W_STEP 2.5；notebook `cpg_rl_v3_7bf_colab.ipynb`。可部署最佳仍是 v3.6f＋`--mirror`）**
 - 分支：`feat/d1-edu-cpg-rl`
 - **接手先讀這份，再讀 `README.md`。** 查狗的規格／SHM／座標／IMU 慣例／原廠參數 → `docs/D1Max_機器狗資訊.md`（2026-09-09 由 11 份偵察文件整合；原件與舊操作卡都在 `docs/archive/`）。
 
 ---
 
 ## ▶▶ 下次上班從這裡開始（2026-09-15 收工，全部已 commit 到 `main`）
+
+### ★★★★★ v3.7b 備好（2026-09-22 夜）：v3.7f 若 1 億步 `step` < 0.45 就停，改跑 `notebooks/cpg_rl_v3_7bf_colab.ipynb`
+
+v3.7f 訓到 85M `step` 0.33–0.36（名目 0.5–0.6）：policy 用 `lift` 通道縮抬高，因為名目抬高帶的往後漂／航向偏轉每步扣 1.4 ≈ `t_step` 1.5（spec v3.7 §6）。
+v3.7b：①輪前饋（vx 隨 |vy|、wz 0.4·sign(vy)，只進輪命令）把零動作漂 −0.065→+0.010、航向 −54°→−31° ②`lift` 只能加（死區＝名目）③`W_STEP` 2.5。
+證據：E14–E16、E9B（`outputs/v37_pretest.md`）、攤帳 `outputs/reward_audit_v37b.md`、28 條測試＋golden。
+訓完：`local_infer_v3.py --preset v37b --gains factory --mirror --weights task7/weights/cpg_rl_v3_7bf_params.pkl --seeds 3 --mesh --video task7/outputs/eval_v37bf_mesh.mp4`。
+若 v3.7f 撐過停損跑完，兩顆都驗，表各自對比（v3.7f 用 `--preset v37`）。
 
 ### ★★★★★ v3.7f 已備好，下一步：Colab 跑 `notebooks/cpg_rl_v3_7f_colab.ipynb`（2026-09-22 傍晚）
 

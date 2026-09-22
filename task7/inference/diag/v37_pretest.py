@@ -158,15 +158,21 @@ def E7(md):
     return md
 
 
-def E9(md):
+def E9B(md):
+    return E9(md, W=v3.W37B, title="E9B v3.7b（W37B：解耦 1.75×＋vx/wz 輪前饋＋lift 死區）零動作、無推力")
+
+
+def E9(md, W=None, title=None):
     """解耦產生器（REF cyc_lat_decouple=True）零動作全掃：速度 × 左右 × 2 種子；強健性；斜走／切換；名目 t_step。"""
+    W = W or v3.W36
     D = dict(cyc_lat_decouple=True)
-    md += ["", "## E9 解耦產生器 `cyc_lat_decouple=True`（髖膝 1.87×、ABAD k=clip(0.3+6.4(|vy|−0.10), 0.3, 1.0)）零動作、無推力", "",
+    md += ["", title or "## E9 解耦產生器 `cyc_lat_decouple=True`（髖膝 1.87×、ABAD k=clip(0.3+6.4(|vy|−0.10), 0.3, 1.0)）零動作、無推力", "",
            "| vy 指令 | 左：頂點 / vy / roll std / τ膝/髖/ABAD / 摔 | 右：同 | t_step |", "|---|---|---|---|"]
+    fmt2 = lambda r: fmt(r) + f" vx {r['vx']:+.3f} 航向 {r['head']:+.0f}°"   # noqa: E731
     def mk(**kw):
         ref = dict(cyc_amp_rand=False, **D)
         if "floor_mu" in kw: ref["floor_mu"] = kw.pop("floor_mu")
-        env = v3.DualModeEnv(gains="factory", weights=v3.W36, ref=ref, push=kw.pop("push", False))
+        env = v3.DualModeEnv(gains="factory", weights=W, ref=ref, push=kw.pop("push", False))
         if kw.get("abad_kp", 1.0) != 1.0:
             idx = jnp.array(v3.LEG_ACT_IDX)[jnp.array(ABAD)]
             env.sys = env.sys.replace(actuator_gainprm=env.sys.actuator_gainprm.at[idx, 0].multiply(kw["abad_kp"]), actuator_biasprm=env.sys.actuator_biasprm.at[idx, 1].multiply(kw["abad_kp"]))
@@ -183,20 +189,20 @@ def E9(md):
     md += ["", "強健性與情境（vy 0.20 左／右除註明）：", "", "| 條件 | 左 | 右 |", "|---|---|---|"]
     for name, kw in (("摩擦 0.4", dict(floor_mu=0.4)), ("摩擦 1.4", dict(floor_mu=1.4)), ("ABAD kp ×0.7", dict(abad_kp=0.7)), ("開推力", dict(push=True)), ("20 s", dict())):
         e2, jr2, js2 = mk(**kw); secs = 20.0 if name == "20 s" else 10.0
-        cells = [fmt(roll(e2, jr2, js2, (0.0, sgn * 0.20, 0.0), secs=secs)) for sgn in (1, -1)]
+        cells = [fmt2(roll(e2, jr2, js2, (0.0, sgn * 0.20, 0.0), secs=secs)) for sgn in (1, -1)]
         md.append(f"| {name} | {cells[0]} | {cells[1]} |"); print(md[-1], flush=True)
     for name, cmd, kw in (("斜走 0.3+0.15", (0.3, 0.15, 0.0), {}), ("斜走 0.3−0.15", (0.3, -0.15, 0.0), {}),
                           ("左平移 5 s → 站立 7 s", (0.0, 0.20, 0.0), dict(secs=12.0, cmd2=(0.0, 0.0, 0.0), t_switch=250)),
                           ("左平移 5 s → 右平移 7 s", (0.0, 0.20, 0.0), dict(secs=12.0, cmd2=(0.0, -0.20, 0.0), t_switch=250)),
                           ("左平移 5 s → 直走 7 s", (0.0, 0.20, 0.0), dict(secs=12.0, cmd2=(0.5, 0.0, 0.0), t_switch=250)),
                           ("原地左轉（不該受影響）", (0.0, 0.0, 1.3), {}), ("弧線（不該受影響）", (0.5, 0.0, 0.5), {})):
-        r = roll(env, jr, js, cmd, **kw); md.append(f"| {name} | vx {r['vx']:+.2f} yaw {r['yaw']:+.0f} {fmt(r)} | |"); print(md[-1], flush=True)
+        r = roll(env, jr, js, cmd, **kw); md.append(f"| {name} | vx {r['vx']:+.2f} yaw {r['yaw']:+.0f} 航向 {r['head']:+.0f}° {fmt(r)} | |"); print(md[-1], flush=True)
     return md
 
 
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument("--exp", nargs="+", default=["E1", "E2", "E3", "E4", "E5", "E6", "E7", "E9"]); a = ap.parse_args()
-    md = [] if OUT.exists() and a.exp != ["E1", "E2", "E3", "E4", "E5", "E6", "E7", "E9"] else ["# v3.7 前實驗（2026-09-22）—— 分關節縮放 (0.7, 1.4, 1.4) 是否值得訓練", ""]
+    ap = argparse.ArgumentParser(); ap.add_argument("--exp", nargs="+", default=["E1", "E2", "E3", "E4", "E5", "E6", "E7", "E9", "E9B"]); a = ap.parse_args()
+    md = [] if OUT.exists() and a.exp != ["E1", "E2", "E3", "E4", "E5", "E6", "E7", "E9", "E9B"] else ["# v3.7 前實驗（2026-09-22）—— 分關節縮放 (0.7, 1.4, 1.4) 是否值得訓練", ""]
     for e in a.exp:
         t0 = time.time(); md = globals()[e](md); md.append(f"（{e} {time.time() - t0:.0f} s）")
     with OUT.open("a" if md and not md[0].startswith("# v3.7") else "w", encoding="utf-8") as f:

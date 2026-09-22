@@ -79,6 +79,9 @@ REF = dict(
     #   E9 校準（零動作 2.1 Hz 踏步的名目側速上限 ≈ 0.21 m/s）：k 0.3 到 vy 0.12、0.75 在 0.20、1.0 在 ≥ 0.245
     #   E11／E12／E13：往後漂與航向偏轉隨膝倍率線性增加（1.87 → −0.08 m/s／−60°），但速度上限也跟著（1.6 → 0.16、1.75 → 0.18、1.87 → 0.21）；
     #   髖膝分開沒有更好。取 1.75：抬 24–30 mm、0.20 指令跑 0.18、膝峰 46–51、漂 −0.065
+    #   E14／E15（v3.7b）：解耦名目往後漂（−0.11 @0.12、−0.065 @0.20）與航向偏轉（−50°/10 s）只作用在輪命令的前饋補償，不改族別混合
+    #   E16：航向偏轉七成來自踏步圖案本身（輪圖案歸零只減三成），wz 前饋 0.4 砍四成（−54° → −31°），剩下交給 policy 的每腿 ABAD 幅度
+    cyc_lat_vx_ff=(0.15, -0.43, 0.05, 0.10), cyc_lat_wz_ff=0.4,   # vx_ff = clip(a + b·|vy|, lo, hi)；wz_ff·sign(vy) rad/s；只在 cyc_lat_decouple 時生效
     cyc_lat_decouple=False, cyc_lat_lift=1.75, cyc_lat_abad0=0.3, cyc_lat_abad_vy0=0.12, cyc_lat_abad_slope=5.6, cyc_lat_abad_clip=(0.3, 1.0),
     # 相位組："factory"＝原廠四腿相位（配 duty ≥ 0.7 才有三腳著地）；"trot"＝對角對交替（duty 0.5 用，任何時刻兩對角腳著地）
     phase_set_turn="trot", phase_set_lat="factory",
@@ -146,6 +149,8 @@ W35 = dict(W, W_ABADBIAS=30.0, W_DRIFT=40.0, W_HEADLIN=1.0, W_VYREL=6.0, P_VY=0.
 W36 = dict(W35, W_STEP=1.5, STEP_APEX=0.021, PEN_SHAPE="hinge", W_DRIFT_L=8.0, DRIFT_DZ=0.010, W_ABADBIAS_L=6.0, ABAD_DZ=0.0436)
 # v3.7（2026-09-22 E6–E13）：平移抬高／跨距解耦（REF cyc_lat_decouple）＋ 側向指令上限 0.22（2.1 Hz 踏步、抬 1.75× 的名目上限 ≈ 0.18，再高只能教它側滑）
 W37 = dict(W36, CYC_LAT_DECOUPLE=True, CMD_VY=(0.04, 0.22))
+# v3.7b（2026-09-22 夜，v3.7f 訓到 64M `step` 0.41→0.25 停損）：名目的漂移／航向由輪前饋補（REF cyc_lat_*_ff，見 E14／E15）、lift 通道只能加不能減、W_STEP 2.5
+W37B = dict(W37, LIFT_NONNEG=True, W_STEP=2.5)
 T_KEYS = ("t_vx", "t_vy", "t_yaw", "t_yawi", "t_yawlin", "t_yawrel", "t_vyrel", "t_head", "t_h", "t_lift", "t_stance", "t_roll", "t_pitch", "t_rollrate",
           "t_pitchrate", "t_bias", "t_act", "t_omdot", "t_qres", "t_tau", "t_taubar", "t_errbar", "t_kneev", "t_mode", "t_vz", "t_abadbias", "t_drift", "t_headlin", "t_step")
 METRIC_KEYS = ("height", "vx", "vy", "wz", "reward", "pitch", "roll", "mode", "s4", "s_arc", "cyc", "clr_step", "clr_stance",
@@ -672,6 +677,8 @@ class DualModeEnv(Env):
         u_ramp = jnp.clip(step_i / w["RAMP_STEPS"], 0.0, 1.0)
         act = u_ramp * act
         A = act_split(act)
+        if w.get("LIFT_NONNEG", False):                                   # v3.7b：lift ∈ [1, 1+LIFT_SCALE]（a ≤ 0 死區＝名目），policy 不能把名目抬高縮掉
+            A = dict(A, lift=1.0 + jnp.maximum(A["lift"] - 1.0, 0.0))
         # ---- 相位：共同相位推進 ＋ 每腿偏移（偏移目標變了就限速追）
         om = P["hz"] * A["om"]
         ph = slew_phase(info["ph"], P["ph"])
@@ -699,7 +706,14 @@ class DualModeEnv(Env):
         #   速度空間（v3.3）：全部在 rad/s，錄檔 τ 除 kv 換算
         #   力矩空間（v3.4f，原廠 kd 0.1）：差速走外環 τ = G_w·(v_des − v)，錄檔 τ 與殘差直接是 N·m
         data = state.pipeline_state                                       # 外環回授用的是這一控制步開始時的實測輪速（在 kick 之前）
-        v_nom = wheel_cmd(cmd, P["A"], jnp.zeros(4), self.ref)
+        cmd_w = cmd
+        if self.ref["cyc_lat_decouple"]:                                 # v3.7b：平移名目的漂移／航向前饋（只進輪命令）
+            a_, b_, lo_, hi_ = self.ref["cyc_lat_vx_ff"]
+            has_vy = (jnp.abs(cmd[1]) > 0.02).astype(jnp.float32) * _lat_weight(P["A"]) * u4
+            cmd_w = cmd + has_vy * jnp.array([1.0, 0.0, 0.0]) * jnp.clip(a_ + b_ * jnp.abs(cmd[1]), lo_, hi_) \
+                        + has_vy * jnp.array([0.0, 0.0, 1.0]) * self.ref["cyc_lat_wz_ff"] * jnp.sign(cmd[1])
+        A_w = activity(cmd_w, self.ref) if self.ref["cyc_lat_decouple"] else P["A"]   # 輪命令的活動度 gate 要看前饋後的指令
+        v_nom = wheel_cmd(cmd_w, A_w, jnp.zeros(4), self.ref)
         v_wheel_meas = data.qvel[WHEEL_QVEL_IDX]
         if self.wheel_space == "tau":
             wheel_q = self.ref["wheel_outer_gain"] * (v_nom - v_wheel_meas) + A["wres"] + u4 * CY["wheel_tau"]

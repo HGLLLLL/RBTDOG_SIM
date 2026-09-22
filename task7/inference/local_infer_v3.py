@@ -36,7 +36,7 @@ def _steps_per_sec(clr, secs):
 
 
 def preset_weights(preset):
-    return {"v33": None, "v35": v3.W35, "v36": v3.W36, "v37": v3.W37}[preset]
+    return {"v33": None, "v35": v3.W35, "v36": v3.W36, "v37": v3.W37, "v37b": v3.W37B}[preset]
 
 
 def load_policy(path: str, obs_dim: int = 88):
@@ -96,7 +96,7 @@ def build_parser():
     ap.add_argument("--seeds", type=int, default=3); ap.add_argument("--secs", type=float, default=10.0)
     ap.add_argument("--no-baseline", action="store_true", dest="no_baseline"); ap.add_argument("--video", default="")
     ap.add_argument("--only", default="")
-    ap.add_argument("--preset", default="v33", choices=("v33", "v35", "v36", "v37"), help="v35＝weights=W35（含右轉鏡像 CYC_TURN_SYM）；驗 v3.5／v3.5f 權重要用；v36＝W36（抬腳頂點獎勵＋hinge 懲罰，2026-09-22）；v37＝W37（平移解耦產生器）")
+    ap.add_argument("--preset", default="v33", choices=("v33", "v35", "v36", "v37", "v37b"), help="v35＝weights=W35（含右轉鏡像 CYC_TURN_SYM）；驗 v3.5／v3.5f 權重要用；v36＝W36（抬腳頂點獎勵＋hinge 懲罰，2026-09-22）；v37＝W37（平移解耦產生器）")
     ap.add_argument("--mirror", action="store_true", help="原地右轉用鏡像推論（obs 鏡像 → policy → 動作鏡像；v3.7 部署方式，E10：右轉 −62→−84）")
     ap.add_argument("--push", action="store_true", help="統計 rollout 也開訓練用的隨機推力（預設關：推力每 2 s 一次，會污染 roll／航向／vx 漂；摔欄永遠另跑一組有推力的）")
     ap.add_argument("--gains", default="kp250", choices=("kp250", "factory"), help="factory＝v3.4f（馬達增益照原廠、力矩空間輪控制）；要與權重的訓練設定一致")

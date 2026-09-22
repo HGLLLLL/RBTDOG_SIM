@@ -67,12 +67,27 @@ def test_decouple_flag_default_off_and_scales_as_designed():
         assert np.allclose(ratio[col > 0], 1.75, atol=0.02), (vy, ratio[col > 0])
 
 
-def test_decouple_env_zero_action_lifts_and_tracks():
-    env = v3.DualModeEnv(gains="factory", weights=v3.W36, ref=dict(cyc_amp_rand=False, cyc_lat_decouple=True), push=False)
+def test_w37b_values_and_lift_nonneg_mapping():
+    assert v3.W37["CYC_LAT_DECOUPLE"] is True and v3.W37["CMD_VY"] == (0.04, 0.22) and "LIFT_NONNEG" not in v3.W37
+    assert v3.W37B["LIFT_NONNEG"] is True and v3.W37B["W_STEP"] == 2.5
+    assert v3.REF["cyc_lat_wz_ff"] == 0.4 and v3.REF["cyc_lat_vx_ff"] == (0.15, -0.43, 0.05, 0.10)
+    # lift 通道：a ≤ 0 → 1.0（死區＝名目）、a = +∞ → 1.4；預設路徑 a=−∞ → 0.6
+    for a5, exp in ((-3.0, 1.0), (0.0, 1.0), (3.0, 1.0 + v3.LIFT_SCALE * float(jnp.tanh(3.0)))):
+        A = v3.act_split(jnp.zeros(v3.ACT_DIM).at[5].set(a5))
+        lift = 1.0 + jnp.maximum(A["lift"] - 1.0, 0.0)
+        assert abs(float(lift) - exp) < 1e-6
+    assert abs(float(v3.act_split(jnp.zeros(v3.ACT_DIM).at[5].set(-3.0))["lift"]) - (1.0 - v3.LIFT_SCALE * float(jnp.tanh(3.0)))) < 1e-6
+
+
+@pytest.mark.parametrize("weights,vx_tol,head_tol", [(v3.W37, 0.10, 70.0), (v3.W37B, 0.03, 45.0)])
+def test_decouple_env_zero_action_lifts_tracks_and_feedforward(weights, vx_tol, head_tol):
+    """W37／W37B 都走解耦產生器（前饋是 REF 預設，兩者都有）；W37B 零動作＝名目（lift 死區）。"""
+    env = v3.DualModeEnv(gains="factory", weights=weights, ref=dict(cyc_amp_rand=False), push=False)
     jr, js = jax.jit(env.reset), jax.jit(env.step)
     s = jr(jax.random.PRNGKey(0)); s = s.replace(info={**s.info, "cmd": jnp.array((0.0, 0.20, 0.0)), "cmd2": jnp.array((0.0, 0.20, 0.0)), "t_switch": 10 ** 6})
-    VY, AP = [], []
-    for i in range(400):
-        s = js(s, jnp.zeros(v3.ACT_DIM)); VY.append(float(s.metrics["vy"])); AP.append(np.asarray(s.info["apex_last"]) * 1000)
+    VY, VX, AP = [], [], []
+    for i in range(500):
+        s = js(s, jnp.zeros(v3.ACT_DIM)); VY.append(float(s.metrics["vy"])); VX.append(float(s.metrics["vx"])); AP.append(np.asarray(s.info["apex_last"]) * 1000)
         assert float(s.done) == 0.0
     assert 0.14 < np.mean(VY[100:]) < 0.26 and np.mean(AP[200:], 0)[1] > 15 and np.mean(AP[200:], 0)[3] > 15
+    assert abs(np.mean(VX[100:])) < vx_tol and abs(float(s.metrics["head_deg"])) < head_tol

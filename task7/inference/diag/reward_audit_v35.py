@@ -60,13 +60,13 @@ def main() -> int:
     ap.add_argument("--weights", default=str(INF.parent / "weights" / "cpg_rl_v3_params_2.pkl"))
     ap.add_argument("--secs", type=float, default=10.0)
     ap.add_argument("--gains", default="kp250", choices=("kp250", "factory"), help="factory＝拿 v3.4f 權重在原廠增益線上攤帳（v3.5f）")
-    ap.add_argument("--weights-set", default="v35", choices=("v35", "v36", "v37"), dest="wset", help="v36＝W36 攤帳（t_step／hinge；多一列零動作；無推力）；v37＝W37（解耦產生器）同 v36 門檻")
+    ap.add_argument("--weights-set", default="v35", choices=("v35", "v36", "v37", "v37b"), dest="wset", help="v36＝W36 攤帳（t_step／hinge；多一列零動作；無推力）；v37／v37b＝解耦產生器，門檻 GATE37")
     a = ap.parse_args()
-    V36 = a.wset in ("v36", "v37")
-    W_ = {"v35": v3.W35, "v36": v3.W36, "v37": v3.W37}[a.wset]
+    V36 = a.wset in ("v36", "v37", "v37b")
+    W_ = {"v35": v3.W35, "v36": v3.W36, "v37": v3.W37, "v37b": v3.W37B}[a.wset]
     env = v3.DualModeEnv(gains=a.gains, ref=dict(cyc_amp_rand=False), weights=W_, push=not V36)   # W35 含 CYC_TURN_SYM → 右轉鏡像；攤帳看的是 reward 項，圖案差異對 kp250/v3.4f 舊權重只影響右轉；v36 不要推力
     cases = CASES36 if V36 else tuple((n, c, True) for n, c in CASES)
-    gate = {"v35": GATE, "v36": GATE36, "v37": GATE37}[a.wset]
+    gate = {"v35": GATE, "v36": GATE36, "v37": GATE37, "v37b": GATE37}[a.wset]
     jr, js = jax.jit(env.reset), jax.jit(env.step)
     pol = L.load_policy(a.weights, env.obs_dim); steps = int(a.secs / v3.CTRL_DT)
     rows, all_ok = [], True
@@ -87,9 +87,9 @@ def main() -> int:
            "| 指令 | t_abadbias | t_drift | t_headlin | t_step | ABAD 漂 ° | vx 漂 m/s | 航向 ° | reward/步 | 摔 | 門檻 |", "|---|---|---|---|---|---|---|---|---|---|---|"]
     for name, r, bad in rows:
         out.append(f"| {name} | {r['t_abadbias']:.3f} | {r['t_drift']:.3f} | {r['t_headlin']:.3f} | {r['t_step']:.3f} | {r['abad_bias']:.1f} | {r['vx_drift']:+.3f} | {r['head_deg']:+.1f} | {r['reward']:+.2f} | {r['fell']} | {'PASS' if not bad else 'FAIL：' + '; '.join(bad)} |")
-    if a.wset == "v37":
+    if a.wset in ("v37", "v37b"):
         out += ["", "門檻（v3.7）：零動作 t_step ≥ 1.2（產生器本身抬 25–40 mm）、平移 t_drift ≤ 1.0、直走／原地轉 t_step = 0、直走 t_abadbias ≤ 0.05 且 t_drift ≤ 0.10。"]
-        p = INF.parent / "outputs" / "reward_audit_v37.md"
+        p = INF.parent / "outputs" / f"reward_audit_{a.wset}.md"
     elif V36:
         out += ["", "門檻（spec 2026-09-22 §3.3）：左平移 policy t_step ≤ 1.0、零動作 t_step ≥ 0.7 且比 policy 高 ≥ 0.4、t_drift 0.10–0.35；原地轉 t_abadbias 0.3–0.8、t_step = 0；直走三項 ≤ 0.05。全過 → 可上 Colab。"]
         p = INF.parent / "outputs" / "reward_audit_v36.md"

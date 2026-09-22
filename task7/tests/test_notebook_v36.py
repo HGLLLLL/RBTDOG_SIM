@@ -59,3 +59,13 @@ def test_v37f_notebook_env_and_stoploss():
     assert "v3.7f" in md and "cyc_lat_decouple" in md and "< 0.45" in md
     v36 = _code_src(NB)
     assert "W37" not in v36                                                          # v3.6f 那本不受影響
+
+
+def test_v37bf_notebook():
+    nb = NBDIR / "cpg_rl_v3_7bf_colab.ipynb"
+    assert nb.exists(), "先跑 python3 task7/notebooks/build_nb_v3.py --gains factory --weights v37b"
+    src = _code_src(nb)
+    assert src.count('v3.DualModeEnv(gains="factory", weights=v3.W37B)') == 2 and 'model.save_params("cpg_rl_v3_7bf_params.pkl", params)' in src
+    assert 'randomization_fn=v3.make_domain_randomize("factory", com_y_mm=5.0)' in src and "step {ps('t_step'):.2f}" in src
+    md = _md_src(nb); assert "v3.7b" in md and "輪前饋" in md and "< 0.45" in md
+    assert "W37B" not in _code_src(NBDIR / "cpg_rl_v3_7f_colab.ipynb")

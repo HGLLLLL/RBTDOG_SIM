@@ -1,0 +1,47 @@
+[recon3] robot: 採樣 40.0 秒（標籤 walk）…
+
+---- robot / walk：41 秒 ----
+整體 CPU 27.4%   8 核   loadavg 8.54 7.42 7.18 1/763 12556
+  cpu0  平均  24.2%  峰  45.5%  #####
+  cpu1  平均  23.0%  峰  42.7%  #####
+  cpu2  平均  23.9%  峰  39.6%  #####
+  cpu3  平均  28.4%  峰  40.0%  ######
+  cpu4  平均  22.5%  峰  30.0%  ####
+  cpu5  平均  22.3%  峰  32.1%  ####
+  cpu6  平均  61.5%  峰  69.4%  ############
+  cpu7  平均  13.2%  峰  17.3%  ###
+  核心隔離 isolcpus = 7
+記憶體 1713 / 7916 MB（22%）  swap 用 0 MB
+前 8 名行程（CPU% / RSS MB / 可用核）:
+    64.7%     165.3 MB  cpus=0-6       robot_camera_no
+    35.9%     309.3 MB  cpus=0-6       robot_hal_node
+    20.0%      47.3 MB  cpus=0-6       robot_roamerx_n
+    10.9%     157.9 MB  cpus=0-6       mc_ctrl
+    10.8%      41.2 MB  cpus=0-6       robot_remote
+     4.1%       0.0 MB  cpus=6         irq/114-ttyS3
+     3.8%       0.0 MB  cpus=6         irq/118-ttyS9
+     3.8%       0.0 MB  cpus=6         irq/116-ttyS5
+關鍵行程的執行緒（CPU% / 上次在哪顆核 / 可用核）:
+    16.2%  cpu7   cpus=7         robot_hal_node / HwLoop
+    14.3%  cpu3   cpus=0-6       robot_camera_no / pub_camera_back
+    13.2%  cpu6   cpus=0-6       robot_camera_no / pub_camera_fron
+     9.7%  cpu5   cpus=0-6       robot_camera_no / queue0:src
+     8.7%  cpu4   cpus=0-6       robot_camera_no / queue4:src
+     6.4%  cpu4   cpus=0-6       robot_hal_node / imu_recv_thread
+     5.9%  cpu1   cpus=0-6       mc_ctrl / mc_ctrl
+     4.5%  cpu2   cpus=0-6       mc_ctrl / mc_ctrl
+     3.7%  cpu4   cpus=0-6       robot_camera_no / queue5:src
+     3.2%  cpu1   cpus=0-6       robot_camera_no / v4l2src0:src
+  → 隔離核 7 上抓到的執行緒：robot_hal_node/HwLoop
+GPU / NPU / devfreq:
+  devfreq:fb000000.gpu:cur_freq      平均 300000000.0  峰 300000000.0
+  devfreq:fb000000.gpu:load          平均 0.0  峰 0.0
+  devfreq:fdab0000.npu:cur_freq      平均 1000000000.0  峰 1000000000.0
+  devfreq:fdab0000.npu:load          平均 100.0  峰 100.0
+  mali:utilisation                   平均 0.0  峰 0.0
+  rknpu:core0:load_pct               平均 7.4  峰 8.0
+  rknpu:core1:load_pct               平均 0.0  峰 0.0
+  rknpu:core2:load_pct               平均 0.0  峰 0.0
+溫度（最高 5 區）: bigcore0-thermal 45.3°C  bigcore1-thermal 45.3°C  littlecore-thermal 45.3°C  soc-thermal 44.4°C  center-thermal 43.5°C
+網路流量: lo rx 7.85 MB/s  eth0 rx 0.05 MB/s  can1 rx 0.05 MB/s  can2 rx 0.05 MB/s  can0 rx 0.05 MB/s  can3 rx 0.05 MB/s
+tegrastats: 這塊板沒有 tegrastats（預期：只有 Orin NX 有）

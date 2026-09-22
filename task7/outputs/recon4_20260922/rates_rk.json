@@ -1,0 +1,34 @@
+{
+ "secs": 30.0,
+ "spins": 6001,
+ "topics": {
+  "/imu_shm_publisher/imu_central": {
+   "type": "sensor_msgs/msg/Imu",
+   "n": 6001,
+   "publishers": 1,
+   "rate_hz": 199.997,
+   "gap_ms": {
+    "mean": 5.0,
+    "std": 0.787,
+    "min": 0.38,
+    "max": 13.704,
+    "median": 4.974
+   },
+   "big_gaps": 0,
+   "big_gap_worst_x": 2.8,
+   "stamp": {
+    "rate_hz": 200.0,
+    "dt_ms": {
+     "mean": 5.0,
+     "std": 0.004,
+     "min": 4.969,
+     "max": 5.031,
+     "median": 5.0
+    },
+    "big_gaps": 0,
+    "missing_est": 0
+   }
+  }
+ },
+ "missing": []
+}

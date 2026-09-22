@@ -1,0 +1,507 @@
+{
+ "label": "walk",
+ "host": "robot",
+ "secs": 40.8,
+ "ts": "2026-09-22T11:04:08+0800",
+ "uid": 0,
+ "ncpu": 8,
+ "cpu_overall_pct": 27.4,
+ "per_cpu_pct": [
+  24.2,
+  23.0,
+  23.9,
+  28.4,
+  22.5,
+  22.3,
+  61.5,
+  13.2
+ ],
+ "per_cpu_max_pct": [
+  45.5,
+  42.7,
+  39.6,
+  40.0,
+  30.0,
+  32.1,
+  69.4,
+  17.3
+ ],
+ "loadavg": "8.54 7.42 7.18 1/763 12556",
+ "isolated_cpus": "7",
+ "mem_start": {
+  "total_mb": 7915.7,
+  "available_mb": 6214.1,
+  "used_mb": 1701.6,
+  "used_pct": 21.5,
+  "cached_mb": 707.8,
+  "swap_total_mb": 0.0,
+  "swap_used_mb": 0.0
+ },
+ "mem_end": {
+  "total_mb": 7915.7,
+  "available_mb": 6202.6,
+  "used_mb": 1713.1,
+  "used_pct": 21.6,
+  "cached_mb": 708.0,
+  "swap_total_mb": 0.0,
+  "swap_used_mb": 0.0
+ },
+ "top_proc": [
+  {
+   "pid": 2314,
+   "comm": "robot_camera_no",
+   "cpu_pct": 64.7,
+   "rss_mb": 165.3,
+   "cpus_allowed": "0-6",
+   "cmd": "/opt/robot/install/robot_camera/lib/robot_camera/robot_camera_node --ros-args --params-file /opt/robot/install/robot_cam"
+  },
+  {
+   "pid": 2167,
+   "comm": "robot_hal_node",
+   "cpu_pct": 35.9,
+   "rss_mb": 309.3,
+   "cpus_allowed": "0-6",
+   "cmd": "/opt/robot/install/robot_hal/lib/robot_hal/robot_hal_node --ros-args --params-file /opt/robot/install/robot_hal/share/ro"
+  },
+  {
+   "pid": 2171,
+   "comm": "robot_roamerx_n",
+   "cpu_pct": 20.0,
+   "rss_mb": 47.3,
+   "cpus_allowed": "0-6",
+   "cmd": "/opt/robot/install/robot_roamerx/lib/robot_roamerx/robot_roamerx_node --ros-args -r __node:=robot_roamerx --params-file "
+  },
+  {
+   "pid": 2422,
+   "comm": "mc_ctrl",
+   "cpu_pct": 10.9,
+   "rss_mb": 157.9,
+   "cpus_allowed": "0-6",
+   "cmd": "./mc_ctrl r"
+  },
+  {
+   "pid": 2165,
+   "comm": "robot_remote",
+   "cpu_pct": 10.8,
+   "rss_mb": 41.2,
+   "cpus_allowed": "0-6",
+   "cmd": "/opt/robot/install/robot_remote/lib/robot_remote/robot_remote --ros-args -r __node:=robot_remote -r __ns:=/ --params-fil"
+  },
+  {
+   "pid": 760,
+   "comm": "irq/114-ttyS3",
+   "cpu_pct": 4.1,
+   "rss_mb": 0.0,
+   "cpus_allowed": "6",
+   "cmd": ""
+  },
+  {
+   "pid": 757,
+   "comm": "irq/118-ttyS9",
+   "cpu_pct": 3.8,
+   "rss_mb": 0.0,
+   "cpus_allowed": "6",
+   "cmd": ""
+  },
+  {
+   "pid": 758,
+   "comm": "irq/116-ttyS5",
+   "cpu_pct": 3.8,
+   "rss_mb": 0.0,
+   "cpus_allowed": "6",
+   "cmd": ""
+  },
+  {
+   "pid": 759,
+   "comm": "irq/117-ttyS7",
+   "cpu_pct": 3.4,
+   "rss_mb": 0.0,
+   "cpus_allowed": "6",
+   "cmd": ""
+  },
+  {
+   "pid": 645,
+   "comm": "rkaiq_3A_server",
+   "cpu_pct": 2.9,
+   "rss_mb": 16.3,
+   "cpus_allowed": "0-6",
+   "cmd": "/usr/bin/rkaiq_3A_server"
+  },
+  {
+   "pid": 671,
+   "comm": "kworker/u16:4-uart2canfd_rx",
+   "cpu_pct": 2.3,
+   "rss_mb": 0.0,
+   "cpus_allowed": "0-6",
+   "cmd": ""
+  },
+  {
+   "pid": 240,
+   "comm": "dmabuf-deferred",
+   "cpu_pct": 2.1,
+   "rss_mb": 0.0,
+   "cpus_allowed": "0-7",
+   "cmd": ""
+  },
+  {
+   "pid": 763,
+   "comm": "kworker/u16:7-uart2canfd_rx",
+   "cpu_pct": 2.1,
+   "rss_mb": 0.0,
+   "cpus_allowed": "0-6",
+   "cmd": ""
+  },
+  {
+   "pid": 11808,
+   "comm": "kworker/u16:8-uart2canfd_rx",
+   "cpu_pct": 2.1,
+   "rss_mb": 0.0,
+   "cpus_allowed": "0-6",
+   "cmd": ""
+  },
+  {
+   "pid": 2259,
+   "comm": "domain_bridge",
+   "cpu_pct": 1.8,
+   "rss_mb": 44.3,
+   "cpus_allowed": "0-6",
+   "cmd": "/opt/ros/humble/lib/domain_bridge/domain_bridge /opt/runtime/bin/bridge_config.yaml"
+  }
+ ],
+ "top_thread": [
+  {
+   "pid": 2167,
+   "tid": 2373,
+   "proc": "robot_hal_node",
+   "thread": "HwLoop",
+   "cpu_pct": 16.2,
+   "last_cpu": 7,
+   "cpus_allowed": "7"
+  },
+  {
+   "pid": 2314,
+   "tid": 2363,
+   "proc": "robot_camera_no",
+   "thread": "pub_camera_back",
+   "cpu_pct": 14.3,
+   "last_cpu": 3,
+   "cpus_allowed": "0-6"
+  },
+  {
+   "pid": 2314,
+   "tid": 2348,
+   "proc": "robot_camera_no",
+   "thread": "pub_camera_fron",
+   "cpu_pct": 13.2,
+   "last_cpu": 6,
+   "cpus_allowed": "0-6"
+  },
+  {
+   "pid": 2314,
+   "tid": 2343,
+   "proc": "robot_camera_no",
+   "thread": "queue0:src",
+   "cpu_pct": 9.7,
+   "last_cpu": 5,
+   "cpus_allowed": "0-6"
+  },
+  {
+   "pid": 2314,
+   "tid": 2358,
+   "proc": "robot_camera_no",
+   "thread": "queue4:src",
+   "cpu_pct": 8.7,
+   "last_cpu": 4,
+   "cpus_allowed": "0-6"
+  },
+  {
+   "pid": 2167,
+   "tid": 2370,
+   "proc": "robot_hal_node",
+   "thread": "imu_recv_thread",
+   "cpu_pct": 6.4,
+   "last_cpu": 4,
+   "cpus_allowed": "0-6"
+  },
+  {
+   "pid": 2422,
+   "tid": 2466,
+   "proc": "mc_ctrl",
+   "thread": "mc_ctrl",
+   "cpu_pct": 5.9,
+   "last_cpu": 1,
+   "cpus_allowed": "0-6"
+  },
+  {
+   "pid": 2422,
+   "tid": 2448,
+   "proc": "mc_ctrl",
+   "thread": "mc_ctrl",
+   "cpu_pct": 4.5,
+   "last_cpu": 2,
+   "cpus_allowed": "0-6"
+  },
+  {
+   "pid": 2314,
+   "tid": 2359,
+   "proc": "robot_camera_no",
+   "thread": "queue5:src",
+   "cpu_pct": 3.7,
+   "last_cpu": 4,
+   "cpus_allowed": "0-6"
+  },
+  {
+   "pid": 2314,
+   "tid": 2345,
+   "proc": "robot_camera_no",
+   "thread": "v4l2src0:src",
+   "cpu_pct": 3.2,
+   "last_cpu": 1,
+   "cpus_allowed": "0-6"
+  },
+  {
+   "pid": 2314,
+   "tid": 2360,
+   "proc": "robot_camera_no",
+   "thread": "v4l2src1:src",
+   "cpu_pct": 3.2,
+   "last_cpu": 5,
+   "cpus_allowed": "0-6"
+  },
+  {
+   "pid": 2314,
+   "tid": 2344,
+   "proc": "robot_camera_no",
+   "thread": "queue1:src",
+   "cpu_pct": 3.0,
+   "last_cpu": 2,
+   "cpus_allowed": "0-6"
+  },
+  {
+   "pid": 2167,
+   "tid": 2200,
+   "proc": "robot_hal_node",
+   "thread": "tx-0",
+   "cpu_pct": 2.9,
+   "last_cpu": 4,
+   "cpus_allowed": "0-6"
+  },
+  {
+   "pid": 2167,
+   "tid": 2296,
+   "proc": "robot_hal_node",
+   "thread": "back_right_leg",
+   "cpu_pct": 2.6,
+   "last_cpu": 1,
+   "cpus_allowed": "0-6"
+  },
+  {
+   "pid": 2167,
+   "tid": 2293,
+   "proc": "robot_hal_node",
+   "thread": "back_left_leg",
+   "cpu_pct": 2.5,
+   "last_cpu": 2,
+   "cpus_allowed": "0-6"
+  },
+  {
+   "pid": 2167,
+   "tid": 2292,
+   "proc": "robot_hal_node",
+   "thread": "front_right_leg",
+   "cpu_pct": 2.4,
+   "last_cpu": 3,
+   "cpus_allowed": "0-6"
+  },
+  {
+   "pid": 2167,
+   "tid": 2291,
+   "proc": "robot_hal_node",
+   "thread": "front_left_leg",
+   "cpu_pct": 2.3,
+   "last_cpu": 5,
+   "cpus_allowed": "0-6"
+  },
+  {
+   "pid": 2314,
+   "tid": 2364,
+   "proc": "robot_camera_no",
+   "thread": "enc_camera_fron",
+   "cpu_pct": 1.4,
+   "last_cpu": 4,
+   "cpus_allowed": "0-6"
+  },
+  {
+   "pid": 2314,
+   "tid": 2365,
+   "proc": "robot_camera_no",
+   "thread": "enc_camera_back",
+   "cpu_pct": 1.3,
+   "last_cpu": 6,
+   "cpus_allowed": "0-6"
+  },
+  {
+   "pid": 2314,
+   "tid": 2323,
+   "proc": "robot_camera_no",
+   "thread": "tx-0",
+   "cpu_pct": 0.6,
+   "last_cpu": 6,
+   "cpus_allowed": "0-6"
+  },
+  {
+   "pid": 2314,
+   "tid": 2340,
+   "proc": "robot_camera_no",
+   "thread": "queue2:src",
+   "cpu_pct": 0.6,
+   "last_cpu": 4,
+   "cpus_allowed": "0-6"
+  },
+  {
+   "pid": 2314,
+   "tid": 2355,
+   "proc": "robot_camera_no",
+   "thread": "queue6:src",
+   "cpu_pct": 0.6,
+   "last_cpu": 1,
+   "cpus_allowed": "0-6"
+  },
+  {
+   "pid": 2314,
+   "tid": 2342,
+   "proc": "robot_camera_no",
+   "thread": "robot_camera_no",
+   "cpu_pct": 0.4,
+   "last_cpu": 4,
+   "cpus_allowed": "0-6"
+  },
+  {
+   "pid": 2314,
+   "tid": 2357,
+   "proc": "robot_camera_no",
+   "thread": "robot_camera_no",
+   "cpu_pct": 0.4,
+   "last_cpu": 4,
+   "cpus_allowed": "0-6"
+  },
+  {
+   "pid": 2422,
+   "tid": 2460,
+   "proc": "mc_ctrl",
+   "thread": "mc_ctrl",
+   "cpu_pct": 0.2,
+   "last_cpu": 2,
+   "cpus_allowed": "0-6"
+  }
+ ],
+ "gpu_npu": {
+  "devfreq:fb000000.gpu:load": {
+   "min": 0.0,
+   "mean": 0.0,
+   "max": 0.0,
+   "n": 37
+  },
+  "devfreq:fb000000.gpu:cur_freq": {
+   "min": 300000000.0,
+   "mean": 300000000.0,
+   "max": 300000000.0,
+   "n": 37
+  },
+  "devfreq:fdab0000.npu:load": {
+   "min": 100.0,
+   "mean": 100.0,
+   "max": 100.0,
+   "n": 37
+  },
+  "devfreq:fdab0000.npu:cur_freq": {
+   "min": 1000000000.0,
+   "mean": 1000000000.0,
+   "max": 1000000000.0,
+   "n": 37
+  },
+  "rknpu:core0:load_pct": {
+   "min": 7.0,
+   "mean": 7.4,
+   "max": 8.0,
+   "n": 37
+  },
+  "rknpu:core1:load_pct": {
+   "min": 0.0,
+   "mean": 0.0,
+   "max": 0.0,
+   "n": 37
+  },
+  "rknpu:core2:load_pct": {
+   "min": 0.0,
+   "mean": 0.0,
+   "max": 0.0,
+   "n": 37
+  },
+  "mali:utilisation": {
+   "min": 0.0,
+   "mean": 0.0,
+   "max": 0.0,
+   "n": 37
+  }
+ },
+ "thermal_c": {
+  "soc-thermal": {
+   "mean_c": 44.3,
+   "max_c": 44.384
+  },
+  "bigcore0-thermal": {
+   "mean_c": 45.0,
+   "max_c": 45.307
+  },
+  "bigcore1-thermal": {
+   "mean_c": 45.0,
+   "max_c": 45.307
+  },
+  "littlecore-thermal": {
+   "mean_c": 44.7,
+   "max_c": 45.307
+  },
+  "center-thermal": {
+   "mean_c": 43.4,
+   "max_c": 43.461
+  },
+  "gpu-thermal": {
+   "mean_c": 42.3,
+   "max_c": 42.538
+  },
+  "npu-thermal": {
+   "mean_c": 43.3,
+   "max_c": 43.461
+  }
+ },
+ "net_MBps": {
+  "lo": {
+   "rx_MBps": 7.851,
+   "tx_MBps": 7.851
+  },
+  "eth0": {
+   "rx_MBps": 0.046,
+   "tx_MBps": 2.921
+  },
+  "can1": {
+   "rx_MBps": 0.048,
+   "tx_MBps": 0.048
+  },
+  "can2": {
+   "rx_MBps": 0.048,
+   "tx_MBps": 0.048
+  },
+  "can0": {
+   "rx_MBps": 0.048,
+   "tx_MBps": 0.048
+  },
+  "can3": {
+   "rx_MBps": 0.048,
+   "tx_MBps": 0.048
+  }
+ },
+ "tegrastats_note": "這塊板沒有 tegrastats（預期：只有 Orin NX 有）",
+ "tegrastats": [],
+ "psi_cpu": null
+}

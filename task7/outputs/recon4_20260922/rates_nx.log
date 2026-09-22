@@ -1,0 +1,25 @@
+→ 訂閱 /front_lidar/imu                   sensor_msgs/msg/Imu                    RELIABLE
+→ 訂閱 /rear_lidar/imu                    sensor_msgs/msg/Imu                    RELIABLE
+→ 訂閱 /imu_driver/imu_central            sensor_msgs/msg/Imu                    RELIABLE
+→ 訂閱 /uss_driver/uss_left/range         sensor_msgs/msg/Range                  RELIABLE
+→ 訂閱 /uss_driver/uss_right/range        sensor_msgs/msg/Range                  RELIABLE
+→ 訂閱 /rtk_pvh                           robots_dog_msgs/msg/UniRtkPvh          BEST_EFFORT
+→ 訂閱 /uwb                               uwb_driver/msg/Uwb                     RELIABLE
+[recon4] 開始量 30 秒（7 個 topic 同時）…
+
+---- 30 秒，7 個 topic ----
+topic                                 筆數      到達Hz      時戳Hz    時戳dt中位      空窗數     推估漏收
+/front_lidar/imu                    5999   199.977   199.995       5.0      357        0
+/rear_lidar/imu                     6000   199.986   199.995       5.0      115        0
+/imu_driver/imu_central             6001   200.004     200.0       5.0        1        0
+/uss_driver/uss_left/range           300    10.002    10.002   100.042        0        0
+/uss_driver/uss_right/range          300     9.997     9.997    99.881        0       10
+/rtk_pvh                             300      10.0      10.0   100.003        0        0
+/uwb                                   0         —         —         —        —        —
+
+⚠️ /uwb：30 秒內 0 筆（發布者數 1）。有發布者卻收不到 → 先用 `ros2 topic hz /uwb` 對照，再看是不是 QoS 或該感測器真的沒資料。
+
+怎麼讀：
+  到達Hz 低、**時戳Hz 也低**            → 感測器／驅動真的送得少（是規格，寫進報告）
+  到達Hz 低、**時戳Hz 正常**、推估漏收>0 → 訊息在路上掉了（不是感測器的規格）
+  兩個都正常但空窗數多                   → 我們自己的 callback 卡住，換條件重量

@@ -114,8 +114,8 @@ SDK 編號規則：`1` = hip_roll(abad)、`2` = hip_pitch、`3` = knee_pitch、`
 | 感測器 | 顆數 | 規格 | 實測頻率 | 接法 |
 |---|---|---|---|---|
 | 光達 | 2 | RoboSense **`RSAIRY`**、**96 線**、96×900 有序點雲、86,400 點/掃（864 k 點/秒）、每點 26 B、`start/end_angle 0–360`、驅動濾 0.2–200 m | **9.907 / 9.917 Hz** | NX 的兩張 CH397 USB 網卡，UDP msop 6699 / difop 7788 / imu 6688，各 2.88 MB/s |
-| 光達自帶 IMU | 2 | 在光達裡 | **206.5 / 175.0 Hz**（差異待確認） | 同上（`imu_port 6688`） |
-| 機身 IMU | 1 | 兩條路徑發同一顆 | **199.1**（NX）／**203.3 Hz**（RK） | `robot_hal_node/imu_recv_thread` → `/dev/shm/imu_central` |
+| 光達自帶 IMU | 2 | 在光達裡 | **前後都 200.0 Hz**（30 s 同時量＋時戳驗證、零漏收） | 同上（`imu_port 6688`） |
+| 機身 IMU | 1 | 兩條路徑發同一顆 | **200.0 Hz**（NX 與 RK 兩條路徑都是，零漏收 → shm→ROS2 的橋接不掉訊息） | `robot_hal_node/imu_recv_thread` → `/dev/shm/imu_central` |
 | 相機 | 2 | Sony **IMX415**，原生 **3864×2192**（8.47 MP）Bayer；對外 **H.264 1920×1080 @ 25 fps**（RTSP）、JPEG **10 Hz**（ROS2） | 9.912 / 9.994 Hz | RK 的 MIPI CSI，`imx415 6-0037`／`7-0037` |
 | 超音波 | 2 | `update_rate 10 Hz`、無效值 65530；**量程與視角未知**（驅動把 `min_range`／`max_range`／`field_of_view` 全填 0） | **9.945 / 9.953 Hz** | NX `/dev/ttyCH9344USB{0,1}`、115200 |
 | UWB | 1 | — | 室內量不到（沒基站） | NX `/dev/ttyTHS1` |
@@ -215,18 +215,23 @@ SDK 編號規則：`1` = hip_roll(abad)、`2` = hip_pitch、`3` = knee_pitch、`
 | loadavg | 5.5 | **13.6（8 核，超賣）** |
 | GPU | Mali 0% | GR3D 平均 12% → 29%，峰 99% |
 | 最大戶 | `robot_camera_node` 70%（影像編碼） | `robot_slam` 104%、`localization` 58%、`arc_lvio` 2.2 GB |
-| 隨走路變的 | **`mc_ctrl` 5.8% → 11.0%（翻倍）** | GPU 12% → 29% |
+| 隨走路變的 | **`mc_ctrl` 5.8% → 11.0%（翻倍）**、**NPU Core0 0% → 7.4%** | GPU 12% → 29–31% |
 
 **要塞自己的東西，空間在 RK 不在 NX。** 走路本身對兩塊板的總負載幾乎沒影響
 （最大戶都跟走路無關：RK 是影像編碼、NX 是 SLAM）。
 
-**NPU 是閒的**（原本的疑點已結案）：
-`/sys/class/devfreq/fdab0000.npu/load` 兩個情境都固定 `100@1000000000Hz` —— **那是假的**；
-`sudo cat /sys/kernel/debug/rknpu/load`（RK 的 sudo 免密碼）讀出
-**`NPU load: Core0: 0%, Core1: 0%, Core2: 0%`**，驅動版本 `RKNPU driver: v0.9.2`。
-→ 原廠**站著不動時沒有在用 NPU**，我們要上 NPU 推論不會被 RKNN 策略排擠。
-（這是站著的結論，真的在走時要再量一次。**一個永遠不動的讀值就是沒在讀真東西** ——
-同 `diagnostic-tools-lie` 那條。）
+**NPU：只在動作時用，而且只用一核**（`sudo cat /sys/kernel/debug/rknpu/load`，
+RK 的 sudo 免密碼；驅動 `RKNPU driver: v0.9.2`）：
+
+| | 站著 | 走路（40 s 每秒取樣） |
+|---|---|---|
+| Core0 | 0% | **平均 7.4%、峰 8.0%** |
+| Core1 / Core2 | 0% / 0% | 0% / 0% |
+
+→ 原廠的 RKNN 運控策略**只在動作時吃 NPU**。我們要上 NPU 推論，Core1／Core2 整個空著。
+⚠️ **`/sys/class/devfreq/fdab0000.npu/load` 不能用**：兩個情境都固定 `100@1000000000Hz`，
+與真實使用率無關。**一個永遠不動的讀值就是沒在讀真東西**（同 `diagnostic-tools-lie`）。
+⚠️ 而且**站著量會得到「NPU 全閒」的錯誤結論** —— 只在特定狀態出現的負載要在該狀態下量。
 
 ### 3.3 連線（控制方式調查）
 

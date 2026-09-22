@@ -1,0 +1,174 @@
+{
+ "secs": 30.0,
+ "spins": 18900,
+ "topics": {
+  "/front_lidar/imu": {
+   "type": "sensor_msgs/msg/Imu",
+   "n": 5999,
+   "publishers": 1,
+   "rate_hz": 199.977,
+   "gap_ms": {
+    "mean": 5.001,
+    "std": 5.302,
+    "min": 0.364,
+    "max": 62.876,
+    "median": 4.628
+   },
+   "big_gaps": 357,
+   "big_gap_worst_x": 13.6,
+   "stamp": {
+    "rate_hz": 199.995,
+    "dt_ms": {
+     "mean": 5.0,
+     "std": 0.004,
+     "min": 4.986,
+     "max": 5.028,
+     "median": 5.0
+    },
+    "big_gaps": 0,
+    "missing_est": 0
+   }
+  },
+  "/rear_lidar/imu": {
+   "type": "sensor_msgs/msg/Imu",
+   "n": 6000,
+   "publishers": 1,
+   "rate_hz": 199.986,
+   "gap_ms": {
+    "mean": 5.0,
+    "std": 3.159,
+    "min": 0.38,
+    "max": 33.989,
+    "median": 4.925
+   },
+   "big_gaps": 115,
+   "big_gap_worst_x": 6.9,
+   "stamp": {
+    "rate_hz": 199.995,
+    "dt_ms": {
+     "mean": 5.0,
+     "std": 0.004,
+     "min": 4.985,
+     "max": 5.03,
+     "median": 5.0
+    },
+    "big_gaps": 0,
+    "missing_est": 0
+   }
+  },
+  "/imu_driver/imu_central": {
+   "type": "sensor_msgs/msg/Imu",
+   "n": 6001,
+   "publishers": 1,
+   "rate_hz": 200.004,
+   "gap_ms": {
+    "mean": 5.0,
+    "std": 0.779,
+    "min": 0.425,
+    "max": 15.115,
+    "median": 4.997
+   },
+   "big_gaps": 1,
+   "big_gap_worst_x": 3.0,
+   "stamp": {
+    "rate_hz": 200.0,
+    "dt_ms": {
+     "mean": 5.0,
+     "std": 0.01,
+     "min": 4.925,
+     "max": 5.078,
+     "median": 5.0
+    },
+    "big_gaps": 0,
+    "missing_est": 0
+   }
+  },
+  "/uss_driver/uss_left/range": {
+   "type": "sensor_msgs/msg/Range",
+   "n": 300,
+   "publishers": 1,
+   "rate_hz": 10.002,
+   "gap_ms": {
+    "mean": 99.981,
+    "std": 4.758,
+    "min": 85.645,
+    "max": 118.997,
+    "median": 100.202
+   },
+   "big_gaps": 0,
+   "big_gap_worst_x": 1.2,
+   "stamp": {
+    "rate_hz": 10.002,
+    "dt_ms": {
+     "mean": 99.982,
+     "std": 4.645,
+     "min": 86.195,
+     "max": 119.487,
+     "median": 100.042
+    },
+    "big_gaps": 0,
+    "missing_est": 0
+   }
+  },
+  "/uss_driver/uss_right/range": {
+   "type": "sensor_msgs/msg/Range",
+   "n": 300,
+   "publishers": 1,
+   "rate_hz": 9.997,
+   "gap_ms": {
+    "mean": 100.031,
+    "std": 20.922,
+    "min": 33.649,
+    "max": 165.661,
+    "median": 99.809
+   },
+   "big_gaps": 0,
+   "big_gap_worst_x": 1.7,
+   "stamp": {
+    "rate_hz": 9.997,
+    "dt_ms": {
+     "mean": 100.032,
+     "std": 20.842,
+     "min": 34.637,
+     "max": 165.735,
+     "median": 99.881
+    },
+    "big_gaps": 0,
+    "missing_est": 10
+   }
+  },
+  "/rtk_pvh": {
+   "type": "robots_dog_msgs/msg/UniRtkPvh",
+   "n": 300,
+   "publishers": 1,
+   "rate_hz": 10.0,
+   "gap_ms": {
+    "mean": 100.0,
+    "std": 0.88,
+    "min": 95.45,
+    "max": 104.84,
+    "median": 99.999
+   },
+   "big_gaps": 0,
+   "big_gap_worst_x": 1.0,
+   "stamp": {
+    "rate_hz": 10.0,
+    "dt_ms": {
+     "mean": 100.003,
+     "std": 0.461,
+     "min": 96.543,
+     "max": 102.571,
+     "median": 100.003
+    },
+    "big_gaps": 0,
+    "missing_est": 0
+   }
+  },
+  "/uwb": {
+   "type": "uwb_driver/msg/Uwb",
+   "n": 0,
+   "publishers": 1
+  }
+ },
+ "missing": []
+}

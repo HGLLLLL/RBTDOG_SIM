@@ -106,6 +106,27 @@ SDK 編號規則：`1` = hip_roll(abad)、`2` = hip_pitch、`3` = knee_pitch、`
 **矛盾**：URDF 的 `IMU_LUA300C_JOINT` 寫 `0.00569`，手冊寫 56.9 mm = `0.0569`。
 **URDF 少一個零，以手冊為準。**（控制方式調查）
 
+### 1.6 感測器實測規格（感測器與資源實測，2026-09-22）
+
+完整資料 `docs/results/N_感測器與資源實測_2026-09-22.md`、`outputs/recon3b_20260922/`。
+**下面全是實機量到或讀自實機設定檔的，不是手冊宣稱值。**
+
+| 感測器 | 顆數 | 規格 | 實測頻率 | 接法 |
+|---|---|---|---|---|
+| 光達 | 2 | RoboSense **`RSAIRY`**、**96 線**、96×900 有序點雲、86,400 點/掃（864 k 點/秒）、每點 26 B、`start/end_angle 0–360`、驅動濾 0.2–200 m | **9.907 / 9.917 Hz** | NX 的兩張 CH397 USB 網卡，UDP msop 6699 / difop 7788 / imu 6688，各 2.88 MB/s |
+| 光達自帶 IMU | 2 | 在光達裡 | **206.5 / 175.0 Hz**（差異待確認） | 同上（`imu_port 6688`） |
+| 機身 IMU | 1 | 兩條路徑發同一顆 | **199.1**（NX）／**203.3 Hz**（RK） | `robot_hal_node/imu_recv_thread` → `/dev/shm/imu_central` |
+| 相機 | 2 | Sony **IMX415**，原生 **3864×2192**（8.47 MP）Bayer；對外 **H.264 1920×1080 @ 25 fps**（RTSP）、JPEG **10 Hz**（ROS2） | 9.912 / 9.994 Hz | RK 的 MIPI CSI，`imx415 6-0037`／`7-0037` |
+| 超音波 | 2 | `update_rate 10 Hz`、無效值 65530；**量程與視角未知**（驅動把 `min_range`／`max_range`／`field_of_view` 全填 0） | **9.945 / 9.953 Hz** | NX `/dev/ttyCH9344USB{0,1}`、115200 |
+| UWB | 1 | — | 室內量不到（沒基站） | NX `/dev/ttyTHS1` |
+| GPS / RTK | 1 | `/rtk_pvh` 有發布者；`/gps/rtk`、`/gnss/data` **0 發布者** | 室內量不到 | RK `gpsd /dev/ttyS4 /dev/pps0`，**有 PPS** |
+
+⚠️ **`/dev/video*` 有 42 個節點，不是 42 顆相機**：`rkcif` 22（MIPI 擷取）、`rkisp_*` 18
+（ISP 統計／參數／raw 讀回）、`video-dec0`／`video-enc0` 2（硬體編解碼）。
+
+⚠️ **`/laser_scan`（10 Hz）不是感測器**，是點雲壓成的 2D 掃描。
+`/aligned_points`、`/body_points`、`/world_points`、`/perception_points` 也都是算出來的。
+
 ---
 
 ## 2. 三機型對照重點
@@ -199,9 +220,13 @@ SDK 編號規則：`1` = hip_roll(abad)、`2` = hip_pitch、`3` = knee_pitch、`
 **要塞自己的東西，空間在 RK 不在 NX。** 走路本身對兩塊板的總負載幾乎沒影響
 （最大戶都跟走路無關：RK 是影像編碼、NX 是 SLAM）。
 
-⚠️ RK 的 `/sys/class/devfreq/fdab0000.npu/load` 兩個情境都固定 `100@1000000000Hz`，
-**這個讀值不可信**（固定不動），要用 `sudo cat /sys/kernel/debug/rknpu/load` 對照才知道
-原廠的 RKNN 策略有沒有佔著 NPU。
+**NPU 是閒的**（原本的疑點已結案）：
+`/sys/class/devfreq/fdab0000.npu/load` 兩個情境都固定 `100@1000000000Hz` —— **那是假的**；
+`sudo cat /sys/kernel/debug/rknpu/load`（RK 的 sudo 免密碼）讀出
+**`NPU load: Core0: 0%, Core1: 0%, Core2: 0%`**，驅動版本 `RKNPU driver: v0.9.2`。
+→ 原廠**站著不動時沒有在用 NPU**，我們要上 NPU 推論不會被 RKNN 策略排擠。
+（這是站著的結論，真的在走時要再量一次。**一個永遠不動的讀值就是沒在讀真東西** ——
+同 `diagnostic-tools-lie` 那條。）
 
 ### 3.3 連線（控制方式調查）
 
@@ -211,7 +236,7 @@ SDK 編號規則：`1` = hip_roll(abad)、`2` = hip_pitch、`3` = knee_pitch、`
 | 有線 | 網線接機身拓展網口；PC 網口設 `192.168.168.x`，**不可用 .168 與 .100**（那是狗的兩塊板） |
 | SDK | UDP（0.1.1 起由 WebSocket 改為 UDP）→ `192.168.234.1:8082`（實測有 listen，偵察一） |
 | 影像 | RTSP `rtsp://192.168.234.1:8554/front`、`/back` |
-| 內部光達 | 兩顆各走一條 USB 網卡的獨立網段：前 `192.168.1.0/24`（NX 板端 `.102`）、後 `192.168.2.0/24`（NX 板端 `.102`）。**`.102` 是 Orin NX 自己的位址，不是光達的**（舊文件寫錯，2026-09-22 實測更正）。光達真正的 IP 在 `rslidar_sdk` 設定檔裡，還沒撈到 |
+| 內部光達 | 兩顆各走一條 NX 的 USB 網卡：前 `192.168.1.0/24`、後 `192.168.2.0/24`。`rslidar_sdk/config/config.yaml` 的欄位名寫得很清楚是 **`host_address: 192.168.1.102` / `192.168.2.102`** —— **那是 Orin NX 自己的位址，不是光達的**（舊文件寫錯，2026-09-22 更正）。驅動只綁本地位址收 UDP，**光達自己的 IP 不在設定檔裡**，要讀 difop 封包或連光達網頁才知道 |
 | 從 PC 連 ROS2 graph | Ubuntu 22.04 + ROS2 humble + `ros-humble-rmw-zenoh-cpp`；`RMW_IMPLEMENTATION=rmw_zenoh_cpp`；把 `DEFAULT_RMW_ZENOH_ROUTER_CONFIG.json5` 的 `connect/endpoints` 指到 `tcp/192.168.168.100:7447` |
 
 **⚠️ `192.168.168.100` 在 D1 Max 上是「Orin NX 的位址」。** task6 的 D1 EDU SOP 裡

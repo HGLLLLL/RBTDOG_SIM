@@ -1,0 +1,1753 @@
+
+======== 身分與韌體 ========
+@@KV host=robot
+@@KV kernel=5.10.160-rt78-preempt
+@@KV arch=aarch64
+@@KV os=Ubuntu 22.04.5 LTS
+@@KV board=Firefly AIO-3588SJD4 HDMI(Linux)
+@@KV python3=Python 3.10.12
+Linux robot 5.10.160-rt78-preempt #15 SMP PREEMPT_RT Mon Mar 23 14:56:00 CST 2026 aarch64 aarch64 aarch64 GNU/Linux
+-- /opt/release/version.yaml --
+version: "0.1.7"
+release_date: "2026-02-06"
+description: "A2503 RK3588 Release Image with all modules"
+
+modules:
+  kernel:
+    name: "Linux Kernel"
+    tag: "v0.1.3"
+    repo: "http://gitlab.jszr.com/jszr/embedded_software/zg/rk3588/rk3588_rt_sdk.git"
+
+  rootfs:
+    name: "Root Filesystem"
+    tag: "v0.0.1"
+    repo: "http://gitlab.jszr.com/jszr/embedded_software/zg/rk3588/rootfs.git"
+
+  packages:
+    - name: "robot-runtime"
+      tag: "v0.1.2"
+      repo: "http://gitlab.jszr.com/jszr/embedded_software/zg/rk3588/rootfs_overlay.git"
+      
+    - name: "zsibot_common"
+      tag: "v0.5.8"
+      repo: "http://gitlab.jszr.com/jszr/zsibot/zsibot_common.git"
+      
+    - name: "robot-launch"
+      tag: "v0.1.5-r2"
+      repo: "http://gitlab.jszr.com/jszr/jszr_launch.git"
+
+    - name: "robot-ws"
+      tag: "v0.1.4"
+      repo: "http://gitlab.jszr.com/jszr/zsibot/robot_ws.git"
+
+    - name: "motion-control"
+      tag: "v0.4.6"
+      repo: "http://gitlab.jszr.com/jszr/jszr_mc.git"
+
+mcu_firmware:
+  - name: "uart2canfd"
+    tag: "v1.0.2"
+    repo: "http://gitlab.jszr.com/jszr/embedded_software/zg/rk3588/mcu_firmware.git"
+
+  - name: "power_board"
+    tag: "v1.0.3"
+    repo: "http://gitlab.jszr.com/jszr/embedded_software/zg/mcu/power_board.git"
+
+  - name: "hot_swap_board"
+    tag: "v0.1.4"
+    repo: "http://gitlab.jszr.com/jszr/embedded_software/zg/mcu/hot_swap_board.git"
+
+  # - name: "imu"
+  #   tag: "v0.1.5"
+  #   repo: "http://gitlab.jszr.com/jszr/embedded_software/xg01/mcu/imu_board.git"
+
+ota_tools:
+  name: "OTA Tools"
+  tag: "v0.0.1"
+  repo: "http://gitlab.jszr.com/jszr/embedded_software/zg/rk3588/ota_tools.git"
+
+build_info:
+  build_date: "2026-02-06 16:12:00"
+  build_host: "rk3588-build-server"
+  maintainer: "maintainer@zsibot.com"
+@@KV firmware=version:"0.1.7"
+
+======== ★ 1.3　CPU 規格 ========
+@@KV ncpu=8
+Architecture:                    aarch64
+CPU op-mode(s):                  32-bit, 64-bit
+Byte Order:                      Little Endian
+CPU(s):                          8
+On-line CPU(s) list:             0-7
+Vendor ID:                       ARM
+Model name:                      Cortex-A55
+Model:                           0
+Thread(s) per core:              1
+Core(s) per socket:              4
+Socket(s):                       1
+Stepping:                        r2p0
+CPU max MHz:                     1800.0000
+CPU min MHz:                     408.0000
+BogoMIPS:                        48.00
+Flags:                           fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm lrcpc dcpop asimddp
+Model name:                      Cortex-A76
+Model:                           0
+Thread(s) per core:              1
+Core(s) per socket:              2
+Socket(s):                       2
+Stepping:                        r4p0
+CPU max MHz:                     2400.0000
+CPU min MHz:                     408.0000
+BogoMIPS:                        48.00
+Flags:                           fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm lrcpc dcpop asimddp
+L1d cache:                       384 KiB (8 instances)
+L1i cache:                       384 KiB (8 instances)
+L2 cache:                        2.5 MiB (8 instances)
+L3 cache:                        3 MiB (1 instance)
+Vulnerability Itlb multihit:     Not affected
+Vulnerability L1tf:              Not affected
+Vulnerability Mds:               Not affected
+Vulnerability Meltdown:          Not affected
+Vulnerability Mmio stale data:   Not affected
+Vulnerability Retbleed:          Not affected
+Vulnerability Spec store bypass: Mitigation; Speculative Store Bypass disabled via prctl
+Vulnerability Spectre v1:        Mitigation; __user pointer sanitization
+Vulnerability Spectre v2:        Mitigation; CSV2, BHB
+Vulnerability Srbds:             Not affected
+Vulnerability Tsx async abort:   Not affected
+@@KV cpu_model=Cortex-A55
+@@KV cpu_maxmhz=1800.0000
+-- /proc/cmdline（看核心隔離）--
+storagemedia=emmc androidboot.storagemedia=emmc androidboot.mode=normal  dsi-1=2 storagenode=/mmc@fe2e0000 androidboot.verifiedbootstate=orange ro rootwait nosoftlockup earlycon=uart8250,mmio32,0xfeb50000 console=ttyFIQ0 irqchip.gicv3_pseudo_nmi=0 root=PARTLABEL=rootfs rootfstype=ext4 overlayroot=device:dev=PARTLABEL=userdata,fstype=ext4,mkfs=1 coherent_pool=1m systemd.gpt_auto=0 cgroup_enable=memory swapaccount=1 net.ifnames=0 mce=ignore_ce skew_tick=1 isolcpus=7 nohz_full=7 comm-02/07/2026 androidboot.fwver=ddr-v1.15-d5483af87d,spl-v1.13,bl31-v1.44,bl32-v1.15,uboot--boot
+@@KV isolcpus=7
+@@KV nohz_full=
+-- 每核最高頻與 governor --
+policy0  cpus=0 1 2 3  max=1800000  gov=performance
+policy4  cpus=4 5  max=2400000  gov=performance
+policy6  cpus=6 7  max=2400000  gov=performance
+
+======== ★ 1.3　記憶體 ========
+               total        used        free      shared  buff/cache   available
+Mem:           7.7Gi       1.3Gi       5.6Gi       160Mi       812Mi       6.1Gi
+Swap:             0B          0B          0B
+@@KV mem_total_kb=8105660
+@@KV swap_total_kb=0
+(無 swap 或無工具)
+
+======== ★ 1.3　GPU / NPU 裝置與驅動 ========
+-- devfreq 節點（GPU/NPU 的頻率與負載大多掛這裡）--
+/sys/class/devfreq/fb000000.gpu -> /sys/devices/platform/fb000000.gpu/devfreq/fb000000.gpu
+   cur_freq=300000000  max=1000000000  load=0@300000000Hz  gov=userspace
+/sys/class/devfreq/fdab0000.npu -> /sys/devices/platform/fdab0000.npu/devfreq/fdab0000.npu
+   cur_freq=1000000000  max=1000000000  load=100@1000000000Hz  gov=rknpu_ondemand
+-- 裝置節點 --
+crw-rw---- 1 root video 10, 123 Sep 22 10:03 /dev/mali0
+
+/dev/dri:
+total 0
+crw-rw----+ 1 root video  226,   0 Sep 22 10:03 card0
+crw-rw----+ 1 root video  226,   1 Sep 22 10:03 card1
+crw-rw----+ 1 root render 226, 128 Sep 22 10:03 renderD128
+crw-rw----+ 1 root render 226, 129 Sep 22 10:03 renderD129
+-- RKNPU（RK3588）--
+@@KV rknpu_version=
+version: RKNPU driver: v0.9.2
+load:    NPU load:  Core0:  0%, Core1:  0%, Core2:  0%,
+-- Jetson（Orin NX）--
+(無 tegrastats)
+(無 nvpmodel)
+(無 /etc/nv_tegra_release)
+-- OpenCL / CUDA 痕跡 --
+libmali-hook-injector.a
+libmali-hook.so
+libmali-hook.so.1
+libmali-hook.so.1.9.0
+libmali.so
+libmali.so.1
+libmali.so.1.9.0
+libmali-valhall-g610-g13p0-x11-gbm.so
+libOpenCL.so.1
+libOpenCL.so.1.0.0
+bin
+etc
+firefly.png
+games
+include
+lib
+man
+sbin
+share
+src
+test.mp4
+
+======== ★ 1.3　溫度與風扇 ========
+thermal_zone0  soc-thermal  44384
+thermal_zone1  bigcore0-thermal  45307
+thermal_zone2  bigcore1-thermal  44384
+thermal_zone3  littlecore-thermal  44384
+thermal_zone4  center-thermal  42538
+thermal_zone5  gpu-thermal  41615
+thermal_zone6  npu-thermal  42538
+/sys/class/hwmon/hwmon0/name: soc_thermal
+/sys/class/hwmon/hwmon1/name: bigcore0_thermal
+/sys/class/hwmon/hwmon2/name: bigcore1_thermal
+/sys/class/hwmon/hwmon3/name: littlecore_thermal
+/sys/class/hwmon/hwmon4/name: center_thermal
+/sys/class/hwmon/hwmon5/name: gpu_thermal
+/sys/class/hwmon/hwmon6/name: npu_thermal
+
+======== ★ 7.1　USB / 序列埠 / 影像裝置 ========
+-- lsusb --
+Bus 004 Device 001: ID 1d6b:0003 Linux Foundation 3.0 root hub
+Bus 003 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+Bus 006 Device 001: ID 1d6b:0001 Linux Foundation 1.1 root hub
+Bus 002 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+Bus 005 Device 001: ID 1d6b:0001 Linux Foundation 1.1 root hub
+Bus 001 Device 003: ID 1a86:55d9 QinHeng Electronics USB2.0 To Multi Serial Ports
+Bus 001 Device 004: ID 0bda:b85b Realtek Semiconductor Corp. Bluetooth Radio
+Bus 001 Device 002: ID 1a86:809e QinHeng Electronics USB2.0 HUB
+Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+-- lsusb -t --
+/:  Bus 06.Port 1: Dev 1, Class=root_hub, Driver=ohci-platform/1p, 12M
+/:  Bus 05.Port 1: Dev 1, Class=root_hub, Driver=ohci-platform/1p, 12M
+/:  Bus 04.Port 1: Dev 1, Class=root_hub, Driver=xhci-hcd/1p, 5000M
+/:  Bus 03.Port 1: Dev 1, Class=root_hub, Driver=xhci-hcd/1p, 480M
+/:  Bus 02.Port 1: Dev 1, Class=root_hub, Driver=ehci-platform/1p, 480M
+/:  Bus 01.Port 1: Dev 1, Class=root_hub, Driver=ehci-platform/1p, 480M
+    |__ Port 1: Dev 2, If 0, Class=Hub, Driver=hub/7p, 480M
+        |__ Port 1: Dev 4, If 0, Class=Wireless, Driver=rtk_btusb, 12M
+        |__ Port 1: Dev 4, If 1, Class=Wireless, Driver=rtk_btusb, 12M
+        |__ Port 2: Dev 3, If 0, Class=Vendor Specific Class, Driver=usb_ch9344, 480M
+-- lsusb -v（只留 iProduct / bInterfaceClass，需要 sudo 才完整）--
+  iManufacturer           3 Linux 5.10.160-rt78-preempt xhci-hcd
+  iProduct                2 xHCI Host Controller
+      bInterfaceClass         9 Hub
+  iManufacturer           3 Linux 5.10.160-rt78-preempt xhci-hcd
+  iProduct                2 xHCI Host Controller
+      bInterfaceClass         9 Hub
+  iManufacturer           3 Linux 5.10.160-rt78-preempt ohci_hcd
+  iProduct                2 Generic Platform OHCI controller
+      bInterfaceClass         9 Hub
+  iManufacturer           3 Linux 5.10.160-rt78-preempt ehci_hcd
+  iProduct                2 EHCI Host Controller
+      bInterfaceClass         9 Hub
+  iManufacturer           3 Linux 5.10.160-rt78-preempt ohci_hcd
+  iProduct                2 Generic Platform OHCI controller
+      bInterfaceClass         9 Hub
+  iManufacturer           1 wch.cn
+  iProduct                2 USB2.0 To Multi Serial Ports
+      bInterfaceClass       255 Vendor Specific Class
+  iManufacturer           1 Realtek
+  iProduct                2 Bluetooth Radio
+      bInterfaceClass       224 Wireless
+      bInterfaceClass       224 Wireless
+      bInterfaceClass       224 Wireless
+      bInterfaceClass       224 Wireless
+      bInterfaceClass       224 Wireless
+      bInterfaceClass       224 Wireless
+      bInterfaceClass       224 Wireless
+  iManufacturer           0 
+  iProduct                2 USB2.0 HUB
+      bInterfaceClass         9 Hub
+      bInterfaceClass         9 Hub
+  iManufacturer           3 Linux 5.10.160-rt78-preempt ehci_hcd
+  iProduct                2 EHCI Host Controller
+      bInterfaceClass         9 Hub
+-- 影像裝置 --
+crw-rw----+ 1 root video 81,  0 Sep 22 10:03 /dev/video0
+crw-rw----+ 1 root video 81,  1 Sep 22 10:03 /dev/video1
+crw-rw----+ 1 root video 81, 10 Sep 22 10:03 /dev/video10
+crw-rw----+ 1 root video 81, 11 Sep 22 10:03 /dev/video11
+crw-rw----+ 1 root video 81, 12 Sep 22 10:03 /dev/video12
+crw-rw----+ 1 root video 81, 13 Sep 22 10:03 /dev/video13
+crw-rw----+ 1 root video 81, 14 Sep 22 10:03 /dev/video14
+crw-rw----+ 1 root video 81, 15 Sep 22 10:03 /dev/video15
+crw-rw----+ 1 root video 81, 16 Sep 22 10:03 /dev/video16
+crw-rw----+ 1 root video 81, 17 Sep 22 10:03 /dev/video17
+crw-rw----+ 1 root video 81, 18 Sep 22 10:03 /dev/video18
+crw-rw----+ 1 root video 81, 19 Sep 22 10:03 /dev/video19
+crw-rw----+ 1 root video 81,  2 Sep 22 10:03 /dev/video2
+crw-rw----+ 1 root video 81, 20 Sep 22 10:03 /dev/video20
+crw-rw----+ 1 root video 81, 21 Sep 22 10:03 /dev/video21
+crw-rw----+ 1 root video 81, 22 Sep 22 10:03 /dev/video22
+crw-rw----+ 1 root video 81, 23 Sep 22 10:03 /dev/video23
+crw-rw----+ 1 root video 81, 24 Sep 22 10:03 /dev/video24
+crw-rw----+ 1 root video 81, 25 Sep 22 10:03 /dev/video25
+crw-rw----+ 1 root video 81, 26 Sep 22 10:03 /dev/video26
+crw-rw----+ 1 root video 81, 27 Sep 22 10:03 /dev/video27
+crw-rw----+ 1 root video 81, 28 Sep 22 10:03 /dev/video28
+crw-rw----+ 1 root video 81, 29 Sep 22 10:03 /dev/video29
+crw-rw----+ 1 root video 81,  3 Sep 22 10:03 /dev/video3
+crw-rw----+ 1 root video 81, 30 Sep 22 10:03 /dev/video30
+crw-rw----+ 1 root video 81, 31 Sep 22 10:03 /dev/video31
+crw-rw----+ 1 root video 81, 32 Sep 22 10:03 /dev/video32
+crw-rw----+ 1 root video 81, 33 Sep 22 10:03 /dev/video33
+crw-rw----+ 1 root video 81, 34 Sep 22 10:03 /dev/video34
+crw-rw----+ 1 root video 81, 35 Sep 22 10:03 /dev/video35
+crw-rw----+ 1 root video 81, 36 Sep 22 10:03 /dev/video36
+crw-rw----+ 1 root video 81, 37 Sep 22 10:03 /dev/video37
+crw-rw----+ 1 root video 81, 38 Sep 22 10:03 /dev/video38
+crw-rw----+ 1 root video 81, 39 Sep 22 10:03 /dev/video39
+crw-rw----+ 1 root video 81,  4 Sep 22 10:03 /dev/video4
+crw-rw----+ 1 root video 81,  5 Sep 22 10:03 /dev/video5
+crw-rw----+ 1 root video 81,  6 Sep 22 10:03 /dev/video6
+crw-rw----+ 1 root video 81,  7 Sep 22 10:03 /dev/video7
+crw-rw----+ 1 root video 81,  8 Sep 22 10:03 /dev/video8
+crw-rw----+ 1 root video 81,  9 Sep 22 10:03 /dev/video9
+-rw-rw----  1 root video      4 Sep 22 10:03 /dev/video-dec0
+-rw-rw----  1 root video      4 Sep 22 10:03 /dev/video-enc0
+-- 序列埠（IMU / GPS / UWB 常走 UART）--
+crw-rw---- 1 root dialout 4, 65 Sep 22 10:04 /dev/ttyS1
+crw-rw---- 1 root dialout 4, 68 Sep 22 10:03 /dev/ttyS4
+(沒有)
+-- CAN --
+4: can1: <NOARP,UP,LOWER_UP,ECHO> mtu 72 qdisc pfifo_fast state UP mode DEFAULT group default qlen 10
+    link/can  promiscuity 0 minmtu 0 maxmtu 0 
+    can <FD> state STOPPED restart-ms 0 
+	  bitrate 1000000 sample-point 0.000 
+	  tq 0 prop-seg 0 phase-seg1 0 phase-seg2 0 sjw 0
+	  uart2canfd: tseg1 1..128 tseg2 1..128 sjw 1..128 brp 1..256 brp-inc 2
+	  dbitrate 5000000 dsample-point 0.000 
+	  dtq 0 dprop-seg 0 dphase-seg1 0 dphase-seg2 0 dsjw 0
+	  uart2canfd: dtseg1 1..32 dtseg2 1..16 dsjw 1..16 dbrp 1..256 dbrp-inc 2
+	  clock 40000000 numtxqueues 1 numrxqueues 1 gso_max_size 65536 gso_max_segs 65535 
+5: can2: <NOARP,UP,LOWER_UP,ECHO> mtu 72 qdisc pfifo_fast state UP mode DEFAULT group default qlen 10
+    link/can  promiscuity 0 minmtu 0 maxmtu 0 
+    can <FD> state STOPPED restart-ms 0 
+	  bitrate 1000000 sample-point 0.000 
+	  tq 0 prop-seg 0 phase-seg1 0 phase-seg2 0 sjw 0
+	  uart2canfd: tseg1 1..128 tseg2 1..128 sjw 1..128 brp 1..256 brp-inc 2
+	  dbitrate 5000000 dsample-point 0.000 
+	  dtq 0 dprop-seg 0 dphase-seg1 0 dphase-seg2 0 dsjw 0
+	  uart2canfd: dtseg1 1..32 dtseg2 1..16 dsjw 1..16 dbrp 1..256 dbrp-inc 2
+	  clock 40000000 numtxqueues 1 numrxqueues 1 gso_max_size 65536 gso_max_segs 65535 
+6: can0: <NOARP,UP,LOWER_UP,ECHO> mtu 72 qdisc pfifo_fast state UP mode DEFAULT group default qlen 10
+    link/can  promiscuity 0 minmtu 0 maxmtu 0 
+    can <FD> state STOPPED restart-ms 0 
+	  bitrate 1000000 sample-point 0.000 
+	  tq 0 prop-seg 0 phase-seg1 0 phase-seg2 0 sjw 0
+	  uart2canfd: tseg1 1..128 tseg2 1..128 sjw 1..128 brp 1..256 brp-inc 2
+	  dbitrate 5000000 dsample-point 0.000 
+	  dtq 0 dprop-seg 0 dphase-seg1 0 dphase-seg2 0 dsjw 0
+	  uart2canfd: dtseg1 1..32 dtseg2 1..16 dsjw 1..16 dbrp 1..256 dbrp-inc 2
+	  clock 40000000 numtxqueues 1 numrxqueues 1 gso_max_size 65536 gso_max_segs 65535 
+-- i2c / spi --
+/dev/i2c-0
+/dev/i2c-10
+/dev/i2c-2
+/dev/i2c-6
+/dev/i2c-7
+/dev/i2c-9
+/dev/spidev0.0
+/dev/spidev0.1
+-- 網路介面（光達走獨立網段）--
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+dummy0           DOWN           
+eth0             UP             192.168.168.168/24 192.168.144.144/24 fe80::8658:eda1:65b5:27f9/64 
+can1             UP             
+can2             UP             
+can0             UP             
+can3             UP             
+wlan0            DOWN           
+p2p0             UP             192.168.234.1/24 fe80::fc23:cdff:fe9a:25e3/64 
+192.168.144.0/24 dev eth0 proto kernel scope link src 192.168.144.144 metric 100 
+192.168.168.0/24 dev eth0 proto kernel scope link src 192.168.168.168 metric 100 
+192.168.234.0/24 dev p2p0 proto kernel scope link src 192.168.234.1 
+224.0.0.0/4 dev lo scope link 
+
+======== ★ 7.1／7.4　光達的獨立網段（從狗上看） ========
+❌ ping 192.168.1.102 不通
+❌ ping 192.168.2.102 不通
+-- 光達 UDP 埠有沒有在收（RoboSense msop 6699 / difop 7788 是慣用值）--
+State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess
+UNCONN 0      0      192.168.234.1:43900      0.0.0.0:*          
+UNCONN 0      0      192.168.234.1:43997      0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:48301      0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:60856      0.0.0.0:*          
+UNCONN 0      0      239.255.76.67:7667       0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:53100      0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:8082       0.0.0.0:*          
+UNCONN 0      0         127.0.0.53:53         0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:67         0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:123        0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:45333      0.0.0.0:*          
+UNCONN 0      0          127.0.0.1:323        0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:54099      0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:5353       0.0.0.0:*          
+UNCONN 768    0            0.0.0.0:42556      0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:42557      0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:14000      0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:14000      0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:14000      0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:14000      0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:14001      0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:14001      0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:14001      0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:14001      0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:14002      0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:14002      0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:14002      0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:34582      0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:51064      0.0.0.0:*          
+UNCONN 768    0            0.0.0.0:51686      0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:51687      0.0.0.0:*          
+UNCONN 0      0                  *:8000             *:*          
+UNCONN 0      0                  *:8001             *:*          
+UNCONN 0      0                  *:8189             *:*          
+UNCONN 0      0              [::1]:323              *:*          
+UNCONN 0      0                  *:45392            *:*          
+UNCONN 0      0                  *:8890             *:*          
+UNCONN 0      0                  *:5353             *:*          
+
+======== ★ 7.1　感測相關行程 ========
+   2314 65.9 149744 robot_camera_no /opt/robot/install/robot_camera/lib/robot_camera/robot_camera_node --ros-args --params-file /opt/robot/install/robot_camera/share/robot_camera/config/zsm.yaml
+   2167 34.4 314456 robot_hal_node /opt/robot/install/robot_hal/lib/robot_hal/robot_hal_node --ros-args --params-file /opt/robot/install/robot_hal/share/robot_hal/config/zsm/robot_hal.yaml --params-file /opt/robot/install/robot_hal/share/robot_hal/config/zsm/controller_manager.yaml --params-file /tmp/launch_params_l29_g36n
+   2171 19.0 47408 robot_roamerx_n /opt/robot/install/robot_roamerx/lib/robot_roamerx/robot_roamerx_node --ros-args -r __node:=robot_roamerx --params-file /opt/robot/install/robot_roamerx/share/robot_roamerx/config/zsm/robot_roamerx.yaml --params-file /tmp/launch_params_7al5znc2
+   2165  8.6 40704 robot_remote    /opt/robot/install/robot_remote/lib/robot_remote/robot_remote --ros-args -r __node:=robot_remote -r __ns:=/ --params-file /opt/robot/install/robot_remote/share/robot_remote/config/remote_config.yaml
+   2422  6.7 161660 mc_ctrl        ./mc_ctrl r
+   2176  1.1 28972 robot_monitor_n /opt/robot/install/robot_monitor/lib/robot_monitor/robot_monitor_node --ros-args --params-file /opt/robot/install/robot_monitor/share/robot_monitor/config/zsm/robot_monitor.yaml
+   2039  1.0 23000 mediamtx        ./mediamtx ./mediamtx.yml
+   2132  0.2 49504 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch robot_remote zsm.launch.py
+   2299  0.2 22520 aggregator_node /opt/ros/humble/lib/diagnostic_aggregator/aggregator_node --ros-args -r __node:=robot_diagnostic_analyzer --params-file /opt/robot/install/robot_diagnostic_analyzer/share/robot_diagnostic_analyzer/config/zsm/robot_analyzers.yaml
+   1044  0.0  3364 gpsd            /usr/sbin/gpsd -s 115200 -G -n -P NMEA /dev/ttyS4 /dev/pps0
+   1191  0.0  3288 robot_wifi_wdg. /bin/bash /opt/runtime/bin/robot_wifi_wdg.sh
+   1918  0.0  3308 bash            /usr/bin/bash /opt/runtime/bin/robot_start_app.sh
+   1987  0.0  3284 bash            bash /opt/runtime/bin/start_robot_camera.sh
+   1989  0.0  3292 bash            bash /opt/runtime/bin/start_robot_monitor.sh
+   1990  0.0  3296 bash            bash /opt/runtime/bin/start_robot_hal.sh
+   1991  0.0  3276 bash            bash /opt/runtime/bin/start_robot_manager.sh
+   1992  0.0  3292 bash            bash /opt/runtime/bin/start_robot_roamerx.sh
+   2000  0.0  3280 bash            bash /opt/runtime/bin/start_robot_diagnostic_analyzer.sh
+   2007  0.0  3292 bash            bash /opt/runtime/bin/start_robot_remote.sh
+   2084  0.0 24744 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 run robot_manager robot_manager
+   2095  0.0 23228 robot_manager   /opt/robot/install/robot_manager/lib/robot_manager/robot_manager
+   2123  0.0 36088 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch robot_roamerx zsm.launch.py
+   2127  0.0 35800 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch robot_hal zsm.launch.py
+   2139  0.0 36052 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch robot_monitor zsm.launch.py
+   2178  0.0 35756 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch robot_diagnostic_analyzer zsm.launch.py
+   2297  0.0 35720 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch robot_camera zsm.launch.py
+-- mc_ctrl 的核親和性（cpu7 隔離是不是真的只給運控）--
+pid 2422  Cpus_allowed_list=0-6
+-- robot-launch 服務清單 --
+
+[38;5;11m[38;5;11m⬮[39m[39m [2m[2mall info snapshot[0m[0m
+
+
+[38;5;11m[38;5;11m⬮[39m[39m [2m[2meggs snapshot[0m[0m
+
+[0m[2m╭[0m[0m[2m────[0m[0m[2m┬[0m[0m[2m──────[0m[0m[2m┬[0m[0m[2m───────────────────────────[0m[0m[2m┬[0m[0m[2m─────────[0m[0m[2m┬[0m[0m[2m───[0m[0m[2m┬[0m[0m[2m────────[0m[0m[2m╮[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m# [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34mpid [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34mname                     [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34mstatus [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m↺[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34muptime[0m[2m [0m[0m[2m│[0m
+[0m[0m[2m├[0m[0m[2m────[0m[0m[2m┼[0m[0m[2m──────[0m[0m[2m┼[0m[0m[2m───────────────────────────[0m[0m[2m┼[0m[0m[2m─────────[0m[0m[2m┼[0m[0m[2m───[0m[0m[2m┼[0m[0m[2m────────[0m[0m[2m┤[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m1 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m1990[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mrobot_hal                [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m 27m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m2 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m1986[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mmotion_control           [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m 27m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m3 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m1989[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mrobot_monitor            [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m 27m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m4 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m1991[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mrobot_manager            [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m 27m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m5 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m2007[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mrobot_remote             [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m 27m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m6 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m2000[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mrobot_diagnostic_analyzer[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m 27m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m7 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m1987[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mrobot_camera             [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m 27m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m8 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m1992[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mrobot_roamerx            [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m 27m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m9 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m1995[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mdomain_bridge            [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m 27m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m10[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0   [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mrecord_topic             [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[33mstopped[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m  _   [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m11[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0   [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mrecord_csv               [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[33mstopped[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m  _   [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m╰[0m[0m[2m────[0m[0m[2m┴[0m[0m[2m──────[0m[0m[2m┴[0m[0m[2m───────────────────────────[0m[0m[2m┴[0m[0m[2m─────────[0m[0m[2m┴[0m[0m[2m───[0m[0m[2m┴[0m[0m[2m────────[0m[0m[2m╯[0m
+[0m
+
+[38;5;11m[38;5;11m⬮[39m[39m [2m[2mno services[0m[0m
+
+
+======== ★ 7.2　相機設定與能力 ========
+-- v4l2-ctl --list-devices（一次看完拓樸）--
+rkisp-statistics (platform: rkisp):
+	/dev/video29
+	/dev/video30
+	/dev/video38
+	/dev/video39
+
+rkcif-mipi-lvds (platform:rkcif):
+	/dev/media0
+	/dev/media1
+
+rkcif (platform:rkcif-mipi-lvds):
+	/dev/video0
+	/dev/video1
+	/dev/video2
+	/dev/video3
+	/dev/video4
+	/dev/video5
+	/dev/video6
+	/dev/video7
+	/dev/video8
+	/dev/video9
+	/dev/video10
+
+rkcif (platform:rkcif-mipi-lvds2):
+	/dev/video11
+	/dev/video12
+	/dev/video13
+	/dev/video14
+	/dev/video15
+	/dev/video16
+	/dev/video17
+	/dev/video18
+	/dev/video19
+	/dev/video20
+	/dev/video21
+
+rkisp_mainpath (platform:rkisp0-vir2):
+	/dev/video22
+	/dev/video23
+	/dev/video24
+	/dev/video25
+	/dev/video26
+	/dev/video27
+	/dev/video28
+	/dev/media2
+
+rkisp_mainpath (platform:rkisp1-vir0):
+	/dev/video31
+	/dev/video32
+	/dev/video33
+	/dev/video34
+	/dev/video35
+	/dev/video36
+	/dev/video37
+	/dev/media3
+
+@@CAMDEV /dev/video0
+   Card: rkcif
+	[0]: 'RG10' (10-bit Bayer RGRG/GBGB)
+	[1]: 'BA10' (10-bit Bayer GRGR/BGBG)
+	[2]: 'GB10' (10-bit Bayer GBGB/RGRG)
+	[3]: 'BG10' (10-bit Bayer BGBG/GRGR)
+	[4]: 'Y10 ' (10-bit Greyscale)
+@@CAMDEV /dev/video1
+   Card: rkcif
+	[0]: 'RG10' (10-bit Bayer RGRG/GBGB)
+	[1]: 'BA10' (10-bit Bayer GRGR/BGBG)
+	[2]: 'GB10' (10-bit Bayer GBGB/RGRG)
+	[3]: 'BG10' (10-bit Bayer BGBG/GRGR)
+	[4]: 'Y10 ' (10-bit Greyscale)
+@@CAMDEV /dev/video10
+   Card: rkcif
+	[0]: 'RGGB' (8-bit Bayer RGRG/GBGB)
+	[10]: 'GB12' (12-bit Bayer GBGB/RGRG)
+	[11]: 'BG12' (12-bit Bayer BGBG/GRGR)
+	[1]: 'GRBG' (8-bit Bayer GRGR/BGBG)
+	[2]: 'GBRG' (8-bit Bayer GBGB/RGRG)
+	[3]: 'BA81' (8-bit Bayer BGBG/GRGR)
+	[4]: 'RG10' (10-bit Bayer RGRG/GBGB)
+	[5]: 'BA10' (10-bit Bayer GRGR/BGBG)
+	[6]: 'GB10' (10-bit Bayer GBGB/RGRG)
+	[7]: 'BG10' (10-bit Bayer BGBG/GRGR)
+	[8]: 'RG12' (12-bit Bayer RGRG/GBGB)
+	[9]: 'BA12' (12-bit Bayer GRGR/BGBG)
+		Size: Discrete 3864x2192
+@@CAMDEV /dev/video11
+   Card: rkcif
+	[0]: 'RG10' (10-bit Bayer RGRG/GBGB)
+	[1]: 'BA10' (10-bit Bayer GRGR/BGBG)
+	[2]: 'GB10' (10-bit Bayer GBGB/RGRG)
+	[3]: 'BG10' (10-bit Bayer BGBG/GRGR)
+	[4]: 'Y10 ' (10-bit Greyscale)
+@@CAMDEV /dev/video12
+   Card: rkcif
+	[0]: 'RG10' (10-bit Bayer RGRG/GBGB)
+	[1]: 'BA10' (10-bit Bayer GRGR/BGBG)
+	[2]: 'GB10' (10-bit Bayer GBGB/RGRG)
+	[3]: 'BG10' (10-bit Bayer BGBG/GRGR)
+	[4]: 'Y10 ' (10-bit Greyscale)
+@@CAMDEV /dev/video13
+   Card: rkcif
+	[0]: 'RG10' (10-bit Bayer RGRG/GBGB)
+	[1]: 'BA10' (10-bit Bayer GRGR/BGBG)
+	[2]: 'GB10' (10-bit Bayer GBGB/RGRG)
+	[3]: 'BG10' (10-bit Bayer BGBG/GRGR)
+	[4]: 'Y10 ' (10-bit Greyscale)
+@@CAMDEV /dev/video14
+   Card: rkcif
+   （已列舉 6 個擷取節點，其餘略過）
+@@CAMDEV /dev/video15
+   Card: rkcif
+   （已列舉 6 個擷取節點，其餘略過）
+@@CAMDEV /dev/video16
+   Card: rkcif
+   （已列舉 6 個擷取節點，其餘略過）
+@@CAMDEV /dev/video17
+   Card: rkcif
+   （已列舉 6 個擷取節點，其餘略過）
+@@CAMDEV /dev/video18
+   Card: rkcif
+   （已列舉 6 個擷取節點，其餘略過）
+@@CAMDEV /dev/video19
+   Card: rkcif
+   （已列舉 6 個擷取節點，其餘略過）
+@@CAMDEV /dev/video2
+   Card: rkcif
+   （已列舉 6 個擷取節點，其餘略過）
+@@CAMDEV /dev/video20
+   Card: rkcif
+   （已列舉 6 個擷取節點，其餘略過）
+@@CAMDEV /dev/video21
+   Card: rkcif
+   （已列舉 6 個擷取節點，其餘略過）
+@@CAMDEV /dev/video22
+   Card: rkisp_mainpath
+   （已列舉 6 個擷取節點，其餘略過）
+@@CAMDEV /dev/video23
+   Card: rkisp_selfpath
+   （非擷取節點，略過格式列舉）
+@@CAMDEV /dev/video24
+   Card: rkisp_fbcpath
+   （非擷取節點，略過格式列舉）
+@@CAMDEV /dev/video25
+   Card: rkisp_iqtool
+   （非擷取節點，略過格式列舉）
+@@CAMDEV /dev/video26
+   Card: rkisp_rawrd0_m
+   （非擷取節點，略過格式列舉）
+@@CAMDEV /dev/video27
+   Card: rkisp_rawrd2_s
+   （非擷取節點，略過格式列舉）
+@@CAMDEV /dev/video28
+   Card: rkisp_rawrd1_l
+   （非擷取節點，略過格式列舉）
+@@CAMDEV /dev/video29
+   Card: rkisp-statistics
+   （非擷取節點，略過格式列舉）
+@@CAMDEV /dev/video3
+   Card: rkcif
+   （已列舉 6 個擷取節點，其餘略過）
+@@CAMDEV /dev/video30
+   Card: rkisp-input-params
+   （非擷取節點，略過格式列舉）
+@@CAMDEV /dev/video31
+   Card: rkisp_mainpath
+   （已列舉 6 個擷取節點，其餘略過）
+@@CAMDEV /dev/video32
+   Card: rkisp_selfpath
+   （非擷取節點，略過格式列舉）
+@@CAMDEV /dev/video33
+   Card: rkisp_fbcpath
+   （非擷取節點，略過格式列舉）
+@@CAMDEV /dev/video34
+   Card: rkisp_iqtool
+   （非擷取節點，略過格式列舉）
+@@CAMDEV /dev/video35
+   Card: rkisp_rawrd0_m
+   （非擷取節點，略過格式列舉）
+@@CAMDEV /dev/video36
+   Card: rkisp_rawrd2_s
+   （非擷取節點，略過格式列舉）
+@@CAMDEV /dev/video37
+   Card: rkisp_rawrd1_l
+   （非擷取節點，略過格式列舉）
+@@CAMDEV /dev/video38
+   Card: rkisp-statistics
+   （非擷取節點，略過格式列舉）
+@@CAMDEV /dev/video39
+   Card: rkisp-input-params
+   （非擷取節點，略過格式列舉）
+@@CAMDEV /dev/video4
+   Card: rkcif
+   （已列舉 6 個擷取節點，其餘略過）
+@@CAMDEV /dev/video5
+   Card: rkcif
+   （已列舉 6 個擷取節點，其餘略過）
+@@CAMDEV /dev/video6
+   Card: rkcif
+   （已列舉 6 個擷取節點，其餘略過）
+@@CAMDEV /dev/video7
+   Card: rkcif
+   （已列舉 6 個擷取節點，其餘略過）
+@@CAMDEV /dev/video8
+   Card: rkcif
+   （已列舉 6 個擷取節點，其餘略過）
+@@CAMDEV /dev/video9
+   Card: rkcif
+   （已列舉 6 個擷取節點，其餘略過）
+@@CAMDEV /dev/video-dec0
+   Card: 未取到
+   （非擷取節點，略過格式列舉）
+@@CAMDEV /dev/video-enc0
+   Card: 未取到
+   （非擷取節點，略過格式列舉）
+-- RTSP 伺服器（mediamtx）--
+LISTEN 0      0                  *:8554             *:*          
+LISTEN 0      0                  *:1935             *:*          
+@@FILE /opt/runtime/bin/mediamtx.yml
+  -- 全域設定（前 40 行）--
+logLevel: info
+logDestinations: [stdout]
+logFile: mediamtx.log
+readTimeout: 10s
+writeTimeout: 10s
+writeQueueSize: 512
+udpMaxPayloadSize: 1472
+runOnConnect:
+runOnConnectRestart: no
+runOnDisconnect:
+authMethod: internal
+authInternalUsers:
+- user: any
+  pass:
+  ips: []
+  permissions:
+  - action: publish
+    path:
+  - action: read
+    path:
+  - action: playback
+    path:
+- user: any
+  pass:
+  ips: ['127.0.0.1', '::1']
+  permissions:
+  - action: api
+  - action: metrics
+  - action: pprof
+authHTTPAddress:
+authHTTPExclude:
+- action: api
+- action: metrics
+- action: pprof
+authJWTJWKS:
+authJWTClaimKey: mediamtx_permissions
+api: no
+apiAddress: :9997
+apiEncryption: no
+apiServerKey: server.key
+  -- ★ paths 段（RTSP 的路徑名稱與來源就在這，第一趟被 head 截掉了）--
+paths:
+  # example:
+  # my_camera:
+  #   source: rtsp://my_camera
+
+  # Settings under path "all_others" are applied to all paths that
+  # do not match another entry.
+  all_others:
+  -- rtsp 相關設定 --
+135:apiEncryption: no
+136:# Path to the server key. This is needed only when encryption is yes.
+158:metricsEncryption: no
+159:# Path to the server key. This is needed only when encryption is yes.
+181:pprofEncryption: no
+182:# Path to the server key. This is needed only when encryption is yes.
+204:playbackEncryption: no
+205:# Path to the server key. This is needed only when encryption is yes.
+223:rtsp: yes
+226:# server and clients, and doesn't support encryption.
+228:# TCP is the most versatile, and does support encryption.
+230:rtspTransports: [udp, multicast, tcp]
+233:rtspEncryption: "no"
+234:# Address of the TCP/RTSP listener. This is needed only when encryption is "no" or "optional".
+235:rtspAddress: :8554
+236:# Address of the TCP/TLS/RTSPS listener. This is needed only when encryption is "strict" or "optional".
+237:rtspsAddress: :8322
+248:# Path to the server key. This is needed only when encryption is "strict" or "optional".
+252:rtspServerKey: server.key
+253:# Path to the server certificate. This is needed only when encryption is "strict" or "optional".
+
+======== ★ 7.1／7.2／7.4　感測驅動設定檔 ========
+(找不到感測驅動設定檔 —— 換條路：看 /opt/robot/install/*/share/*/config)
+/opt/robot/install/robot_camera/share/robot_camera/config
+/opt/robot/install/robot_control_server/share/robot_control_server/config
+/opt/robot/install/robot_diagnostic_analyzer/share/robot_diagnostic_analyzer/config
+/opt/robot/install/robot_hal/share/robot_hal/config
+/opt/robot/install/robot_monitor/share/robot_monitor/config
+/opt/robot/install/robot_remote/share/robot_remote/config
+/opt/robot/install/robot_roamerx/share/robot_roamerx/config
+-- 光達設定的關鍵欄位（挑出來標記，方便產表）--
+
+======== ROS2 環境（第一趟就是死在這一段） ========
+-- /opt/runtime/env.bash --
+export PATH=$PATH:/opt/runtime/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/runtime/lib
+
+source /opt/ros/humble/setup.bash
+source /opt/robot/install/setup.bash
+source /usr/share/colcon_cd/function/colcon_cd.sh
+source /usr/share/colcon_argcomplete/hook/colcon-argcomplete.bash
+export ROS_DOMAIN_ID=66
+export ROS_LOCALHOST_ONLY=0
+export LC_NUMERIC="en_US.UTF-8"
+export _colcon_cd_root=/opt/ros/humble/
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp #rmw_fastrtps_cpp
+export RCUTILS_COLORIZED_OUTPUT=1
+export RCUTILS_LOGGING_USE_STDOUT=1
+export RCUTILS_LOGGING_BUFFERED_STREAM=1
+export RCUTILS_CONSOLE_OUTPUT_FORMAT="[{date_time_with_ms}] [{severity}] [{name}]: {message}"
+export ROBOT_LOG_DIR=/home/robot
+export MILE_PATH=/userdata/robot
+# export ROBOT_API_HOST=0.0.0.0
+ROS_DOMAIN_ID=66  RMW=rmw_zenoh_cpp
+ros2: /opt/ros/humble/bin/ros2
+@@KV ros_domain_id=66
+
+======== ★★★ ROS2 topic 全表（含型別，一次撈完） ========
+/arc/charging_dock_info [robot_common_interface/msg/ChargingDockInfo]
+/battery_controller/battery1 [sensor_msgs/msg/BatteryState]
+/battery_controller/battery2 [sensor_msgs/msg/BatteryState]
+/battery_controller/battery_all [sensor_msgs/msg/BatteryState]
+/battery_controller/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/cmd_vel [geometry_msgs/msg/Twist]
+/control_right/test [std_msgs/msg/Bool]
+/diagnostics_agg [diagnostic_msgs/msg/DiagnosticArray]
+/diagnostics [diagnostic_msgs/msg/DiagnosticArray]
+/diagnostics_toplevel_state [diagnostic_msgs/msg/DiagnosticStatus]
+/estop_controller/hw_estop/state [std_msgs/msg/Bool]
+/estop_controller/sw_estop/state [std_msgs/msg/Bool]
+/fill_light_controller/auto_work_state [std_msgs/msg/Bool]
+/fill_light_controller/auto_work [std_msgs/msg/Bool]
+/fill_light_controller/back_light/cmd [std_msgs/msg/Bool]
+/fill_light_controller/back_light/state [std_msgs/msg/Bool]
+/fill_light_controller/front_light/cmd [std_msgs/msg/Bool]
+/fill_light_controller/front_light/state [std_msgs/msg/Bool]
+/fill_light_controller/lux [sensor_msgs/msg/Illuminance]
+/fill_light_controller/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/front_camera/image_compressed [sensor_msgs/msg/CompressedImage]
+/imu_shm_publisher/imu_central [sensor_msgs/msg/Imu]
+/imu_shm_publisher/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/joint_shm_controller/joint_cmd_echo [sensor_msgs/msg/JointState]
+/joint_shm_controller/joint_sensor [robot_common_interface/msg/JointSensor]
+/joint_shm_controller/joint_states [sensor_msgs/msg/JointState]
+/joint_shm_controller/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/led_controller/auto_work_state [std_msgs/msg/Bool]
+/led_controller/auto_work [std_msgs/msg/Bool]
+/led_controller/led_cmd [robot_common_interface/msg/LedCommand]
+/led_controller/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/parameter_events [rcl_interfaces/msg/ParameterEvent]
+/rear_camera/image_compressed [sensor_msgs/msg/CompressedImage]
+/robot_camera/record_mp4_ack [robot_common_interface/msg/RecordMp4Ack]
+/robot_camera/record_mp4 [robot_common_interface/msg/RecordMp4Request]
+/robot_camera/record_mp4_status [robot_common_interface/msg/RecordMp4Status]
+/robot_camera/take_photo_ack [robot_common_interface/msg/RecordPhotoAck]
+/robot_camera/take_photo [robot_common_interface/msg/RecordPhotoRequest]
+/robot_hal/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/robot_manager/robot_status [robot_common_interface/msg/RobotStatus]
+/robot_monitor/diagnostic_status [robot_common_interface/msg/RobotDiagnosticStatus]
+/robot_monitor/power_on_status [robot_common_interface/msg/PowerOnStatus]
+/robot_remote/knee_mode [std_msgs/msg/String]
+/robot_remote/locked_state [std_msgs/msg/Bool]
+/robot_remote/obstacle_avoidance [std_msgs/msg/Bool]
+/robot_remote/reverse_head_tail [std_msgs/msg/String]
+/robot_remote/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/robot_roamerx/alg_dtc [robot_common_interface/msg/RoamerxAlgDtc]
+/robot_roamerx/alg_status [robot_common_interface/msg/RoamerxAlgStatus]
+/robot_roamerx/is_in_nav_control [std_msgs/msg/Bool]
+/robot_roamerx/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/rosout [rcl_interfaces/msg/Log]
+/switch_controller/hw_estop/state [std_msgs/msg/Bool]
+/switch_controller/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/tf/tf_ack [robot_common_interface/msg/TFCardAck]
+/tf/tf_req [robot_common_interface/msg/TFCardRequest]
+@@KV topic_count=56
+
+======== ROS2 node 全表 ========
+/battery_controller
+/bridge_image_topics_66
+/ComponentManager
+/controller_manager
+/fill_light_controller
+/imu_shm_publisher
+/joint_shm_controller
+/launch_ros_2132
+/led_controller
+/robot_camera
+/robot_diagnostic_analyzer
+/robot_diagnostic_manager
+/robot_hal
+/robot_manager
+/robot_monitor
+/robot_remote
+/robot_roamerx
+/robot_self_test_manager
+/switch_controller
+/zsi_actuator_driver
+/zsi_imu_driver
+
+======== ★★★ 7.1／7.2／7.4　核心感測 topic：QoS、發布者、實測頻率、一筆內容 ========
+---------------- /battery_controller/battery_all ----------------
+@@TOPIC /battery_controller/battery_all|sensor_msgs/msg/BatteryState|1.000|1
+-- 發布者 QoS:   Reliability: RELIABLE  訂閱旗標: （預設 reliable） --
+-- 一筆內容（陣列截斷 120）--
+header:
+  stamp:
+    sec: 1790044346
+    nanosec: 320220888
+  frame_id: ''
+voltage: 0.0
+temperature: 0.0
+current: 0.0
+charge: 0.0
+capacity: 0.0
+design_capacity: 0.0
+percentage: 41.5
+power_supply_status: 2
+power_supply_health: 0
+power_supply_technology: 0
+present: false
+cell_voltage: []
+cell_temperature: []
+location: ''
+serial_number: ''
+---
+-- topic info -v --
+Type: sensor_msgs/msg/BatteryState
+
+Publisher count: 1
+
+Node name: battery_controller
+Node namespace: /
+Topic type: sensor_msgs/msg/BatteryState
+Endpoint type: PUBLISHER
+GID: 85.8e.d1.15.d1.f6.08.ec.cd.10.fc.00.40.49.59.dd.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 1
+
+Node name: led_controller
+Node namespace: /
+Topic type: sensor_msgs/msg/BatteryState
+Endpoint type: SUBSCRIPTION
+GID: d0.3e.f6.d9.dc.68.0b.33.ac.09.3a.13.47.45.71.e8.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (42)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+（本 topic 花了 13 秒）
+
+---------------- /front_camera/image_compressed ----------------
+@@TOPIC /front_camera/image_compressed|sensor_msgs/msg/CompressedImage|9.912|1
+-- 發布者 QoS:   Reliability: RELIABLE  訂閱旗標: （預設 reliable） --
+-- 一筆內容（陣列截斷 120）--
+header:
+  stamp:
+    sec: 1790044356
+    nanosec: 285145076
+  frame_id: camera_front
+format: jpeg
+data:
+- 255
+- 216
+- 255
+- 224
+- 0
+- 16
+- 74
+- 70
+- 73
+- 70
+- 0
+- 1
+- 1
+- 0
+- 0
+- 1
+- 0
+- 1
+- 0
+- 0
+- 255
+- 219
+- 0
+- 67
+- 0
+- 5
+- 3
+- 4
+- 4
+- 4
+- 3
+- 5
+- 4
+- 4
+- 4
+- 5
+- 5
+- 5
+- 6
+- 7
+- 12
+- 8
+- 7
+- 7
+- 7
+- 7
+- 15
+- 11
+- 11
+- 9
+- 12
+- 17
+- 15
+- 18
+- 18
+- 17
+- 15
+- 17
+- 17
+- 19
+- 22
+- 28
+- 23
+- 19
+- 20
+- 26
+- 21
+- 17
+- 17
+- 24
+- 33
+- 24
+- 26
+- 29
+- 29
+- 31
+- 31
+- 31
+- 19
+- 23
+- 34
+- 36
+- 34
+- 30
+- 36
+- 28
+- 30
+- 31
+- 30
+- 255
+- 219
+- 0
+- 67
+- 1
+- 5
+- 5
+- 5
+- 7
+- 6
+- 7
+- 14
+- 8
+- 8
+- 14
+- 30
+- 20
+- 17
+- 20
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- '...'
+---
+-- topic info -v --
+Type: sensor_msgs/msg/CompressedImage
+
+Publisher count: 1
+
+Node name: robot_camera
+Node namespace: /
+Topic type: sensor_msgs/msg/CompressedImage
+Endpoint type: PUBLISHER
+GID: a3.89.29.e5.0e.22.d1.47.1e.18.2b.c3.c1.36.37.95.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 1
+
+Node name: bridge_image_topics_66
+Node namespace: /
+Topic type: sensor_msgs/msg/CompressedImage
+Endpoint type: SUBSCRIPTION
+GID: 72.1c.ae.7f.e7.a5.4a.20.41.88.87.77.a6.74.45.fa.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+（本 topic 花了 10 秒）
+
+---------------- /imu_shm_publisher/imu_central ----------------
+@@TOPIC /imu_shm_publisher/imu_central|sensor_msgs/msg/Imu|203.317|1
+-- 發布者 QoS:   Reliability: RELIABLE  訂閱旗標: （預設 reliable） --
+-- 一筆內容（陣列截斷 120）--
+header:
+  stamp:
+    sec: 1790044366
+    nanosec: 302077774
+  frame_id: imu_sensor_frame
+orientation:
+  x: -0.001794317620806396
+  y: -0.005395837593823671
+  z: -0.755224347114563
+  w: 0.6554417014122009
+orientation_covariance:
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+angular_velocity:
+  x: 0.0037695050705224276
+  y: -0.012887067161500454
+  z: -0.0008484366699121892
+angular_velocity_covariance:
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+linear_acceleration:
+  x: -0.13935552537441254
+  y: -0.017961768433451653
+  z: 9.93825626373291
+linear_acceleration_covariance:
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+---
+-- topic info -v --
+Type: sensor_msgs/msg/Imu
+
+Publisher count: 1
+
+Node name: imu_shm_publisher
+Node namespace: /
+Topic type: sensor_msgs/msg/Imu
+Endpoint type: PUBLISHER
+GID: 22.c5.c4.ce.0e.71.e5.77.01.16.bd.e9.5a.d0.d4.ab.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 2
+
+Node name: robot_remote
+Node namespace: /
+Topic type: sensor_msgs/msg/Imu
+Endpoint type: SUBSCRIPTION
+GID: 90.97.7b.48.b8.90.64.aa.a2.d9.60.2a.68.3a.ff.b9.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (42)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: robot_roamerx
+Node namespace: /
+Topic type: sensor_msgs/msg/Imu
+Endpoint type: SUBSCRIPTION
+GID: 1d.12.00.57.05.4c.c4.7f.89.b7.e0.ff.cc.bd.9f.14.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (42)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+（本 topic 花了 10 秒）
+
+---------------- /joint_shm_controller/joint_sensor ----------------
+@@TOPIC /joint_shm_controller/joint_sensor|robot_common_interface/msg/JointSensor|1.000|1
+-- 發布者 QoS:   Reliability: RELIABLE  訂閱旗標: （預設 reliable） --
+-- 一筆內容（陣列截斷 120）--
+header:
+  stamp:
+    sec: 1790044378
+    nanosec: 605233448
+  frame_id: ''
+name:
+- fl1_hip_roll
+- fl2_hip_pitch
+- fl3_knee_pitch
+- fl4_foot
+- fr1_hip_roll
+- fr2_hip_pitch
+- fr3_knee_pitch
+- fr4_foot
+- bl1_hip_roll
+- bl2_hip_pitch
+- bl3_knee_pitch
+- bl4_foot
+- br1_hip_roll
+- br2_hip_pitch
+- br3_knee_pitch
+- br4_foot
+error:
+- 1
+- 1
+- 1
+- 1
+- 1
+- 1
+- 1
+- 1
+- 1
+- 1
+- 1
+- 1
+- 1
+- 1
+- 1
+- 1
+error_msg:
+- ''
+- ''
+- ''
+- ''
+- ''
+- ''
+- ''
+- ''
+- ''
+- ''
+- ''
+- ''
+- ''
+- ''
+- ''
+- ''
+temp:
+- 27.0
+- 27.0
+- 27.0
+- 26.0
+- 28.0
+- 27.0
+- 27.0
+- 27.0
+- 27.0
+- 27.0
+- 27.0
+- 27.0
+- 27.0
+- 27.0
+- 27.0
+- 27.0
+voltage:
+- 52.0
+- 52.0
+- 52.0
+- 52.0
+- 52.0
+- 52.0
+- 52.0
+- 52.0
+- 52.0
+- 52.0
+- 52.0
+- 52.0
+- 52.0
+- 52.0
+- 52.0
+- 52.0
+---
+-- topic info -v --
+Type: robot_common_interface/msg/JointSensor
+
+Publisher count: 1
+
+Node name: joint_shm_controller
+Node namespace: /
+Topic type: robot_common_interface/msg/JointSensor
+Endpoint type: PUBLISHER
+GID: a0.c8.c2.27.5b.65.09.f7.55.55.c3.1f.4b.79.04.e9.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 1
+
+Node name: robot_remote
+Node namespace: /
+Topic type: robot_common_interface/msg/JointSensor
+Endpoint type: SUBSCRIPTION
+GID: aa.4d.76.da.11.3a.04.68.e2.2f.6a.f1.1f.ea.ba.28.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (42)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+（本 topic 花了 12 秒）
+
+---------------- /rear_camera/image_compressed ----------------
+@@TOPIC /rear_camera/image_compressed|sensor_msgs/msg/CompressedImage|9.994|1
+-- 發布者 QoS:   Reliability: RELIABLE  訂閱旗標: （預設 reliable） --
+-- 一筆內容（陣列截斷 120）--
+header:
+  stamp:
+    sec: 1790044388
+    nanosec: 287892006
+  frame_id: camera_back
+format: jpeg
+data:
+- 255
+- 216
+- 255
+- 224
+- 0
+- 16
+- 74
+- 70
+- 73
+- 70
+- 0
+- 1
+- 1
+- 0
+- 0
+- 1
+- 0
+- 1
+- 0
+- 0
+- 255
+- 219
+- 0
+- 67
+- 0
+- 5
+- 3
+- 4
+- 4
+- 4
+- 3
+- 5
+- 4
+- 4
+- 4
+- 5
+- 5
+- 5
+- 6
+- 7
+- 12
+- 8
+- 7
+- 7
+- 7
+- 7
+- 15
+- 11
+- 11
+- 9
+- 12
+- 17
+- 15
+- 18
+- 18
+- 17
+- 15
+- 17
+- 17
+- 19
+- 22
+- 28
+- 23
+- 19
+- 20
+- 26
+- 21
+- 17
+- 17
+- 24
+- 33
+- 24
+- 26
+- 29
+- 29
+- 31
+- 31
+- 31
+- 19
+- 23
+- 34
+- 36
+- 34
+- 30
+- 36
+- 28
+- 30
+- 31
+- 30
+- 255
+- 219
+- 0
+- 67
+- 1
+- 5
+- 5
+- 5
+- 7
+- 6
+- 7
+- 14
+- 8
+- 8
+- 14
+- 30
+- 20
+- 17
+- 20
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- '...'
+---
+-- topic info -v --
+Type: sensor_msgs/msg/CompressedImage
+
+Publisher count: 1
+
+Node name: robot_camera
+Node namespace: /
+Topic type: sensor_msgs/msg/CompressedImage
+Endpoint type: PUBLISHER
+GID: dc.80.3a.8b.d5.40.c6.37.03.0f.8d.96.69.d5.4b.eb.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 1
+
+Node name: bridge_image_topics_66
+Node namespace: /
+Topic type: sensor_msgs/msg/CompressedImage
+Endpoint type: SUBSCRIPTION
+GID: 8f.84.f4.ec.c8.6b.04.d1.bb.a7.fa.c0.4c.54.b2.e8.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+（本 topic 花了 10 秒）
+
+
+======== 7.1　其他名稱像感測器的 topic（只列型別，不量頻率） ========
+@@TOPIC2 /battery_controller/battery1 [sensor_msgs/msg/BatteryState]
+@@TOPIC2 /battery_controller/battery2 [sensor_msgs/msg/BatteryState]
+@@TOPIC2 /battery_controller/transition_event [lifecycle_msgs/msg/TransitionEvent]
+@@TOPIC2 /imu_shm_publisher/transition_event [lifecycle_msgs/msg/TransitionEvent]
+@@TOPIC2 /robot_camera/record_mp4_ack [robot_common_interface/msg/RecordMp4Ack]
+@@TOPIC2 /robot_camera/record_mp4 [robot_common_interface/msg/RecordMp4Request]
+@@TOPIC2 /robot_camera/record_mp4_status [robot_common_interface/msg/RecordMp4Status]
+@@TOPIC2 /robot_camera/take_photo_ack [robot_common_interface/msg/RecordPhotoAck]
+@@TOPIC2 /robot_camera/take_photo [robot_common_interface/msg/RecordPhotoRequest]
+
+======== 感測 msg 的欄位定義（7.4 要引用的規格欄位） ========
+---- sensor_msgs/msg/PointCloud2 ----
+# This message holds a collection of N-dimensional points, which may
+# contain additional information such as normals, intensity, etc. The
+# point data is stored as a binary blob, its layout described by the
+# contents of the "fields" array.
+#
+# The point cloud data may be organized 2d (image-like) or 1d (unordered).
+# Point clouds organized as 2d images may be produced by camera depth sensors
+# such as stereo or time-of-flight.
+
+# Time of sensor data acquisition, and the coordinate frame ID (for 3d points).
+std_msgs/Header header
+	builtin_interfaces/Time stamp
+		int32 sec
+		uint32 nanosec
+	string frame_id
+
+# 2D structure of the point cloud. If the cloud is unordered, height is
+# 1 and width is the length of the point cloud.
+uint32 height
+uint32 width
+
+# Describes the channels and their layout in the binary data blob.
+PointField[] fields
+	uint8 INT8    = 1
+	uint8 UINT8   = 2
+	uint8 INT16   = 3
+	uint8 UINT16  = 4
+	uint8 INT32   = 5
+	uint8 UINT32  = 6
+	uint8 FLOAT32 = 7
+---- sensor_msgs/msg/Range ----
+# Single range reading from an active ranger that emits energy and reports
+# one range reading that is valid along an arc at the distance measured.
+# This message is  not appropriate for laser scanners. See the LaserScan
+# message if you are working with a laser scanner.
+#
+# This message also can represent a fixed-distance (binary) ranger.  This
+# sensor will have min_range===max_range===distance of detection.
+# These sensors follow REP 117 and will output -Inf if the object is detected
+# and +Inf if the object is outside of the detection range.
+
+std_msgs/Header header # timestamp in the header is the time the ranger
+	builtin_interfaces/Time stamp
+		int32 sec
+		uint32 nanosec
+	string frame_id
+                             # returned the distance reading
+
+# Radiation type enums
+# If you want a value added to this list, send an email to the ros-users list
+uint8 ULTRASOUND=0
+uint8 INFRARED=1
+
+uint8 radiation_type    # the type of radiation used by the sensor
+                        # (sound, IR, etc) [enum]
+
+float32 field_of_view   # the size of the arc that the distance reading is
+                        # valid for [rad]
+                        # the object causing the range reading may have
+                        # been anywhere within -field_of_view/2 and
+                        # field_of_view/2 at the measured range.
+---- sensor_msgs/msg/Imu ----
+# This is a message to hold data from an IMU (Inertial Measurement Unit)
+#
+# Accelerations should be in m/s^2 (not in g's), and rotational velocity should be in rad/sec
+#
+# If the covariance of the measurement is known, it should be filled in (if all you know is the
+# variance of each measurement, e.g. from the datasheet, just put those along the diagonal)
+# A covariance matrix of all zeros will be interpreted as "covariance unknown", and to use the
+# data a covariance will have to be assumed or gotten from some other source
+#
+# If you have no estimate for one of the data elements (e.g. your IMU doesn't produce an
+# orientation estimate), please set element 0 of the associated covariance matrix to -1
+# If you are interpreting this message, please check for a value of -1 in the first element of each
+# covariance matrix, and disregard the associated estimate.
+
+std_msgs/Header header
+	builtin_interfaces/Time stamp
+		int32 sec
+		uint32 nanosec
+	string frame_id
+
+geometry_msgs/Quaternion orientation
+	float64 x 0
+	float64 y 0
+	float64 z 0
+	float64 w 1
+float64[9] orientation_covariance # Row major about x, y, z axes
+
+geometry_msgs/Vector3 angular_velocity
+	float64 x
+	float64 y
+
+======== 廠商自訂 msg 介面 ========
+Messages:
+    ackermann_msgs/msg/AckermannDrive
+    ackermann_msgs/msg/AckermannDriveStamped
+    bond/msg/Constants
+    bond/msg/Status
+    domain_bridge/msg/CompressedMsg
+    dwb_msgs/msg/CriticScore
+    dwb_msgs/msg/LocalPlanEvaluation
+    dwb_msgs/msg/Trajectory2D
+    dwb_msgs/msg/TrajectoryScore
+    mocap4r2_control_msgs/msg/Control
+    mocap4r2_control_msgs/msg/MocapInfo
+    nav_2d_msgs/msg/Path2D
+    nav_2d_msgs/msg/Pose2D32
+    nav_2d_msgs/msg/Pose2DStamped
+    nav_2d_msgs/msg/Twist2D
+    nav_2d_msgs/msg/Twist2D32
+    nav_2d_msgs/msg/Twist2DStamped
+    pendulum_msgs/msg/JointCommand
+    pendulum_msgs/msg/JointState
+    pendulum_msgs/msg/RttestResults
+    rmw_dds_common/msg/Gid
+    rmw_dds_common/msg/NodeEntitiesInfo
+    rmw_dds_common/msg/ParticipantEntitiesInfo
+    robot_common_interface/msg/ChargingDockInfo
+    robot_common_interface/msg/ControlServerCurrentRequesterInfo
+    robot_common_interface/msg/ControlServerInPlacePose
+    robot_common_interface/msg/ControlServerMcState
+    robot_common_interface/msg/ControlServerMove
+    robot_common_interface/msg/ControlServerNavPose
+    robot_common_interface/msg/JointCommand
+    robot_common_interface/msg/JointSensor
+    robot_common_interface/msg/LedCommand
+    robot_common_interface/msg/PowerOnStatus
+    robot_common_interface/msg/RecordMp4Ack
+    robot_common_interface/msg/RecordMp4Request
+    robot_common_interface/msg/RecordMp4Status
+    robot_common_interface/msg/RecordPhotoAck
+    robot_common_interface/msg/RecordPhotoRequest
+    robot_common_interface/msg/RemoteCommand
+    robot_common_interface/msg/RoamerxAlgDtc
+    robot_common_interface/msg/RoamerxAlgStatus
+    robot_common_interface/msg/RobotDiagnosticError
+    robot_common_interface/msg/RobotDiagnosticStatus
+    robot_common_interface/msg/RobotStatus
+    robot_common_interface/msg/TFCardAck
+    robot_common_interface/msg/TFCardRequest
+    rosbag2_interfaces/msg/ReadSplitEvent
+    rosbag2_interfaces/msg/WriteSplitEvent
+    theora_image_transport/msg/Packet
+    turtlesim/msg/Color
+    turtlesim/msg/Pose
+    vision_msgs/msg/BoundingBox2D
+    vision_msgs/msg/BoundingBox2DArray
+    vision_msgs/msg/BoundingBox3D
+    vision_msgs/msg/BoundingBox3DArray
+    vision_msgs/msg/Classification
+    vision_msgs/msg/Detection2D
+    vision_msgs/msg/Detection2DArray
+    vision_msgs/msg/Detection3D
+    vision_msgs/msg/Detection3DArray
+    vision_msgs/msg/LabelInfo
+    vision_msgs/msg/ObjectHypothesis
+    vision_msgs/msg/ObjectHypothesisWithPose
+    vision_msgs/msg/Point2D
+    vision_msgs/msg/Pose2D
+    vision_msgs/msg/VisionClass
+    vision_msgs/msg/VisionInfo
+Services:
+    dwb_msgs/srv/DebugLocalPlan
+    dwb_msgs/srv/GenerateTrajectory
+    dwb_msgs/srv/GenerateTwists
+    dwb_msgs/srv/GetCriticScore
+    dwb_msgs/srv/ScoreTrajectory
+    logging_demo/srv/ConfigLogger
+    robot_common_interface/srv/ControlServerMotionControl
+    robot_common_interface/srv/SelfTestOverallResult
+    robot_common_interface/srv/SetCameraBps
+    robot_common_interface/srv/SwitchActiveJointShm
+    robot_common_interface/srv/SwitchGroupMode
+
+======== dmesg 裡的感測器痕跡（型號常只出現在這） ========
+[Tue Sep 22 10:20:22 2026] imx415 6-0037: set exposure(shr0) 1591 = cur_vts(2250) - val(659)
+[Tue Sep 22 10:20:22 2026] imx415 6-0037: set exposure(shr0) 1575 = cur_vts(2250) - val(675)
+[Tue Sep 22 10:20:22 2026] imx415 6-0037: set analog gain 0x1
+[Tue Sep 22 10:20:22 2026] imx415 6-0037: set analog gain 0x2
+[Tue Sep 22 10:20:22 2026] imx415 6-0037: set analog gain 0x3
+[Tue Sep 22 10:20:22 2026] imx415 6-0037: set analog gain 0x4
+[Tue Sep 22 10:20:22 2026] imx415 6-0037: set analog gain 0x5
+[Tue Sep 22 10:20:22 2026] imx415 6-0037: set analog gain 0x6
+[Tue Sep 22 10:20:22 2026] imx415 7-0037: set analog gain 0x11
+[Tue Sep 22 10:20:22 2026] imx415 6-0037: set analog gain 0x7
+[Tue Sep 22 10:20:22 2026] imx415 7-0037: set analog gain 0xf
+[Tue Sep 22 10:20:22 2026] imx415 7-0037: set analog gain 0xe
+[Tue Sep 22 10:20:22 2026] imx415 6-0037: set analog gain 0x8
+[Tue Sep 22 10:20:22 2026] imx415 7-0037: set analog gain 0xd
+[Tue Sep 22 10:20:22 2026] imx415 7-0037: set analog gain 0xb
+[Tue Sep 22 10:20:22 2026] imx415 6-0037: set analog gain 0x9
+[Tue Sep 22 10:20:22 2026] imx415 7-0037: set analog gain 0xa
+[Tue Sep 22 10:20:22 2026] imx415 7-0037: set analog gain 0x9
+[Tue Sep 22 10:20:22 2026] imx415 7-0037: set analog gain 0x8
+[Tue Sep 22 10:20:22 2026] imx415 6-0037: set analog gain 0xa
+[Tue Sep 22 10:20:22 2026] imx415 6-0037: set analog gain 0xb
+[Tue Sep 22 10:20:24 2026] imx415 6-0037: set analog gain 0xa
+[Tue Sep 22 10:20:24 2026] imx415 6-0037: set analog gain 0x9
+[Tue Sep 22 10:20:24 2026] imx415 6-0037: set analog gain 0x8
+[Tue Sep 22 10:20:24 2026] imx415 6-0037: set analog gain 0x7
+[Tue Sep 22 10:20:24 2026] imx415 7-0037: set analog gain 0x7
+[Tue Sep 22 10:20:24 2026] imx415 7-0037: set analog gain 0x5
+[Tue Sep 22 10:20:24 2026] imx415 6-0037: set analog gain 0x6
+[Tue Sep 22 10:20:24 2026] imx415 7-0037: set analog gain 0x4
+[Tue Sep 22 10:20:24 2026] imx415 6-0037: set analog gain 0x5
+[Tue Sep 22 10:20:24 2026] imx415 7-0037: set analog gain 0x3
+[Tue Sep 22 10:20:24 2026] imx415 7-0037: set analog gain 0x2
+[Tue Sep 22 10:20:24 2026] imx415 7-0037: set analog gain 0x1
+[Tue Sep 22 10:20:24 2026] imx415 6-0037: set analog gain 0x4
+[Tue Sep 22 10:20:24 2026] imx415 7-0037: set analog gain 0x0
+[Tue Sep 22 10:20:24 2026] imx415 7-0037: set exposure(shr0) 1583 = cur_vts(2250) - val(667)
+[Tue Sep 22 10:20:24 2026] imx415 7-0037: set exposure(shr0) 1601 = cur_vts(2250) - val(649)
+[Tue Sep 22 10:20:24 2026] imx415 7-0037: set exposure(shr0) 1611 = cur_vts(2250) - val(639)
+[Tue Sep 22 10:20:24 2026] imx415 7-0037: set exposure(shr0) 1617 = cur_vts(2250) - val(633)
+[Tue Sep 22 10:20:24 2026] imx415 7-0037: set exposure(shr0) 1628 = cur_vts(2250) - val(622)
+[Tue Sep 22 10:20:24 2026] imx415 7-0037: set exposure(shr0) 1640 = cur_vts(2250) - val(610)
+[Tue Sep 22 10:20:24 2026] imx415 7-0037: set exposure(shr0) 1649 = cur_vts(2250) - val(601)
+[Tue Sep 22 10:20:24 2026] imx415 7-0037: set exposure(shr0) 1653 = cur_vts(2250) - val(597)
+[Tue Sep 22 10:20:24 2026] imx415 7-0037: set exposure(shr0) 1659 = cur_vts(2250) - val(591)
+[Tue Sep 22 10:20:24 2026] imx415 7-0037: set exposure(shr0) 1662 = cur_vts(2250) - val(588)
+[Tue Sep 22 10:20:24 2026] imx415 7-0037: set exposure(shr0) 1664 = cur_vts(2250) - val(586)
+[Tue Sep 22 10:20:28 2026] imx415 6-0037: set analog gain 0x3
+[Tue Sep 22 10:20:28 2026] imx415 6-0037: set analog gain 0x2
+[Tue Sep 22 10:20:28 2026] imx415 6-0037: set analog gain 0x1
+[Tue Sep 22 10:20:28 2026] imx415 6-0037: set analog gain 0x0
+[Tue Sep 22 10:20:28 2026] imx415 6-0037: set exposure(shr0) 1580 = cur_vts(2250) - val(670)
+[Tue Sep 22 10:20:28 2026] imx415 6-0037: set exposure(shr0) 1594 = cur_vts(2250) - val(656)
+[Tue Sep 22 10:20:28 2026] imx415 6-0037: set exposure(shr0) 1605 = cur_vts(2250) - val(645)
+[Tue Sep 22 10:20:28 2026] imx415 6-0037: set exposure(shr0) 1616 = cur_vts(2250) - val(634)
+[Tue Sep 22 10:20:28 2026] imx415 6-0037: set exposure(shr0) 1626 = cur_vts(2250) - val(624)
+[Tue Sep 22 10:20:28 2026] imx415 6-0037: set exposure(shr0) 1634 = cur_vts(2250) - val(616)
+[Tue Sep 22 10:20:29 2026] imx415 6-0037: set exposure(shr0) 1640 = cur_vts(2250) - val(610)
+[Tue Sep 22 10:20:29 2026] imx415 6-0037: set exposure(shr0) 1646 = cur_vts(2250) - val(604)
+[Tue Sep 22 10:20:29 2026] imx415 6-0037: set exposure(shr0) 1649 = cur_vts(2250) - val(601)
+[Tue Sep 22 10:20:29 2026] imx415 6-0037: set exposure(shr0) 1651 = cur_vts(2250) - val(599)
+
+======== 靜態盤點結束 ========

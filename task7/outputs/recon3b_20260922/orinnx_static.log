@@ -1,0 +1,4231 @@
+
+======== 身分與韌體 ========
+@@KV host=orin-nx
+@@KV kernel=5.15.148-tegra
+@@KV arch=aarch64
+@@KV os=Ubuntu 22.04.5 LTS
+@@KV board=NVIDIA Jetson Orin NX Engineering Reference Developer Kit
+@@KV python3=Python 3.10.12
+Linux orin-nx 5.15.148-tegra #2 SMP PREEMPT Mon Mar 2 17:33:07 CST 2026 aarch64 aarch64 aarch64 GNU/Linux
+-- /opt/release/version.yaml --
+version: "0.3.6"
+release_date: "2026-02-28"
+description: "A2503 Orin NX Release Image with all modules"
+
+@@KV firmware=version:"0.3.6"
+
+======== ★ 1.3　CPU 規格 ========
+@@KV ncpu=8
+Architecture:                       aarch64
+CPU op-mode(s):                     32-bit, 64-bit
+Byte Order:                         Little Endian
+CPU(s):                             8
+On-line CPU(s) list:                0-7
+Vendor ID:                          ARM
+Model name:                         Cortex-A78AE
+Model:                              1
+Thread(s) per core:                 1
+Core(s) per cluster:                4
+Socket(s):                          -
+Cluster(s):                         2
+Stepping:                           r0p1
+CPU max MHz:                        1984.0000
+CPU min MHz:                        115.2000
+BogoMIPS:                           62.50
+Flags:                              fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm lrcpc dcpop asimddp uscat ilrcpc flagm paca pacg
+L1d cache:                          512 KiB (8 instances)
+L1i cache:                          512 KiB (8 instances)
+L2 cache:                           2 MiB (8 instances)
+L3 cache:                           4 MiB (2 instances)
+NUMA node(s):                       1
+NUMA node0 CPU(s):                  0-7
+Vulnerability Gather data sampling: Not affected
+Vulnerability Itlb multihit:        Not affected
+Vulnerability L1tf:                 Not affected
+Vulnerability Mds:                  Not affected
+Vulnerability Meltdown:             Not affected
+Vulnerability Mmio stale data:      Not affected
+Vulnerability Retbleed:             Not affected
+Vulnerability Spec rstack overflow: Not affected
+Vulnerability Spec store bypass:    Mitigation; Speculative Store Bypass disabled via prctl
+Vulnerability Spectre v1:           Mitigation; __user pointer sanitization
+Vulnerability Spectre v2:           Mitigation; CSV2, but not BHB
+Vulnerability Srbds:                Not affected
+Vulnerability Tsx async abort:      Not affected
+@@KV cpu_model=Cortex-A78AE
+@@KV cpu_maxmhz=1984.0000
+-- /proc/cmdline（看核心隔離）--
+root=PARTUUID=ccf4362b-8d24-4079-8518-be731c15e240 rw rootwait rootfstype=ext4 mminit_loglevel=4 console=ttyTCU0,115200 firmware_class.path=/etc/firmware fbcon=map:0 nospectre_bhb video=efifb:off console=tty0 root=PARTUUID=a3667591-3b06-4bf1-a5b8-3fd1a379ee2c rw rootwait rootfstype=ext4 mminit_loglevel=4 console=ttyTCU0,115200 firmware_class.path=/etc/firmware fbcon=map:0 nospectre_bhb video=efifb:off console=tty0 root=PARTUUID=e2f9cd30-1e0b-4f1b-a2c8-607e5a5cf9ce rw rootwait rootfstype=ext4 mminit_loglevel=4 console=ttyTCU0,115200 firmware_class.path=/etc/firmware fbcon=map:0 nospectre_bhb video=efifb:off console=tty0 root=PARTUUID=d93127e4-c3f3-4baa-9931-df6f73594463 rw rootwait rootfstype=ext4 mminit_loglevel=4 console=ttyTCU0,115200 firmware_class.path=/etc/firmware fbcon=map:0 nospectre_bhb video=efifb:off console=tty0 root=PARTUUID=c0c93467-40c7-42a2-837f-2d94bb090bb8 rw rootwait rootfstype=ext4 mminit_loglevel=4 console=ttyTCU0,115200 firmware_class.path=/etc/firmware fbcon=map:0 nospectre_bhb video=efifb:off console=tty0 root=PARTUUID=ce6caf58-6727-4368-a6da-a08b0f3cd46a rw rootwait rootfstype=ext4 mminit_loglevel=4 console=ttyTCU0,115200 firmware_class.path=/etc/firmware fbcon=map:0 nospectre_bhb video=efifb:off console=tty0 root=PARTUUID=d1ed9fef-55c9-4ffe-a1bf-466a67099ebf rw rootwait rootfstype=ext4 mminit_loglevel=4 console=ttyTCU0,115200 firmware_class.path=/etc/firmware fbcon=map:0 nospectre_bhb video=efifb:off console=tty0  root=PARTUUID=a3906895-8d75-4718-bd5c-2edf73db7099 rw rootwait rootfstype=ext4 mminit_loglevel=4 console=ttyTCU0,115200 firmware_class.path=/etc/firmware fbcon=map:0 nospectre_bhb video=efifb:off console=tty0 bl_prof_dataptr=2031616@0x471E10000 bl_prof_ro_ptr=65536@0x471E00000 
+@@KV isolcpus=
+@@KV nohz_full=
+-- 每核最高頻與 governor --
+policy0  cpus=0 1 2 3  max=1984000  gov=schedutil
+policy4  cpus=4 5 6 7  max=1984000  gov=schedutil
+
+======== ★ 1.3　記憶體 ========
+               total        used        free      shared  buff/cache   available
+Mem:            15Gi       7.1Gi       5.5Gi        28Mi       2.7Gi       7.9Gi
+Swap:          7.6Gi          0B       7.6Gi
+@@KV mem_total_kb=16032020
+@@KV swap_total_kb=8016000
+NAME       TYPE        SIZE USED PRIO
+/dev/zram0 partition 978.5M   0B    5
+/dev/zram1 partition 978.5M   0B    5
+/dev/zram2 partition 978.5M   0B    5
+/dev/zram3 partition 978.5M   0B    5
+/dev/zram4 partition 978.5M   0B    5
+/dev/zram5 partition 978.5M   0B    5
+/dev/zram6 partition 978.5M   0B    5
+/dev/zram7 partition 978.5M   0B    5
+
+======== ★ 1.3　GPU / NPU 裝置與驅動 ========
+-- devfreq 節點（GPU/NPU 的頻率與負載大多掛這裡）--
+/sys/class/devfreq/15340000.vic -> /sys/devices/platform/bus@0/13e00000.host1x/15340000.vic/devfreq/15340000.vic
+   cur_freq=729600000  max=729600000  load=  gov=tegra_wmark
+/sys/class/devfreq/15380000.nvjpg -> /sys/devices/platform/bus@0/13e00000.host1x/15380000.nvjpg/devfreq/15380000.nvjpg
+   cur_freq=729600000  max=729600000  load=  gov=userspace
+/sys/class/devfreq/15480000.nvdec -> /sys/devices/platform/bus@0/13e00000.host1x/15480000.nvdec/devfreq/15480000.nvdec
+   cur_freq=857600000  max=857600000  load=  gov=tegra_wmark
+/sys/class/devfreq/154c0000.nvenc -> /sys/devices/platform/bus@0/13e00000.host1x/154c0000.nvenc/devfreq/154c0000.nvenc
+   cur_freq=793600000  max=793600000  load=  gov=tegra_wmark
+/sys/class/devfreq/15540000.nvjpg -> /sys/devices/platform/bus@0/13e00000.host1x/15540000.nvjpg/devfreq/15540000.nvjpg
+   cur_freq=729600000  max=729600000  load=  gov=userspace
+/sys/class/devfreq/15a50000.ofa -> /sys/devices/platform/bus@0/13e00000.host1x/15a50000.ofa/devfreq/15a50000.ofa
+   cur_freq=780800000  max=780800000  load=  gov=tegra_wmark
+/sys/class/devfreq/17000000.gpu -> /sys/devices/platform/bus@0/17000000.gpu/devfreq/17000000.gpu
+   cur_freq=306000000  max=918000000  load=  gov=nvhost_podgov
+-- 裝置節點 --
+crw-rw---- 1 root video 487,  0  1月  1  1970 /dev/nvhost-as-gpu
+crw-rw---- 1 root video 487,  2  1月  1  1970 /dev/nvhost-ctrl-gpu
+crw-rw---- 1 root video 492,  0  8月 26  2025 /dev/nvhost-ctrl-isp
+crw-rw---- 1 root video 500,  0  8月 26  2025 /dev/nvhost-ctrl-isp-thi
+crw-rw---- 1 root video 494,  0  8月 26  2025 /dev/nvhost-ctrl-nvcsi
+crw-rw---- 1 root video 499,  0  8月 26  2025 /dev/nvhost-ctrl-nvdla0
+crw-rw---- 1 root video 498,  0  8月 26  2025 /dev/nvhost-ctrl-nvdla1
+crw-rw---- 1 root video 497,  0  8月 26  2025 /dev/nvhost-ctrl-pva0
+crw-rw---- 1 root video 493,  0  8月 26  2025 /dev/nvhost-ctrl-vi0
+crw-rw---- 1 root video 503,  0  8月 26  2025 /dev/nvhost-ctrl-vi0-thi
+crw-rw---- 1 root video 491,  0  8月 26  2025 /dev/nvhost-ctrl-vi1
+crw-rw---- 1 root video 502,  0  8月 26  2025 /dev/nvhost-ctrl-vi1-thi
+crw-rw---- 1 root debug 487,  3  1月  1  1970 /dev/nvhost-ctxsw-gpu
+crw-rw---- 1 root debug 487,  4  1月  1  1970 /dev/nvhost-dbg-gpu
+crw-rw---- 1 root video 487,  1  1月  1  1970 /dev/nvhost-gpu
+crw-rw---- 1 root video 487, 10  1月  1  1970 /dev/nvhost-nvsched_ctrl_fifo-gpu
+crw-rw---- 1 root video 487,  9  1月  1  1970 /dev/nvhost-nvsched-gpu
+crw-rw---- 1 root video 506,  0  8月 26  2025 /dev/nvhost-power-gpu
+crw-rw---- 1 root debug 487,  6  1月  1  1970 /dev/nvhost-prof-ctx-gpu
+crw-rw---- 1 root debug 487,  7  1月  1  1970 /dev/nvhost-prof-dev-gpu
+crw-rw---- 1 root debug 487,  5  1月  1  1970 /dev/nvhost-prof-gpu
+crw-rw---- 1 root root  487,  8  1月  1  1970 /dev/nvhost-sched-gpu
+crw-rw---- 1 root video 487, 11  1月  1  1970 /dev/nvhost-tsg-gpu
+
+/dev/dri:
+total 0
+drwxr-xr-x  2 root root         80  8月 26  2025 by-path
+crw-rw----+ 1 root video  226,   0  8月 26  2025 card0
+crw-rw----+ 1 root render 226, 128  8月 26  2025 renderD128
+-- RKNPU（RK3588）--
+@@KV rknpu_version=
+version: (未取到：無 sudo 授權，略過 cat /sys/kernel/debug/rknpu/version)
+load:    (未取到：無 sudo 授權，略過 cat /sys/kernel/debug/rknpu/load)
+-- Jetson（Orin NX）--
+tegrastats 存在：/usr/bin/tegrastats
+09-22-2026 10:32:06 RAM 7398/15656MB (lfb 9x4MB) SWAP 0/7828MB (cached 0MB) CPU [74%@1497,67%@1497,65%@1497,67%@1497,75%@1984,79%@1984,59%@1984,67%@1984] GR3D_FREQ 99% cv0@42.562C cpu@44.406C soc2@42.625C soc0@41.656C cv1@42.75C gpu@41.343C tj@44.406C soc1@44.375C cv2@40.718C VDD_IN 13483mW/13483mW VDD_CPU_GPU_CV 6882mW/6882mW VDD_SOC 2197mW/2197mW
+09-22-2026 10:32:07 RAM 7421/15656MB (lfb 5x4MB) SWAP 0/7828MB (cached 0MB) CPU [78%@1804,67%@1804,62%@1804,63%@1804,64%@1984,84%@1984,84%@1984,65%@1984] GR3D_FREQ 99% cv0@42.906C cpu@44.593C soc2@42.5C soc0@41.625C cv1@42.531C gpu@41.281C tj@44.593C soc1@44.281C cv2@40.5C VDD_IN 13336mW/13410mW VDD_CPU_GPU_CV 6885mW/6884mW VDD_SOC 2197mW/2197mW
+09-22-2026 10:32:08 RAM 7424/15656MB (lfb 5x4MB) SWAP 0/7828MB (cached 0MB) CPU [82%@1958,69%@1958,63%@1958,67%@1958,64%@1984,61%@1984,100%@1984,63%@1984] GR3D_FREQ 99% cv0@42.656C cpu@44.875C soc2@42.625C soc0@41.625C cv1@42.562C gpu@41.187C tj@44.812C soc1@44.25C cv2@40.625C VDD_IN 13630mW/13483mW VDD_CPU_GPU_CV 7028mW/6932mW VDD_SOC 2197mW/2197mW
+NV Power Mode: MAXN
+0
+# R36 (release), REVISION: 4.7, GCID: 42132812, BOARD: generic, EABI: aarch64, DATE: Thu Sep 18 22:54:44 UTC 2025
+# KERNEL_VARIANT: oot
+TARGET_USERSPACE_LIB_DIR=nvidia
+TARGET_USERSPACE_LIB_DIR_PATH=usr/lib/aarch64-linux-gnu/nvidia
+-- OpenCL / CUDA 痕跡 --
+libcudadebugger.so.1
+libcuda.so
+libcudnn_adv.so
+libcudnn_adv.so.9
+libcudnn_adv.so.9.3.0
+libcudnn_cnn.so
+libcudnn_cnn.so.9
+libcudnn_cnn.so.9.3.0
+libcudnn_engines_precompiled.so
+libcudnn_engines_precompiled.so.9
+libcudnn_engines_precompiled.so.9.3.0
+libcudnn_engines_runtime_compiled.so
+libcudnn_engines_runtime_compiled.so.9
+libcudnn_engines_runtime_compiled.so.9.3.0
+libcudnn_graph.so
+libcudnn_graph.so.9
+libcudnn_graph.so.9.3.0
+libcudnn_heuristic.so
+libcudnn_heuristic.so.9
+libcudnn_heuristic.so.9.3.0
+bin
+cuda
+cuda-12
+cuda-12.6
+etc
+games
+include
+jetson_stats
+jtop
+lib
+man
+sbin
+share
+src
+
+======== ★ 1.3　溫度與風扇 ========
+thermal_zone0  cpu-thermal  44812
+thermal_zone1  gpu-thermal  41125
+thermal_zone2  cv0-thermal  42781
+thermal_zone3  cv1-thermal  42781
+thermal_zone4  cv2-thermal  40562
+thermal_zone5  soc0-thermal  41656
+thermal_zone6  soc1-thermal  44312
+thermal_zone7  soc2-thermal  42718
+thermal_zone8  tj-thermal  44718
+/sys/class/hwmon/hwmon0/name: pwmfan
+/sys/class/hwmon/hwmon1/name: ina3221
+/sys/class/hwmon/hwmon2/name: pwm_tach
+/sys/class/hwmon/hwmon3/name: soctherm_oc
+
+======== ★ 7.1　USB / 序列埠 / 影像裝置 ========
+-- lsusb --
+Bus 002 Device 003: ID 1a86:80a1 QinHeng Electronics USB3.0 HUB
+Bus 002 Device 002: ID 1a86:80a1 QinHeng Electronics USB3.0 HUB
+Bus 002 Device 001: ID 1d6b:0003 Linux Foundation 3.0 root hub
+Bus 001 Device 006: ID 1a86:55d9 QinHeng Electronics USB2.0 To Multi Serial Ports
+Bus 001 Device 005: ID 1a86:5397 QinHeng Electronics USB 10/100 LAN
+Bus 001 Device 004: ID 1a86:5397 QinHeng Electronics USB 10/100 LAN
+Bus 001 Device 003: ID 1a86:80a0 QinHeng Electronics USB2.0 HUB
+Bus 001 Device 002: ID 1a86:80a0 QinHeng Electronics USB2.0 HUB
+Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+-- lsusb -t --
+/:  Bus 02.Port 1: Dev 1, Class=root_hub, Driver=tegra-xusb/4p, 10000M
+    |__ Port 1: Dev 2, If 0, Class=Hub, Driver=hub/4p, 5000M
+    |__ Port 2: Dev 3, If 0, Class=Hub, Driver=hub/4p, 5000M
+/:  Bus 01.Port 1: Dev 1, Class=root_hub, Driver=tegra-xusb/4p, 480M
+    |__ Port 2: Dev 2, If 0, Class=Hub, Driver=hub/4p, 480M
+    |__ Port 3: Dev 3, If 0, Class=Hub, Driver=hub/4p, 480M
+        |__ Port 2: Dev 4, If 1, Class=CDC Data, Driver=cdc_ether, 480M
+        |__ Port 2: Dev 4, If 0, Class=Communications, Driver=cdc_ether, 480M
+        |__ Port 3: Dev 5, If 0, Class=Communications, Driver=cdc_ether, 480M
+        |__ Port 3: Dev 5, If 1, Class=CDC Data, Driver=cdc_ether, 480M
+        |__ Port 4: Dev 6, If 0, Class=Vendor Specific Class, Driver=usb_ch9344, 480M
+-- lsusb -v（只留 iProduct / bInterfaceClass，需要 sudo 才完整）--
+(未取到：無 sudo 授權，略過 lsusb -v)
+-- 影像裝置 --
+(沒有 /dev/video*)
+-- 序列埠（IMU / GPS / UWB 常走 UART）--
+crw-rw---- 1 root dialout   4, 64  8月 26  2025 /dev/ttyS0
+crw-rw---- 1 root dialout   4, 65  8月 26  2025 /dev/ttyS1
+crw-rw---- 1 root dialout   4, 66  8月 26  2025 /dev/ttyS2
+crw-rw---- 1 root dialout   4, 67  8月 26  2025 /dev/ttyS3
+crw-rw---- 1 root dialout 240,  1  8月 26  2025 /dev/ttyTHS1
+crw-rw---- 1 root dialout 240,  2  8月 26  2025 /dev/ttyTHS2
+crw-rw---- 1 root dialout 240,  3  9月 22 10:04 /dev/ttyTHS3
+(沒有)
+-- CAN --
+2: can0: <NOARP,ECHO> mtu 16 qdisc noop state DOWN mode DEFAULT group default qlen 10
+    link/can  promiscuity 0 minmtu 0 maxmtu 0 
+    can state STOPPED (berr-counter tx 0 rx 0) restart-ms 0 
+	  mttcan: tseg1 2..255 tseg2 0..127 sjw 1..127 brp 1..511 brp-inc 1
+	  mttcan: dtseg1 1..31 dtseg2 0..15 dsjw 1..15 dbrp 1..15 dbrp-inc 1
+	  clock 50000000 numtxqueues 1 numrxqueues 1 gso_max_size 65536 gso_max_segs 65535 parentbus platform parentdev c310000.mttcan 
+-- i2c / spi --
+/dev/i2c-0
+/dev/i2c-1
+/dev/i2c-2
+/dev/i2c-4
+/dev/i2c-5
+/dev/i2c-7
+/dev/spidev0.0
+/dev/spidev0.1
+/dev/spidev0.2
+-- 網路介面（光達走獨立網段）--
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+can0             DOWN           
+enxc817f52c3f92  UNKNOWN        192.168.1.102/24 fe80::1900:5161:8bee:ce70/64 
+enxc817f52c3f2c  UNKNOWN        192.168.2.102/24 fe80::9c32:2ac0:a20a:594d/64 
+enP8p1s0         UP             192.168.144.100/24 192.168.168.100/24 fe80::74f2:1f58:1693:a1ba/64 
+l4tbr0           DOWN           
+usb0             DOWN           
+usb1             DOWN           
+docker0          DOWN           172.17.0.1/16 
+default via 192.168.144.144 dev enP8p1s0 proto static metric 20102 
+169.254.0.0/16 dev enxc817f52c3f2c scope link metric 1000 
+172.17.0.0/16 dev docker0 proto kernel scope link src 172.17.0.1 linkdown 
+192.168.1.0/24 dev enxc817f52c3f92 proto kernel scope link src 192.168.1.102 metric 101 
+192.168.2.0/24 dev enxc817f52c3f2c proto kernel scope link src 192.168.2.102 metric 100 
+192.168.144.0/24 dev enP8p1s0 proto kernel scope link src 192.168.144.100 metric 102 
+192.168.168.0/24 dev enP8p1s0 proto kernel scope link src 192.168.168.100 metric 102 
+
+======== ★ 7.1／7.4　光達的獨立網段（從狗上看） ========
+✅ ping 192.168.1.102 通
+   HTTP: 000
+✅ ping 192.168.2.102 通
+   HTTP: 000
+-- 光達 UDP 埠有沒有在收（RoboSense msop 6699 / difop 7788 是慣用值）--
+State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess
+UNCONN 0      0            0.0.0.0:5353       0.0.0.0:*          
+UNCONN 0      0      192.168.2.102:6688       0.0.0.0:*          
+UNCONN 0      0      192.168.1.102:6688       0.0.0.0:*          
+UNCONN 0      0      192.168.2.102:6699       0.0.0.0:*          
+UNCONN 0      0      192.168.1.102:6699       0.0.0.0:*          
+UNCONN 0      0      192.168.2.102:7788       0.0.0.0:*          
+UNCONN 0      0      192.168.1.102:7788       0.0.0.0:*          
+UNCONN 0      0         127.0.0.53:53         0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:111        0.0.0.0:*          
+UNCONN 0      0          127.0.0.1:323        0.0.0.0:*          
+UNCONN 0      0            0.0.0.0:45461      0.0.0.0:*          
+UNCONN 0      0                  *:5353             *:*          
+UNCONN 0      0                  *:111              *:*          
+UNCONN 0      0              [::1]:323              *:*          
+UNCONN 0      0                  *:33096            *:*          
+
+======== ★ 7.1　感測相關行程 ========
+   2465  105 1028196 robot_slam    /opt/robot/robot_slam/install/robot_slam/lib/robot_slam/robot_slam
+   2752 59.2 1110388 localization  /opt/robot/robot_localization/install/localization/lib/localization/localization --ros-args --log-level localization:=DEBUG --ros-args --params-file /opt/robot/robot_localization/install/localization/share/localization/config/ros_params_loc_zg.yaml
+   2772 41.5 2129680 arc_lvio      /opt/robot/robot_arc/install/arc_lvio/lib/arc_lvio/arc_lvio --ros-args -r __node:=arc_lvio_node
+   3231 39.7 224908 component_conta /opt/ros/humble/lib/rclcpp_components/component_container_isolated --use_multi_threaded_executor --ros-args --log-level info --ros-args -r __node:=nav2_container --params-file /tmp/tmpoicw3d5h --params-file /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/robot_geometry/zg.yaml --params-file /tmp/launch_params_cjjn16fm -r /tf:=tf -r /tf_static:=tf_static
+   2856 39.6 82812 rslidar_sdk_nod /opt/robot/robot-driver/install/rslidar_sdk/lib/rslidar_sdk/rslidar_sdk_node --ros-args -r __ns:=/rslidar_sdk --params-file /tmp/launch_params__7wqpeof
+   2512 30.5 37848 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch arc_state_machine arc_state_machine.launch.py robot_type:=zgw
+   2764 27.6 58712 arc_state_machi /opt/robot/robot_arc/install/arc_state_machine/lib/arc_state_machine/arc_state_machine_node --ros-args --log-level info --ros-args -r __node:=arc_state_machine_node --params-file /opt/robot/robot_arc/install/arc_state_machine/share/arc_state_machine/config/ZGW/arc_state_machine_params.yaml --params-file /tmp/launch_params_oy3sqk_p
+   2500 24.2 147700 apriltag_locali ./bin/apriltag_localization_node ./config/apriltag_localization_pc_config_middle_dog.yaml
+   2426 21.6 39248 robot_alg_manag robot_alg_manager zg-arc
+   2730 18.3 1029456 arc_mapping   /opt/robot/robot_arc/install/arc_mapping/lib/arc_mapping/arc_mapping --ros-args -r __node:=arc_mapping_node
+   2447 12.7 38152 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch navigo_charging_alignment charging_alignment.launch.py robot_type:=zgw
+   2812  7.8 28592 imu_driver      /opt/robot/robot-driver/install/imu_driver/lib/imu_driver/imu_driver --ros-args -r __node:=imu_driver --params-file /opt/robot/robot-driver/install/imu_driver/share/imu_driver/config/imu_params.yaml
+   2725  5.7 36060 charging_alignm /opt/robot/robot_arc/install/navigo_charging_alignment/lib/navigo_charging_alignment/charging_alignment_server --ros-args --log-level info --ros-args -r __node:=charging_alignment_server --params-file /opt/robot/robot_arc/install/navigo_charging_alignment/share/navigo_charging_alignment/config/ZGW/charging_alignment_params.yaml --params-file /tmp/launch_params_tugh32ds
+   2673  3.7 143700 robot_forward  ./robot_forward
+   2477  3.0 37340 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch arc_mapping arc_mapping.launch.py
+   3233  3.0 37576 navigo_error_ag /opt/robot/robot_nav/install/navigo_error_aggregator/lib/navigo_error_aggregator/navigo_error_aggregator_node --ros-args -r __node:=error_aggregator --params-file /opt/robot/robot_nav/install/navigo_error_aggregator/share/navigo_error_aggregator/config/config.yaml --params-file /tmp/launch_params_x_l28bmk
+   2483  2.0 68248 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch robot_nav2 navigation_bringup.launch.py platform:=REAL robot_type:=zg
+   2490  1.2 37200 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch localization localization_zg.launch.py
+   2469  1.0 37736 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch arc_lvio arc_lvio.launch.py
+   3080  1.0 32028 sixents_gps_dri /opt/robot/robot-driver/install/sixents_gps_driver/lib/sixents_gps_driver/sixents_gps_driver --ros-args -r __node:=sixents_gps_driver --params-file /tmp/launch_params_u529q3tj --params-file /tmp/launch_params_qcx5n8fn --params-file /tmp/launch_params_blia0_aa --params-file /tmp/launch_params_phi8geft --params-file /tmp/launch_params__cx9vtvl --params-file /tmp/launch_params_hq440m5f --params-file /tmp/launch_params_k7ow1a52 --params-file /tmp/launch_params__4_b2n37 --params-file /tmp/launch_params_b1gfvfup --params-file /tmp/launch_params_g7ptn63e --params-file /tmp/launch_params_gpj4blju --params-file /tmp/launch_params_57ey2plf --params-file /tmp/launch_params_mgfbsc8y --params-file /tmp/launch_params_ppubs_lq --params-file /tmp/launch_params_ezltge94 --params-file /tmp/launch_params_9rhcjctj --params-file /tmp/launch_params_xag16us5
+   2621  0.4 47976 meb_node        /opt/robot/robot_meb/install/robot_meb/lib/robot_meb/meb_node --ros-args --log-level info --ros-args -r __node:=MEB --params-file /opt/robot/robot_meb/install/robot_meb/share/robot_meb/config/meb.yaml
+   3018  0.4 30360 uss_node        /opt/robot/robot-driver/install/uss_driver/lib/uss_driver/uss_node --ros-args --params-file /opt/robot/robot-driver/install/uss_driver/share/uss_driver/config/zsm_v4.yaml
+   2767  0.1 38884 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch sixents_gps_driver sixents_gps_driver.launch.py
+   1146  0.0  2524 gpsd            /usr/sbin/gpsd -s 460800 -G -n -P NMEA
+   1672  0.0  1600 rtkit-daemon    /usr/libexec/rtkit-daemon
+   2086  0.0  3612 bash            /usr/bin/bash /opt/runtime/bin/robot_start_app.sh
+   2348  0.0  3576 bash            bash /opt/runtime/bin/start_rslidar_driver.sh
+   2349  0.0  3520 bash            bash /opt/runtime/bin/start_uwb_driver.sh
+   2350  0.0  3472 bash            bash /opt/runtime/bin/start_robot_meb.sh
+   2352  0.0  3572 bash            bash /opt/runtime/bin/start_rtk_driver.sh
+   2353  0.0  3500 bash            bash /opt/runtime/bin/start_uss_driver.sh
+   2355  0.0  3480 bash            bash /opt/runtime/bin/start_imu_driver.sh
+   2358  0.0  3584 bash            bash /opt/runtime/bin/start_robot_forward.sh
+   2473  0.0 38204 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch robot_meb meb_node.launch.py log_dir:=/tmp/log/alg_data log_level:=info
+   2651  0.0 37340 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch imu_driver imu_driver.launch.py
+   2663  0.0 37436 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch rslidar_sdk start.py
+   2672  0.0 37876 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch uwb_driver uwb_driver.launch.py
+   2674  0.0 38524 ros2            /usr/bin/python3 /opt/ros/humble/bin/ros2 launch uss_driver zsm_v4.launch.py
+   2897  0.0 27876 uwb_driver_node /opt/robot/robot-driver/install/uwb_driver/lib/uwb_driver/uwb_driver_node --ros-args -r __node:=uwb_driver --params-file /opt/robot/robot-driver/install/uwb_driver/share/uwb_driver/config/uwb_params.yaml
+-- mc_ctrl 的核親和性（cpu7 隔離是不是真的只給運控）--
+-- robot-launch 服務清單 --
+
+[38;5;11m[38;5;11m⬮[39m[39m [2m[2mall info snapshot[0m[0m
+
+
+[38;5;11m[38;5;11m⬮[39m[39m [2m[2meggs snapshot[0m[0m
+
+[0m[2m╭[0m[0m[2m────[0m[0m[2m┬[0m[0m[2m──────[0m[0m[2m┬[0m[0m[2m───────────────────[0m[0m[2m┬[0m[0m[2m─────────[0m[0m[2m┬[0m[0m[2m───[0m[0m[2m┬[0m[0m[2m────────[0m[0m[2m╮[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m# [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34mpid [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34mname             [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34mstatus [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m↺[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34muptime[0m[2m [0m[0m[2m│[0m
+[0m[0m[2m├[0m[0m[2m────[0m[0m[2m┼[0m[0m[2m──────[0m[0m[2m┼[0m[0m[2m───────────────────[0m[0m[2m┼[0m[0m[2m─────────[0m[0m[2m┼[0m[0m[2m───[0m[0m[2m┼[0m[0m[2m────────[0m[0m[2m┤[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m1 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m2348[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mdriver-rslidar   [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m 27m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m2 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m2353[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mdriver-uss       [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m 27m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m3 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m2355[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mdriver-imu       [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m 27m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m4 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m2349[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mdriver-uwb       [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m 27m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m5 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m2352[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mdriver-rtk       [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m 27m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m6 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m2351[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mperception-seg   [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m 27m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m7 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m2358[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mrobot-forward    [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m 27m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m8 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0   [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mtime-sync        [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[33mstopped[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m  _   [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m9 [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m2360[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mrobot-alg-manager[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m 27m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[34m10[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m2350[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0mrobot-meb        [0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m[1m[32mrunning[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m0[0m[2m [0m[0m[2m│[0m[0m[2m [0m[0m[0m 27m  [0m[2m [0m[0m[2m│[0m
+[0m[0m[2m╰[0m[0m[2m────[0m[0m[2m┴[0m[0m[2m──────[0m[0m[2m┴[0m[0m[2m───────────────────[0m[0m[2m┴[0m[0m[2m─────────[0m[0m[2m┴[0m[0m[2m───[0m[0m[2m┴[0m[0m[2m────────[0m[0m[2m╯[0m
+[0m
+
+[38;5;11m[38;5;11m⬮[39m[39m [2m[2mno services[0m[0m
+
+
+======== ★ 7.2　相機設定與能力 ========
+-- RTSP 伺服器（mediamtx）--
+(沒看到 RTSP 埠在 listen)
+(找不到 mediamtx 設定檔)
+
+======== ★ 7.1／7.2／7.4　感測驅動設定檔 ========
+@@FILE /opt/robot/perception/install/perception/config/perception/detection/camera_imx415.yaml
+camera:
+  intrinsic_matrix:
+    - [808.88985, 0., 942.58611]
+    - [0., 796.39067145, 482.98616]
+    - [0., 0., 1.0]
+
+  distortion_coefficients:
+    - [-0.127315, 0.024885919, -0.00632399568, -0.0081869629]
+  
+
+  extrinsic_parameters:
+    quaternion: 
+      w: 0.9998
+      x: 0.0175
+      y: 0.0004
+      z: 0.0175
+    
+    # 平移向量
+    translation_vector: 
+      - [0.3, 0., 0.]
+  
+  depth_scale: 1.2
+  
+imu_pitch_angle: 42
+
+   … (截斷於 140 行)
+@@FILE /opt/robot/perception/install/perception/config/perception/detection/camera_usb.yaml
+camera:
+  intrinsic_matrix: 
+    # - [412.36, 0.0, 628.689]
+    # - [0.0, 414.21, 381.311]
+    # - [0.0, 0.0, 1.0]
+    - [1226.25450464, 0.0,  951.59754177]
+    - [0.0, 1226.92161566,  569.75861131]
+    - [0.0, 0.0, 1.0]
+  
+  distortion_coefficients: 
+    - [-0.36193283, 0.11481612, -0.000251, -0.00051266]
+  
+
+  extrinsic_parameters:
+    # 四元数表示的旋转
+    quaternion: 
+      w: 0.9998
+      x: 0.0175
+      y: 0.0004
+      z: 0.0175
+    
+    # 平移向量
+    translation_vector: 
+      - [0.1, 0.2, 0.3]
+      
+imu_pitch_angle: 42 # 
+
+   … (截斷於 140 行)
+@@FILE /opt/robot/perception/install/perception/config/perception/detection/camera.yaml
+camera:
+  intrinsic_matrix:
+    - [808.88985, 0., 942.58611]
+    - [0., 796.39067145, 482.98616]
+    - [0., 0., 1.0]
+
+  distortion_coefficients:
+    - [-0.127315, 0.024885919, -0.00632399568, -0.0081869629]
+  
+
+  extrinsic_parameters:
+    quaternion: 
+      w: 0.9998
+      x: 0.0175
+      y: 0.0004
+      z: 0.0175
+    
+    # 平移向量
+    translation_vector: 
+      - [0.3, 0., 0.]
+  
+  depth_scale: 1.2
+  
+imu_pitch_angle: 42
+
+   … (截斷於 140 行)
+@@FILE /opt/robot/perception/install/perception/config/perception/detection/track_config.yaml
+frame_rate: 10
+track_buffer: 40
+track_thresh: 0.4
+high_thresh: 0.5
+match_thresh: 0.85
+
+reid_dnn_cfg: detection/reid_dnn_config.yaml
+reid_similarity_cfg: detection/reid_similarity_config.yaml
+global_reid_frame_rate: 2
+
+sam_track_cfg: detection/sam_track.yaml
+use_sam_track: false
+debug_flag: false
+
+save_track_image: false   … (截斷於 140 行)
+@@FILE /opt/robot/perception/install/perception/config/perception/obstacle_detection/fusion_lidar_cam_odom_app.yaml
+delay_time_ms: 20
+ground_label_list: [2]
+obstacle_label_list: [1, 3, 4, 5]
+used_generate_point_from_seg: false
+generate_point_from_seg_extension_point_num: 10
+generate_point_from_seg_max_distance: 20.0
+generate_point_from_seg_min_distance: 8.0
+msg_names_config: perception_job/message_names.yaml
+soft_threshold_k: 0.4
+soft_threshold_end_rad: 8.0
+soft_threshold_start_rad: 0.3
+soft_threshold_end_height: 0.35
+soft_threshold_start_height: 0.15
+obstacle_point_min_height: -0.5
+filter_obs_outliers: false   … (截斷於 140 行)
+@@FILE /opt/robot/perception/install/perception/config/perception/segmentation/lidar_range_seg_config.yaml
+onnx_model_path: "detection/model/detection/lidar_range_seg.onnx"
+precision: "fp16"
+key: DnnTensorRT
+
+rknn_model_path: "detection/model/detection/lidar_range_seg.rknn"
+preprocess:
+  normalize_flag: False
+  img_means: [0, 0, 0, 0, 0]
+  img_stds: [1, 1, 1, 1, 1]
+
+model_yaml_path: model_md5.yaml
+
+# Range image投影参数
+range_image:
+  proj_H: 32           # Range image高度
+  proj_W: 512         # Range image宽度
+  proj_fov_up: 52.5     # 上方FOV角度（度）
+  proj_fov_down: -7.5 # 下方FOV角度（度）
+
+
+# 可视化配色：采用 BGR 顺序
+# 原始标签ID的颜色映射（用于兼容）
+color_map_original: # bgr
+  0: [0, 0, 0]
+  1: [30, 30, 30]
+  101: [255, 0, 0] 
+  102: [0, 128, 255]
+
+# Learning label ID的颜色映射（用于BEV可视化）
+# 根据 learning_map_inv 映射关系定义颜色
+color_map: # bgr - learning label (0-14)
+  # 根据 learning_map_inv 从 color_map_original 中获取对应颜色
+  0: [0, 0, 0]         # unlabeled (0 -> 0)
+  1: [255, 0, 0]       # knife switch (1 -> 101)  # 修改了 原来是[0, 0, 255]
+  2: [0, 0, 255]     # main transformer (2 -> 102)
+
+# 逆映射：把训练类别 ID 还原成原始标签 ID（推理输出用）。
+learning_map_inv:
+  0: 0
+  1: 101
+  2: 102
+
+# 标签名称映射（learning label ID -> 名称）
+# 根据 learning_map_inv 映射关系定义
+# learning_label -> original_label -> 实际类别名称
+labels:
+  0: "unlabeled" 
+  1: "obstacle"         
+  2: "road"     
+
+# 俯视图（BEV）可视化参数
+bev:
+  x_min: -50.0       # X轴最小值（米）
+  x_max: 50.0        # X轴最大值（米）
+  y_min: -50.0       # Y轴最小值（米）
+  y_max: 50.0        # Y轴最大值（米）
+  resolution: 0.1    # 分辨率（米/像素）
+  z_min: -2.0        # Z轴过滤最小值（米）
+  z_max: 2.0         # Z轴过滤最大值（米）   … (截斷於 140 行)
+@@FILE /opt/robot/robot_arc/install/apriltag_localization/config/apriltag_localization_pc_config_middle_dog.yaml
+%YAML:1.0
+---
+image_path: "/home/user/work/data/apriltag_locazation/bag/bag_0924_afternoon/dynamic1.bag"
+camera_intrinsic_path: "/ota/calibration_results.yaml"
+state_machine_config_path: "./config/machine_status.txt"
+hz: 10.0
+arc_state_topic_name: /arc/arc_state
+arc_cmd_topic_name: /arc/perception_mode_cmd
+calibration_state_name: /arc/calibration_state
+perception_state_name: /arc/perception_state
+perception_dock_pose_name: /arc/perception_dock_pose
+img_topic_name: /front_camera/image_compressed 
+
+detect_result_show: 0
+detect_result_save: 0
+
+tag_description:
+    tag_family: "tag36h11"
+    tagnum: 1
+
+    # detection of quads can be done on a lower-resolution image,
+    # improving speed at a cost of pose accuracy and a slight
+    # decrease in detection rate. Decoding the binary payload is
+    # still done at full resolution. .
+    tag_quad_decimate: 2.0
+
+    tag0:
+        id: 0
+        size: 0.15
+        # [tx, ty, tz, qw, qx, qy, qz]
+        pose: [0.0, 0.0, 0.0]
+
+    tag_slave:
+        id: 51
+        size: 0.08
+        # [tx, ty, tz, qw, qx, qy, qz]
+        pose: [0.0, 0.0, 0.0]
+
+T_baselink_camera: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [ 0.00442844, -0.00292847,  0.99998591,  0.43367031,
+        -0.99945363, -0.03276731,  0.00433012,  0.00329756,
+        0.03275417, -0.99945872, -0.00307198,  0.07760254,
+        0., 0., 0., 1. ]
+
+T_tag_dockbase_calib: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [-0.0163361293, -0.9987613235, 0.0469924469, -0.0142625967, 
+          0.0404602585, 0.0462997312, 0.9981071987, -0.1976807813, 
+          -0.9990473322, 0.0182062237, 0.0396532831, 0.9582816033, 
+          0.0000000000, 0.0000000000, 0.0000000000, 1.0000000000]
+
+T_tagonchargingbox_chargingbox: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [-0.015062, -0.999405,  0.031018, -0.002003,
+         0.042586,  0.030352,  0.998631,  0.13991,
+          -0.998979,  0.016362,  0.042103, -0.232682,
+           0.       , 0.      ,  0.      ,  1.       ]   … (截斷於 140 行)
+@@FILE /opt/robot/robot_arc/install/apriltag_localization/config/apriltag_localization_pc_config.yaml
+%YAML:1.0
+---
+image_path: "/home/user/work/data/apriltag_locazation/bag/bag_0924_afternoon/dynamic1.bag"
+camera_intrinsic_path: "/ota/calibration_results.yaml"
+state_machine_config_path: "./config/machine_status.txt"
+hz: 10.0
+arc_state_topic_name: /arc/arc_state
+arc_cmd_topic_name: /arc/perception_mode_cmd
+calibration_state_name: /arc/calibration_state
+perception_state_name: /arc/perception_state
+perception_dock_pose_name: /arc/perception_dock_pose
+img_topic_name: /front_camera/image_compressed
+
+detect_result_show: 0
+detect_result_save: 0
+
+tag_description:
+    tag_family: "tag36h11"
+    tagnum: 1
+
+    # detection of quads can be done on a lower-resolution image,
+    # improving speed at a cost of pose accuracy and a slight
+    # decrease in detection rate. Decoding the binary payload is
+    # still done at full resolution. .
+    tag_quad_decimate: 2.0
+
+    tag0:
+        id: 0
+        size: 0.15
+        # [tx, ty, tz, qw, qx, qy, qz]
+        pose: [0.0, 0.0, 0.0]
+
+    tag_slave:
+        id: 51
+        size: 0.05
+        # [tx, ty, tz, qw, qx, qy, qz]
+        pose: [0.0, 0.0, 0.0]
+
+T_baselink_camera: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [ -0.032000308089887665, 0.24270050222011955,
+       0.96957333271012303, 0.14082514596425549, -0.99942188361686513,
+       -0.018915968776012874, -0.028250452014003283,
+       0.040318709182650805, 0.011484018969200947, -0.9699168231115578,
+       0.24316551660819194, -0.019618440171811968, 0., 0., 0., 1. ]
+
+T_tag_dockbase_calib: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [-0.1096289961, -0.9939641514, 0.0041280787, 0.0374383185,
+          0.2390813830, -0.0223374774, 0.9707425270, -0.2687097515,
+          -0.9647904008, 0.1074081438, 0.2400873183, 0.5101853426,
+          0.0000000000, 0.0000000000, 0.0000000000, 1.0000000000]
+
+T_tagonchargingbox_chargingbox: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [-0.029698, -0.999378, -0.018987,  0.038342,
+          -0.001822, -0.018941,  0.999819,  0.170671,
+          -0.999557,  0.029728, -0.001258, -0.168541,
+           0., 0., 0., 1.]   … (截斷於 140 行)
+@@FILE /opt/robot/robot_arc/install/apriltag_localization/config/camera_calib.yaml
+%YAML:1.0
+---
+camera_matrix: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 791.5004023272736, 0., 1005.0190564261223, 0.,
+       791.5848171457094, 560.1217000128077, 0., 0., 1. ]
+dist_coeffs: !!opencv-matrix
+   rows: 1
+   cols: 5
+   dt: d
+   data: [ -0.10389823212088466, 0.01117498710777802,
+       3.587135904886769e-05, 8.83939765863256e-05,
+       -0.0003010549043691094 ]   … (截斷於 140 行)
+@@FILE /opt/robot/robot_arc/install/arc_state_machine/share/arc_state_machine/config/dock_pose_simulator_config.yaml
+# Dock Pose Simulator Configuration
+# 用于模拟SLAM和Perception模块的dock pose数据
+
+# 默认Dock位置配置（map坐标系）
+default_dock_pose:
+  x: 0.00          # X位置（米）
+  y: 0.00          # Y位置（米）
+  yaw: 0.00        # 朝向角度（弧度）
+
+# 噪声配置
+noise:
+  # SLAM模块噪声（激光雷达精度）
+  slam:
+    x_stddev: 0.00       # X方向标准差（米）
+    y_stddev: 0.00       # Y方向标准差（米）
+    yaw_stddev: 0.00     # 偏航角标准差（弧度）
+
+  # Perception模块噪声（视觉感知精度）
+  perception:
+    x_stddev: 0.00      # X方向标准差（米）
+    y_stddev: 0.00      # Y方向标准差（米）
+    yaw_stddev: 0.00    # 偏航角标准差（弧度）
+
+# 发布频率配置
+frequencies:
+  dock_pose_publish_rate: 50.0    # dock_pose话题发布频率（Hz）
+  state_publish_rate: 10.0        # 模块状态发布频率（Hz）
+  display_update_rate: 5.0        # UI显示更新频率（Hz）
+
+# ROS话题配置
+topics:
+  # 输入话题
+  odom_input: "/odom/current_pose"
+
+  # 输出话题 - 模块状态
+  slam_state_output: "/arc/slam_state"
+  perception_state_output: "/arc/perception_state"
+
+  # 输出话题 - Dock Pose
+  slam_dock_pose_output: "/arc/slam_dock_pose"
+  perception_dock_pose_output: "/arc/perception_dock_pose"
+
+# TF坐标系配置
+tf:
+  source_frame: "map"           # 源坐标系（dock真值所在坐标系）
+  target_frame: "base_link"     # 目标坐标系（发布dock pose的坐标系）
+  timeout: 1.0                  # TF查找超时时间（秒）
+
+# 初始状态配置
+initial_states:
+  slam: "RUNNING"               # SLAM模块初始状态: PASSIVE/STANDBY/RUNNING
+  perception: "RUNNING"         # Perception模块初始状态: PASSIVE/STANDBY/RUNNING
+
+# UI配置
+ui:
+  enable_colors: true           # 启用彩色输出
+  enable_emojis: true           # 启用表情符号
+  clear_screen: true            # 刷新时清屏   … (截斷於 140 行)
+@@FILE /opt/robot/robot-driver/install/imu_driver/share/imu_driver/config/imu_params.yaml
+# IMU Driver Node Configuration
+
+imu_driver:
+  ros__parameters:
+    # Topic name for publishing IMU data
+    topic_name: "/imu_driver/imu_central"
+    
+    # Publishing frequency in Hz
+    publish_frequency: 200.0
+    
+    # Frame ID for the IMU sensor
+    frame_id: "imu_link"
+    
+    # IMU device paths (SPI devices)
+    imu0_device: "/dev/spidev0.0"
+    imu1_device: "/dev/spidev0.1"
+    flash_device: "/dev/spidev0.2"
+    
+    # SPI bus speed in Hz
+    spi_speed_hz: 5000000
+
+    # SPI mode (0-3)
+    spi_mode: 3
+
+    # Flash memory SPI speed in Hz
+    flash_speed_hz: 100000
+
+    # IMU Sensor Fetch Frequency in Hz
+    fetch_frequency: 400.0
+   … (截斷於 140 行)
+@@FILE /opt/robot/robot-driver/install/rslidar_sdk/share/rslidar_sdk/config/config.yaml
+common:
+  msg_source: 1                         # 0: not use Lidar
+                                        # 1: packet message comes from online Lidar
+                                        # 2: packet message comes from ROS or ROS2
+                                        # 3: packet message comes from Pcap file
+  send_packet_ros: false                # true: Send packets through ROS or ROS2(Used to record packet)
+  send_point_cloud_ros: true            # true: Send point cloud through ROS or ROS2
+lidar:
+  - driver:
+      lidar_type: RSAIRY             #  LiDAR type - RS16, RS32, RSBP, RSAIRY, RSHELIOS, RSHELIOS_16P, RS128, RS80, RS48, RSP128, RSP80, RSP48, 
+                                   #               RSM1, RSM1_JUMBO, RSM2, RSM3, RSE1, RSMX.
+                                   
+      msop_port: 6699              #  Msop port of lidar
+      difop_port: 7788             #  Difop port of lidar
+      imu_port: 6688               #  IMU port of lidar(only for RSAIRY, RSE1), 0 means no imu.
+                                   #  If you want to use IMU, please first set ENABLE_IMU_DATA_PARSE to ON in CMakeLists.txt 
+      host_address: 192.168.1.102
+      user_layer_bytes: 0          #  Bytes of user layer. thers is no user layer if it is 0         
+      tail_layer_bytes: 0          #  Bytes of tail layer. thers is no tail layer if it is 0
+
+
+      min_distance: 0.2            #  Minimum distance of point cloud
+      max_distance: 200            #  Maximum distance of point cloud
+      use_lidar_clock: true        #  true--Use the lidar clock as the message timestamp
+                                   #  false-- Use the system clock as the timestamp
+      dense_points: false          #  true: discard NAN points; false: reserve NAN points
+      
+      ts_first_point: true         #  true: time-stamp point cloud with the first point; false: with the last point;   
+                                   #  these parameters are used from mechanical lidar
+
+      start_angle: 0               #  Start angle of point cloud
+      end_angle: 360               #  End angle of point cloud
+
+                                   #  When msg_source is 3, the following parameters will be used
+      pcap_repeat: true            #  true: The pcap bag will repeat play   
+      pcap_rate: 1.0               #  Rate to read the pcap file
+      pcap_path: /home/jszr/lidar_head.pcap #The path of pcap file
+
+    ros:
+      ros_frame_id: rslidar_head                           #Frame id of packet message and point cloud message
+      ros_recv_packet_topic: /rslidar_packets_head          #Topic used to receive lidar packets from ROS
+      ros_send_packet_topic: /rslidar_packets_head          #Topic used to send lidar packets through ROS
+      ros_send_imu_data_topic: /front_lidar/imu         #Topic used to send imu data through ROS
+      ros_send_point_cloud_topic: /front_lidar      #Topic used to send point cloud through ROS
+      ros_queue_length: 100                            #Topic QoS history depth
+  - driver:
+      lidar_type: RSAIRY           
+      msop_port: 6699             
+      difop_port: 7788        
+      imu_port: 6688  
+      host_address: 192.168.2.102
+
+      user_layer_bytes: 0          #  Bytes of user layer. thers is no user layer if it is 0         
+      tail_layer_bytes: 0          #  Bytes of tail layer. thers is no tail layer if it is 0
+
+
+      min_distance: 0.2            #  Minimum distance of point cloud
+      max_distance: 200            #  Maximum distance of point cloud
+      use_lidar_clock: true        #  true--Use the lidar clock as the message timestamp
+                                   #  false-- Use the system clock as the timestamp
+      dense_points: false          #  true: discard NAN points; false: reserve NAN points
+      
+      ts_first_point: true         #  true: time-stamp point cloud with the first point; false: with the last point;   
+                                   #  these parameters are used from mechanical lidar
+
+      start_angle: 0               #  Start angle of point cloud
+      end_angle: 360               #  End angle of point cloud
+
+                                   #  When msg_source is 3, the following parameters will be used
+      pcap_repeat: true            #  true: The pcap bag will repeat play   
+      pcap_rate: 1.0               #  Rate to read the pcap file
+      pcap_path: /home/jszr/lidar_tail.pcap #The path of pcap file
+    ros:
+      ros_frame_id: rslidar_tail                           #Frame id of packet message and point cloud message
+      ros_recv_packet_topic: /rslidar_packets_tail          #Topic used to receive lidar packets from ROS
+      ros_send_packet_topic: /rslidar_packets_tail          #Topic used to send lidar packets through ROS
+      ros_send_imu_data_topic: /rear_lidar/imu         #Topic used to send imu data through ROS
+      ros_send_point_cloud_topic: /rear_lidar      #Topic used to send point cloud through ROS
+      ros_queue_length: 100                            #Topic QoS history depth
+   … (截斷於 140 行)
+@@FILE /opt/robot/robot-driver/install/uss_driver/share/uss_driver/config/zsm_v3.yaml
+uss_driver:
+  ros__parameters:
+    update_rate: 10.0  # Hz, Max 10 Hz
+    invalid_reading_threshold: 65530  # Value indicating no object detected
+    sensor_names:
+      - uss_left
+      - uss_right
+
+    uss_left:
+      dev: "/dev/ttyACM1"
+      baudrate: 115200
+      frame_id: "uss_left_link"
+
+    uss_right:
+      dev: "/dev/ttyACM0"
+      baudrate: 115200
+      frame_id: "uss_right_link"   … (截斷於 140 行)
+@@FILE /opt/robot/robot-driver/install/uss_driver/share/uss_driver/config/zsm_v4.yaml
+uss_driver:
+  ros__parameters:
+    update_rate: 10.0  # Hz, Max 10 Hz
+    invalid_reading_threshold: 65530  # Value indicating no object detected
+    sensor_names:
+      - uss_left
+      - uss_right
+
+    uss_left:
+      dev: "/dev/ttyCH9344USB1"
+      baudrate: 115200
+      frame_id: "uss_left_link"
+
+    uss_right:
+      dev: "/dev/ttyCH9344USB0"
+      baudrate: 115200
+      frame_id: "uss_right_link"   … (截斷於 140 行)
+@@FILE /opt/robot/robot-driver/install/uwb_driver/share/uwb_driver/config/uwb_params.yaml
+# UWB Driver Node Configuration
+
+uwb_driver:
+  ros__parameters:
+    # Topic name for publishing UWB data
+    topic_name: "/uwb"
+
+    # UWB device path
+    dev: "/dev/ttyTHS1"
+
+    # UWB device baud rate
+    baud: 115200
+   … (截斷於 140 行)
+@@FILE /opt/robot/robot_localization/install/localization/share/localization/config/localization_params_loc.yaml
+localization_type: "LIO_UKF"  # 可选值：RTK_IO(RTK定位), LIO_UKF（点云地图定位）, RTK_IO_LIO（Faster-lio里程计）, ODOM, 
+frequency: 0.1  # 频率，单位：秒， RTK_IO选择0.01，其他选择0.1
+
+lio_ukf_general_options:
+  is_use_imu_: true
+  is_use_odom_: false
+  is_use_gnss_: true
+  pcd_map_file_: "/home/user/map/0701/map.pcd"
+  motion_mode_: 3
+  send_tf_transforms_: false
+  send_aligned_cloud_: false
+  send_global_map_cloud_: false
+  is_use_pose_smoothing_pub_: true
+  smooth_window_size_: 10
+
+lio_ukf_imu_options:
+  imu_init_time_: 0.5
+  imu_init_queue_length_: 100
+  imu_init_pos_cov_thre_: 5
+  imu_init_quat_cov_thre_: 5
+  imu_use_filter_num_: 4
+
+lio_ukf_init_pose_options:
+  is_init_pose_: true
+  init_pos_x_: 0.0
+  init_pos_y_: 0.0
+  init_pos_z_: 0.0
+  init_ori_w_: 1.0
+  init_ori_x_: 0.0
+  init_ori_y_: 0.0
+  init_ori_z_: 0.0
+
+lio_ukf_localization_state_options:
+  match_score_thre_: 0.5
+  match_init_count_thre_: 1
+  continue_count_thre_: 5
+  timeout_count_thre_: 5
+  init_time_thre_: 5
+
+lio_ukf_point_cloud_filter_options:
+  globalmap_voxel_size_: 0.12
+  cloud_voxel_size_: 0.15
+
+lio_ukf_ndt_options:
+  cool_time_duration_: 0.02
+  match_search_method: "DIRECT7"
+  match_resolution: 0.5
+  match_err_thre: 0.01
+  match_score_thre: 0.15
+  match_init_count_thre: 2
+  timeout_count_thre: 2
+  continue_count_thre: 2
+  init_time_thre: 2
+
+lio_ukf_imu2base_options:
+  imu2base_00_: 1.0
+  imu2base_01_: 0.0
+  imu2base_02_: 0.0
+  imu2base_03_: 0.14111
+  imu2base_10_: 0.0
+  imu2base_11_: 1.0
+  imu2base_12_: 0.0
+  imu2base_13_: 0.0
+  imu2base_20_: 0.0
+  imu2base_21_: 0.0
+  imu2base_22_: 1.0
+  imu2base_23_: 0.13186
+  imu2base_30_: 0.0
+  imu2base_31_: 0.0
+  imu2base_32_: 0.0
+  imu2base_33_: 1.0
+
+lio_ukf_lidar2base_options:
+  init_rot_00_: 1.0
+  init_rot_01_: 0.0
+  init_rot_02_: 0.0
+  init_rot_03_: 0.13011
+  init_rot_10_: 0.0
+  init_rot_11_: 1.0
+  init_rot_12_: 0.0
+  init_rot_13_: -0.02329
+  init_rot_20_: 0.0
+  init_rot_21_: 0.0
+  init_rot_22_: 1.0
+  init_rot_23_: 0.17598
+  init_rot_30_: 0.0
+  init_rot_31_: 0.0
+  init_rot_32_: 0.0
+  init_rot_33_: 1.0
+
+lio_ukf_lidar2imu_options:
+  init_trans_00_: 1.0
+  init_trans_01_: 0.0
+  init_trans_02_: 0.0
+  init_trans_03_: -0.011
+  init_trans_10_: 0.0
+  init_trans_11_: 1.0
+  init_trans_12_: 0.0
+  init_trans_13_: -0.02329
+  init_trans_20_: 0.0
+  init_trans_21_: 0.0
+  init_trans_22_: 1.0
+  init_trans_23_: 0.04412
+  init_trans_30_: 0.0
+  init_trans_31_: 0.0
+  init_trans_32_: 0.0
+  init_trans_33_: 1.0
+
+   … (截斷於 140 行)
+@@FILE /opt/robot/robot_localization/install/localization/share/localization/config/ros_params_loc.yaml
+localization:
+  ros__parameters:
+    enable_ota_calibration: true
+    calibration_file_path: "/ota/calibration_results.yaml"
+    sub_lidar_topic: "/front_lidar"            # "/rslidar_points_head" | "/livox/lidar"
+    sub_imu_topic: "/front_lidar/imu"            # "/rslidar_imu_data_head" | "/livox/imu"
+    sub_gps_topic: "/gps/rtk"
+    sub_rtk_pvh_topic: "/rtk_pvh"
+    sub_odom_topic: "/odom/mc_odom"
+    sub_camera_topic: "/front_camera/image_compressed"   #"/front_camera/image_compressed"
+    sub_rtk_pos_topic: "/uni_best_nav"
+    sub_rtk_head_topic: "/uni_heading"
+    enable_realsense: false
+    use_pcl_normal: true      # 2.0 faslio/fasterlio use normal(true), 1.0 ukf localization not use normal(false)
+    process_every_n_frames: 1  # 每N帧雷达数据处理1帧, NX 1; 3588 2
+    
+    # 发布topic配置
+    pub_lidar_odom_topic: "/odom/localization_odom"    # LiDAR里程计发布topic   # "/odom/ground_truth" "/odom/current_pose" "/odom/localization_odom"
+    pub_gnss_eskf_topic: "/odom/localization_odom"     # GNSS ESKF发布topic    # "/odom/ground_truth" "/odom/current_pose" "/odom/localization_odom"
+    pub_lio_pose_topic: "/lio_pose"
+    pub_aligned_points_topic: "/aligned_points"    # 对齐点云发布topic
+    pub_global_map_points_topic: "/global_map_points"  # 全局地图点云发布topic
+    pub_body_points_topic: "/body_points"  # 机体坐标系点云发布topic
+    pub_perception_points_topic: "/perception_points"  # 融合感知点云发布topic
+    pub_localization_info_topic: "/localization_info"  # 定位信息发布topic
+    pub_localization_state_topic: "/localization_state"  # 定位状态发布topic
+    pub_localization_path_topic: "/localization_path"  # 定位路径发布topic
+
+    lidar_format: "livox"    # livox | rslidar | velodyne   … (截斷於 140 行)
+@@FILE /opt/robot/robot_localization/install/localization/share/localization/config/ros_params_loc_zg.yaml
+localization:
+  ros__parameters:
+    enable_ota_calibration: true
+    calibration_file_path: "/ota/calibration_results.yaml"
+    sub_lidar_topic: "/front_lidar"            # "/rslidar_points_head" | "/livox/lidar"
+    sub_imu_topic: "/front_lidar/imu"            # "/rslidar_imu_data_head" | "/livox/imu"
+    sub_gps_topic: "/gps/rtk"
+    sub_odom_topic: "/odom/mc_odom"
+    sub_camera_topic: "/front_camera/image_compressed"                  # "/camera/image" | "/image_publisher/camera_front/compressed"
+    sub_rtk_pos_topic: "/uni_best_nav"
+    sub_rtk_head_topic: "/uni_heading"
+    use_pcl_normal: true      # 2.0 faslio/fasterlio use normal(true), 1.0 ukf localization not use normal(false)
+    process_every_n_frames: 1  # 每N帧雷达数据处理1帧, NX 1; 3588 2
+    
+    # 发布topic配置
+    pub_lidar_odom_topic: "/odom/localization_odom"    # LiDAR里程计发布topic   # "/odom/ground_truth" "/odom/current_pose"
+    pub_gnss_eskf_topic: "/odom/localization_odom"     # GNSS ESKF发布topic    # "/odom/ground_truth" "/odom/current_pose"
+    pub_lio_pose_topic: "/lio_pose"
+    pub_aligned_points_topic: "/aligned_points"    # 对齐点云发布topic
+    pub_global_map_points_topic: "/global_map_points"  # 全局地图点云发布topic
+    pub_localization_info_topic: "/localization_info"  # 定位信息发布topic
+    pub_localization_state_topic: "/localization_state"  # 定位状态发布topic
+    pub_localization_path_topic: "/localization_path"  # 定位路径发布topic
+
+    lidar_format: "rslidar"    # livox | rslidar | velodyne
+   
+    # 双雷达融合配置
+    dual_lidar_config:
+      enable_dual_lidar: true                    # 是否启用双雷达融合
+      front_lidar_topic: "/front_lidar"  # 前雷达话题（主雷达）
+      rear_lidar_topic: "/rear_lidar"   # 后雷达话题
+      time_sync_tolerance_sec: 0.05         # 时间同步容忍度（根据sync_mode调整,pps_lag 0.05,pps_only 0.2,original 0.2）
+      max_rear_points: 100000                     # 后雷达最大点数阈值
+      min_rear_points: 100                       # 后雷达最小点数阈值
+      
+      # 外参：后雷达到前雷达的变换
+      extrinsic_rear_to_front:
+        translation: [0.0, 0.0, -0.7323]  # [x, y, z] 米
+        rotation_matrix: [1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0]  # 3x3旋转矩阵 [r11, r12, r13, r21, r22, r23, r31, r32, r33]
+
+      # 同步模式配置
+      sync_mode: "pps_lag"          # 同步模式：pps_lag | pps_only | original
+      
+      # 自适应时间偏差配置（无PPS同步时使用，即sync_mode: "original"时设为true，其他时设为false）
+      enable_adaptive_time_bias: false    # 是否启用自适应时间偏差补偿
+      bias_update_alpha: 0.1             # 偏差更新学习率 (0.0-1.0)
+      min_reasonable_time_diff: -0.05     # 最小合理时间差(秒)
+      max_reasonable_time_diff: 0.05      # 最大合理时间差(秒)
+      
+      # ==================== 同步模式说明 ====================
+      # pps_lag:   PPS+滞后+双队列模式（推荐）- 有PPS同步信号的高精度场景
+      #            特点：最高同步精度，最低数据丢失率，time_sync_tolerance_sec建议0.05
+      # pps_only:  仅PPS模式 - 有PPS同步但简单场景 
+      #            特点：高同步精度，中等复杂度，time_sync_tolerance_sec建议0.2
+      # original:  原始模式 - 无PPS同步的传统场景
+      #            特点：兼容性最好，中等精度，time_sync_tolerance_sec建议0.2
+      # =====================================================   … (截斷於 140 行)
+@@FILE /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/GAZEBO/nav2_params.yaml
+bt_navigator:
+  ros__parameters:
+    use_sim_time: False
+    global_frame: map
+    robot_base_frame: base_link
+    odom_topic: /odom/current_pose
+    bt_loop_duration: 50
+    transform_tolerance: 0.2
+    default_server_timeout: 3000
+    enable_groot_monitoring: True
+    truncate_path_to_collision:
+      enabled: False
+      threshold: 2.0
+      distance: 1.0
+    default_controller_id: FollowPathLocalPlanner
+    default_goal_tolerance:
+      xy_goal_tolerance: 0.05
+      yaw_goal_tolerance: 0.05
+    plugin_lib_names:
+      - navigo_back_up_action_bt_node
+      - navigo_back_up_cancel_bt_node
+      - navigo_clear_costmap_service_bt_node
+      - navigo_clear_error_action_bt_node
+      - navigo_compute_collision_distance_action_bt_node
+      - navigo_compute_control_error_action_bt_node
+      - navigo_compute_goal_distance_action_bt_node
+      - navigo_compute_information_gain_action_bt_node
+      - navigo_compute_path_through_poses_action_bt_node
+      - navigo_compute_path_to_pose_action_bt_node
+      - navigo_compute_paths_to_poses_action_bt_node
+      - navigo_compute_spin_distance_action_bt_node
+      - navigo_compute_uwb_goal_action_bt_node
+      - navigo_decompose_convex_regions_action_bt_node
+      - navigo_evaluate_goal_action_bt_node
+      - navigo_evaluate_paths_action_bt_node
+      - navigo_follow_path_action_bt_node
+      - navigo_follow_path_cancel_bt_node
+      - navigo_frtree_action_bt_node
+      - navigo_general_conditions_bt_node
+      - navigo_generate_leading_rays_action_bt_node
+      - navigo_generate_relocalization_goal_action_bt_node
+      - navigo_globally_updated_goal_condition_bt_node
+      - navigo_globally_updated_goals_condition_bt_node
+      - navigo_goal_reached_condition_bt_node
+      - navigo_goal_updated_condition_bt_node
+      - navigo_is_exploration_completed_condition_bt_node
+      - navigo_is_exploration_goal_valid_condition_bt_node
+      - navigo_is_goals_valid_condition_bt_node
+      - navigo_is_localization_status_satisfied_condition_bt_node
+      - navigo_is_path_valid_condition_bt_node
+      - navigo_is_target_in_fov_condition_bt_node
+      - navigo_optimize_path_service_bt_node
+      - navigo_pipeline_sequence_bt_node
+      - navigo_progress_check_bt_node
+      - navigo_publish_debug_msgs_action_bt_node
+      - navigo_rate_controller_bt_node
+      - navigo_recover_invalid_goals_action_bt_node
+      - navigo_recovery_node_bt_node
+      - navigo_remove_passed_goals_action_bt_node
+      - navigo_remove_passed_goals_loop_action_bt_node
+      - navigo_reorganize_trajectory_action_bt_node
+      - navigo_report_error_action_bt_node
+      - navigo_reseparate_paths_action_bt_node
+      - navigo_round_robin_node_bt_node
+      - navigo_select_exploration_goal_action_bt_node
+      - navigo_select_frontend_id_action_bt_node
+      - navigo_select_frontend_ids_action_bt_node
+      - navigo_select_patrol_goal_action_bt_node
+      - navigo_select_patrol_mode_action_bt_node
+      - navigo_select_sampled_goals_action_bt_node
+      - navigo_separate_paths_action_bt_node
+      - navigo_spin_action_bt_node
+      - navigo_spin_cancel_bt_node
+      - navigo_stitch_path_action_bt_node
+      - navigo_time_expired_condition_bt_node
+      - navigo_truncate_path_action_bt_node
+      - navigo_truncate_path_local_action_bt_node
+      - navigo_truncate_path_to_goal_action_bt_node
+      - navigo_truncate_paths_action_bt_node
+      - navigo_update_path_action_bt_node
+      - navigo_wait_action_bt_node
+
+bt_navigator_rclcpp_node:
+  ros__parameters:
+    use_sim_time: False
+
+bt_navigator_navigate_to_pose_rclcpp_node:
+  ros__parameters:
+    debug: True
+    use_sim_time: False
+    target_lost_detect_min_dist: 1.5
+    q0: 0.01
+    q1: 0.04
+    q2: 0.06
+    r0: 0.058
+    r1: 0.058
+    r2: 0.06
+    p_s: 0.85
+    smoothing_window: 3
+    d2_quantile: 0.99
+    warmup_trace_threshold: 10.0
+
+bt_navigator_navigate_through_poses_rclcpp_node:
+  ros__parameters:
+    debug: True
+    use_sim_time: False
+    multi_path_selector:
+      # Global settings
+      default_timeout_ms: 50.0
+      enable_fast_pruning: True
+      max_candidate_paths: 10
+      min_candidate_paths: 2
+
+      # Default scoring weights (must sum to ~1.0)
+      default_weights:
+        safety_weight: 0.3
+        reference_deviation_weight: 0.3
+        smoothness_weight: 0.20
+        efficiency_weight: 0.15
+        kinematic_feasibility_weight: 0.05
+
+      # Fast pruner configuration
+      fast_pruner:
+        min_obstacle_distance: 0.15   # Minimum distance to obstacles (m)
+        max_path_length: 10.0         # Maximum reasonable path length (m)
+        max_curvature: 3.0            # Maximum allowed curvature (1/m)
+        max_avg_curvature: 1.0        # Maximum average allowed curvature (1/m)
+        min_point_separation: 0.1     # Minimum distance between path points (m)
+        min_path_points: 3            # Minimum number of points in path
+        collision_check_step: 1       # Step size for collision checking
+        robot_radius: 0.35            # Robot radius for collision checking (m)
+
+      # Safety critic configuration
+      safety_critic:
+        robot_radius: 0.35
+        safe_distance_threshold: 0.8       # Distance considered "safe" (m)
+        critical_distance_threshold: 0.40  # Distance considered "critical" (m)
+        clearance_scaling_factor: 2.0      # Scaling for clearance-to-score conversion
+        path_sampling_step: 1              # Step size for path point sampling
+
+   … (截斷於 140 行)
+@@FILE /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/XG/nav2_params.yaml
+bt_navigator:
+  ros__parameters:
+    use_sim_time: False
+    global_frame: map
+    robot_base_frame: base_link
+    odom_topic: /odom/current_pose
+    bt_loop_duration: 50
+    transform_tolerance: 0.2
+    default_server_timeout: 3000
+    enable_groot_monitoring: False
+    truncate_path_to_collision:
+      enabled: False
+      threshold: 2.0
+      distance: 1.0
+    default_controller_id: FollowPathLocalPlanner
+    default_goal_tolerance:
+      xy_goal_tolerance: 0.25
+      yaw_goal_tolerance: 0.05
+    plugin_lib_names:
+      - navigo_back_up_action_bt_node
+      - navigo_back_up_cancel_bt_node
+      - navigo_clear_costmap_service_bt_node
+      - navigo_clear_error_action_bt_node
+      - navigo_compute_collision_distance_action_bt_node
+      - navigo_compute_control_error_action_bt_node
+      - navigo_compute_goal_distance_action_bt_node
+      - navigo_compute_information_gain_action_bt_node
+      - navigo_compute_path_through_poses_action_bt_node
+      - navigo_compute_path_to_pose_action_bt_node
+      - navigo_compute_paths_to_poses_action_bt_node
+      - navigo_compute_spin_distance_action_bt_node
+      - navigo_compute_uwb_goal_action_bt_node
+      - navigo_decompose_convex_regions_action_bt_node
+      - navigo_evaluate_goal_action_bt_node
+      - navigo_evaluate_paths_action_bt_node
+      - navigo_follow_path_action_bt_node
+      - navigo_follow_path_cancel_bt_node
+      - navigo_frtree_action_bt_node
+      - navigo_general_conditions_bt_node
+      - navigo_generate_leading_rays_action_bt_node
+      - navigo_generate_relocalization_goal_action_bt_node
+      - navigo_globally_updated_goal_condition_bt_node
+      - navigo_globally_updated_goals_condition_bt_node
+      - navigo_goal_reached_condition_bt_node
+      - navigo_goal_updated_condition_bt_node
+      - navigo_is_exploration_completed_condition_bt_node
+      - navigo_is_exploration_goal_valid_condition_bt_node
+      - navigo_is_goals_valid_condition_bt_node
+      - navigo_is_localization_status_satisfied_condition_bt_node
+      - navigo_is_path_valid_condition_bt_node
+      - navigo_is_target_in_fov_condition_bt_node
+      - navigo_optimize_path_service_bt_node
+      - navigo_pipeline_sequence_bt_node
+      - navigo_progress_check_bt_node
+      - navigo_publish_debug_msgs_action_bt_node
+      - navigo_rate_controller_bt_node
+      - navigo_recover_invalid_goals_action_bt_node
+      - navigo_recovery_node_bt_node
+      - navigo_remove_passed_goals_action_bt_node
+      - navigo_remove_passed_goals_loop_action_bt_node
+      - navigo_reorganize_trajectory_action_bt_node
+      - navigo_report_error_action_bt_node
+      - navigo_reseparate_paths_action_bt_node
+      - navigo_round_robin_node_bt_node
+      - navigo_select_exploration_goal_action_bt_node
+      - navigo_select_frontend_id_action_bt_node
+      - navigo_select_frontend_ids_action_bt_node
+      - navigo_select_patrol_goal_action_bt_node
+      - navigo_select_patrol_mode_action_bt_node
+      - navigo_select_sampled_goals_action_bt_node
+      - navigo_separate_paths_action_bt_node
+      - navigo_spin_action_bt_node
+      - navigo_spin_cancel_bt_node
+      - navigo_stitch_path_action_bt_node
+      - navigo_time_expired_condition_bt_node
+      - navigo_truncate_path_action_bt_node
+      - navigo_truncate_path_local_action_bt_node
+      - navigo_truncate_path_to_goal_action_bt_node
+      - navigo_truncate_paths_action_bt_node
+      - navigo_update_path_action_bt_node
+      - navigo_wait_action_bt_node
+
+bt_navigator_rclcpp_node:
+  ros__parameters:
+    use_sim_time: False
+
+bt_navigator_navigate_to_pose_rclcpp_node:
+  ros__parameters:
+    debug: True
+    use_sim_time: False
+    target_lost_detect_min_dist: 1.5
+    q0: 0.01
+    q1: 0.04
+    q2: 0.06
+    r0: 0.058
+    r1: 0.058
+    r2: 0.06
+    p_s: 0.85
+    smoothing_window: 3
+    d2_quantile: 0.99
+    warmup_trace_threshold: 10.0
+
+bt_navigator_navigate_through_poses_rclcpp_node:
+  ros__parameters:
+    debug: True
+    use_sim_time: False
+    multi_path_selector:
+      # Global settings
+      default_timeout_ms: 50.0
+      enable_fast_pruning: True
+      max_candidate_paths: 10
+      min_candidate_paths: 2
+
+      # Default scoring weights (must sum to ~1.0)
+      default_weights:
+        safety_weight: 0.3
+        reference_deviation_weight: 0.3
+        smoothness_weight: 0.20
+        efficiency_weight: 0.15
+        kinematic_feasibility_weight: 0.05
+
+      # Fast pruner configuration
+      fast_pruner:
+        min_obstacle_distance: 0.15   # Minimum distance to obstacles (m)
+        max_path_length: 10.0         # Maximum reasonable path length (m)
+        max_curvature: 3.0            # Maximum allowed curvature (1/m)
+        max_avg_curvature: 1.0        # Maximum average allowed curvature (1/m)
+        min_point_separation: 0.1     # Minimum distance between path points (m)
+        min_path_points: 3            # Minimum number of points in path
+        collision_check_step: 1       # Step size for collision checking
+        robot_radius: 0.35            # Robot radius for collision checking (m)
+
+      # Safety critic configuration
+      safety_critic:
+        robot_radius: 0.35
+        safe_distance_threshold: 0.8       # Distance considered "safe" (m)
+        critical_distance_threshold: 0.40  # Distance considered "critical" (m)
+        clearance_scaling_factor: 2.0      # Scaling for clearance-to-score conversion
+        path_sampling_step: 1              # Step size for path point sampling
+
+   … (截斷於 140 行)
+@@FILE /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/ZG/nav2_params.yaml
+bt_navigator:
+  ros__parameters:
+    use_sim_time: False
+    global_frame: map
+    robot_base_frame: base_link
+    odom_topic: /odom/current_pose
+    bt_loop_duration: 50
+    transform_tolerance: 0.2
+    default_server_timeout: 3000
+    enable_groot_monitoring: False
+    truncate_path_to_collision:
+      enabled: False
+      threshold: 2.0
+      distance: 1.0
+    default_controller_id: FollowPathLocalPlanner
+    default_goal_tolerance:
+      xy_goal_tolerance: 0.25
+      yaw_goal_tolerance: 0.05
+    plugin_lib_names:
+      - navigo_back_up_action_bt_node
+      - navigo_back_up_cancel_bt_node
+      - navigo_clear_costmap_service_bt_node
+      - navigo_clear_error_action_bt_node
+      - navigo_compute_collision_distance_action_bt_node
+      - navigo_compute_control_error_action_bt_node
+      - navigo_compute_goal_distance_action_bt_node
+      - navigo_compute_information_gain_action_bt_node
+      - navigo_compute_path_through_poses_action_bt_node
+      - navigo_compute_path_to_pose_action_bt_node
+      - navigo_compute_paths_to_poses_action_bt_node
+      - navigo_compute_spin_distance_action_bt_node
+      - navigo_compute_uwb_goal_action_bt_node
+      - navigo_decompose_convex_regions_action_bt_node
+      - navigo_evaluate_goal_action_bt_node
+      - navigo_evaluate_paths_action_bt_node
+      - navigo_follow_path_action_bt_node
+      - navigo_follow_path_cancel_bt_node
+      - navigo_frtree_action_bt_node
+      - navigo_general_conditions_bt_node
+      - navigo_generate_leading_rays_action_bt_node
+      - navigo_generate_relocalization_goal_action_bt_node
+      - navigo_globally_updated_goal_condition_bt_node
+      - navigo_globally_updated_goals_condition_bt_node
+      - navigo_goal_reached_condition_bt_node
+      - navigo_goal_updated_condition_bt_node
+      - navigo_is_exploration_completed_condition_bt_node
+      - navigo_is_exploration_goal_valid_condition_bt_node
+      - navigo_is_goals_valid_condition_bt_node
+      - navigo_is_localization_status_satisfied_condition_bt_node
+      - navigo_is_path_valid_condition_bt_node
+      - navigo_is_target_in_fov_condition_bt_node
+      - navigo_optimize_path_service_bt_node
+      - navigo_pipeline_sequence_bt_node
+      - navigo_progress_check_bt_node
+      - navigo_publish_debug_msgs_action_bt_node
+      - navigo_rate_controller_bt_node
+      - navigo_recover_invalid_goals_action_bt_node
+      - navigo_recovery_node_bt_node
+      - navigo_remove_passed_goals_action_bt_node
+      - navigo_remove_passed_goals_loop_action_bt_node
+      - navigo_reorganize_trajectory_action_bt_node
+      - navigo_report_error_action_bt_node
+      - navigo_reseparate_paths_action_bt_node
+      - navigo_round_robin_node_bt_node
+      - navigo_select_exploration_goal_action_bt_node
+      - navigo_select_frontend_id_action_bt_node
+      - navigo_select_frontend_ids_action_bt_node
+      - navigo_select_patrol_goal_action_bt_node
+      - navigo_select_patrol_mode_action_bt_node
+      - navigo_select_sampled_goals_action_bt_node
+      - navigo_separate_paths_action_bt_node
+      - navigo_spin_action_bt_node
+      - navigo_spin_cancel_bt_node
+      - navigo_stitch_path_action_bt_node
+      - navigo_time_expired_condition_bt_node
+      - navigo_truncate_path_action_bt_node
+      - navigo_truncate_path_local_action_bt_node
+      - navigo_truncate_path_to_goal_action_bt_node
+      - navigo_truncate_paths_action_bt_node
+      - navigo_update_path_action_bt_node
+      - navigo_wait_action_bt_node
+
+bt_navigator_rclcpp_node:
+  ros__parameters:
+    use_sim_time: False
+
+bt_navigator_navigate_to_pose_rclcpp_node:
+  ros__parameters:
+    debug: True
+    use_sim_time: False
+    target_lost_detect_min_dist: 1.5
+    q0: 0.01
+    q1: 0.04
+    q2: 0.06
+    r0: 0.058
+    r1: 0.058
+    r2: 0.06
+    p_s: 0.85
+    smoothing_window: 3
+    d2_quantile: 0.99
+    warmup_trace_threshold: 10.0
+
+bt_navigator_navigate_through_poses_rclcpp_node:
+  ros__parameters:
+    debug: True
+    use_sim_time: False
+    multi_path_selector:
+      # Global settings
+      default_timeout_ms: 50.0
+      enable_fast_pruning: True
+      max_candidate_paths: 10
+      min_candidate_paths: 2
+
+      # Default scoring weights (must sum to ~1.0)
+      default_weights:
+        safety_weight: 0.3
+        reference_deviation_weight: 0.3
+        smoothness_weight: 0.20
+        efficiency_weight: 0.15
+        kinematic_feasibility_weight: 0.05
+
+      # Fast pruner configuration
+      fast_pruner:
+        min_obstacle_distance: 0.15   # Minimum distance to obstacles (m)
+        max_path_length: 10.0         # Maximum reasonable path length (m)
+        max_curvature: 3.0            # Maximum allowed curvature (1/m)
+        max_avg_curvature: 1.0        # Maximum average allowed curvature (1/m)
+        min_point_separation: 0.1     # Minimum distance between path points (m)
+        min_path_points: 3            # Minimum number of points in path
+        collision_check_step: 1       # Step size for collision checking
+        robot_radius: 0.35            # Robot radius for collision checking (m)
+
+      # Safety critic configuration
+      safety_critic:
+        robot_radius: 0.35
+        safe_distance_threshold: 0.8       # Distance considered "safe" (m)
+        critical_distance_threshold: 0.40  # Distance considered "critical" (m)
+        clearance_scaling_factor: 2.0      # Scaling for clearance-to-score conversion
+        path_sampling_step: 1              # Step size for path point sampling
+
+   … (截斷於 140 行)
+@@FILE /opt/robot/robot_version_manager/robot-driver/version.yaml
+name: robot-driver
+version: 0.2.0
+last_commit_id: 59f3517ac0e35f788f2eab828555f6cd1bea65d5
+last_commit_author: robot
+last_commit_time: 2026-01-19 10:32:53 +08:00
+last_commit_info: |
+  reback sixent queue
+release_info: "robot-driver\t\t      \t\t     \n[uwb]: 修改老版uwb驱动的topic，防止引起话题和新版算法topic之间的冲突\n\n[livox_driver && rslidar_sdk]: 统一话题名称\n"
+   … (截斷於 140 行)
+@@FILE /opt/robot/zsibot/config/alg_manager_arc_mid.yaml
+log_config:
+  log_file: /tmp/log/alg_data/robot_alg_manager.log
+  log_level: INFO
+  log_max_file_size: 52428800
+  log_max_files: 3
+  enable_stdout: true
+modules:
+  arc_navigo_charging_alignment:
+    launch_config:
+      commands: ros2 launch navigo_charging_alignment charging_alignment.launch.py robot_type:=zgw
+      envs:
+        ROS_DOMAIN_ID: '24'
+        ROS_VERSION: humble
+        RMW_IMPLEMENTATION: rmw_zenoh_cpp
+        ROBOT_LOG_DIR: '/home/robot/.robot'
+        ROBOT_PARAM_DIR: '/home/robot/.robot'
+      env_file: null
+      setup_script: /opt/robot/robot_arc/install/setup.bash
+      cwd: null
+      default_launch: true
+    processor_config:
+      name: navigo_charging_alignment
+      enabled: true
+      buffer_size: 1000
+      batch_size: 10
+      batch_timeout_ms: 100
+      filters:
+      - name: error_filter
+        enabled: true
+        filter_type: Regex
+        params:
+          action: Pass
+          pattern: component_container_isolated
+      storages:
+      - name: navigo_charging_alignment
+        enabled: true
+        storage_type: File
+        params:
+          file_path: /tmp/log/alg_data/navigo_charging_alignment_with_setup.log
+          format: Text
+  navigation:
+    launch_config:
+      commands: ros2 launch robot_nav2 navigation_bringup.launch.py platform:=REAL robot_type:=zg
+      envs:
+        RMW_IMPLEMENTATION: rmw_zenoh_cpp
+        ROS_DOMAIN_ID: '24'
+        ROS_VERSION: humble
+      env_file: null
+      setup_script: /opt/robot/robot_nav/install/setup.bash
+      cwd: null
+      default_launch: true
+    processor_config:
+      name: navigation_with_setup
+      enabled: true
+      buffer_size: 1000
+      batch_size: 10
+      batch_timeout_ms: 100
+      filters:
+      - name: error_filter
+        enabled: true
+        filter_type: Regex
+        params:
+          action: Pass
+          pattern: component_container_isolated
+      storages:
+      - name: navigation
+        enabled: true
+        storage_type: File
+        params:
+          file_path: /tmp/log/alg_data/navigation_with_setup.log
+          format: Text
+  slam:
+    launch_config:
+      commands: /opt/robot/robot_slam/install/robot_slam/lib/robot_slam/robot_slam
+      envs:
+        SLAM_TYPE: nx_zg
+        SAVE_MAP_PATH: '/ota/alg_data/map'
+        CALIBRATION_FILE_PATH: '/ota/calibration_results.yaml'
+        ROS_DOMAIN_ID: '24'
+        ROS_VERSION: humble
+        RMW_IMPLEMENTATION: rmw_zenoh_cpp
+        ROBOT_LOG_DIR: '/home/robot/.robot'
+        ROBOT_PARAM_DIR: '/home/robot/.robot'
+      env_file: null
+      setup_script: /opt/robot/robot_slam/install/setup.bash
+      cwd: null
+      default_launch: true
+    processor_config:
+      name: slam_with_setup
+      enabled: true
+      buffer_size: 1000
+      batch_size: 10
+      batch_timeout_ms: 100
+      filters:
+      - name: error_filter
+        enabled: true
+        filter_type: Regex
+        params:
+          pattern: component_container_isolated
+          action: Pass
+      storages:
+      - name: slam
+        enabled: true
+        storage_type: File
+        params:
+          format: Text
+          file_path: /tmp/log/alg_data/slam_with_setup.log
+  arc_lvio:
+    launch_config:
+      commands: ros2 launch arc_lvio arc_lvio.launch.py
+      envs:
+        USE_CUSTOM_MAP_PATH: 'false'
+        RMW_IMPLEMENTATION: rmw_zenoh_cpp
+        APRILTAG_YAML_DIR: /opt/robot/robot_arc/install/apriltag_localization/config/apriltag_localization_pc_config_middle_dog.yaml
+        ROS_DOMAIN_ID: '24'
+        CALIBRATION_YAML_DIR: /ota/calibration_results.yaml
+        SLAM_TYPE: nx_pair_rslidar 
+        ROS_VERSION: humble
+        ROBOT_LOG_DIR: '/home/robot/.robot'
+        ROBOT_PARAM_DIR: '/home/robot/.robot'
+      env_file: null
+      setup_script: /opt/robot/robot_arc/install/setup.bash
+      cwd: null
+      default_launch: true
+    processor_config:
+      name: arc_lvio
+      enabled: true
+      buffer_size: 1000
+      batch_size: 10
+      batch_timeout_ms: 100
+      filters:
+      - name: error_filter
+        enabled: true
+        filter_type: Regex
+        params:
+          pattern: component_container_isolated
+          action: Pass
+      storages:
+      - name: arc_lvio
+        enabled: true
+   … (截斷於 140 行)
+@@FILE /opt/runtime/config/nx_zg.yaml
+RootStruct: !<Struct>
+  algorithm_params: !<Struct>
+    filter_size_surf: !<Value>
+      v_content: !<Float> 0.200000003
+    max_iters: !<Value>
+      v_content: !<Int32> 3
+    estimate_extrinsic_flag: !<Value>
+      v_content: !<Bool> false
+    thread_nums: !<Value>
+      v_content: !<Int32> 3
+    key_frame_distance_thre: !<Value>
+      v_content: !<Float> 0.200000003
+    key_frame_angle_thre: !<Value>
+      v_content: !<Float> 0.200000003
+    splice_search_radius: !<Value>
+      v_content: !<Float> 20
+    splice_pose_density: !<Value>
+      v_content: !<Float> 0.200000003
+    splice_leaf_size: !<Value>
+      v_content: !<Float> 0.200000003
+    optimize_t_threshold: !<Value>
+      v_content: !<Double> 0.01
+    optimize_r_threshold: !<Value>
+      v_content: !<Double> 0.029999999999999999
+    gnss_distance_threshold: !<Value>
+      v_content: !<Float> 0.300000012
+    add_gnss_factor_time_threshold: !<Value>
+      v_content: !<Double> 15000000000
+    gnss_factor_count_threshold: !<Value>
+      v_content: !<Int32> 4
+    recontruct_kdtree_flag: !<Value>
+      v_content: !<Bool> true
+    use_degradation_detection_flag: !<Value>
+      v_content: !<Bool> false
+  back_end_params: !<Struct>
+    loop_params: !<Struct>
+      loop_closure_flag: !<Value>
+        v_content: !<Bool> true
+      loop_closure_rate: !<Value>
+        v_content: !<Float> 1
+      history_key_frame_search_radius: !<Value>
+        v_content: !<Float> 10
+      history_key_frame_search_time: !<Value>
+        v_content: !<Float> 200
+      history_key_frame_search_num: !<Value>
+        v_content: !<Int32> 25
+      history_key_frame_search_score: !<Value>
+        v_content: !<Float> 0.800000012
+      score_thred_default: !<Value>
+        v_content: !<Float> 0.600000024
+      ratio_thred: !<Value>
+        v_content: !<Float> 0.200000003
+      loop_begin_after_nums: !<Value>
+        v_content: !<Int32> 25
+      loop_detection_time_thre: !<Value>
+        v_content: !<Float> 10
+      mapping_surf_leaf_size: !<Value>
+        v_content: !<Float> 0.400000006
+      icp_iters: !<Value>
+        v_content: !<Int32> 300
+      icp_min_delta_thre: !<Value>
+        v_content: !<Double> 9.9999999999999995e-07
+      neighbor_threshold: !<Value>
+        v_content: !<Double> 50
+    gtsam_params: !<Struct>
+      prior_noise_v: !<Vector>
+        - !<Value>
+          v_content: !<Double> 9.9999999999999998e-13
+        - !<Value>
+          v_content: !<Double> 9.9999999999999998e-13
+        - !<Value>
+          v_content: !<Double> 9.9999999999999998e-13
+        - !<Value>
+          v_content: !<Double> 9.9999999999999998e-13
+        - !<Value>
+          v_content: !<Double> 9.9999999999999998e-13
+        - !<Value>
+          v_content: !<Double> 9.9999999999999998e-13
+      odometry_constraint_noise_v: !<Vector>
+        - !<Value>
+          v_content: !<Double> 9.9999999999999995e-07
+        - !<Value>
+          v_content: !<Double> 9.9999999999999995e-07
+        - !<Value>
+          v_content: !<Double> 9.9999999999999995e-07
+        - !<Value>
+          v_content: !<Double> 0.0001
+        - !<Value>
+          v_content: !<Double> 0.0001
+        - !<Value>
+          v_content: !<Double> 0.0001
+      loop_noise_v: !<Vector>
+        - !<Value>
+          v_content: !<Double> 0.001
+        - !<Value>
+          v_content: !<Double> 0.001
+        - !<Value>
+          v_content: !<Double> 0.001
+        - !<Value>
+          v_content: !<Double> 0.001
+        - !<Value>
+          v_content: !<Double> 0.001
+        - !<Value>
+          v_content: !<Double> 0.001
+      gnss_noise_v: !<Vector>
+        - !<Value>
+          v_content: !<Double> 1
+        - !<Value>
+          v_content: !<Double> 1
+        - !<Value>
+          v_content: !<Double> 1
+      gnss_prior_noise_v: !<Vector>
+        - !<Value>
+          v_content: !<Double> 0.0001
+        - !<Value>
+          v_content: !<Double> 0.0001
+        - !<Value>
+          v_content: !<Double> 0.0001
+        - !<Value>
+          v_content: !<Double> 0.0001
+        - !<Value>
+          v_content: !<Double> 0.0001
+        - !<Value>
+          v_content: !<Double> 0.0001
+      use_gnss_elevation_flag: !<Value>
+        v_content: !<Bool> true
+      gnss_prior_elevation_scale: !<Value>
+        v_content: !<Double> 3
+  dbow_detector_params: !<Struct>
+    data_path: !<Value>
+      v_content: !<String> /userdata/map
+    vocabulary_file_name: !<Value>
+      v_content: !<String> map_voc.gz
+    database_file_name: !<Value>
+      v_content: !<String> map.gz
+    image_map_file_name: !<Value>
+      v_content: !<String> map.bin
+    use_undistort_flag: !<Value>
+      v_content: !<Bool> true
+    save_image_flag: !<Value>
+   … (截斷於 140 行)
+-- 光達設定的關鍵欄位（挑出來標記，方便產表）--
+@@LIDARCFG /opt/robot/perception/install/perception/config/perception/detection/camera_imx415.yaml:24:imu_pitch_angle: 42
+@@LIDARCFG /opt/robot/perception/install/perception/config/perception/detection/camera_usb.yaml:26:imu_pitch_angle: 42 # 
+@@LIDARCFG /opt/robot/perception/install/perception/config/perception/detection/camera.yaml:24:imu_pitch_angle: 42
+@@LIDARCFG /opt/robot/perception/install/perception/config/perception/detection/track_config.yaml:1:frame_rate: 10
+@@LIDARCFG /opt/robot/perception/install/perception/config/perception/detection/track_config.yaml:9:global_reid_frame_rate: 2
+@@LIDARCFG /opt/robot/perception/install/perception/config/perception/obstacle_detection/fusion_lidar_cam_odom_app.yaml:6:generate_point_from_seg_max_distance: 20.0
+@@LIDARCFG /opt/robot/perception/install/perception/config/perception/obstacle_detection/fusion_lidar_cam_odom_app.yaml:7:generate_point_from_seg_min_distance: 8.0
+@@LIDARCFG /opt/robot/perception/install/perception/config/perception/obstacle_detection/fusion_lidar_cam_odom_app.yaml:12:soft_threshold_end_height: 0.35
+@@LIDARCFG /opt/robot/perception/install/perception/config/perception/obstacle_detection/fusion_lidar_cam_odom_app.yaml:13:soft_threshold_start_height: 0.15
+@@LIDARCFG /opt/robot/perception/install/perception/config/perception/obstacle_detection/fusion_lidar_cam_odom_app.yaml:14:obstacle_point_min_height: -0.5
+@@LIDARCFG /opt/robot/perception/install/perception/config/perception/segmentation/lidar_range_seg_config.yaml:57:  resolution: 0.1    # 分辨率（米/像素）
+@@LIDARCFG /opt/robot/robot_arc/install/apriltag_localization/config/apriltag_localization_pc_config_middle_dog.yaml:21:    # detection of quads can be done on a lower-resolution image,
+@@LIDARCFG /opt/robot/robot_arc/install/apriltag_localization/config/apriltag_localization_pc_config_middle_dog.yaml:24:    # still done at full resolution. .
+@@LIDARCFG /opt/robot/robot_arc/install/apriltag_localization/config/apriltag_localization_pc_config.yaml:21:    # detection of quads can be done on a lower-resolution image,
+@@LIDARCFG /opt/robot/robot_arc/install/apriltag_localization/config/apriltag_localization_pc_config.yaml:24:    # still done at full resolution. .
+@@LIDARCFG /opt/robot/robot-driver/install/imu_driver/share/imu_driver/config/imu_params.yaml:12:    frame_id: "imu_link"
+@@LIDARCFG /opt/robot/robot-driver/install/rslidar_sdk/share/rslidar_sdk/config/config.yaml:3:                                        # 1: packet message comes from online Lidar
+@@LIDARCFG /opt/robot/robot-driver/install/rslidar_sdk/share/rslidar_sdk/config/config.yaml:7:  send_point_cloud_ros: true            # true: Send point cloud through ROS or ROS2
+@@LIDARCFG /opt/robot/robot-driver/install/rslidar_sdk/share/rslidar_sdk/config/config.yaml:10:      lidar_type: RSAIRY             #  LiDAR type - RS16, RS32, RSBP, RSAIRY, RSHELIOS, RSHELIOS_16P, RS128, RS80, RS48, RSP128, RSP80, RSP48, 
+@@LIDARCFG /opt/robot/robot-driver/install/rslidar_sdk/share/rslidar_sdk/config/config.yaml:13:      msop_port: 6699              #  Msop port of lidar
+@@LIDARCFG /opt/robot/robot-driver/install/rslidar_sdk/share/rslidar_sdk/config/config.yaml:14:      difop_port: 7788             #  Difop port of lidar
+@@LIDARCFG /opt/robot/robot-driver/install/rslidar_sdk/share/rslidar_sdk/config/config.yaml:22:      min_distance: 0.2            #  Minimum distance of point cloud
+@@LIDARCFG /opt/robot/robot-driver/install/rslidar_sdk/share/rslidar_sdk/config/config.yaml:23:      max_distance: 200            #  Maximum distance of point cloud
+@@LIDARCFG /opt/robot/robot-driver/install/rslidar_sdk/share/rslidar_sdk/config/config.yaml:26:      dense_points: false          #  true: discard NAN points; false: reserve NAN points
+@@LIDARCFG /opt/robot/robot-driver/install/rslidar_sdk/share/rslidar_sdk/config/config.yaml:31:      start_angle: 0               #  Start angle of point cloud
+@@LIDARCFG /opt/robot/robot-driver/install/rslidar_sdk/share/rslidar_sdk/config/config.yaml:32:      end_angle: 360               #  End angle of point cloud
+@@LIDARCFG /opt/robot/robot-driver/install/rslidar_sdk/share/rslidar_sdk/config/config.yaml:40:      ros_frame_id: rslidar_head                           #Frame id of packet message and point cloud message
+@@LIDARCFG /opt/robot/robot-driver/install/rslidar_sdk/share/rslidar_sdk/config/config.yaml:44:      ros_send_point_cloud_topic: /front_lidar      #Topic used to send point cloud through ROS
+@@LIDARCFG /opt/robot/robot-driver/install/rslidar_sdk/share/rslidar_sdk/config/config.yaml:47:      lidar_type: RSAIRY           
+@@LIDARCFG /opt/robot/robot-driver/install/rslidar_sdk/share/rslidar_sdk/config/config.yaml:48:      msop_port: 6699             
+@@LIDARCFG /opt/robot/robot-driver/install/rslidar_sdk/share/rslidar_sdk/config/config.yaml:49:      difop_port: 7788        
+@@LIDARCFG /opt/robot/robot-driver/install/rslidar_sdk/share/rslidar_sdk/config/config.yaml:57:      min_distance: 0.2            #  Minimum distance of point cloud
+@@LIDARCFG /opt/robot/robot-driver/install/rslidar_sdk/share/rslidar_sdk/config/config.yaml:58:      max_distance: 200            #  Maximum distance of point cloud
+@@LIDARCFG /opt/robot/robot-driver/install/rslidar_sdk/share/rslidar_sdk/config/config.yaml:61:      dense_points: false          #  true: discard NAN points; false: reserve NAN points
+@@LIDARCFG /opt/robot/robot-driver/install/rslidar_sdk/share/rslidar_sdk/config/config.yaml:66:      start_angle: 0               #  Start angle of point cloud
+@@LIDARCFG /opt/robot/robot-driver/install/rslidar_sdk/share/rslidar_sdk/config/config.yaml:67:      end_angle: 360               #  End angle of point cloud
+@@LIDARCFG /opt/robot/robot-driver/install/rslidar_sdk/share/rslidar_sdk/config/config.yaml:74:      ros_frame_id: rslidar_tail                           #Frame id of packet message and point cloud message
+@@LIDARCFG /opt/robot/robot-driver/install/rslidar_sdk/share/rslidar_sdk/config/config.yaml:78:      ros_send_point_cloud_topic: /rear_lidar      #Topic used to send point cloud through ROS
+@@LIDARCFG /opt/robot/robot-driver/install/uss_driver/share/uss_driver/config/zsm_v3.yaml:12:      frame_id: "uss_left_link"
+@@LIDARCFG /opt/robot/robot-driver/install/uss_driver/share/uss_driver/config/zsm_v3.yaml:17:      frame_id: "uss_right_link"
+@@LIDARCFG /opt/robot/robot-driver/install/uss_driver/share/uss_driver/config/zsm_v4.yaml:12:      frame_id: "uss_left_link"
+@@LIDARCFG /opt/robot/robot-driver/install/uss_driver/share/uss_driver/config/zsm_v4.yaml:17:      frame_id: "uss_right_link"
+@@LIDARCFG /opt/robot/robot_localization/install/localization/share/localization/config/localization_params_loc.yaml:40:lio_ukf_point_cloud_filter_options:
+@@LIDARCFG /opt/robot/robot_localization/install/localization/share/localization/config/localization_params_loc.yaml:47:  match_resolution: 0.5
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/GAZEBO/nav2_params.yaml:53:      - navigo_pipeline_sequence_bt_node
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/GAZEBO/nav2_params.yaml:91:    target_lost_detect_min_dist: 1.5
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/GAZEBO/nav2_params.yaml:181:        max_slope_angle: 0.5              # Maximum slope angle (~28 degrees, rad)
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/GAZEBO/nav2_params.yaml:183:        max_linear_acceleration: 2.0      # Maximum linear acceleration (m/s^2)
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/GAZEBO/nav2_params.yaml:228:      width: 8
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/GAZEBO/nav2_params.yaml:229:      height: 8
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/GAZEBO/nav2_params.yaml:230:      resolution: 0.05
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/GAZEBO/nav2_params.yaml:253:          max_obstacle_height: 2.0
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/GAZEBO/nav2_params.yaml:280:      width: 8
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/GAZEBO/nav2_params.yaml:281:      height: 8
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/GAZEBO/nav2_params.yaml:282:      resolution: 0.05
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/GAZEBO/nav2_params.yaml:300:          max_obstacle_height: 2.0
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/GAZEBO/nav2_params.yaml:317:      resolution: 0.05
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/GAZEBO/nav2_params.yaml:381:    # extension line
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/GAZEBO/nav2_params.yaml:421:      backtrack_angle_threshold: 2.618
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/GAZEBO/nav2_params.yaml:424:      sharp_turn_angle_threshold: 2.09
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/GAZEBO/nav2_params.yaml:430:      min_corridor_width: 0.5
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/GAZEBO/nav2_params.yaml:498:        map_resolution: 0.3
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/GAZEBO/nav2_params.yaml:499:        yaw_resolution: 0.3
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/GAZEBO/nav2_params.yaml:501:        robot_width: 0.3
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/GAZEBO/nav2_params.yaml:517:        sampling_angle_range: 1.0
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/GAZEBO/nav2_params.yaml:535:        robot_width: 0.3
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/GAZEBO/nav2_params.yaml:542:        safety_offset_resolution: 0.05
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/GAZEBO/nav2_params.yaml:571:        robot_width: 0.3
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/GAZEBO/nav2_params.yaml:582:        max_linear_vel: 2.0
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/XG/nav2_params.yaml:53:      - navigo_pipeline_sequence_bt_node
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/XG/nav2_params.yaml:91:    target_lost_detect_min_dist: 1.5
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/XG/nav2_params.yaml:181:        max_slope_angle: 0.5              # Maximum slope angle (~28 degrees, rad)
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/XG/nav2_params.yaml:183:        max_linear_acceleration: 2.0      # Maximum linear acceleration (m/s^2)
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/XG/nav2_params.yaml:228:      width: 8
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/XG/nav2_params.yaml:229:      height: 8
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/XG/nav2_params.yaml:230:      resolution: 0.05
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/XG/nav2_params.yaml:253:          max_obstacle_height: 2.0
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/XG/nav2_params.yaml:280:      width: 8
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/XG/nav2_params.yaml:281:      height: 8
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/XG/nav2_params.yaml:282:      resolution: 0.05
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/XG/nav2_params.yaml:300:          max_obstacle_height: 2.0
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/XG/nav2_params.yaml:317:      resolution: 0.05
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/XG/nav2_params.yaml:381:    # extension line
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/XG/nav2_params.yaml:421:      backtrack_angle_threshold: 2.618
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/XG/nav2_params.yaml:424:      sharp_turn_angle_threshold: 2.09
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/XG/nav2_params.yaml:430:      min_corridor_width: 0.5
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/XG/nav2_params.yaml:498:        map_resolution: 0.3
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/XG/nav2_params.yaml:499:        yaw_resolution: 0.3
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/XG/nav2_params.yaml:501:        robot_width: 0.3
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/XG/nav2_params.yaml:517:        sampling_angle_range: 1.0
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/XG/nav2_params.yaml:535:        robot_width: 0.3
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/XG/nav2_params.yaml:542:        safety_offset_resolution: 0.05
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/XG/nav2_params.yaml:571:        robot_width: 0.3
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/XG/nav2_params.yaml:582:        max_linear_vel: 2.0
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/ZG/nav2_params.yaml:53:      - navigo_pipeline_sequence_bt_node
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/ZG/nav2_params.yaml:91:    target_lost_detect_min_dist: 1.5
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/ZG/nav2_params.yaml:181:        max_slope_angle: 0.5              # Maximum slope angle (~28 degrees, rad)
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/ZG/nav2_params.yaml:183:        max_linear_acceleration: 2.0      # Maximum linear acceleration (m/s^2)
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/ZG/nav2_params.yaml:228:      width: 8
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/ZG/nav2_params.yaml:229:      height: 8
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/ZG/nav2_params.yaml:230:      resolution: 0.05
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/ZG/nav2_params.yaml:253:          max_obstacle_height: 2.0
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/ZG/nav2_params.yaml:280:      width: 8
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/ZG/nav2_params.yaml:281:      height: 8
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/ZG/nav2_params.yaml:282:      resolution: 0.05
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/ZG/nav2_params.yaml:300:          max_obstacle_height: 2.0
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/ZG/nav2_params.yaml:317:      resolution: 0.05
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/ZG/nav2_params.yaml:381:    # extension line
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/ZG/nav2_params.yaml:421:      backtrack_angle_threshold: 2.618
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/ZG/nav2_params.yaml:424:      sharp_turn_angle_threshold: 2.09
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/ZG/nav2_params.yaml:430:      min_corridor_width: 0.5
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/ZG/nav2_params.yaml:498:        map_resolution: 0.3
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/ZG/nav2_params.yaml:499:        yaw_resolution: 0.3
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/ZG/nav2_params.yaml:501:        robot_width: 0.3
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/ZG/nav2_params.yaml:517:        sampling_angle_range: 1.0
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/ZG/nav2_params.yaml:535:        robot_width: 0.3
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/ZG/nav2_params.yaml:542:        safety_offset_resolution: 0.05
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/ZG/nav2_params.yaml:571:        robot_width: 0.3
+@@LIDARCFG /opt/robot/robot_nav/install/robot_nav2/share/robot_nav2/params/ZG/nav2_params.yaml:582:        max_linear_vel: 2.0
+@@LIDARCFG /opt/runtime/config/nx_zg.yaml:13:    key_frame_angle_thre: !<Value>
+@@LIDARCFG /opt/runtime/config/nx_zg.yaml:257:        resolution_: !<Value>
+@@LIDARCFG /opt/runtime/config/nx_zg.yaml:259:        resolution_inverse_: !<Value>
+@@LIDARCFG /opt/runtime/config/nx_zg.yaml:339:      scan_line: !<Value>
+
+======== ROS2 環境（第一趟就是死在這一段） ========
+-- /opt/runtime/env.bash --
+export PATH=$PATH:/opt/runtime/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/runtime/lib
+
+source /opt/ros/humble/setup.bash
+source /opt/robot/robot-driver/install/setup.bash
+source /usr/share/colcon_cd/function/colcon_cd.sh
+source /usr/share/colcon_argcomplete/hook/colcon-argcomplete.bash
+export ROS_DOMAIN_ID=24
+export ROS_LOCALHOST_ONLY=0
+export LC_NUMERIC="en_US.UTF-8"
+export _colcon_cd_root=/opt/ros/humble/
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp #rmw_fastrtps_cpp
+export ZENOH_ROUTER_CONFIG_URI=/opt/runtime/config/zenoh_router_config.json5
+export RCUTILS_COLORIZED_OUTPUT=1
+export RCUTILS_LOGGING_USE_STDOUT=1
+export RCUTILS_LOGGING_BUFFERED_STREAM=1
+export RCUTILS_CONSOLE_OUTPUT_FORMAT="[{date}] [{severity}] [{name}]: {message}"
+export ROBOT_LOG_DIR=/home/robot
+# export ROBOT_API_HOST=0.0.0.0
+ROS_DOMAIN_ID=24  RMW=rmw_zenoh_cpp
+ros2: /opt/ros/humble/bin/ros2
+@@KV ros_domain_id=24
+
+======== ★★★ ROS2 topic 全表（含型別，一次撈完） ========
+/aligned_points [sensor_msgs/msg/PointCloud2]
+/arc/arc_change_flag [robots_dog_msgs/msg/ArcChangeFlag]
+/arc/arc_change_flag_test [robots_dog_msgs/msg/ArcChangeFlag]
+/arc/arc_module_states_debug_info [std_msgs/msg/String]
+/arc/arc_state_debug_info [std_msgs/msg/String]
+/arc/arc_state [robots_dog_msgs/msg/ArcState]
+/arc/calibration_state [robots_dog_msgs/msg/ArcModuleState]
+/arc/dock_pose [robots_dog_msgs/msg/DockPoseStamped]
+/arc/dock_state [robots_dog_msgs/msg/DockState]
+/arc_mapping_state [robots_dog_msgs/msg/SlamState]
+/arc/mc_mode_cmd [robots_dog_msgs/msg/McModeCmd]
+/arc/mc_state [robots_dog_msgs/msg/McState]
+/arc/nav_alignment/cmd_vel_raw [geometry_msgs/msg/Twist]
+/arc/nav_alignment/debug_info [std_msgs/msg/String]
+/arc/nav_alignment/error_vector [geometry_msgs/msg/PointStamped]
+/arc/nav_coarse_alignment_mode_cmd [robots_dog_msgs/msg/ArcModuleCmd]
+/arc/nav_coarse_alignment_state [robots_dog_msgs/msg/ArcModuleState]
+/arc/nav_contact_alignment_mode_cmd [robots_dog_msgs/msg/ArcModuleCmd]
+/arc/nav_contact_alignment_state [robots_dog_msgs/msg/ArcModuleState]
+/arc/nav_fine_alignment_mode_cmd [robots_dog_msgs/msg/ArcModuleCmd]
+/arc/nav_fine_alignment_state [robots_dog_msgs/msg/ArcModuleState]
+/arc/perception_dock_pose [robots_dog_msgs/msg/DockPoseStamped]
+/arc/perception_mode_cmd [robots_dog_msgs/msg/ArcModuleCmd]
+/arc/perception_state [robots_dog_msgs/msg/ArcModuleState]
+/arc/pile_ele_cmd [std_msgs/msg/Int8]
+/arc/pile_ele_result [std_msgs/msg/Int8]
+/arc/slam_dock_pose [robots_dog_msgs/msg/DockPoseStamped]
+/arc/slam_mode_cmd [robots_dog_msgs/msg/ArcModuleCmd]
+/arc/slam_state [robots_dog_msgs/msg/ArcModuleState]
+/arc/start_arc [robots_dog_msgs/msg/StartArc]
+/body_points [sensor_msgs/msg/PointCloud2]
+/cmd_pos [geometry_msgs/msg/Pose]
+/cmd_vel [geometry_msgs/msg/Twist]
+/cmd_vel_with_mc_trajectory [robots_dog_msgs/msg/CmdVelWithTrajectory]
+/diagnostics [diagnostic_msgs/msg/DiagnosticArray]
+/diagnostics/nav_error_report [robots_dog_msgs/msg/NavigationErrorReport]
+/electronic_fence [robots_dog_msgs/msg/ElectronicMap]
+/electronic_map [robots_dog_msgs/msg/ElectronicMap]
+/front_camera/image_compressed [sensor_msgs/msg/CompressedImage]
+/front_lidar/imu [sensor_msgs/msg/Imu]
+/front_lidar [sensor_msgs/msg/PointCloud2]
+/global_map_points [sensor_msgs/msg/PointCloud2]
+/gnss/data [robots_dog_msgs/msg/Nmea]
+/goal [geometry_msgs/msg/PoseStamped]
+/gps/rtk [sensor_msgs/msg/NavSatFix]
+/handle_vel [geometry_msgs/msg/Twist]
+/imu_driver/imu_central [sensor_msgs/msg/Imu]
+/initialpose [geometry_msgs/msg/PoseWithCovarianceStamped]
+/laser_scan [sensor_msgs/msg/LaserScan]
+/lio_pose [nav_msgs/msg/Odometry]
+/localization_info [robots_dog_msgs/msg/Localization]
+/localization_path [nav_msgs/msg/Path]
+/localization_state [robots_dog_msgs/msg/LocalizationState]
+/meb_brake [std_msgs/msg/Bool]
+/meb/collision_debug [visualization_msgs/msg/Marker]
+/meb/pred_path [nav_msgs/msg/Path]
+/meb/safety_corridor [visualization_msgs/msg/MarkerArray]
+/meb_status [std_msgs/msg/UInt8]
+/meb_switch [std_msgs/msg/Bool]
+/navigation_cmd [robots_dog_msgs/msg/NavigationCmd]
+/navigation_state [robots_dog_msgs/msg/NavigationState]
+/navigo/bn/cmn/dbg/behavior_tree_log [nav2_msgs/msg/BehaviorTreeLog]
+/navigo/bn/cmn/vis/candidate_local_paths [robots_dog_msgs/msg/TrajectoryArray]
+/navigo/bn/cmn/vis/evaluated_goal [geometry_msgs/msg/PoseStamped]
+/navigo/bn/cmn/vis/global_path [nav_msgs/msg/Path]
+/navigo/bn/cmn/vis/goal [geometry_msgs/msg/PoseStamped]
+/navigo/bn/cmn/vis/goals [geometry_msgs/msg/PoseArray]
+/navigo/bn/cmn/vis/local_path [nav_msgs/msg/Path]
+/navigo/bn/cmn/vis/predicted_goal [geometry_msgs/msg/PoseStamped]
+/navigo/bn/cmn/vis/predicted_goal_path [robots_dog_msgs/msg/Trajectory]
+/navigo/bn/cmn/vis/relocalization_goal [visualization_msgs/msg/MarkerArray]
+/navigo/cm/cmn/vis/polygon_stop [geometry_msgs/msg/PolygonStamped]
+/navigo/cm/cmn/vis/selective_stop [visualization_msgs/msg/MarkerArray]
+/navigo/cs/cmn/intf/cmd_vel_raw [geometry_msgs/msg/Twist]
+/navigo/cs/cmn/intf/cmd_vel_valid [geometry_msgs/msg/Twist]
+/navigo/cs/lpc/vis/base_candidate_plan [nav_msgs/msg/Path]
+/navigo/cs/lpc/vis/best_local_plan [nav_msgs/msg/Path]
+/navigo/cs/lpc/vis/footprint_collision [visualization_msgs/msg/Marker]
+/navigo/cs/lpc/vis/footprint_samples [visualization_msgs/msg/Marker]
+/navigo/cs/lpc/vis/free_paths [sensor_msgs/msg/PointCloud2]
+/navigo/cs/lpc/vis/laser_point_cloud [sensor_msgs/msg/PointCloud2]
+/navigo/cs/lpc/vis/local_planner_goal [geometry_msgs/msg/PoseStamped]
+/navigo/cs/lpc/vis/lookahead_point [visualization_msgs/msg/Marker]
+/navigo/cs/lpc/vis/received_global_plan [nav_msgs/msg/Path]
+/navigo/cs/ppc/vis/curvature_lookahead_point [geometry_msgs/msg/PointStamped]
+/navigo/cs/ppc/vis/lookahead_collision_arc [nav_msgs/msg/Path]
+/navigo/cs/ppc/vis/lookahead_point [geometry_msgs/msg/PointStamped]
+/navigo/cs/ppc/vis/predicted_points [visualization_msgs/msg/MarkerArray]
+/navigo/cs/ppc/vis/received_global_plan [nav_msgs/msg/Path]
+/navigo/ea/cmn/intf/nav_error_clear [robots_dog_msgs/msg/NavigationError]
+/navigo/ea/cmn/intf/nav_error_primary [robots_dog_msgs/msg/NavigationError]
+/navigo/ea/cmn/intf/nav_error_report [robots_dog_msgs/msg/NavigationErrorReport]
+/navigo/ea/cmn/intf/nav_error [robots_dog_msgs/msg/NavigationError]
+/navigo/ea/cmn/intf/nav_errors [robots_dog_msgs/msg/NavigationErrorSet]
+/navigo/ea/cmn/intf/nav_lifecycle/behavior_server/state [lifecycle_msgs/msg/State]
+/navigo/ea/cmn/intf/nav_lifecycle/bt_navigator/state [lifecycle_msgs/msg/State]
+/navigo/ea/cmn/intf/nav_lifecycle/collision_monitor/state [lifecycle_msgs/msg/State]
+/navigo/ea/cmn/intf/nav_lifecycle/controller_server/state [lifecycle_msgs/msg/State]
+/navigo/ea/cmn/intf/nav_lifecycle/global_costmap/global_costmap/state [lifecycle_msgs/msg/State]
+/navigo/ea/cmn/intf/nav_lifecycle/local_costmap_controller/local_costmap_controller/state [lifecycle_msgs/msg/State]
+/navigo/ea/cmn/intf/nav_lifecycle/local_costmap/local_costmap/state [lifecycle_msgs/msg/State]
+/navigo/ea/cmn/intf/nav_lifecycle/map_server/state [lifecycle_msgs/msg/State]
+/navigo/ea/cmn/intf/nav_lifecycle/planner_server/state [lifecycle_msgs/msg/State]
+/navigo/ea/cmn/intf/nav_lifecycle/velocity_optimizer/state [lifecycle_msgs/msg/State]
+/navigo/ea/cmn/intf/nav_lifecycle/waypoint_follower/state [lifecycle_msgs/msg/State]
+/navigo/gc/cmn/intf/footprint [geometry_msgs/msg/Polygon]
+/navigo/gc/cmn/vis/costmap [nav_msgs/msg/OccupancyGrid]
+/navigo/gc/cmn/vis/costmap_raw [nav2_msgs/msg/Costmap]
+/navigo/gc/cmn/vis/costmap_updates [map_msgs/msg/OccupancyGridUpdate]
+/navigo/gc/cmn/vis/published_footprint [geometry_msgs/msg/PolygonStamped]
+/navigo/gc/ftr/vis/grouped_frontiers_map [nav_msgs/msg/OccupancyGrid]
+/navigo/gc/ftr/vis/include_frontiers_map [nav_msgs/msg/OccupancyGrid]
+/navigo/gc/ftr/vis/processed_map [nav_msgs/msg/OccupancyGrid]
+/navigo/lcc/cmn/intf/footprint [geometry_msgs/msg/Polygon]
+/navigo/lcc/cmn/vis/costmap [nav_msgs/msg/OccupancyGrid]
+/navigo/lcc/cmn/vis/costmap_raw [nav2_msgs/msg/Costmap]
+/navigo/lcc/cmn/vis/costmap_updates [map_msgs/msg/OccupancyGridUpdate]
+/navigo/lcc/cmn/vis/published_footprint [geometry_msgs/msg/PolygonStamped]
+/navigo/lc/cmn/intf/footprint [geometry_msgs/msg/Polygon]
+/navigo/lc/cmn/vis/costmap [nav_msgs/msg/OccupancyGrid]
+/navigo/lc/cmn/vis/costmap_raw [nav2_msgs/msg/Costmap]
+/navigo/lc/cmn/vis/costmap_updates [map_msgs/msg/OccupancyGridUpdate]
+/navigo/lc/cmn/vis/published_footprint [geometry_msgs/msg/PolygonStamped]
+/navigo/lcc/obs/vis/published_goal_safe_area [geometry_msgs/msg/PolygonStamped]
+/navigo/lc/obs/vis/published_goal_safe_area [geometry_msgs/msg/PolygonStamped]
+/navigo/lm/cmn/dbg/behavior_server/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/navigo/lm/cmn/dbg/bt_navigator/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/navigo/lm/cmn/dbg/collision_monitor/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/navigo/lm/cmn/dbg/controller_server/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/navigo/lm/cmn/dbg/global_costmap/global_costmap/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/navigo/lm/cmn/dbg/local_costmap_controller/local_costmap_controller/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/navigo/lm/cmn/dbg/local_costmap/local_costmap/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/navigo/lm/cmn/dbg/map_server/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/navigo/lm/cmn/dbg/planner_server/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/navigo/lm/cmn/dbg/velocity_optimizer/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/navigo/lm/cmn/dbg/waypoint_follower/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/navigo/lm/cmn/intf/bond [bond/msg/Status]
+/navigo/ms/cmn/intf/map [nav_msgs/msg/OccupancyGrid]
+/navigo/ps/cmn/intf/clean_obstacles_around_goal [geometry_msgs/msg/PoseStamped]
+/navigo/ps/cmn/vis/get_optimized_path_all_paths_visualization [visualization_msgs/msg/MarkerArray]
+/navigo/ps/cmn/vis/get_optimized_path_corridor_visualization [visualization_msgs/msg/MarkerArray]
+/navigo/ps/cmn/vis/get_optimized_path_matched_points_markers [visualization_msgs/msg/MarkerArray]
+/navigo/ps/cmn/vis/global_esdf_pos_distance [nav_msgs/msg/OccupancyGrid]
+/navigo/ps/cmn/vis/local_esdf_pos_distance [nav_msgs/msg/OccupancyGrid]
+/navigo/ps/cmn/vis/planned_path [nav_msgs/msg/Path]
+/navigo/ps/cmn/vis/planned_trajectories [robots_dog_msgs/msg/Trajectory]
+/navigo/ps/cmn/vis/quadtree_topo_graph [visualization_msgs/msg/MarkerArray]
+/navigo/ps/slp/vis/start_end_visualization [geometry_msgs/msg/PoseArray]
+/navigo/ps/stp/dbg/planner_debug_info [robots_dog_msgs/msg/PlannerDebugInfo]
+/navigo/ps/stp/vis/corridor_clearance_visualization [visualization_msgs/msg/MarkerArray]
+/navigo/ps/stp/vis/front_end_exploration_traj_visualization [robots_dog_msgs/msg/RectangleArray]
+/navigo/ps/stp/vis/front_end_goal_connection_traj_visualization [robots_dog_msgs/msg/RectangleArray]
+/navigo/ps/stp/vis/front_end_middle_traj_visualization [robots_dog_msgs/msg/RectangleArray]
+/navigo/ps/stp/vis/front_end_shot_traj_visualization [robots_dog_msgs/msg/RectangleArray]
+/navigo/ps/stp/vis/front_end_start_connection_traj_visualization [robots_dog_msgs/msg/RectangleArray]
+/navigo/ps/stp/vis/front_end_traj_visualization [robots_dog_msgs/msg/RectangleArray]
+/navigo/ps/stp/vis/guidance_path [visualization_msgs/msg/MarkerArray]
+/navigo/ps/stp/vis/hybrid_astar_exploration_points [visualization_msgs/msg/MarkerArray]
+/navigo/ps/stp/vis/hybrid_astar_search/candidate_inputs [visualization_msgs/msg/MarkerArray]
+/navigo/ps/stp/vis/hybrid_astar_search/cost_indicators [visualization_msgs/msg/MarkerArray]
+/navigo/ps/stp/vis/hybrid_astar_search/direction_arrows [visualization_msgs/msg/MarkerArray]
+/navigo/ps/stp/vis/hybrid_astar_search/explored_nodes [visualization_msgs/msg/MarkerArray]
+/navigo/ps/stp/vis/hybrid_astar_search/robot_footprint [visualization_msgs/msg/MarkerArray]
+/navigo/ps/stp/vis/hybrid_astar_search/selected_input [visualization_msgs/msg/MarkerArray]
+/navigo/ps/stp/vis/hybrid_astar_search/shot_path [visualization_msgs/msg/MarkerArray]
+/navigo/ps/stp/vis/hybrid_astar_start_end_sampling_points [visualization_msgs/msg/MarkerArray]
+/navigo/ps/stp/vis/quadtree_dijkstra_progress [visualization_msgs/msg/MarkerArray]
+/navigo/ps/stp/vis/quadtree_multi_inflation_results [visualization_msgs/msg/MarkerArray]
+/navigo/ps/stp/vis/quadtree_path_visualization [visualization_msgs/msg/MarkerArray]
+/navigo/ps/stp/vis/quadtree_start_goal_grids [visualization_msgs/msg/MarkerArray]
+/navigo/ps/stp/vis/safe_drive_corridor [robots_dog_msgs/msg/RectangleArray]
+/navigo/ps/stp/vis/start_end_visualization [geometry_msgs/msg/PoseArray]
+/navigo/ps/stp/vis/tracking_searcher_each_expansion_step_planner_goal [geometry_msgs/msg/PoseStamped]
+/navigo/ps/tpg/vis/centerline_points [visualization_msgs/msg/MarkerArray]
+/navigo/ps/tpg/vis/esdf_cloud [sensor_msgs/msg/PointCloud2]
+/navigo/ps/tpg/vis/esdf_slice [nav_msgs/msg/OccupancyGrid]
+/navigo/ps/tpg/vis/pcd_overlay [sensor_msgs/msg/PointCloud2]
+/navigo/ps/tpg/vis/three_dim_search_path [visualization_msgs/msg/MarkerArray]
+/navigo/ps/tpg/vis/three_dim_topo_edges [visualization_msgs/msg/MarkerArray]
+/navigo/ps/tpg/vis/three_dim_topo_nodes [visualization_msgs/msg/MarkerArray]
+/navigo/ps/tpg/vis/virtual_walls [visualization_msgs/msg/MarkerArray]
+/navigo/wf/cmn/intf/update_tracking_goal [geometry_msgs/msg/PoseStamped]
+/navigo/wf/cmn/vis/original_reference_path [nav_msgs/msg/Path]
+/odom/current_pose/history [nav_msgs/msg/Path]
+/odom/current_pose [nav_msgs/msg/Odometry]
+/odom/gazebo_odom [nav_msgs/msg/Odometry]
+/odom/localization_odom [nav_msgs/msg/Odometry]
+/odom/mc_odom [nav_msgs/msg/Odometry]
+/odom/mujoco_odom [nav_msgs/msg/Odometry]
+/odom/slam_odom [nav_msgs/msg/Odometry]
+/parameter_events [rcl_interfaces/msg/ParameterEvent]
+/perception/detection3d [vision_msgs/msg/Detection3DArray]
+/perception_points [robots_dog_msgs/msg/PerceptionPoints]
+/perception_state [std_msgs/msg/Int32]
+/pers/state [robots_dog_msgs/msg/PerceptionState]
+/polygons [robots_dog_msgs/msg/RectangleArray]
+/predicted_paths [robots_dog_msgs/msg/PredictedPathArray]
+/pub_slam_state [robots_dog_msgs/msg/SlamState]
+/rear_camera/image_compressed [sensor_msgs/msg/CompressedImage]
+/rear_lidar/imu [sensor_msgs/msg/Imu]
+/rear_lidar [sensor_msgs/msg/PointCloud2]
+/rosout [rcl_interfaces/msg/Log]
+/rtk_pvh [robots_dog_msgs/msg/UniRtkPvh]
+/seg_vis/compressed [sensor_msgs/msg/CompressedImage]
+/set_desired_angular_vel_z [std_msgs/msg/Float32]
+/set_desired_linear_vel_x [std_msgs/msg/Float32]
+/set_desired_linear_vel_y [std_msgs/msg/Float32]
+/set_lookahead_distance [std_msgs/msg/Float32]
+/set_speed_limit [nav2_msgs/msg/SpeedLimit]
+/slam/manual_loop [std_msgs/msg/Float64MultiArray]
+/srv/event [robots_dog_msgs/msg/SrvEvent]
+/start_navigation [robots_dog_msgs/msg/StartNavigation]
+/tf_manager/odom_type [std_msgs/msg/Header]
+/tf_static [tf2_msgs/msg/TFMessage]
+/tf [tf2_msgs/msg/TFMessage]
+/uni_best_nav [robots_dog_msgs/msg/UniBestNav]
+/uni_heading [robots_dog_msgs/msg/UniHeading]
+/uni_rtk_pvh [robots_dog_msgs/msg/UniRtkPvh]
+/uss_driver/uss_left/range [sensor_msgs/msg/Range]
+/uss_driver/uss_right/range [sensor_msgs/msg/Range]
+/uwb_point [geometry_msgs/msg/PointStamped]
+/uwb [uwb_driver/msg/Uwb]
+/world_points [sensor_msgs/msg/PointCloud2]
+@@KV topic_count=223
+
+======== ROS2 node 全表 ========
+/arc_lvio_node
+/arc_mapping_node
+/arc_state_machine_node
+/aritag_location_pipline
+/behavior_server
+/bridge_image_topics_24
+/bt_navigator
+/bt_navigator_navigate_through_poses_rclcpp_node
+/bt_navigator_navigate_to_pose_rclcpp_node
+/charging_alignment_server
+/collision_monitor
+/controller_server
+/error_aggregator
+/global_costmap/global_costmap
+/imu_driver
+/kanon_rust_charge
+/kanon_rust_loc
+/kanon_rust_nav
+/kanon_rust_slam
+/launch_ros_2483
+/lifecycle_manager_navigation
+/local_costmap_controller/local_costmap_controller
+/local_costmap/local_costmap
+/localization
+/map_server
+/MEB
+/nav2_container
+/perception_jobs
+/planner_server
+/remoix_rust_interface
+/robot_slam
+/robot_tf
+/ros2_alg_interface
+/rslidar_sdk/param_handle
+/rslidar_sdk/rslidar_points_destination_0
+/rslidar_sdk/rslidar_points_destination_1
+/rust_debug_node
+/sixents_gps_driver
+/uss_driver
+/uwb_driver
+/velocity_optimizer
+/waypoint_follower
+
+======== ★★★ 7.1／7.2／7.4　核心感測 topic：QoS、發布者、實測頻率、一筆內容 ========
+---------------- /front_camera/image_compressed ----------------
+@@TOPIC /front_camera/image_compressed|sensor_msgs/msg/CompressedImage|未取到|1
+-- 發布者 QoS:   Reliability: BEST_EFFORT  訂閱旗標: --qos-reliability best_effort --qos-durability volatile --
+-- 一筆內容（陣列截斷 120）--
+header:
+  stamp:
+    sec: 1790044344
+    nanosec: 688304737
+  frame_id: camera_front
+format: jpeg
+data:
+- 255
+- 216
+- 255
+- 224
+- 0
+- 16
+- 74
+- 70
+- 73
+- 70
+- 0
+- 1
+- 1
+- 0
+- 0
+- 1
+- 0
+- 1
+- 0
+- 0
+- 255
+- 219
+- 0
+- 67
+- 0
+- 5
+- 3
+- 4
+- 4
+- 4
+- 3
+- 5
+- 4
+- 4
+- 4
+- 5
+- 5
+- 5
+- 6
+- 7
+- 12
+- 8
+- 7
+- 7
+- 7
+- 7
+- 15
+- 11
+- 11
+- 9
+- 12
+- 17
+- 15
+- 18
+- 18
+- 17
+- 15
+- 17
+- 17
+- 19
+- 22
+- 28
+- 23
+- 19
+- 20
+- 26
+- 21
+- 17
+- 17
+- 24
+- 33
+- 24
+- 26
+- 29
+- 29
+- 31
+- 31
+- 31
+- 19
+- 23
+- 34
+- 36
+- 34
+- 30
+- 36
+- 28
+- 30
+- 31
+- 30
+- 255
+- 219
+- 0
+- 67
+- 1
+- 5
+- 5
+- 5
+- 7
+- 6
+- 7
+- 14
+- 8
+- 8
+- 14
+- 30
+- 20
+- 17
+- 20
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- '...'
+---
+-- topic info -v --
+Type: sensor_msgs/msg/CompressedImage
+
+Publisher count: 1
+
+Node name: bridge_image_topics_24
+Node namespace: /
+Topic type: sensor_msgs/msg/CompressedImage
+Endpoint type: PUBLISHER
+GID: 06.2d.8b.29.f4.29.de.c3.10.22.3a.9e.e3.4f.08.99.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 6
+
+Node name: robot_slam
+Node namespace: /
+Topic type: sensor_msgs/msg/CompressedImage
+Endpoint type: SUBSCRIPTION
+GID: 77.c5.f4.f7.66.1b.b8.f1.fb.02.8a.6e.e0.ec.78.aa.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (100)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: arc_mapping_node
+Node namespace: /
+Topic type: sensor_msgs/msg/CompressedImage
+Endpoint type: SUBSCRIPTION
+GID: 32.d9.35.ea.46.8f.ee.03.33.20.7e.cd.55.f4.f9.80.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (200)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: arc_lvio_node
+Node namespace: /
+Topic type: sensor_msgs/msg/CompressedImage
+Endpoint type: SUBSCRIPTION
+GID: ea.fd.74.a7.ce.cc.41.3f.fe.46.c4.d0.8d.e9.1d.63.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (200)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: perception_jobs
+Node namespace: /
+Topic type: sensor_msgs/msg/CompressedImage
+Endpoint type: SUBSCRIPTION
+GID: 96.d1.b9.57.08.36.bc.20.17.a1.7a.a4.25.e0.a0.cf.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (5)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: aritag_location_pipline
+Node namespace: /
+Topic type: sensor_msgs/msg/CompressedImage
+Endpoint type: SUBSCRIPTION
+GID: 66.85.b3.3d.9e.9e.70.4a.4e.df.f0.11.07.99.0e.29.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: localization
+Node namespace: /
+Topic type: sensor_msgs/msg/CompressedImage
+Endpoint type: SUBSCRIPTION
+GID: 21.2b.2b.3e.43.7f.52.3e.79.09.73.5e.48.1d.b6.97.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+（本 topic 花了 6 秒）
+
+---------------- /front_lidar/imu ----------------
+@@TOPIC /front_lidar/imu|sensor_msgs/msg/Imu|206.519|1
+-- 發布者 QoS:   Reliability: RELIABLE  訂閱旗標: （預設 reliable） --
+-- 一筆內容（陣列截斷 120）--
+header:
+  stamp:
+    sec: 1790044354
+    nanosec: 395377920
+  frame_id: rslidar_head
+orientation:
+  x: 0.0
+  y: 0.0
+  z: 0.0
+  w: 1.0
+orientation_covariance:
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+angular_velocity:
+  x: -0.007456851191818714
+  y: -0.010120011866092682
+  z: -0.008255799300968647
+angular_velocity_covariance:
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+linear_acceleration:
+  x: 0.0130615234375
+  y: 1.0030517578125
+  z: -0.00341796875
+linear_acceleration_covariance:
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+---
+-- topic info -v --
+Type: sensor_msgs/msg/Imu
+
+Publisher count: 1
+
+Node name: rslidar_points_destination_0
+Node namespace: /rslidar_sdk
+Topic type: sensor_msgs/msg/Imu
+Endpoint type: PUBLISHER
+GID: a8.7a.dd.f3.bd.12.b3.a7.48.ea.73.3c.c0.6f.ba.c3.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (1000)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 3
+
+Node name: robot_slam
+Node namespace: /
+Topic type: sensor_msgs/msg/Imu
+Endpoint type: SUBSCRIPTION
+GID: 19.fc.45.c3.6f.91.56.f3.8d.69.13.72.73.64.d6.d7.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (200)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: arc_lvio_node
+Node namespace: /
+Topic type: sensor_msgs/msg/Imu
+Endpoint type: SUBSCRIPTION
+GID: ff.42.f6.a5.9a.8f.94.ab.64.99.29.f2.d9.90.c0.ec.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (200)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: localization
+Node namespace: /
+Topic type: sensor_msgs/msg/Imu
+Endpoint type: SUBSCRIPTION
+GID: 91.db.b5.b1.11.21.68.f6.f8.70.82.7a.6e.14.36.6e.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (125)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+（本 topic 花了 10 秒）
+
+---------------- /front_lidar ----------------
+@@TOPIC /front_lidar|sensor_msgs/msg/PointCloud2|9.907|1
+-- 發布者 QoS:   Reliability: RELIABLE  訂閱旗標: （預設 reliable） --
+-- 一筆內容（陣列截斷 120）--
+header:
+  stamp:
+    sec: 1790044364
+    nanosec: 400012255
+  frame_id: rslidar_head
+height: 900
+width: 96
+fields:
+- name: x
+  offset: 0
+  datatype: 7
+  count: 1
+- name: y
+  offset: 4
+  datatype: 7
+  count: 1
+- name: z
+  offset: 8
+  datatype: 7
+  count: 1
+- name: intensity
+  offset: 12
+  datatype: 7
+  count: 1
+- name: ring
+  offset: 16
+  datatype: 4
+  count: 1
+- name: timestamp
+  offset: 18
+  datatype: 8
+  count: 1
+is_bigendian: false
+point_step: 26
+row_step: 2496
+data:
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 0
+- 0
+- 0
+- 0
+- 205
+- 153
+- 25
+- 51
+- 122
+- 172
+- 218
+- 65
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 0
+- 0
+- 1
+- 0
+- 205
+- 153
+- 25
+- 51
+- 122
+- 172
+- 218
+- 65
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 0
+- 0
+- 2
+- 0
+- 205
+- 153
+- 25
+- 51
+- 122
+- 172
+- 218
+- 65
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 0
+- 0
+- 3
+- 0
+- 205
+- 153
+- 25
+- 51
+- 122
+- 172
+- 218
+- 65
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 0
+- 0
+- '...'
+is_dense: false
+---
+-- topic info -v --
+Type: sensor_msgs/msg/PointCloud2
+
+Publisher count: 1
+
+Node name: rslidar_points_destination_0
+Node namespace: /rslidar_sdk
+Topic type: sensor_msgs/msg/PointCloud2
+Endpoint type: PUBLISHER
+GID: 07.9b.22.9c.4f.0f.e3.a6.21.7a.44.e9.6b.ab.3b.22.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (100)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 5
+
+Node name: robot_slam
+Node namespace: /
+Topic type: sensor_msgs/msg/PointCloud2
+Endpoint type: SUBSCRIPTION
+GID: 04.e9.d6.a3.04.63.db.42.a6.03.72.13.43.4a.0d.a9.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (100)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: arc_lvio_node
+Node namespace: /
+Topic type: sensor_msgs/msg/PointCloud2
+Endpoint type: SUBSCRIPTION
+GID: 1e.2d.f7.dd.59.5e.c3.78.b6.76.be.05.5e.21.ef.cc.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: localization
+Node namespace: /
+Topic type: sensor_msgs/msg/PointCloud2
+Endpoint type: SUBSCRIPTION
+GID: d2.be.3a.e0.cb.f9.3f.64.ed.d8.02.c5.22.9b.9e.54.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: perception_jobs
+Node namespace: /
+Topic type: sensor_msgs/msg/PointCloud2
+Endpoint type: SUBSCRIPTION
+GID: 26.88.b7.5e.0e.a2.cc.63.a1.d2.a2.e9.6e.bb.bb.85.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (5)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: localization
+Node namespace: /
+Topic type: sensor_msgs/msg/PointCloud2
+Endpoint type: SUBSCRIPTION
+GID: 28.10.fb.dd.f9.0a.fc.91.b3.7f.80.f6.4a.b4.8d.ff.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (5)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+（本 topic 花了 10 秒）
+
+---------------- /gnss/data ----------------
+@@TOPIC /gnss/data|robots_dog_msgs/msg/Nmea|無發布者|0
+（發布者數 0 → 不量頻率也不 echo，這種 topic 只會吃滿 timeout）
+-- topic info -v --
+Type: robots_dog_msgs/msg/Nmea
+
+Publisher count: 0
+
+Subscription count: 1
+
+Node name: localization
+Node namespace: /
+Topic type: robots_dog_msgs/msg/Nmea
+Endpoint type: SUBSCRIPTION
+GID: 14.04.b5.e5.a3.c9.c1.92.46.4a.de.33.c4.d0.ad.bb.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (5)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+（本 topic 花了 2 秒）
+
+---------------- /gps/rtk ----------------
+@@TOPIC /gps/rtk|sensor_msgs/msg/NavSatFix|無發布者|0
+（發布者數 0 → 不量頻率也不 echo，這種 topic 只會吃滿 timeout）
+-- topic info -v --
+Type: sensor_msgs/msg/NavSatFix
+
+Publisher count: 0
+
+Subscription count: 1
+
+Node name: localization
+Node namespace: /
+Topic type: sensor_msgs/msg/NavSatFix
+Endpoint type: SUBSCRIPTION
+GID: a9.c3.88.1f.c0.52.a8.7a.e8.6a.ed.a6.d3.f3.54.d7.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+（本 topic 花了 2 秒）
+
+---------------- /imu_driver/imu_central ----------------
+@@TOPIC /imu_driver/imu_central|sensor_msgs/msg/Imu|199.114|1
+-- 發布者 QoS:   Reliability: RELIABLE  訂閱旗標: （預設 reliable） --
+-- 一筆內容（陣列截斷 120）--
+header:
+  stamp:
+    sec: 1790044378
+    nanosec: 109323795
+  frame_id: imu_link
+orientation:
+  x: 0.0
+  y: 0.0
+  z: 0.0
+  w: 1.0
+orientation_covariance:
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+angular_velocity:
+  x: 0.00014432518773376942
+  y: 0.0004759029945868999
+  z: -0.00359139390334487
+angular_velocity_covariance:
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+linear_acceleration:
+  x: -0.0009454769315198064
+  y: 0.009931557811796665
+  z: -1.0027997493743896
+linear_acceleration_covariance:
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+---
+-- topic info -v --
+Type: sensor_msgs/msg/Imu
+
+Publisher count: 1
+
+Node name: imu_driver
+Node namespace: /
+Topic type: sensor_msgs/msg/Imu
+Endpoint type: PUBLISHER
+GID: e1.8d.68.9a.c0.48.fa.d3.a3.b6.1a.41.d3.ee.cb.6a.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 0
+（本 topic 花了 10 秒）
+
+---------------- /laser_scan ----------------
+@@TOPIC /laser_scan|sensor_msgs/msg/LaserScan|10.000|1
+-- 發布者 QoS:   Reliability: RELIABLE  訂閱旗標: （預設 reliable） --
+-- 一筆內容（陣列截斷 120）--
+header:
+  stamp:
+    sec: 1790044387
+    nanosec: 700011015
+  frame_id: base_link
+angle_min: -3.1415927410125732
+angle_max: 3.1415927410125732
+angle_increment: 0.003490000031888485
+time_increment: 5.55555998289492e-05
+scan_time: 0.10000000149011612
+range_min: 0.20000000298023224
+range_max: 15.0
+ranges:
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- '...'
+intensities:
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- .inf
+- '...'
+---
+-- topic info -v --
+Type: sensor_msgs/msg/LaserScan
+
+Publisher count: 1
+
+Node name: perception_jobs
+Node namespace: /
+Topic type: sensor_msgs/msg/LaserScan
+Endpoint type: PUBLISHER
+GID: ec.90.2e.d0.c3.a4.c1.e6.78.a6.0e.24.22.ba.c6.ae.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 6
+
+Node name: error_aggregator
+Node namespace: /
+Topic type: sensor_msgs/msg/LaserScan
+Endpoint type: SUBSCRIPTION
+GID: d0.4e.3a.cb.3f.d3.4f.86.18.88.50.3c.7e.b6.78.71.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (5)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: local_costmap
+Node namespace: /local_costmap
+Topic type: sensor_msgs/msg/LaserScan
+Endpoint type: SUBSCRIPTION
+GID: a6.f9.29.97.e1.70.95.4a.96.5a.49.bd.10.81.64.9c.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (50)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: local_costmap_controller
+Node namespace: /local_costmap_controller
+Topic type: sensor_msgs/msg/LaserScan
+Endpoint type: SUBSCRIPTION
+GID: b0.06.87.0c.72.8d.e4.60.2d.6b.9f.ec.e0.0c.1d.d7.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (50)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: MEB
+Node namespace: /
+Topic type: sensor_msgs/msg/LaserScan
+Endpoint type: SUBSCRIPTION
+GID: 05.69.82.aa.0c.93.73.6a.06.8a.63.d2.22.60.df.95.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (5)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: collision_monitor
+Node namespace: /
+Topic type: sensor_msgs/msg/LaserScan
+Endpoint type: SUBSCRIPTION
+GID: 8a.73.10.9b.0d.12.38.16.b0.60.b5.1d.67.99.8e.e7.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (5)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: controller_server
+Node namespace: /
+Topic type: sensor_msgs/msg/LaserScan
+Endpoint type: SUBSCRIPTION
+GID: 2b.d8.5f.c5.53.15.2e.0f.51.a0.3f.3c.72.b5.d2.67.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (42)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+（本 topic 花了 10 秒）
+
+---------------- /rear_camera/image_compressed ----------------
+@@TOPIC /rear_camera/image_compressed|sensor_msgs/msg/CompressedImage|未取到|1
+-- 發布者 QoS:   Reliability: BEST_EFFORT  訂閱旗標: --qos-reliability best_effort --qos-durability volatile --
+-- 一筆內容（陣列截斷 120）--
+header:
+  stamp:
+    sec: 1790044394
+    nanosec: 581135392
+  frame_id: camera_back
+format: jpeg
+data:
+- 255
+- 216
+- 255
+- 224
+- 0
+- 16
+- 74
+- 70
+- 73
+- 70
+- 0
+- 1
+- 1
+- 0
+- 0
+- 1
+- 0
+- 1
+- 0
+- 0
+- 255
+- 219
+- 0
+- 67
+- 0
+- 5
+- 3
+- 4
+- 4
+- 4
+- 3
+- 5
+- 4
+- 4
+- 4
+- 5
+- 5
+- 5
+- 6
+- 7
+- 12
+- 8
+- 7
+- 7
+- 7
+- 7
+- 15
+- 11
+- 11
+- 9
+- 12
+- 17
+- 15
+- 18
+- 18
+- 17
+- 15
+- 17
+- 17
+- 19
+- 22
+- 28
+- 23
+- 19
+- 20
+- 26
+- 21
+- 17
+- 17
+- 24
+- 33
+- 24
+- 26
+- 29
+- 29
+- 31
+- 31
+- 31
+- 19
+- 23
+- 34
+- 36
+- 34
+- 30
+- 36
+- 28
+- 30
+- 31
+- 30
+- 255
+- 219
+- 0
+- 67
+- 1
+- 5
+- 5
+- 5
+- 7
+- 6
+- 7
+- 14
+- 8
+- 8
+- 14
+- 30
+- 20
+- 17
+- 20
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- 30
+- '...'
+---
+-- topic info -v --
+Type: sensor_msgs/msg/CompressedImage
+
+Publisher count: 1
+
+Node name: bridge_image_topics_24
+Node namespace: /
+Topic type: sensor_msgs/msg/CompressedImage
+Endpoint type: PUBLISHER
+GID: 4d.1e.02.16.0c.45.de.fc.ba.9f.ed.1d.a4.7c.68.ea.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 0
+（本 topic 花了 6 秒）
+
+---------------- /rear_lidar/imu ----------------
+@@TOPIC /rear_lidar/imu|sensor_msgs/msg/Imu|175.016|1
+-- 發布者 QoS:   Reliability: RELIABLE  訂閱旗標: （預設 reliable） --
+-- 一筆內容（陣列截斷 120）--
+header:
+  stamp:
+    sec: 1790044403
+    nanosec: 268313856
+  frame_id: rslidar_tail
+orientation:
+  x: 0.0
+  y: 0.0
+  z: 0.0
+  w: 1.0
+orientation_covariance:
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+angular_velocity:
+  x: -0.009054748341441154
+  y: -0.01091896090656519
+  z: 0.008788431994616985
+angular_velocity_covariance:
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+linear_acceleration:
+  x: -0.021728515625
+  y: 0.9974365234375
+  z: -0.0084228515625
+linear_acceleration_covariance:
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+---
+-- topic info -v --
+Type: sensor_msgs/msg/Imu
+
+Publisher count: 1
+
+Node name: rslidar_points_destination_1
+Node namespace: /rslidar_sdk
+Topic type: sensor_msgs/msg/Imu
+Endpoint type: PUBLISHER
+GID: 27.0a.e4.4d.23.b5.77.13.cf.a4.a0.d8.e7.d3.bf.91.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (1000)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 0
+（本 topic 花了 9 秒）
+
+---------------- /rear_lidar ----------------
+@@TOPIC /rear_lidar|sensor_msgs/msg/PointCloud2|9.917|1
+-- 發布者 QoS:   Reliability: RELIABLE  訂閱旗標: （預設 reliable） --
+-- 一筆內容（陣列截斷 120）--
+header:
+  stamp:
+    sec: 1790044413
+    nanosec: 99997997
+  frame_id: rslidar_tail
+height: 900
+width: 96
+fields:
+- name: x
+  offset: 0
+  datatype: 7
+  count: 1
+- name: y
+  offset: 4
+  datatype: 7
+  count: 1
+- name: z
+  offset: 8
+  datatype: 7
+  count: 1
+- name: intensity
+  offset: 12
+  datatype: 7
+  count: 1
+- name: ring
+  offset: 16
+  datatype: 4
+  count: 1
+- name: timestamp
+  offset: 18
+  datatype: 8
+  count: 1
+is_bigendian: false
+point_step: 26
+row_step: 2496
+data:
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 0
+- 0
+- 0
+- 0
+- 94
+- 102
+- 70
+- 63
+- 122
+- 172
+- 218
+- 65
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 0
+- 0
+- 1
+- 0
+- 94
+- 102
+- 70
+- 63
+- 122
+- 172
+- 218
+- 65
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 0
+- 0
+- 2
+- 0
+- 94
+- 102
+- 70
+- 63
+- 122
+- 172
+- 218
+- 65
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 0
+- 0
+- 3
+- 0
+- 94
+- 102
+- 70
+- 63
+- 122
+- 172
+- 218
+- 65
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 192
+- 127
+- 0
+- 0
+- 0
+- 0
+- '...'
+is_dense: false
+---
+-- topic info -v --
+Type: sensor_msgs/msg/PointCloud2
+
+Publisher count: 1
+
+Node name: rslidar_points_destination_1
+Node namespace: /rslidar_sdk
+Topic type: sensor_msgs/msg/PointCloud2
+Endpoint type: PUBLISHER
+GID: c1.a7.bd.2a.6d.98.59.d6.6a.11.10.ed.41.d8.24.73.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (100)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 3
+
+Node name: robot_slam
+Node namespace: /
+Topic type: sensor_msgs/msg/PointCloud2
+Endpoint type: SUBSCRIPTION
+GID: 79.98.49.10.27.fd.56.11.cb.c4.04.f6.74.5a.2e.fa.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (100)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: arc_lvio_node
+Node namespace: /
+Topic type: sensor_msgs/msg/PointCloud2
+Endpoint type: SUBSCRIPTION
+GID: fa.a1.4e.86.ca.73.0f.66.79.1c.6c.d1.0e.ce.55.d0.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: localization
+Node namespace: /
+Topic type: sensor_msgs/msg/PointCloud2
+Endpoint type: SUBSCRIPTION
+GID: 1b.76.e2.0d.d2.09.c6.6b.63.cb.38.27.5a.50.2d.26.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+（本 topic 花了 10 秒）
+
+---------------- /rtk_pvh ----------------
+@@TOPIC /rtk_pvh|robots_dog_msgs/msg/UniRtkPvh|未取到|1
+-- 發布者 QoS:   Reliability: BEST_EFFORT  訂閱旗標: --qos-reliability best_effort --qos-durability volatile --
+-- 一筆內容（陣列截斷 120）--
+header:
+  stamp:
+    sec: 1790044420
+    nanosec: 67984831
+  frame_id: gps_link
+heading:
+  header:
+    stamp:
+      sec: 1790044420
+      nanosec: 68011904
+    frame_id: gps_link
+  utc_time_s: 1790044420.036
+  sol_status: 1
+  heading_type: 0
+  base_line: 0.0
+  heading_deg: 0.0
+  pitch_deg: 0.0
+  heading_std: 0.0
+  pitch_std: 0.0
+  svs_num: 0
+  soln_svs_num: 0
+bestnav:
+  header:
+    stamp:
+      sec: 1790044420
+      nanosec: 68007423
+    frame_id: gps_link
+  utc_time_s: 1790044420.031
+  p_sol_status: 2
+  pos_type: 0
+  latitude_deg: 31.22825002579971
+  longitude_deg: 120.6387701412154
+  altitude_m: -43.27824391890317
+  undulation: 7.985257625579834
+  lat_std: 99.9000015258789
+  lon_std: 99.9000015258789
+  hgt_std: 99.9000015258789
+  diff_age_s: -0.0010000000474974513
+  sol_age_s: 0.0
+  svs_num: 0
+  soln_svs_num: 0
+  v_sol_status: 2
+  vel_type: 0
+  hor_spd: 0.0
+  trk_gnd: -0.0
+  ver_spd: 0.0
+  ver_spd_std: 0.0
+  hor_spd_std: 0.0
+---
+-- topic info -v --
+Type: robots_dog_msgs/msg/UniRtkPvh
+
+Publisher count: 1
+
+Node name: sixents_gps_driver
+Node namespace: /
+Topic type: robots_dog_msgs/msg/UniRtkPvh
+Endpoint type: PUBLISHER
+GID: 2f.2c.92.c2.3c.1b.5b.a8.35.fe.13.0c.68.7f.3a.3c.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (1)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 0
+（本 topic 花了 7 秒）
+
+---------------- /uni_rtk_pvh ----------------
+@@TOPIC /uni_rtk_pvh|robots_dog_msgs/msg/UniRtkPvh|無發布者|0
+（發布者數 0 → 不量頻率也不 echo，這種 topic 只會吃滿 timeout）
+-- topic info -v --
+Type: robots_dog_msgs/msg/UniRtkPvh
+
+Publisher count: 0
+
+Subscription count: 1
+
+Node name: localization
+Node namespace: /
+Topic type: robots_dog_msgs/msg/UniRtkPvh
+Endpoint type: SUBSCRIPTION
+GID: 25.ac.f8.23.f3.3f.e4.12.0b.63.a0.b6.a5.2b.5c.a0.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (5)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+（本 topic 花了 2 秒）
+
+---------------- /uss_driver/uss_left/range ----------------
+@@TOPIC /uss_driver/uss_left/range|sensor_msgs/msg/Range|9.945|1
+-- 發布者 QoS:   Reliability: RELIABLE  訂閱旗標: （預設 reliable） --
+-- 一筆內容（陣列截斷 120）--
+header:
+  stamp:
+    sec: 1790044431
+    nanosec: 869694074
+  frame_id: uss_left_link
+radiation_type: 0
+field_of_view: 0.0
+min_range: 0.0
+max_range: 0.0
+range: 1.281000018119812
+---
+-- topic info -v --
+Type: sensor_msgs/msg/Range
+
+Publisher count: 1
+
+Node name: uss_driver
+Node namespace: /
+Topic type: sensor_msgs/msg/Range
+Endpoint type: PUBLISHER
+GID: 4e.78.30.0b.98.95.26.98.3b.55.6f.9b.8f.ec.0b.6d.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 0
+（本 topic 花了 10 秒）
+
+---------------- /uss_driver/uss_right/range ----------------
+@@TOPIC /uss_driver/uss_right/range|sensor_msgs/msg/Range|9.953|1
+-- 發布者 QoS:   Reliability: RELIABLE  訂閱旗標: （預設 reliable） --
+-- 一筆內容（陣列截斷 120）--
+header:
+  stamp:
+    sec: 1790044441
+    nanosec: 867905293
+  frame_id: uss_right_link
+radiation_type: 0
+field_of_view: 0.0
+min_range: 0.0
+max_range: 0.0
+range: 1.1929999589920044
+---
+-- topic info -v --
+Type: sensor_msgs/msg/Range
+
+Publisher count: 1
+
+Node name: uss_driver
+Node namespace: /
+Topic type: sensor_msgs/msg/Range
+Endpoint type: PUBLISHER
+GID: e0.b2.ed.1e.e2.fe.cb.94.bb.dd.1d.ae.43.f0.5c.fc.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 0
+（本 topic 花了 10 秒）
+
+---------------- /uwb_point ----------------
+@@TOPIC /uwb_point|geometry_msgs/msg/PointStamped|無發布者|0
+（發布者數 0 → 不量頻率也不 echo，這種 topic 只會吃滿 timeout）
+-- topic info -v --
+Type: geometry_msgs/msg/PointStamped
+
+Publisher count: 0
+
+Subscription count: 1
+
+Node name: waypoint_follower
+Node namespace: /
+Topic type: geometry_msgs/msg/PointStamped
+Endpoint type: SUBSCRIPTION
+GID: 68.b6.17.c7.3e.cc.e9.e7.e0.32.01.3b.1e.0e.2d.26.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+（本 topic 花了 2 秒）
+
+---------------- /uwb ----------------
+@@TOPIC /uwb|uwb_driver/msg/Uwb|未取到|1
+-- 發布者 QoS:   Reliability: RELIABLE  訂閱旗標: （預設 reliable） --
+-- 一筆內容（陣列截斷 120）--
+-- topic info -v --
+Type: uwb_driver/msg/Uwb
+
+Publisher count: 1
+
+Node name: uwb_driver
+Node namespace: /
+Topic type: uwb_driver/msg/Uwb
+Endpoint type: PUBLISHER
+GID: 2c.d2.ff.b6.92.ec.8c.ed.88.57.79.d1.b5.5e.8e.b4.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): KEEP_LAST (10)
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 0
+（本 topic 花了 20 秒）
+
+
+======== 7.1　其他名稱像感測器的 topic（只列型別，不量頻率） ========
+@@TOPIC2 /aligned_points [sensor_msgs/msg/PointCloud2]
+@@TOPIC2 /arc/nav_alignment/error_vector [geometry_msgs/msg/PointStamped]
+@@TOPIC2 /body_points [sensor_msgs/msg/PointCloud2]
+@@TOPIC2 /global_map_points [sensor_msgs/msg/PointCloud2]
+@@TOPIC2 /navigo/cs/lpc/vis/free_paths [sensor_msgs/msg/PointCloud2]
+@@TOPIC2 /navigo/cs/lpc/vis/laser_point_cloud [sensor_msgs/msg/PointCloud2]
+@@TOPIC2 /navigo/cs/lpc/vis/lookahead_point [visualization_msgs/msg/Marker]
+@@TOPIC2 /navigo/cs/ppc/vis/curvature_lookahead_point [geometry_msgs/msg/PointStamped]
+@@TOPIC2 /navigo/cs/ppc/vis/lookahead_point [geometry_msgs/msg/PointStamped]
+@@TOPIC2 /navigo/cs/ppc/vis/predicted_points [visualization_msgs/msg/MarkerArray]
+@@TOPIC2 /navigo/ea/cmn/intf/nav_lifecycle/waypoint_follower/state [lifecycle_msgs/msg/State]
+@@TOPIC2 /navigo/lm/cmn/dbg/waypoint_follower/transition_event [lifecycle_msgs/msg/TransitionEvent]
+@@TOPIC2 /navigo/ps/cmn/vis/get_optimized_path_matched_points_markers [visualization_msgs/msg/MarkerArray]
+@@TOPIC2 /navigo/ps/stp/vis/hybrid_astar_exploration_points [visualization_msgs/msg/MarkerArray]
+@@TOPIC2 /navigo/ps/stp/vis/hybrid_astar_start_end_sampling_points [visualization_msgs/msg/MarkerArray]
+@@TOPIC2 /navigo/ps/tpg/vis/centerline_points [visualization_msgs/msg/MarkerArray]
+@@TOPIC2 /navigo/ps/tpg/vis/esdf_cloud [sensor_msgs/msg/PointCloud2]
+@@TOPIC2 /navigo/ps/tpg/vis/pcd_overlay [sensor_msgs/msg/PointCloud2]
+@@TOPIC2 /perception_points [robots_dog_msgs/msg/PerceptionPoints]
+@@TOPIC2 /seg_vis/compressed [sensor_msgs/msg/CompressedImage]
+@@TOPIC2 /world_points [sensor_msgs/msg/PointCloud2]
+
+======== 感測 msg 的欄位定義（7.4 要引用的規格欄位） ========
+---- sensor_msgs/msg/PointCloud2 ----
+# This message holds a collection of N-dimensional points, which may
+# contain additional information such as normals, intensity, etc. The
+# point data is stored as a binary blob, its layout described by the
+# contents of the "fields" array.
+#
+# The point cloud data may be organized 2d (image-like) or 1d (unordered).
+# Point clouds organized as 2d images may be produced by camera depth sensors
+# such as stereo or time-of-flight.
+
+# Time of sensor data acquisition, and the coordinate frame ID (for 3d points).
+std_msgs/Header header
+	builtin_interfaces/Time stamp
+		int32 sec
+		uint32 nanosec
+	string frame_id
+
+# 2D structure of the point cloud. If the cloud is unordered, height is
+# 1 and width is the length of the point cloud.
+uint32 height
+uint32 width
+
+# Describes the channels and their layout in the binary data blob.
+PointField[] fields
+	uint8 INT8    = 1
+	uint8 UINT8   = 2
+	uint8 INT16   = 3
+	uint8 UINT16  = 4
+	uint8 INT32   = 5
+	uint8 UINT32  = 6
+	uint8 FLOAT32 = 7
+---- sensor_msgs/msg/Range ----
+# Single range reading from an active ranger that emits energy and reports
+# one range reading that is valid along an arc at the distance measured.
+# This message is  not appropriate for laser scanners. See the LaserScan
+# message if you are working with a laser scanner.
+#
+# This message also can represent a fixed-distance (binary) ranger.  This
+# sensor will have min_range===max_range===distance of detection.
+# These sensors follow REP 117 and will output -Inf if the object is detected
+# and +Inf if the object is outside of the detection range.
+
+std_msgs/Header header # timestamp in the header is the time the ranger
+	builtin_interfaces/Time stamp
+		int32 sec
+		uint32 nanosec
+	string frame_id
+                             # returned the distance reading
+
+# Radiation type enums
+# If you want a value added to this list, send an email to the ros-users list
+uint8 ULTRASOUND=0
+uint8 INFRARED=1
+
+uint8 radiation_type    # the type of radiation used by the sensor
+                        # (sound, IR, etc) [enum]
+
+float32 field_of_view   # the size of the arc that the distance reading is
+                        # valid for [rad]
+                        # the object causing the range reading may have
+                        # been anywhere within -field_of_view/2 and
+                        # field_of_view/2 at the measured range.
+---- sensor_msgs/msg/Imu ----
+# This is a message to hold data from an IMU (Inertial Measurement Unit)
+#
+# Accelerations should be in m/s^2 (not in g's), and rotational velocity should be in rad/sec
+#
+# If the covariance of the measurement is known, it should be filled in (if all you know is the
+# variance of each measurement, e.g. from the datasheet, just put those along the diagonal)
+# A covariance matrix of all zeros will be interpreted as "covariance unknown", and to use the
+# data a covariance will have to be assumed or gotten from some other source
+#
+# If you have no estimate for one of the data elements (e.g. your IMU doesn't produce an
+# orientation estimate), please set element 0 of the associated covariance matrix to -1
+# If you are interpreting this message, please check for a value of -1 in the first element of each
+# covariance matrix, and disregard the associated estimate.
+
+std_msgs/Header header
+	builtin_interfaces/Time stamp
+		int32 sec
+		uint32 nanosec
+	string frame_id
+
+geometry_msgs/Quaternion orientation
+	float64 x 0
+	float64 y 0
+	float64 z 0
+	float64 w 1
+float64[9] orientation_covariance # Row major about x, y, z axes
+
+geometry_msgs/Vector3 angular_velocity
+	float64 x
+	float64 y
+
+======== 廠商自訂 msg 介面 ========
+Messages:
+    bond/msg/Constants
+    bond/msg/Status
+    dwb_msgs/msg/CriticScore
+    dwb_msgs/msg/LocalPlanEvaluation
+    dwb_msgs/msg/Trajectory2D
+    dwb_msgs/msg/TrajectoryScore
+    nav_2d_msgs/msg/Path2D
+    nav_2d_msgs/msg/Pose2D32
+    nav_2d_msgs/msg/Pose2DStamped
+    nav_2d_msgs/msg/Twist2D
+    nav_2d_msgs/msg/Twist2D32
+    nav_2d_msgs/msg/Twist2DStamped
+    nlink_parser/msg/IotFrame0
+    nlink_parser/msg/IotFrame0Node
+    nlink_parser/msg/LinktrackAnchorframe0
+    nlink_parser/msg/LinktrackAoaNode0
+    nlink_parser/msg/LinktrackAoaNodeframe0
+    nlink_parser/msg/LinktrackNode0
+    nlink_parser/msg/LinktrackNode1
+    nlink_parser/msg/LinktrackNode2
+    nlink_parser/msg/LinktrackNode4Anchor
+    nlink_parser/msg/LinktrackNode4Tag
+    nlink_parser/msg/LinktrackNode5
+    nlink_parser/msg/LinktrackNode6
+    nlink_parser/msg/LinktrackNode7
+    nlink_parser/msg/LinktrackNodeframe0
+    nlink_parser/msg/LinktrackNodeframe1
+    nlink_parser/msg/LinktrackNodeframe2
+    nlink_parser/msg/LinktrackNodeframe3
+    nlink_parser/msg/LinktrackNodeframe4
+    nlink_parser/msg/LinktrackNodeframe5
+    nlink_parser/msg/LinktrackNodeframe6
+    nlink_parser/msg/LinktrackNodeframe7
+    nlink_parser/msg/LinktrackTag
+    nlink_parser/msg/LinktrackTagframe0
+    nlink_parser/msg/TofsenseCascade
+    nlink_parser/msg/TofsenseFrame0
+    nlink_parser/msg/TofsenseMFrame0
+    nlink_parser/msg/TofsenseMFrame0Pixel
+    pendulum_msgs/msg/JointCommand
+    pendulum_msgs/msg/JointState
+    pendulum_msgs/msg/RttestResults
+    rmw_dds_common/msg/Gid
+    rmw_dds_common/msg/NodeEntitiesInfo
+    rmw_dds_common/msg/ParticipantEntitiesInfo
+    robots_dog_msgs/msg/ArcChangeFlag
+    robots_dog_msgs/msg/ArcModuleCmd
+    robots_dog_msgs/msg/ArcModuleState
+    robots_dog_msgs/msg/ArcMultiStageCtrlCmd
+    robots_dog_msgs/msg/ArcState
+    robots_dog_msgs/msg/ArcTargetPose
+    robots_dog_msgs/msg/BmsCmd
+    robots_dog_msgs/msg/BmsState
+    robots_dog_msgs/msg/Cartesian
+    robots_dog_msgs/msg/CmdVelWithTrajectory
+    robots_dog_msgs/msg/CpuInfo
+    robots_dog_msgs/msg/CustomMsg
+    robots_dog_msgs/msg/CustomPoint
+    robots_dog_msgs/msg/DiskInfo
+    robots_dog_msgs/msg/DockPoseStamped
+    robots_dog_msgs/msg/DockState
+    robots_dog_msgs/msg/ElectronicMap
+    robots_dog_msgs/msg/ElectronicObstacle
+    robots_dog_msgs/msg/Ellipsoid
+    robots_dog_msgs/msg/EllipsoidArray
+    robots_dog_msgs/msg/FaultInfo
+    robots_dog_msgs/msg/FaultInfoMultiArray
+    robots_dog_msgs/msg/Frontier
+    robots_dog_msgs/msg/HighCmd
+    robots_dog_msgs/msg/HighLevelCmd
+    robots_dog_msgs/msg/HighLevelRobotState
+    robots_dog_msgs/msg/HighState
+    robots_dog_msgs/msg/IMU
+    robots_dog_msgs/msg/LED
+    robots_dog_msgs/msg/LegControlData
+    robots_dog_msgs/msg/LinktrackAoaNode0
+    robots_dog_msgs/msg/LocalMap
+    robots_dog_msgs/msg/Localization
+    robots_dog_msgs/msg/LocalizationState
+
+======== dmesg 裡的感測器痕跡（型號常只出現在這） ========
+(未取到：無 sudo 授權，略過 dmesg；非 root 讀 dmesg 多半被 kernel.dmesg_restrict 擋)
+
+======== 靜態盤點結束 ========

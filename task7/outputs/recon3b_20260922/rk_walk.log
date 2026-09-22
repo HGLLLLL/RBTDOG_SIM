@@ -1,0 +1,44 @@
+[recon3] robot: 採樣 40.0 秒（標籤 walk）…
+
+---- robot / walk：41 秒 ----
+整體 CPU 26.1%   8 核   loadavg 6.72 6.75 4.86 5/756 4800
+  cpu0  平均  20.5%  峰  41.3%  ####
+  cpu1  平均  18.1%  峰  32.7%  ####
+  cpu2  平均  21.2%  峰  39.6%  ####
+  cpu3  平均  26.5%  峰  36.9%  #####
+  cpu4  平均  24.9%  峰  31.8%  #####
+  cpu5  平均  24.1%  峰  34.2%  #####
+  cpu6  平均  61.1%  峰  68.5%  ############
+  cpu7  平均  12.5%  峰  16.2%  ##
+  核心隔離 isolcpus = 7
+記憶體 1636 / 7916 MB（21%）  swap 用 0 MB
+前 8 名行程（CPU% / RSS MB / 可用核）:
+    58.0%     158.2 MB  cpus=0-6       robot_camera_no
+    36.3%     307.1 MB  cpus=0-6       robot_hal_node
+    18.6%      46.3 MB  cpus=0-6       robot_roamerx_n
+    11.0%     157.9 MB  cpus=0-6       mc_ctrl
+     9.6%      39.5 MB  cpus=0-6       robot_remote
+     4.2%       0.0 MB  cpus=6         irq/114-ttyS3
+     3.9%       0.0 MB  cpus=6         irq/116-ttyS5
+     3.8%       0.0 MB  cpus=6         irq/118-ttyS9
+關鍵行程的執行緒（CPU% / 上次在哪顆核 / 可用核）:
+    16.2%  cpu7   cpus=7         robot_hal_node / HwLoop
+    12.5%  cpu1   cpus=0-6       robot_camera_no / pub_camera_fron
+    12.5%  cpu2   cpus=0-6       robot_camera_no / pub_camera_back
+     8.3%  cpu4   cpus=0-6       robot_camera_no / queue4:src
+     7.6%  cpu6   cpus=0-6       robot_camera_no / queue0:src
+     6.5%  cpu5   cpus=0-6       robot_hal_node / imu_recv_thread
+     6.1%  cpu3   cpus=0-6       mc_ctrl / mc_ctrl
+     4.3%  cpu0   cpus=0-6       mc_ctrl / mc_ctrl
+     4.0%  cpu0   cpus=0-6       robot_camera_no / queue5:src
+     3.7%  cpu6   cpus=0-6       robot_camera_no / queue1:src
+  → 隔離核 7 上抓到的執行緒：robot_hal_node/HwLoop
+GPU / NPU / devfreq:
+  devfreq:fb000000.gpu:cur_freq      平均 300000000.0  峰 300000000.0
+  devfreq:fb000000.gpu:load          0@300000000Hz → 0@300000000Hz
+  devfreq:fdab0000.npu:cur_freq      平均 1000000000.0  峰 1000000000.0
+  devfreq:fdab0000.npu:load          100@1000000000Hz → 100@1000000000Hz
+  mali:utilisation                   平均 0.0  峰 0.0
+溫度（最高 5 區）: bigcore0-thermal 44.4°C  bigcore1-thermal 44.4°C  littlecore-thermal 44.4°C  soc-thermal 43.5°C  center-thermal 42.5°C
+網路流量: lo rx 8.87 MB/s  eth0 rx 0.05 MB/s  can1 rx 0.05 MB/s  can2 rx 0.05 MB/s  can0 rx 0.05 MB/s  can3 rx 0.05 MB/s
+tegrastats: 這塊板沒有 tegrastats（預期：只有 Orin NX 有）

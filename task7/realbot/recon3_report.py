@@ -61,7 +61,9 @@ def parse_markers(text):
             if name:
                 topics2.append({"topic": name, "type": ty})
         elif line.startswith("@@CAMDEV "):
-            camdevs.append(line[9:].strip())
+            camdevs.append([line[9:].strip(), None])
+        elif camdevs and camdevs[-1][1] is None and line.strip().startswith("Card:"):
+            camdevs[-1][1] = line.split(":", 1)[1].strip()
         elif line.startswith("@@LIDARCFG "):
             lidarcfg.append(line[11:].strip())
         elif line.startswith("@@FILE "):
@@ -334,11 +336,16 @@ def sec_71(statics):
               "`RMW_IMPLEMENTATION` 兩行，那是最常見的原因。" % NA, ""]
 
     L += ["### 7.1-b　按種類清點", "",
-          "這裡只數 **topic**。一顆感測器可能發多個 topic（例如光達另發自己的 IMU），"
-          "所以「幾顆」要配合下面的裝置列舉與安裝位置一起判，不能直接拿 topic 數當顆數。", ""]
+          "這裡只數 **topic**（同名的已去重）。一顆感測器可能發多個 topic"
+          "（光達另發自己的 IMU），也有 topic 根本不是感測器而是算出來的"
+          "（`/laser_scan` 是點雲壓成的 2D 掃描）。"
+          "所以「幾顆」要配合裝置列舉與安裝位置一起判，不能直接拿 topic 數當顆數。", ""]
     rows = []
     for name, pat in SENSOR_GROUPS:
-        hits = [t["topic"] for b, t in all_topics if re.search(pat, t["topic"], re.I)]
+        # 同一個 topic 可能在兩塊板上都看得到（影像由 bridge_image_topics_66 橋過去）
+        # → 去重，否則相機會被數成兩倍
+        hits = sorted({t["topic"] for b, t in all_topics
+                       if re.search(pat, t["topic"], re.I)})
         rows.append([name, len(hits), "、".join(hits) if hits else NA])
     L += [table(["種類", "topic 數", "topic"], rows), ""]
 
@@ -358,7 +365,7 @@ def sec_71(statics):
         kv = statics[b]["kv"]
         cams = statics[b]["camdevs"]
         rows.append([BOARD_NAME[b],
-                     "、".join(cams) if cams else NA,
+                     "%d 個節點" % len(cams) if cams else NA,
                      kv.get("ros_domain_id", NA),
                      kv.get("topic_count", NA)])
     L += [table(["板", "/dev/video*", "ROS_DOMAIN_ID", "topic 總數"], rows), "",
@@ -415,11 +422,21 @@ def sec_72(d, statics):
               "%s —— 沒有相機 topic。D1 Max 的影像是走 RTSP，"
               "不一定會發成 ROS2 image topic；以 RTSP 實測為準。" % NA, ""]
 
-    devs = statics["rk"]["camdevs"] + statics["nx"]["camdevs"]
-    L += ["### 7.2-c　`/dev/video*` 與感測器能力", "",
-          ("找到：" + "、".join(devs)) if devs else
-          "%s —— 兩塊板都沒有 `/dev/video*`（相機可能掛在獨立的編碼模組上）。" % NA,
-          "", "`v4l2-ctl --list-formats-ext` 的完整輸出在靜態 log 的「7.2」段。", ""]
+    L += ["### 7.2-c　`/dev/video*`（節點數 ≠ 相機顆數）", ""]
+    for b in ("rk", "nx"):
+        devs = statics[b]["camdevs"]
+        if not devs:
+            continue
+        groups = {}
+        for dev, card in devs:
+            groups.setdefault(card or NA, []).append(dev)
+        rows = [[card, len(v), "、".join(sorted(v)[:4]) + ("…" if len(v) > 4 else "")]
+                for card, v in sorted(groups.items(), key=lambda kv: -len(kv[1]))]
+        L += ["**%s**：共 %d 個節點" % (BOARD_NAME[b], len(devs)), "",
+              table(["Card type", "節點數", "節點"], rows), ""]
+    L += ["`rkcif` 是 MIPI 擷取節點，`rkisp_*` 是 ISP 的統計／參數／raw 讀回，"
+          "`video-dec0` / `video-enc0` 是硬體編解碼 —— **這些都不是獨立的相機**。"
+          "擷取到的原生格式與解析度見靜態 log 的「7.2」段。", ""]
     return "\n".join(L)
 
 

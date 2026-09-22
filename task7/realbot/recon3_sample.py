@@ -26,6 +26,7 @@ from __future__ import annotations
 import glob
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -367,6 +368,22 @@ def main():
     for tag, vals in series.items():
         if not vals:
             continue
+        # RKNPU 的 debugfs load 是三核一行：
+        #   "NPU load:  Core0:  0%, Core1:  0%, Core2:  0%,"
+        # → 拆成三條數字系列。這是唯一可信的 NPU 使用率來源
+        #   （devfreq 的 load 節點固定 100 是假的，2026-09-22 實測）。
+        if "rknpu" in tag:
+            cores = {}
+            for v in vals:
+                for idx, pct in re.findall(r"Core(\d+):\s*(\d+)\s*%", v):
+                    cores.setdefault(int(idx), []).append(float(pct))
+            if cores:
+                for idx in sorted(cores):
+                    c = cores[idx]
+                    series_stat["rknpu:core%d:load_pct" % idx] = {
+                        "min": min(c), "mean": round(sum(c) / len(c), 1),
+                        "max": max(c), "n": len(c)}
+                continue
         nums = []
         for v in vals:
             try:

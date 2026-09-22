@@ -372,6 +372,14 @@ def mirror_policy(pol, turn_only=True):
     return run
 
 
+def route_policy(pol_main, pol_turn, wz_thr=0.1):
+    """按指令族切換權重（部署層組合，和 mirror_policy 一樣不重訓）：obs 裡的指令 |wz| > wz_thr → pol_turn，否則 pol_main。
+    兩顆 obs／動作介面相同（88／24）。驗收時每個指令是獨立 rollout，回合中切換沒測過。"""
+    def run(obs):
+        return jnp.where(jnp.abs(obs[36]) > wz_thr, pol_turn(obs), pol_main(obs))
+    return run
+
+
 def _mirror(v, right):
     """right 為 True（右向指令）→ 左右鏡像。"""
     return jnp.where(right, v[MIRROR_LR], v)
@@ -686,8 +694,9 @@ class DualModeEnv(Env):
         u_ramp = jnp.clip(step_i / w["RAMP_STEPS"], 0.0, 1.0)
         act = u_ramp * act
         A = act_split(act)
-        if w.get("LIFT_NONNEG", False):                                   # v3.7b：lift ∈ [1, 1+LIFT_SCALE]（a ≤ 0 死區＝名目），policy 不能把名目抬高縮掉
-            A = dict(A, lift=1.0 + jnp.maximum(A["lift"] - 1.0, 0.0))
+        if w.get("LIFT_NONNEG", False):                                   # v3.7b：lift ∈ [1, 1+LIFT_SCALE]（a ≤ 0 死區＝名目），policy 不能把名目抬高縮掉；
+            wl_ = _lat_weight(P["A"])                                      # 只在平移族（wl > 0.5）生效，原地轉／弧線的 lift 通道維持原樣（按族切換權重時原地轉用的是舊權重）
+            A = dict(A, lift=jnp.where(wl_ > 0.5, 1.0 + jnp.maximum(A["lift"] - 1.0, 0.0), A["lift"]))
         # ---- 相位：共同相位推進 ＋ 每腿偏移（偏移目標變了就限速追）
         om = P["hz"] * A["om"]
         ph = slew_phase(info["ph"], P["ph"])

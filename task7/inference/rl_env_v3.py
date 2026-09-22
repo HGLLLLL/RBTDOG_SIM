@@ -759,24 +759,29 @@ class DualModeEnv(Env):
 
 
 # ---------------------------------------------------------------- domain randomization
-_BASE_ID = mm._id(mujoco.MjModel.from_xml_path(SCENE_V3), mujoco.mjtObj.mjOBJ_BODY, "base_link")
+_M_BASE = mujoco.MjModel.from_xml_path(SCENE_V3)
+_BASE_ID = mm._id(_M_BASE, mujoco.mjtObj.mjOBJ_BODY, "base_link")
+COM_Y_SCALE = float(_M_BASE.body_subtreemass[_BASE_ID] / _M_BASE.body_mass[_BASE_ID])   # 整機 38.82 / base 17.03 ≈ 2.28：base 質心要移這麼多倍整機才移 1 倍
 _LEG_DOF, _WHEEL_DOF = jnp.array(mm.LEG_QVEL_IDX), jnp.array(mm.WHEEL_QVEL_IDX)
 _ABAD_DOF = jnp.array(mm.LEG_QVEL_IDX[::3])
 ABAD12 = jnp.array([0, 3, 6, 9])
 
 
-def make_domain_randomize(gains: str = "kp250"):
+def make_domain_randomize(gains: str = "kp250", com_y_mm: float = 0.0):
     """回傳對應增益組的 domain_randomize。標稱 kp/kd 必須跟著模型走，
-    否則 factory 線會被隨機化拉回 kp250 附近（DR 是乘在標稱值上的）。"""
+    否則 factory 線會被隨機化拉回 kp250 附近（DR 是乘在標稱值上的）。
+    `com_y_mm > 0`（v3.6）：base_link 質心 y 每回合抽 U(−1,1)·com_y_mm·COM_Y_SCALE，整機質心 ±com_y_mm、零均值，
+    洗掉「模型質心偏左 1.5 mm → policy 學方向專屬補償」（v3.5 spec §9.4）。預設 0 走原路徑。"""
     G = GAIN_SETS[gains]
     _KP_NOM_j = jnp.array(np.tile(np.asarray(G["kp3"]), 4))
     _KD_NOM = float(np.asarray(G["kd3"])[1])
+    dy_max = com_y_mm / 1000.0 * COM_Y_SCALE
 
     def domain_randomize(sys, rng):
         """v2 那組 ＋ 輪 frictionloss 0.10–0.18、damping 0.005–0.03、ABAD kp ×0.7–1.0（v3.3 由 0.4 縮起）。"""
         @jax.vmap
         def per_env(rng):
-            k = jax.random.split(rng, 10)
+            k = jax.random.split(rng, 10)            # ⚠️ 個數不能改：改了現有 notebook 的抽樣就變了；新鍵用 fold_in
             gf = sys.geom_friction.at[:, 0].set(jax.random.uniform(k[0], minval=0.4, maxval=1.4))
             s_kp = jax.random.uniform(k[1], minval=0.8, maxval=1.2)
             s_ab = jax.random.uniform(k[2], minval=0.7, maxval=1.0)      # v3.3：×0.4 太寬，平移滑步速度變異蓋掉 vy 訊號
@@ -792,14 +797,21 @@ def make_domain_randomize(gains: str = "kp250"):
             fl = fl.at[_ABAD_DOF].set(sys.dof_frictionloss[_ABAD_DOF] * jax.random.uniform(k[7], minval=0.6, maxval=1.4))
             fl = fl.at[_WHEEL_DOF].set(jax.random.uniform(k[8], minval=0.10, maxval=0.18))
             dmp = sys.dof_damping.at[_WHEEL_DOF].set(jax.random.uniform(k[9], minval=0.005, maxval=0.03))
+            if dy_max > 0:
+                dy = jax.random.uniform(jax.random.fold_in(rng, 99), minval=-1.0, maxval=1.0) * dy_max
+                return gf, gain, bias, bm, fl, dmp, sys.body_ipos.at[_BASE_ID, 1].add(dy)
             return gf, gain, bias, bm, fl, dmp
 
-        gf, gain, bias, bm, fl, dmp = per_env(rng)
+        out = per_env(rng)
+        gf, gain, bias, bm, fl, dmp = out[:6]
         in_axes = jax.tree_util.tree_map(lambda x: None, sys)
         in_axes = in_axes.replace(geom_friction=0, actuator_gainprm=0, actuator_biasprm=0, body_mass=0,
                                   dof_frictionloss=0, dof_damping=0)
         sys = sys.replace(geom_friction=gf, actuator_gainprm=gain, actuator_biasprm=bias, body_mass=bm,
                           dof_frictionloss=fl, dof_damping=dmp)
+        if dy_max > 0:
+            in_axes = in_axes.replace(body_ipos=0)
+            sys = sys.replace(body_ipos=out[6])
         return sys, in_axes
 
     return domain_randomize

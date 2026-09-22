@@ -89,3 +89,21 @@ def test_drift_terms_hinge_values_and_w35_unchanged():
     assert float(ta35) == float(30.0 * jnp.sum(ab ** 2)) and float(td35) == float(40.0 * jnp.sum(dr ** 2))
     ta0, td0 = v3.drift_terms(ab, dr, v3.W)
     assert float(ta0) == 0.0 and float(td0) == 0.0
+
+
+def test_dr_com_y_shift_zero_mean_and_default_untouched():
+    env = v3.DualModeEnv(gains="factory")
+    base = int(v3._BASE_ID)
+    n = 64
+    keys = jax.random.split(jax.random.PRNGKey(3), n)
+    sys_b, in_axes = v3.make_domain_randomize("factory", com_y_mm=5.0)(env.sys, keys)
+    assert in_axes.body_ipos == 0 and sys_b.body_ipos.shape == (n, env.sys.nbody, 3)
+    dy = np.asarray(sys_b.body_ipos[:, base, 1] - env.sys.body_ipos[base, 1])
+    lim = 0.005 * v3.COM_Y_SCALE                                   # base 要移 ±11.4 mm，整機才是 ±5 mm
+    assert abs(v3.COM_Y_SCALE - 38.82 / 17.03) < 0.05
+    assert np.all(np.abs(dy) <= lim + 1e-9) and dy.std() > 0.4 * lim and abs(dy.mean()) < 0.3 * lim
+    others_idx = [i for i in range(env.sys.nbody) if i != base]
+    assert np.allclose(np.asarray(sys_b.body_ipos)[:, others_idx, :], np.asarray(env.sys.body_ipos)[None, others_idx, :])
+    sys_0, in_axes_0 = v3.make_domain_randomize("factory")(env.sys, keys)
+    assert in_axes_0.body_ipos is None and np.array_equal(np.asarray(sys_0.body_ipos), np.asarray(env.sys.body_ipos))
+    assert np.array_equal(np.asarray(sys_0.actuator_gainprm), np.asarray(sys_b.actuator_gainprm))   # 舊十個抽樣沒被新鍵擾動

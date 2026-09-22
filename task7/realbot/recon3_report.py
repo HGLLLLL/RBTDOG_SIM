@@ -242,6 +242,7 @@ def sec_13(d, samples, statics):
                   "行程層級的 `Cpus_allowed_list` 看不出來（`mc_ctrl` 主執行緒是 0-6）。" % iso, ""]
 
     # 行程層級
+    nd = 0
     for b, ph in PHASES:
         s = samples.get((b, ph))
         if not s or not s.get("top_proc"):
@@ -250,11 +251,13 @@ def sec_13(d, samples, statics):
                  fmt(r["rss_mb"], " MB"), r.get("cpus_allowed") or NA,
                  (r.get("cmd") or "")[:60]]
                 for r in s["top_proc"][:10]]
-        L += ["### 1.3-d　%s / %s　吃資源的前 10 個行程" %
-              (BOARD_NAME[b], "待機" if ph == "idle" else "走路"), "",
+        nd += 1
+        L += ["### 1.3-d%d　%s / %s　吃資源的前 10 個行程" %
+              (nd, BOARD_NAME[b], "待機" if ph == "idle" else "走路"), "",
               table(["PID", "行程", "CPU", "RSS", "可用核", "指令"], rows), ""]
 
     # 執行緒層級（主執行緒的 mask 騙人：mc_ctrl 主執行緒是 0-6，但 cpu7 是隔離核）
+    ne = 0
     for b, ph in PHASES:
         s = samples.get((b, ph))
         if not s or not s.get("top_thread"):
@@ -263,8 +266,9 @@ def sec_13(d, samples, statics):
         rows = [[r["proc"], r["thread"], r["pid"], r["tid"], fmt(r["cpu_pct"], "%"),
                  "cpu%s" % r["last_cpu"], r.get("cpus_allowed") or NA]
                 for r in s["top_thread"][:12]]
-        L += ["### 1.3-e　%s / %s　關鍵行程的執行緒" %
-              (BOARD_NAME[b], "待機" if ph == "idle" else "走路"), "",
+        ne += 1
+        L += ["### 1.3-e%d　%s / %s　關鍵行程的執行緒" %
+              (ne, BOARD_NAME[b], "待機" if ph == "idle" else "走路"), "",
               table(["行程", "執行緒", "PID", "TID", "CPU", "上次在哪顆核",
                      "可用核"], rows), ""]
         if iso:
@@ -295,12 +299,14 @@ def sec_13(d, samples, statics):
               "`VDD_IN` 是模組輸入功耗，不是整台狗的耗電。", ""]
 
     # tegrastats 原始行（Orin 的 GPU 使用率只有這裡看得到）
+    ng = 0
     for b in ("nx", "rk"):
         for ph in ("idle", "walk"):
             s = samples.get((b, ph))
             if s and s.get("tegrastats"):
-                L += ["### 1.3-g　%s / %s　tegrastats 原始輸出（前 3 行）" %
-                      (BOARD_NAME[b], ph), "", "```",
+                ng += 1
+                L += ["### 1.3-g%d　%s / %s　tegrastats 原始輸出（前 3 行）" %
+                      (ng, BOARD_NAME[b], "待機" if ph == "idle" else "走路"), "", "```",
                       "\n".join(s["tegrastats"][:3]), "```", ""]
             elif s and s.get("tegrastats_note") and b == "nx":
                 L += ["> %s / %s tegrastats：%s" %

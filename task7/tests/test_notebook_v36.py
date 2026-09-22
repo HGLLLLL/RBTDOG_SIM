@@ -45,3 +45,17 @@ def test_older_notebooks_unchanged_by_builder():
             assert cells(path.read_text(encoding="utf-8")) == cells(head), name
         finally:
             subprocess.run(["git", "checkout", "--", str(path)], check=True, capture_output=True)
+
+
+def test_v37f_notebook_env_and_stoploss():
+    nb = NBDIR / "cpg_rl_v3_7f_colab.ipynb"
+    assert nb.exists(), "先跑 python3 task7/notebooks/build_nb_v3.py --gains factory --weights v37"
+    src = _code_src(nb)
+    assert src.count('v3.DualModeEnv(gains="factory", weights=v3.W37)') == 2
+    assert 'v3.DualModeEnv(gains="factory", weights=v3.W37, ref=dict(cyc_amp_rand=False))' in src
+    assert 'randomization_fn=v3.make_domain_randomize("factory", com_y_mm=5.0)' in src and "step {ps('t_step'):.2f}" in src
+    assert 'model.save_params("cpg_rl_v3_7f_params.pkl", params)' in src
+    md = _md_src(nb)
+    assert "v3.7f" in md and "cyc_lat_decouple" in md and "< 0.45" in md
+    v36 = _code_src(NB)
+    assert "W37" not in v36                                                          # v3.6f 那本不受影響

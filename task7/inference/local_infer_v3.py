@@ -36,7 +36,7 @@ def _steps_per_sec(clr, secs):
 
 
 def preset_weights(preset):
-    return {"v33": None, "v35": v3.W35, "v36": v3.W36}[preset]
+    return {"v33": None, "v35": v3.W35, "v36": v3.W36, "v37": v3.W37}[preset]
 
 
 def load_policy(path: str, obs_dim: int = 88):
@@ -96,7 +96,8 @@ def build_parser():
     ap.add_argument("--seeds", type=int, default=3); ap.add_argument("--secs", type=float, default=10.0)
     ap.add_argument("--no-baseline", action="store_true", dest="no_baseline"); ap.add_argument("--video", default="")
     ap.add_argument("--only", default="")
-    ap.add_argument("--preset", default="v33", choices=("v33", "v35", "v36"), help="v35＝weights=W35（含右轉鏡像 CYC_TURN_SYM）；驗 v3.5／v3.5f 權重要用；v36＝W36（抬腳頂點獎勵＋hinge 懲罰，2026-09-22）")
+    ap.add_argument("--preset", default="v33", choices=("v33", "v35", "v36", "v37"), help="v35＝weights=W35（含右轉鏡像 CYC_TURN_SYM）；驗 v3.5／v3.5f 權重要用；v36＝W36（抬腳頂點獎勵＋hinge 懲罰，2026-09-22）；v37＝W37（平移解耦產生器）")
+    ap.add_argument("--mirror", action="store_true", help="原地右轉用鏡像推論（obs 鏡像 → policy → 動作鏡像；v3.7 部署方式，E10：右轉 −62→−84）")
     ap.add_argument("--push", action="store_true", help="統計 rollout 也開訓練用的隨機推力（預設關：推力每 2 s 一次，會污染 roll／航向／vx 漂；摔欄永遠另跑一組有推力的）")
     ap.add_argument("--gains", default="kp250", choices=("kp250", "factory"), help="factory＝v3.4f（馬達增益照原廠、力矩空間輪控制）；要與權重的訓練設定一致")
     ap.add_argument("--mesh", action="store_true", help="影片用官方 STL 網格模型渲染（scene_flat.xml；物理仍是訓練模型，只換外觀）")
@@ -115,6 +116,8 @@ def main() -> int:
     jrp, jsp = (jr, js) if a.push else (jax.jit(env_p.reset), jax.jit(env_p.step))
     print(f"gains {env.gains} wheel_space {env.wheel_space} obs {env.obs_dim} act {env.action_size}", flush=True)
     pol = load_policy(a.weights, env.obs_dim); steps = int(a.secs / v3.CTRL_DT); F = factory_ref()
+    if a.mirror:
+        pol = jax.jit(v3.mirror_policy(pol))
     rows, traj = [], {}
     for name, cmd, fam in CASES:
         if a.only and a.only not in name:
@@ -134,8 +137,8 @@ def main() -> int:
               f"膝 τ 峰/RMS {agg['tau_knee_pk']:.0f}/{agg['tau_knee_rms']:.0f} 髖 {agg['tau_hip_pk']:.0f}/{agg['tau_hip_rms']:.0f} ABAD {agg['tau_abad_pk']:.0f}/{agg['tau_abad_rms']:.0f} | lift {agg['lift']} 步/秒 {agg['steps_s']} | ABAD漂 {agg['abad_bias']:.1f}° vx漂 {agg['vx_drift']:+.3f} 航向 {agg['head_end']:+.1f}° | |a| {agg['act_abs']:.2f}"
               + (f" ‖ 零動作: vx {B['vx']:+.2f} vy {B['vy']:+.3f} yaw {B['yaw']:+5.1f} roll std {B['roll_std']:.2f} 膝峰 {B['tau_knee_pk']:.0f} 摔 {B['fell']}" if B else "") + f" ({time.time()-t0:.0f}s)", flush=True)
     # ---- md
-    wname = Path(a.weights).stem
-    L = [f"# 驗收 {wname}（gains={a.gains} preset={a.preset}；{a.seeds} 種子 × {a.secs:.0f} s，前 2 s 不計；推力 {'開' if a.push else '關（摔欄另跑有推力）'}；對標 = 原廠 trip21 動作段）", "",
+    wname = Path(a.weights).stem + ("_mirror" if a.mirror else "")
+    L = [f"# 驗收 {wname}（gains={a.gains} preset={a.preset}{'；原地右轉鏡像推論' if a.mirror else ''}；{a.seeds} 種子 × {a.secs:.0f} s，前 2 s 不計；推力 {'開' if a.push else '關（摔欄另跑有推力）'}；對標 = 原廠 trip21 動作段）", "",
          "| 指令 | 摔 | vx | vy | 偏航 °/s（±std） | roll std/峰 ° | 膝 τ 峰/RMS | 髖 τ 峰/RMS | ABAD τ 峰/RMS | 抬腳 mm | 步/秒 @8mm | ABAD 漂 ° | vx 漂 | 航向 ° | \\|a\\| | 零動作 vx/vy/yaw/roll std/膝峰 | 原廠 v/yaw/roll std/膝峰/膝RMS/抬腳 |",
          "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for name, cmd, fam, g, B in rows:

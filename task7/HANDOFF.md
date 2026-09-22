@@ -1,12 +1,21 @@
 # task7 交接：D1 Max 現況與下一步
 
-- 最後更新：**2026-09-22 下午（v3.6f 訓完：漂移三項到位、0 摔、但平移抬腳只到 10 mm；根因＝週期表抬高與跨距耦合，零動作已驗證 `cyc_joint_scale_lat=(0.7,1.4,1.4)` 能同時拿 29 mm 與正確速度 → v3.7 待使用者定。目前最佳權重：平移要漂移小用 v3.6f、要右轉／斜走航向用 v3.5f）**
+- 最後更新：**2026-09-22 傍晚（v3.7f 備好等 Colab：平移抬高／跨距解耦產生器＋側向上限；右轉弱證明是 policy 不對稱、用鏡像推論解掉（v3.6f 右轉 −62→−84，不用重訓）。目前可部署最佳：v3.6f＋`--mirror`，表 `outputs/eval_cpg_rl_v3_6f_params_mirror.md`）**
 - 分支：`feat/d1-edu-cpg-rl`
 - **接手先讀這份，再讀 `README.md`。** 查狗的規格／SHM／座標／IMU 慣例／原廠參數 → `docs/D1Max_機器狗資訊.md`（2026-09-09 由 11 份偵察文件整合；原件與舊操作卡都在 `docs/archive/`）。
 
 ---
 
 ## ▶▶ 下次上班從這裡開始（2026-09-15 收工，全部已 commit 到 `main`）
+
+### ★★★★★ v3.7f 已備好，下一步：Colab 跑 `notebooks/cpg_rl_v3_7f_colab.ipynb`（2026-09-22 傍晚）
+
+spec `docs/superpowers/specs/2026-09-22-cpg-rl-v3.7-decouple-mirror-design.md`；十二個實驗全在 `outputs/v37_pretest.md`（使用者要求「確定會進步再改」）。
+改動：①`W37`（REF `cyc_lat_decouple`）平移族髖膝固定倍率、ABAD 倍率隨指令、policy amp 只管 ABAD／lift 只管髖膝 ②`CMD_VY` 上限 0.22（抬 1.75× 的名目上限 0.18）③**原地轉鏡像推論** `mirror_policy`（`local_infer_v3.py --mirror`）。
+證據：零動作抬 20–29 mm 全速度不倒（E9）；右轉弱＝policy 不對稱（E5／E7／E8），鏡像後 −84±1（E10）；名目往後漂 −0.05／航向 −35° 交給 policy（E11／E12，v3.6f 零樣本已壓到 +0.028）。
+停損：1 億步 進度 yaw < 3.5、len < 600、**`step` < 0.45**。
+訓完：`local_infer_v3.py --preset v37 --gains factory --mirror --weights task7/weights/cpg_rl_v3_7f_params.pkl --seeds 3 --mesh --video task7/outputs/eval_v37f_mesh.mp4`。
+**目前可部署最佳＝v3.6f ＋ `--mirror`**（右轉 −84.4／左轉 +83.5、漂移三項到位、0 摔；只差平移抬腳 10 mm）。上機的 M9 v3 路徑要一併做 obs 鏡像（`rl_env_v3.mirror_obs` 的 numpy 版）。
 
 ### ★★★★★ v3.6f 訓完（2026-09-22 下午）—— 下一步 v3.7 待使用者定，讀 spec 2026-09-22 §9
 

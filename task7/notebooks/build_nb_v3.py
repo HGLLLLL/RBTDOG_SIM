@@ -10,20 +10,21 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 _ap = argparse.ArgumentParser()
 _ap.add_argument("--gains", default="kp250", choices=("kp250", "factory"))
-_ap.add_argument("--weights", default="v33", choices=("v33", "v35", "v36"),
-                 help="v35＝DualModeEnv(weights=v3.W35)（慢漂懲罰＋線性航向，spec 2026-09-16）；v36＝W36（抬腳頂點獎勵＋hinge 懲罰＋質心 DR，spec 2026-09-22）")
+_ap.add_argument("--weights", default="v33", choices=("v33", "v35", "v36", "v37"),
+                 help="v35＝DualModeEnv(weights=v3.W35)（慢漂懲罰＋線性航向，spec 2026-09-16）；v36＝W36（抬腳頂點獎勵＋hinge 懲罰＋質心 DR，spec 2026-09-22）；v37＝W37（平移抬高／跨距解耦）")
 ARGS = _ap.parse_args()
 FACTORY = ARGS.gains == "factory"
 V35 = ARGS.weights == "v35"
-V36 = ARGS.weights == "v36"
+V37 = ARGS.weights == "v37"
+V36 = ARGS.weights == "v36" or V37                  # v3.7 = v3.6 的一切 ＋ 解耦產生器（W37 ⊃ W36）
 VNEW = V35 or V36                                   # v3.5 起共用的東西（RESUME、vy 分母 6、progress 三欄）
-assert not V36 or FACTORY, "v3.6 只跑原廠增益線"
-_tag = {(False, "v33"): "v3", (True, "v33"): "v3_4f", (False, "v35"): "v3_5", (True, "v35"): "v3_5f", (True, "v36"): "v3_6f"}[(FACTORY, ARGS.weights)]
+assert not V36 or FACTORY, "v3.6／v3.7 只跑原廠增益線"
+_tag = {(False, "v33"): "v3", (True, "v33"): "v3_4f", (False, "v35"): "v3_5", (True, "v35"): "v3_5f", (True, "v36"): "v3_6f", (True, "v37"): "v3_7f"}[(FACTORY, ARGS.weights)]
 OUT = HERE / f"cpg_rl_{_tag}_colab.ipynb"
 WEIGHTS = f"cpg_rl_{_tag}_params.pkl"
 GAINS_KW = 'gains="factory"' if FACTORY else ''
 GAINS_KW2 = 'gains="factory", ' if FACTORY else ''    # 後面還有其他參數時用
-W_KW = {"v33": "", "v35": "weights=v3.W35", "v36": "weights=v3.W36"}[ARGS.weights]
+W_KW = {"v33": "", "v35": "weights=v3.W35", "v36": "weights=v3.W36", "v37": "weights=v3.W37"}[ARGS.weights]
 ENV_ARGS = ", ".join(x for x in (GAINS_KW, W_KW) if x)        # '' | 'gains="factory"' | 'weights=v3.W35' | 'gains="factory", weights=v3.W35'
 ENV_ARGS2 = ENV_ARGS + ", " if ENV_ARGS else ""              # 後面還有參數時用
 PROG_EXTRA = ("abad {ps('abad_bias'):.1f}° drift {ps('vx_drift'):+.3f} head {ps('head_abs'):.1f}° | " if VNEW else "") + ("step {ps('t_step'):.2f} | " if V36 else "")   # 以值插進 train_src 的 f-string，不會再被展開，所以用單層大括號
@@ -96,6 +97,22 @@ if V36:
 
 **停損**：同 v3.5f —— 1 億步 `進度 yaw` < 3.5 或 len < 600 → 停；**另加**：1 億步 `step` < 0.3（平移族約佔回合四成、零動作名目 ≈ 0.6）→ 抬腳學不起來，停下來查 `W_STEP`。
 `abad`／`drift`／`head` 三欄跨指令平均不可信（v3.5 spec §9.2），只看方向。
+**注意**：G0 格的原地轉是開迴路原廠週期，**預期會倒**，那格只 assert 其他四個指令。
+"""
+
+if V37:
+    md0 = """# CPG-RL **v3.7f**：智元 D1 Max · 平移抬高／跨距解耦 · MJX · Colab GPU（2026-09-22）
+
+v3.6f 訓完：漂移三項到位（vx 漂 0.014、航向 −2°、ABAD 5.6°）、0 摔，但**平移抬腳只到 10 mm**（目標 21）、vy 過衝 25%。
+根因（v3.6 spec §9.2）：原廠週期表裡抬高與跨距是同一組關節圖案，抬得高速度就超，policy 折衷成腳拖著側滑。
+v3.7 只改一件事（`W37` → REF `cyc_lat_decouple=True`，實驗 `outputs/v37_pretest.md` E6–E9）：
+- 平移族髖膝固定 1.75× 表（零動作抬 24–30 mm，原廠 21，不隨速度縮）、ABAD 跨距倍率隨指令 k = clip(0.3 + 5.6(|vy| − 0.12), 0.3, 1.0)；
+  policy 的 `amp` 只管 ABAD 跨距、`lift` 只管髖膝抬高（兩者不再耦合）。名目會往後漂 −0.065 m/s、航向 10 s 轉 −48°（E11：跟膝倍率線性），交給 `t_drift`／`t_headlin`。
+- 側向指令上限 0.30 → 0.22（抬 1.75× 時 2.1 Hz 踏步的名目上限 ≈ 0.18，再高只會教它側滑；E13）。
+- 原地轉不動；右轉弱（−62 對 +84）已證明是 policy 不對稱（E5／E7／E8），**部署用鏡像推論**（E10：−84±1）不靠訓練。
+其餘（`t_step`、hinge 懲罰、質心 DR、obs 88／動作 24）與 v3.6f 相同。
+
+**停損**：同 v3.6f —— 1 億步 `進度 yaw` < 3.5 或 len < 600 → 停；`step` 名目現在是 1.5（平移族約四成回合 → 混合平均 ≈ 0.6），**1 億步 `step` < 0.45 → 停**（policy 又在壓抬腳）。
 **注意**：G0 格的原地轉是開迴路原廠週期，**預期會倒**，那格只 assert 其他四個指令。
 """
 

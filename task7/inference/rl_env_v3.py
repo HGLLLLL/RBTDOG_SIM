@@ -74,6 +74,12 @@ REF = dict(
     # 關節偏移的分關節縮放（ABAD, HIP, KNEE）。試過等力矩換算 (1, 0.48, 0.48)：力矩峰降但旋轉也掉（幅度 0.9 倒前偏航 55→23°/s），
     # 多活的 1–2 s 是靠不動換的；平移更是砍半就不滑。兩族都維持統一縮放，力矩峰交給 RL 的 58 護欄（spec §10.2）
     cyc_joint_scale_turn=(1.0, 1.0, 1.0), cyc_joint_scale_lat=(1.0, 1.0, 1.0),
+    # v3.7 候選（2026-09-22 E6）：平移族「抬高與跨距解耦」—— 髖膝固定 cyc_lat_lift× 表（抬 25–40 mm 不隨速度縮），
+    #   ABAD 倍率隨指令：k = clip(abad0 + slope·(|vy| − vy0), clip)；policy 的 amp 只管 ABAD、lift 只管髖膝。預設關（golden）。
+    #   E9 校準（零動作 2.1 Hz 踏步的名目側速上限 ≈ 0.21 m/s）：k 0.3 到 vy 0.12、0.75 在 0.20、1.0 在 ≥ 0.245
+    #   E11／E12／E13：往後漂與航向偏轉隨膝倍率線性增加（1.87 → −0.08 m/s／−60°），但速度上限也跟著（1.6 → 0.16、1.75 → 0.18、1.87 → 0.21）；
+    #   髖膝分開沒有更好。取 1.75：抬 24–30 mm、0.20 指令跑 0.18、膝峰 46–51、漂 −0.065
+    cyc_lat_decouple=False, cyc_lat_lift=1.75, cyc_lat_abad0=0.3, cyc_lat_abad_vy0=0.12, cyc_lat_abad_slope=5.6, cyc_lat_abad_clip=(0.3, 1.0),
     # 相位組："factory"＝原廠四腿相位（配 duty ≥ 0.7 才有三腳著地）；"trot"＝對角對交替（duty 0.5 用，任何時刻兩對角腳著地）
     phase_set_turn="trot", phase_set_lat="factory",
     # ---- 隨增益變的四項（v3.4f 用 REF_FACTORY 整組覆寫；spec §4／§5）
@@ -138,6 +144,8 @@ W = dict(W_VX=2.0, W_VY=3.0, W_YAW=2.0, W_YAWI=0.5, W_YAWLIN=1.0, YAW_LIN_E=1.5,
 W35 = dict(W, W_ABADBIAS=30.0, W_DRIFT=40.0, W_HEADLIN=1.0, W_VYREL=6.0, P_VY=0.60, CYC_TURN_SYM=True)   # v3.5（spec 2026-09-16 §2）：DualModeEnv(weights=v3.W35)
 # v3.6（spec 2026-09-22 §2）：t_step ＋ t_drift／t_abadbias 改死區線性（PEN_SHAPE="hinge"；二次式接近目標時梯度消失，v3.5 spec §9.1）
 W36 = dict(W35, W_STEP=1.5, STEP_APEX=0.021, PEN_SHAPE="hinge", W_DRIFT_L=8.0, DRIFT_DZ=0.010, W_ABADBIAS_L=6.0, ABAD_DZ=0.0436)
+# v3.7（2026-09-22 E6–E13）：平移抬高／跨距解耦（REF cyc_lat_decouple）＋ 側向指令上限 0.22（2.1 Hz 踏步、抬 1.75× 的名目上限 ≈ 0.18，再高只能教它側滑）
+W37 = dict(W36, CYC_LAT_DECOUPLE=True, CMD_VY=(0.04, 0.22))
 T_KEYS = ("t_vx", "t_vy", "t_yaw", "t_yawi", "t_yawlin", "t_yawrel", "t_vyrel", "t_head", "t_h", "t_lift", "t_stance", "t_roll", "t_pitch", "t_rollrate",
           "t_pitchrate", "t_bias", "t_act", "t_omdot", "t_qres", "t_tau", "t_taubar", "t_errbar", "t_kneev", "t_mode", "t_vz", "t_abadbias", "t_drift", "t_headlin", "t_step")
 METRIC_KEYS = ("height", "vx", "vy", "wz", "reward", "pitch", "roll", "mode", "s4", "s_arc", "cyc", "clr_step", "clr_stance",
@@ -248,7 +256,13 @@ def cycle_offsets(phi, cmd, A, ref=None, amp_turn=None):
         lat = w_ll * T[0] + (1.0 - w_ll) * T[1]
         turn = w_tl * T[2] + (1.0 - w_tl) * T[3]
         return wl * amp_l * on_l * lat * sc_l + (1.0 - wl) * amp_t * on_t * turn * sc_t
-    delta = blend(off, jnp.tile(jnp.array(ref["cyc_joint_scale_lat"]), 4), jnp.tile(jnp.array(ref["cyc_joint_scale_turn"]), 4))
+    if ref.get("cyc_lat_decouple", False):                        # v3.7：ABAD 倍率隨指令、髖膝固定（除以 amp_l 抵掉共同幅度）
+        k_abad = jnp.clip(ref["cyc_lat_abad0"] + ref["cyc_lat_abad_slope"] * (jnp.abs(cmd[1]) - ref["cyc_lat_abad_vy0"]), *ref["cyc_lat_abad_clip"])
+        lift = ref["cyc_lat_lift"]; lh, lk = (lift, lift) if np.isscalar(lift) else lift      # 純量＝髖膝同倍率；(髖, 膝) 可分開
+        sc_lat = jnp.tile(jnp.array([1.0, 0.0, 0.0]) * k_abad + jnp.array([0.0, lh, lk]), 4) / amp_l
+    else:
+        sc_lat = jnp.tile(jnp.array(ref["cyc_joint_scale_lat"]), 4)
+    delta = blend(off, sc_lat, jnp.tile(jnp.array(ref["cyc_joint_scale_turn"]), 4))
     if not ref["cyc_recenter"]:                                  # 絕對模式：中心用原廠實際 q 平均，不是我們的站姿
         qm = _cyc_interp(CYC_QMEAN[:, None, :].repeat(2, 1), 0.0)
         delta = delta + (wl * on_l * (w_ll * qm[0] + (1.0 - w_ll) * qm[1]) + (1.0 - wl) * on_t * (w_tl * qm[2] + (1.0 - w_tl) * qm[3])
@@ -292,6 +306,61 @@ def step_apex_reward(apex_last, s_leg, cmd_vy, w):
 
 def err_barrier_j(err12, bar12=ERR_BAR12):
     return jnp.sum(jnp.maximum(jnp.abs(err12) - bar12, 0.0) ** 2)
+
+
+def _mirror_maps():
+    """obs 88／動作 24 的左右鏡像（y → −y）：腿 FR↔FL、RR↔RL；ABAD、grav_y、gyro_x/z、cmd vy/wz、head_err、sway_y 變號。
+    obs 排列見 DualModeEnv._obs：grav3 gyro3 q12 qvel12 wheel4 cmd3 [s4,s_arc] head1 last_a24 amp4 sinθ4 cosθ4 cyc_abad4 cyc_knee4 wheel4。"""
+    swap = [1, 0, 3, 2]
+    oi, os_ = np.arange(88), np.ones(88)
+    ai, as_ = np.arange(ACT_DIM), np.ones(ACT_DIM)
+    def swap12(idx, sg, base):
+        for k in range(4):
+            for j in range(3):
+                idx[base + 3 * k + j] = base + 3 * swap[k] + j
+            sg[base + 3 * k] = -1.0
+    def swap4(idx, sg, base, neg=False):
+        for k in range(4):
+            idx[base + k] = base + swap[k]
+            if neg: sg[base + k] = -1.0
+    def act_map(idx, sg, base):
+        swap4(idx, sg, base + 1); sg[base + 7] = -1.0; swap4(idx, sg, base + 8); swap12(idx, sg, base + 12)
+    os_[1] = -1.0; os_[3] = -1.0; os_[5] = -1.0
+    swap12(oi, os_, 6); swap12(oi, os_, 18); swap4(oi, os_, 30)
+    os_[35] = -1.0; os_[36] = -1.0; os_[39] = -1.0
+    act_map(oi, os_, 40)
+    for b in (64, 68, 72): swap4(oi, os_, b)
+    swap4(oi, os_, 76, neg=True); swap4(oi, os_, 80); swap4(oi, os_, 84)
+    act_map(ai, as_, 0)
+    return jnp.array(oi), jnp.array(os_), jnp.array(ai), jnp.array(as_)
+
+
+OBS_MIRROR_IDX, OBS_MIRROR_SGN, ACT_MIRROR_IDX, ACT_MIRROR_SGN = _mirror_maps()
+
+
+def mirror_obs(obs):
+    """θ 的相位錨在 0 號腿（step 裡 phi0 = theta_free[0] − ph[0]），鏡像後四腿一起差一個常數相位 θ[0] − θ[1]：
+    交換腿之後把 sin／cos 轉回去，這樣平移（差 0.19 週期）與原地轉（差半週期）都精確。"""
+    o = obs[OBS_MIRROR_IDX] * OBS_MIRROR_SGN
+    th = jnp.arctan2(obs[68:72], obs[72:76])
+    d = th[0] - th[1]
+    th_m = th[MIRROR_LR] + d
+    return o.at[68:72].set(jnp.sin(th_m)).at[72:76].set(jnp.cos(th_m))
+
+
+def mirror_act(a):
+    return a[ACT_MIRROR_IDX] * ACT_MIRROR_SGN
+
+
+def mirror_policy(pol, turn_only=True):
+    """鏡像推論（v3.7，不用重訓；E10）：右轉（wz < −0.1）時把 obs 鏡像餵 policy、動作鏡像回來 → 右轉用左轉的能力
+    （v3.6f 右轉 −62±10 → −84±1，與左轉 +83.5 對稱）。平移鏡像互有好壞（航向好、側傾略差），預設只套原地轉；turn_only=False 也套 vy < 0。"""
+    def run(obs):
+        cmd = obs[34:37]
+        right = jnp.where(jnp.abs(cmd[2]) > 0.1, cmd[2] < 0, (cmd[1] < -0.02) & (not turn_only))
+        a_m = mirror_act(pol(mirror_obs(obs)))
+        return jnp.where(right, a_m, pol(obs))
+    return run
 
 
 def _mirror(v, right):
@@ -460,6 +529,8 @@ class DualModeEnv(Env):
         self.ref = {**REF, **G["ref"], **(ref or {})}      # 用 dict(REF, **a, **b) 會在 key 重複時炸（掃描時覆寫 REF_FACTORY 的鍵就會踩到）
         if self.w["CYC_TURN_SYM"]:
             self.ref = dict(self.ref, cyc_turn_sym=True)     # v3.5：右轉＝左轉鏡像平均（§2.6）
+        if self.w.get("CYC_LAT_DECOUPLE", False):
+            self.ref = dict(self.ref, cyc_lat_decouple=True)  # v3.7：平移抬高／跨距解耦
         self.wheel_pos = wheel_pos
         self.wheel_space = self.ref["wheel_space"]
         if scene is None:
@@ -617,8 +688,11 @@ class DualModeEnv(Env):
         u4 = jnp.clip(info["u4"] + jnp.clip(u4_tgt - info["u4"], -du, du), 0.0, 1.0)
         CY = cycle_offsets(info["phi_cyc"], cmd, P["A"], self.ref, info["cyc_amp"])
         phi_cyc = jnp.mod(info["phi_cyc"] + 2 * jnp.pi * CY["hz"] * A["om"] * CTRL_DT * (u4 > 0.01), 2 * jnp.pi)
-        delta = (CY["delta"].reshape(4, 3) * A["amp"][:, None] * jnp.array([1.0, 1.0, 1.0])[None, :]
-                 * jnp.array([1.0, A["lift"], A["lift"]])[None, :]).reshape(12) * u4
+        if self.ref["cyc_lat_decouple"]:                                 # v3.7：amp（每腿）只縮 ABAD 跨距、lift 只縮髖膝抬高
+            delta = (CY["delta"].reshape(4, 3) * jnp.stack([A["amp"], jnp.full(4, A["lift"]), jnp.full(4, A["lift"])], 1)).reshape(12) * u4
+        else:
+            delta = (CY["delta"].reshape(4, 3) * A["amp"][:, None] * jnp.array([1.0, 1.0, 1.0])[None, :]
+                     * jnp.array([1.0, A["lift"], A["lift"]])[None, :]).reshape(12) * u4
         qres = info["qres"] + jnp.clip(A["qres"] - info["qres"], -QRES_SLEW, QRES_SLEW)   # 關節殘差（限速）
         q_des = jnp.clip(joint_targets(feet) + delta + qres, self._lo, self._hi)
         # ---- 輪：差速×gate ＋ 平移圖案 ＋ 原廠 τ 週期偏移 ＋ 殘差

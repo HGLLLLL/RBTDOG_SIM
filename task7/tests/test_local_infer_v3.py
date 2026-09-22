@@ -31,5 +31,6 @@ def test_rollout_reports_steps_per_second():
 def test_cli_presets_and_push_flag():
     p = L.build_parser()
     a = p.parse_args(["--preset", "v36"])
-    assert a.preset == "v36" and a.push is False
+    assert a.preset == "v36" and a.push is False and a.mirror is False
+    assert p.parse_args(["--preset", "v37", "--mirror"]).mirror is True and L.preset_weights("v37") is v3.W37
     assert L.preset_weights("v36") is v3.W36 and L.preset_weights("v35") is v3.W35 and L.preset_weights("v33") is None

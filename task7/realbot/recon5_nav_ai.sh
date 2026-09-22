@@ -62,12 +62,15 @@ ros2run() {
 sec "★ 5.x　ROS2 node 全表"
 ros2run 25 ros2 node list | sort
 
-sec "★★★ 5.x　關鍵節點的接線（誰吃什麼、發什麼）"
-for n in /robot_slam /localization /arc_lvio_node /arc_mapping_node /planner_server \
-         /controller_server /bt_navigator /collision_monitor /velocity_optimizer \
-         /perception_jobs /aritag_location_pipline /map_server; do
-  echo "---------------- $n ----------------"
-  ros2run 12 ros2 node info "$n"
+sec "★★★ 5.x　**全部**節點的接線（誰吃什麼、發什麼 —— 這段是畫 node/topic 圖的原始資料）"
+# 狗上沒有 GUI，rqt_graph 跑不起來。所以把 `ros2 node info` 全撈回來，
+# 在本機用 recon5_graph.py 重建同一張圖（DOT／Mermaid／表格）。
+NODES=$(ros2run 25 ros2 node list | sort | grep -E '^/')
+echo "$NODES" | sed 's/^/@@NODE /'
+echo "節點數：$(echo "$NODES" | grep -c .)"
+for n in $NODES; do
+  echo "================ NODEINFO $n ================"
+  ros2run 10 ros2 node info "$n"
 done
 
 sec "★★★ 5.3　nav2 的 plugin 與參數（planner／controller／costmap／BT）"
@@ -216,10 +219,23 @@ for p in $(pgrep -x mc_ctrl 2>/dev/null); do
     | grep -iE "rknn|onnx|torch|openblas|mali|opencl" | sort -u | sed 's/^/  /'
 done
 
-sec "★ 5.x　RK 這側有沒有導航（預期：沒有，導航全在 NX）"
-( set +u
-  [ -f /opt/runtime/env.bash ] && . /opt/runtime/env.bash >/dev/null 2>&1
-  timeout 20 ros2 node list 2>&1 | sort ) | head -30
+sec "★★★ RK 這側的**全部**節點接線（畫圖用；預期沒有導航，導航全在 NX）"
+ros2run() {
+  local t="$1"; shift
+  ( set +u
+    [ -f /opt/runtime/env.bash ] && . /opt/runtime/env.bash >/dev/null 2>&1
+    [ -f /opt/ros/humble/setup.bash ] && . /opt/ros/humble/setup.bash >/dev/null 2>&1
+    timeout "$t" "$@" ) 2>&1
+}
+NODES=$(ros2run 25 ros2 node list | sort | grep -E '^/')
+echo "$NODES" | sed 's/^/@@NODE /'
+echo "節點數：$(echo "$NODES" | grep -c .)"
+for n in $NODES; do
+  echo "================ NODEINFO $n ================"
+  ros2run 10 ros2 node info "$n"
+done
+echo "-- topic 全表（含型別）--"
+ros2run 25 ros2 topic list -t | sort
 
 sec "RK 結束"
 EOS
@@ -301,9 +317,20 @@ ssh -O exit -o ControlPath="/tmp/.recon5-%r@%h:%p" "robot@$NX_IP" 2>/dev/null ||
   grep -hE "^/(planner_server|controller_server|bt_navigator|map_server|localization):" "$NX" 2>/dev/null | sed 's/^/  /'
 } 2>&1 | tee "$OUT_DIR/verdict.log"
 
+# ================================================================ 重建 node／topic 圖
+# 狗上沒有 GUI，rqt_graph 起不來 → 用撈回來的 `ros2 node info` 在本機重建同一張圖
+GRAPH="$HERE/recon5_graph.py"
+if [ -f "$GRAPH" ] && command -v python3 >/dev/null 2>&1; then
+  echo
+  python3 "$GRAPH" "$OUT_DIR" || echo "（圖表重建失敗，原始 log 還在）"
+fi
+
 echo
 echo "===================================================="
 echo "完成。輸出目錄：$OUT_DIR"
+echo "  nodes_topics.md 節點與 topic 全表（報告直接用）"
+echo "  graph.dot       Graphviz → dot -Tsvg graph.dot -o graph.svg"
+echo "  graph_core.mmd  Mermaid 主幹圖（去掉雜訊與視覺化 topic）"
 echo "  nav_ai_nx.log   導航／SLAM／AI 感知（Orin NX）"
 echo "  nav_ai_rk.log   運控側 RKNN（RK3588）"
 echo "  verdict.log     自動判讀"

@@ -68,8 +68,8 @@ def test_decouple_flag_default_off_and_scales_as_designed():
 
 
 def test_w37b_values_and_lift_nonneg_mapping():
-    assert v3.W37["CYC_LAT_DECOUPLE"] is True and v3.W37["CMD_VY"] == (0.04, 0.22) and "LIFT_NONNEG" not in v3.W37
-    assert v3.W37B["LIFT_NONNEG"] is True and v3.W37B["W_STEP"] == 2.5
+    assert v3.W37["CYC_LAT_DECOUPLE"] is True and v3.W37["CMD_VY"] == (0.04, 0.22) and "LIFT_NONNEG" not in v3.W37 and "MIRROR_AUG" not in v3.W37
+    assert v3.W37B["LIFT_NONNEG"] is True and v3.W37B["W_STEP"] == 2.5 and v3.W37B["MIRROR_AUG"] is True
     assert v3.REF["cyc_lat_wz_ff"] == 0.4 and v3.REF["cyc_lat_vx_ff"] == (0.15, -0.43, 0.05, 0.10)
     # lift 通道：a ≤ 0 → 1.0（死區＝名目）、a = +∞ → 1.4；預設路徑 a=−∞ → 0.6
     for a5, exp in ((-3.0, 1.0), (0.0, 1.0), (3.0, 1.0 + v3.LIFT_SCALE * float(jnp.tanh(3.0)))):
@@ -91,3 +91,27 @@ def test_decouple_env_zero_action_lifts_tracks_and_feedforward(weights, vx_tol, 
         assert float(s.done) == 0.0
     assert 0.14 < np.mean(VY[100:]) < 0.26 and np.mean(AP[200:], 0)[1] > 15 and np.mean(AP[200:], 0)[3] > 15
     assert abs(np.mean(VX[100:])) < vx_tol and abs(float(s.metrics["head_deg"])) < head_tol
+
+
+def test_mirror_aug_episode_is_exact_mirror_and_sampled_half():
+    """鏡像回合：同 seed、同指令、零動作，mir=True 的 obs 必須逐位元等於 mir=False 的 obs 經 mirror_obs（雜訊在鏡像前加，兩邊同一組亂數）；
+    帶 policy 動作時，鏡像回合裡 policy 給的動作會被鏡像回物理 → 用「常數動作」驗：mir 回合給 mirror_act(a) 應等於非 mir 回合給 a。"""
+    env = v3.DualModeEnv(gains="factory", weights=v3.W37B, ref=dict(cyc_amp_rand=False), push=False)
+    jr, js = jax.jit(env.reset), jax.jit(env.step)
+    cmd = jnp.array((0.0, 0.20, 0.0)); a = jnp.sin(jnp.arange(v3.ACT_DIM) * 0.7) * 0.5
+    def run(mir, act):
+        s = jr(jax.random.PRNGKey(0))
+        s = s.replace(info={**s.info, "cmd": cmd, "cmd2": cmd, "t_switch": 10 ** 6, "mir": jnp.array(mir)})
+        s = s.replace(obs=jnp.where(mir, v3.mirror_obs(s.obs), s.obs) if mir != bool(s.info["mir"]) else s.obs)   # reset 的 obs 依原抽樣鏡像過，改 flag 後重對齊
+        O, Q = [], []
+        for _ in range(30):
+            s = js(s, act); O.append(np.asarray(s.obs)); Q.append(np.asarray(s.pipeline_state.qpos))
+        return np.array(O), np.array(Q)
+    O0, Q0 = run(False, jnp.zeros(v3.ACT_DIM)); O1, Q1 = run(True, jnp.zeros(v3.ACT_DIM))
+    assert np.array_equal(Q0, Q1) and np.allclose(O1, np.stack([np.asarray(v3.mirror_obs(o)) for o in O0]), atol=1e-6)
+    O0, Q0 = run(False, a); O1, Q1 = run(True, v3.mirror_act(a))
+    assert np.allclose(Q0, Q1, atol=1e-6) and np.allclose(O1, np.stack([np.asarray(v3.mirror_obs(o)) for o in O0]), atol=1e-5)
+    mirs = [bool(jr(jax.random.PRNGKey(k)).info["mir"]) for k in range(64)]
+    assert 20 <= sum(mirs) <= 44
+    env0 = v3.DualModeEnv(gains="factory", weights=v3.W37, ref=dict(cyc_amp_rand=False), push=False)
+    assert all(not bool(jax.jit(env0.reset)(jax.random.PRNGKey(k)).info["mir"]) for k in range(4))   # 旗標關：永遠 False

@@ -316,6 +316,6 @@ kd 0.1 的輪外環扭矩小，0.4 rad/s 才砍四成。`lift` 死區第一版�
 
 ## v3.7b 定案
 
-`W37B = dict(W37, LIFT_NONNEG=True, W_STEP=2.5)`；REF `cyc_lat_vx_ff=(0.15, −0.43, 0.05, 0.10)`、`cyc_lat_wz_ff=0.4`（只在解耦時生效）。
+`W37B = dict(W37, LIFT_NONNEG=True, W_STEP=2.5, MIRROR_AUG=True)`（鏡像增強：env 每回合 50% 鏡像 obs／動作，policy 本身對稱）；REF `cyc_lat_vx_ff=(0.15, −0.43, 0.05, 0.10)`、`cyc_lat_wz_ff=0.4`（只在解耦時生效）。
 攤帳 `outputs/reward_audit_v37b.md`：零動作左平移 0.20 vx 漂 +0.010、航向 −19°、t_step 2.5、每步 11.85（贏過 v3.6f 零樣本的 10.88）；v3.6f 零樣本 vx 漂 +0.086 是舊補償過補（分布偏移，訓練會修）。
 下一節 E9B 是 W37B 的全套零動作掃描。

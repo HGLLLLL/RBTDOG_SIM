@@ -150,7 +150,8 @@ W36 = dict(W35, W_STEP=1.5, STEP_APEX=0.021, PEN_SHAPE="hinge", W_DRIFT_L=8.0, D
 # v3.7（2026-09-22 E6–E13）：平移抬高／跨距解耦（REF cyc_lat_decouple）＋ 側向指令上限 0.22（2.1 Hz 踏步、抬 1.75× 的名目上限 ≈ 0.18，再高只能教它側滑）
 W37 = dict(W36, CYC_LAT_DECOUPLE=True, CMD_VY=(0.04, 0.22))
 # v3.7b（2026-09-22 夜，v3.7f 訓到 64M `step` 0.41→0.25 停損）：名目的漂移／航向由輪前饋補（REF cyc_lat_*_ff，見 E14／E15）、lift 通道只能加不能減、W_STEP 2.5
-W37B = dict(W37, LIFT_NONNEG=True, W_STEP=2.5)
+#   MIRROR_AUG：每回合 50% 鏡像（obs 鏡像給 policy、動作鏡像回物理）→ 同一組權重服務左右兩種情境，訓出來的 policy 本身對稱（右轉弱＝policy 不對稱，E5–E10）
+W37B = dict(W37, LIFT_NONNEG=True, W_STEP=2.5, MIRROR_AUG=True)
 T_KEYS = ("t_vx", "t_vy", "t_yaw", "t_yawi", "t_yawlin", "t_yawrel", "t_vyrel", "t_head", "t_h", "t_lift", "t_stance", "t_roll", "t_pitch", "t_rollrate",
           "t_pitchrate", "t_bias", "t_act", "t_omdot", "t_qres", "t_tau", "t_taubar", "t_errbar", "t_kneev", "t_mode", "t_vz", "t_abadbias", "t_drift", "t_headlin", "t_step")
 METRIC_KEYS = ("height", "vx", "vy", "wz", "reward", "pitch", "roll", "mode", "s4", "s_arc", "cyc", "clr_step", "clr_stance",
@@ -655,8 +656,11 @@ class DualModeEnv(Env):
                 "roll_ema": jnp.zeros(()), "sway_ema": jnp.zeros(()),
                 "abad_ema": jnp.zeros(4), "drift_ema": jnp.zeros(2),
                 "apex_run": jnp.zeros(4), "apex_last": jnp.zeros(4),
-                "kill": jnp.zeros((), jnp.int32), "step": 0}
+                "kill": jnp.zeros((), jnp.int32), "step": 0,
+                "mir": (jax.random.bernoulli(jax.random.fold_in(ks[7], 13)) if self.w.get("MIRROR_AUG", False) else jnp.zeros((), bool))}   # v3.7b：鏡像增強回合
         obs = self._obs(data, info, z)
+        if self.w.get("MIRROR_AUG", False):
+            obs = jnp.where(info["mir"], mirror_obs(obs), obs)
         zz = jnp.zeros(())
         metrics = {k: zz for k in METRIC_KEYS}
         return State(data, obs, zz, zz, metrics, info)
@@ -664,6 +668,8 @@ class DualModeEnv(Env):
     def step(self, state, action):
         info = dict(state.info)
         w = self.w
+        if w.get("MIRROR_AUG", False):                                    # v3.7b：鏡像回合 —— policy 看到的是鏡像 obs，它的動作鏡像回來給物理
+            action = jnp.where(info["mir"], mirror_act(action), action)
         step_i = info["step"]
         cmd = jnp.where(step_i >= info["t_switch"], info["cmd2"], info["cmd"])
         # ---- 產生器設定（連續，無模式）
@@ -822,6 +828,8 @@ class DualModeEnv(Env):
         obs = (obs.at[0:3].add(NOISE_GRAV * n[0:3]).at[3:6].add(NOISE_GYRO * n[3:6])
                .at[6:18].add(NOISE_QPOS * n[6:18]).at[18:30].add(NOISE_QVEL * n[18:30])
                .at[30:34].add(NOISE_WHEEL * n[30:34]))
+        if w.get("MIRROR_AUG", False):
+            obs = jnp.where(info["mir"], mirror_obs(obs), obs)
         metrics = {"height": data.qpos[2], "vx": vb[0], "vy": vb[1], "wz": wz, "reward": reward,
                    "pitch": jnp.abs(grav[0]) * 57.29578, "roll": jnp.abs(grav[1]) * 57.29578, "mode": u_mode,
                    "clr_step": jnp.sum(sw * clr) / jnp.maximum(jnp.sum(sw), 1.0) * 1000.0,

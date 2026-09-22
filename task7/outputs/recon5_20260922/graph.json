@@ -1,0 +1,3069 @@
+{
+ "nx": {
+  "/arc_lvio_node": {
+   "pubs": [
+    [
+     "/arc/slam_dock_pose",
+     "robots_dog_msgs/msg/DockPoseStamped"
+    ],
+    [
+     "/arc/slam_state",
+     "robots_dog_msgs/msg/ArcModuleState"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ],
+    [
+     "/tf",
+     "tf2_msgs/msg/TFMessage"
+    ]
+   ],
+   "subs": [
+    [
+     "/arc/slam_mode_cmd",
+     "robots_dog_msgs/msg/ArcModuleCmd"
+    ],
+    [
+     "/front_camera/image_compressed",
+     "sensor_msgs/msg/CompressedImage"
+    ],
+    [
+     "/front_lidar",
+     "sensor_msgs/msg/PointCloud2"
+    ],
+    [
+     "/front_lidar/imu",
+     "sensor_msgs/msg/Imu"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rear_lidar",
+     "sensor_msgs/msg/PointCloud2"
+    ]
+   ],
+   "services": 6,
+   "actions": 0
+  },
+  "/arc_mapping_node": {
+   "pubs": [
+    [
+     "/arc_mapping_state",
+     "robots_dog_msgs/msg/SlamState"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ],
+    [
+     "/tf",
+     "tf2_msgs/msg/TFMessage"
+    ]
+   ],
+   "subs": [
+    [
+     "/front_camera/image_compressed",
+     "sensor_msgs/msg/CompressedImage"
+    ],
+    [
+     "/odom/localization_odom",
+     "nav_msgs/msg/Odometry"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 7,
+   "actions": 0
+  },
+  "/arc_state_machine_node": {
+   "pubs": [
+    [
+     "/arc/arc_change_flag",
+     "robots_dog_msgs/msg/ArcChangeFlag"
+    ],
+    [
+     "/arc/arc_module_states_debug_info",
+     "std_msgs/msg/String"
+    ],
+    [
+     "/arc/arc_state",
+     "robots_dog_msgs/msg/ArcState"
+    ],
+    [
+     "/arc/arc_state_debug_info",
+     "std_msgs/msg/String"
+    ],
+    [
+     "/arc/dock_pose",
+     "robots_dog_msgs/msg/DockPoseStamped"
+    ],
+    [
+     "/arc/mc_mode_cmd",
+     "robots_dog_msgs/msg/McModeCmd"
+    ],
+    [
+     "/arc/nav_coarse_alignment_mode_cmd",
+     "robots_dog_msgs/msg/ArcModuleCmd"
+    ],
+    [
+     "/arc/nav_contact_alignment_mode_cmd",
+     "robots_dog_msgs/msg/ArcModuleCmd"
+    ],
+    [
+     "/arc/nav_fine_alignment_mode_cmd",
+     "robots_dog_msgs/msg/ArcModuleCmd"
+    ],
+    [
+     "/arc/perception_mode_cmd",
+     "robots_dog_msgs/msg/ArcModuleCmd"
+    ],
+    [
+     "/arc/slam_mode_cmd",
+     "robots_dog_msgs/msg/ArcModuleCmd"
+    ],
+    [
+     "/navigation_cmd",
+     "robots_dog_msgs/msg/NavigationCmd"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ],
+    [
+     "/start_navigation",
+     "robots_dog_msgs/msg/StartNavigation"
+    ]
+   ],
+   "subs": [
+    [
+     "/arc/arc_change_flag_test",
+     "robots_dog_msgs/msg/ArcChangeFlag"
+    ],
+    [
+     "/arc/calibration_state",
+     "robots_dog_msgs/msg/ArcModuleState"
+    ],
+    [
+     "/arc/dock_state",
+     "robots_dog_msgs/msg/DockState"
+    ],
+    [
+     "/arc/mc_state",
+     "robots_dog_msgs/msg/McState"
+    ],
+    [
+     "/arc/nav_coarse_alignment_state",
+     "robots_dog_msgs/msg/ArcModuleState"
+    ],
+    [
+     "/arc/nav_contact_alignment_state",
+     "robots_dog_msgs/msg/ArcModuleState"
+    ],
+    [
+     "/arc/nav_fine_alignment_state",
+     "robots_dog_msgs/msg/ArcModuleState"
+    ],
+    [
+     "/arc/perception_dock_pose",
+     "robots_dog_msgs/msg/DockPoseStamped"
+    ],
+    [
+     "/arc/perception_state",
+     "robots_dog_msgs/msg/ArcModuleState"
+    ],
+    [
+     "/arc/slam_dock_pose",
+     "robots_dog_msgs/msg/DockPoseStamped"
+    ],
+    [
+     "/arc/slam_state",
+     "robots_dog_msgs/msg/ArcModuleState"
+    ],
+    [
+     "/arc/start_arc",
+     "robots_dog_msgs/msg/StartArc"
+    ],
+    [
+     "/navigation_state",
+     "robots_dog_msgs/msg/NavigationState"
+    ],
+    [
+     "/odom/current_pose",
+     "nav_msgs/msg/Odometry"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 6,
+   "actions": 0
+  },
+  "/aritag_location_pipline": {
+   "pubs": [
+    [
+     "/arc/calibration_state",
+     "robots_dog_msgs/msg/ArcModuleState"
+    ],
+    [
+     "/arc/perception_dock_pose",
+     "robots_dog_msgs/msg/DockPoseStamped"
+    ],
+    [
+     "/arc/perception_state",
+     "robots_dog_msgs/msg/ArcModuleState"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ],
+    [
+     "/tf",
+     "tf2_msgs/msg/TFMessage"
+    ],
+    [
+     "/tf_static",
+     "tf2_msgs/msg/TFMessage"
+    ]
+   ],
+   "subs": [
+    [
+     "/arc/arc_state",
+     "robots_dog_msgs/msg/ArcState"
+    ],
+    [
+     "/arc/perception_mode_cmd",
+     "robots_dog_msgs/msg/ArcModuleCmd"
+    ],
+    [
+     "/front_camera/image_compressed",
+     "sensor_msgs/msg/CompressedImage"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 6,
+   "actions": 0
+  },
+  "/behavior_server": {
+   "pubs": [
+    [
+     "/navigo/cs/cmn/intf/cmd_vel_raw",
+     "geometry_msgs/msg/Twist"
+    ],
+    [
+     "/navigo/lm/cmn/dbg/behavior_server/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/navigo/lm/cmn/intf/bond",
+     "bond/msg/Status"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/navigo/lcc/cmn/vis/costmap_raw",
+     "nav2_msgs/msg/Costmap"
+    ],
+    [
+     "/navigo/lcc/cmn/vis/published_footprint",
+     "geometry_msgs/msg/PolygonStamped"
+    ],
+    [
+     "/navigo/lm/cmn/intf/bond",
+     "bond/msg/Status"
+    ],
+    [
+     "/odom/current_pose",
+     "nav_msgs/msg/Odometry"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 11,
+   "actions": 4
+  },
+  "/bridge_image_topics_24": {
+   "pubs": [
+    [
+     "/front_camera/image_compressed",
+     "sensor_msgs/msg/CompressedImage"
+    ],
+    [
+     "/rear_camera/image_compressed",
+     "sensor_msgs/msg/CompressedImage"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 0,
+   "actions": 0
+  },
+  "/bt_navigator": {
+   "pubs": [
+    [
+     "/navigo/ea/cmn/intf/nav_error",
+     "robots_dog_msgs/msg/NavigationError"
+    ],
+    [
+     "/navigo/ea/cmn/intf/nav_error_clear",
+     "robots_dog_msgs/msg/NavigationError"
+    ],
+    [
+     "/navigo/lm/cmn/dbg/bt_navigator/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/navigo/lm/cmn/intf/bond",
+     "bond/msg/Status"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/navigo/lm/cmn/intf/bond",
+     "bond/msg/Status"
+    ],
+    [
+     "/navigo/wf/cmn/intf/update_tracking_goal",
+     "geometry_msgs/msg/PoseStamped"
+    ],
+    [
+     "/odom/current_pose",
+     "nav_msgs/msg/Odometry"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/set_desired_angular_vel_z",
+     "std_msgs/msg/Float32"
+    ],
+    [
+     "/set_desired_linear_vel_x",
+     "std_msgs/msg/Float32"
+    ],
+    [
+     "/set_desired_linear_vel_y",
+     "std_msgs/msg/Float32"
+    ]
+   ],
+   "services": 11,
+   "actions": 4
+  },
+  "/bt_navigator_navigate_through_poses_rclcpp_node": {
+   "pubs": [
+    [
+     "/navigo/bn/cmn/dbg/behavior_tree_log",
+     "nav2_msgs/msg/BehaviorTreeLog"
+    ],
+    [
+     "/navigo/bn/cmn/vis/candidate_local_paths",
+     "robots_dog_msgs/msg/TrajectoryArray"
+    ],
+    [
+     "/navigo/bn/cmn/vis/global_path",
+     "nav_msgs/msg/Path"
+    ],
+    [
+     "/navigo/bn/cmn/vis/goal",
+     "geometry_msgs/msg/PoseStamped"
+    ],
+    [
+     "/navigo/bn/cmn/vis/goals",
+     "geometry_msgs/msg/PoseArray"
+    ],
+    [
+     "/navigo/bn/cmn/vis/local_path",
+     "nav_msgs/msg/Path"
+    ],
+    [
+     "/navigo/bn/cmn/vis/relocalization_goal",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 10,
+   "actions": 6
+  },
+  "/bt_navigator_navigate_to_pose_rclcpp_node": {
+   "pubs": [
+    [
+     "/navigo/bn/cmn/dbg/behavior_tree_log",
+     "nav2_msgs/msg/BehaviorTreeLog"
+    ],
+    [
+     "/navigo/bn/cmn/vis/candidate_local_paths",
+     "robots_dog_msgs/msg/TrajectoryArray"
+    ],
+    [
+     "/navigo/bn/cmn/vis/evaluated_goal",
+     "geometry_msgs/msg/PoseStamped"
+    ],
+    [
+     "/navigo/bn/cmn/vis/global_path",
+     "nav_msgs/msg/Path"
+    ],
+    [
+     "/navigo/bn/cmn/vis/goal",
+     "geometry_msgs/msg/PoseStamped"
+    ],
+    [
+     "/navigo/bn/cmn/vis/goals",
+     "geometry_msgs/msg/PoseArray"
+    ],
+    [
+     "/navigo/bn/cmn/vis/local_path",
+     "nav_msgs/msg/Path"
+    ],
+    [
+     "/navigo/bn/cmn/vis/predicted_goal",
+     "geometry_msgs/msg/PoseStamped"
+    ],
+    [
+     "/navigo/bn/cmn/vis/predicted_goal_path",
+     "robots_dog_msgs/msg/Trajectory"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 7,
+   "actions": 3
+  },
+  "/charging_alignment_server": {
+   "pubs": [
+    [
+     "/arc/nav_alignment/cmd_vel_raw",
+     "geometry_msgs/msg/Twist"
+    ],
+    [
+     "/arc/nav_alignment/debug_info",
+     "std_msgs/msg/String"
+    ],
+    [
+     "/arc/nav_alignment/error_vector",
+     "geometry_msgs/msg/PointStamped"
+    ],
+    [
+     "/arc/nav_coarse_alignment_state",
+     "robots_dog_msgs/msg/ArcModuleState"
+    ],
+    [
+     "/arc/nav_contact_alignment_state",
+     "robots_dog_msgs/msg/ArcModuleState"
+    ],
+    [
+     "/arc/nav_fine_alignment_state",
+     "robots_dog_msgs/msg/ArcModuleState"
+    ],
+    [
+     "/cmd_pos",
+     "geometry_msgs/msg/Pose"
+    ],
+    [
+     "/cmd_vel",
+     "geometry_msgs/msg/Twist"
+    ],
+    [
+     "/navigation_cmd",
+     "robots_dog_msgs/msg/NavigationCmd"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/arc/dock_pose",
+     "robots_dog_msgs/msg/DockPoseStamped"
+    ],
+    [
+     "/arc/nav_coarse_alignment_mode_cmd",
+     "robots_dog_msgs/msg/ArcModuleCmd"
+    ],
+    [
+     "/arc/nav_contact_alignment_mode_cmd",
+     "robots_dog_msgs/msg/ArcModuleCmd"
+    ],
+    [
+     "/arc/nav_fine_alignment_mode_cmd",
+     "robots_dog_msgs/msg/ArcModuleCmd"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 6,
+   "actions": 0
+  },
+  "/collision_monitor": {
+   "pubs": [
+    [
+     "/navigo/cm/cmn/vis/polygon_stop",
+     "geometry_msgs/msg/PolygonStamped"
+    ],
+    [
+     "/navigo/cm/cmn/vis/selective_stop",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/navigo/cs/cmn/intf/cmd_vel_valid",
+     "geometry_msgs/msg/Twist"
+    ],
+    [
+     "/navigo/ea/cmn/intf/nav_error",
+     "robots_dog_msgs/msg/NavigationError"
+    ],
+    [
+     "/navigo/ea/cmn/intf/nav_error_clear",
+     "robots_dog_msgs/msg/NavigationError"
+    ],
+    [
+     "/navigo/lm/cmn/dbg/collision_monitor/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/navigo/lm/cmn/intf/bond",
+     "bond/msg/Status"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/laser_scan",
+     "sensor_msgs/msg/LaserScan"
+    ],
+    [
+     "/navigo/cs/cmn/intf/cmd_vel_raw",
+     "geometry_msgs/msg/Twist"
+    ],
+    [
+     "/navigo/lm/cmn/intf/bond",
+     "bond/msg/Status"
+    ],
+    [
+     "/odom/current_pose",
+     "nav_msgs/msg/Odometry"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 11,
+   "actions": 0
+  },
+  "/controller_server": {
+   "pubs": [
+    [
+     "/cmd_vel_with_mc_trajectory",
+     "robots_dog_msgs/msg/CmdVelWithTrajectory"
+    ],
+    [
+     "/navigo/cs/cmn/intf/cmd_vel_raw",
+     "geometry_msgs/msg/Twist"
+    ],
+    [
+     "/navigo/cs/lpc/vis/base_candidate_plan",
+     "nav_msgs/msg/Path"
+    ],
+    [
+     "/navigo/cs/lpc/vis/best_local_plan",
+     "nav_msgs/msg/Path"
+    ],
+    [
+     "/navigo/cs/lpc/vis/footprint_collision",
+     "visualization_msgs/msg/Marker"
+    ],
+    [
+     "/navigo/cs/lpc/vis/footprint_samples",
+     "visualization_msgs/msg/Marker"
+    ],
+    [
+     "/navigo/cs/lpc/vis/free_paths",
+     "sensor_msgs/msg/PointCloud2"
+    ],
+    [
+     "/navigo/cs/lpc/vis/laser_point_cloud",
+     "sensor_msgs/msg/PointCloud2"
+    ],
+    [
+     "/navigo/cs/lpc/vis/local_planner_goal",
+     "geometry_msgs/msg/PoseStamped"
+    ],
+    [
+     "/navigo/cs/lpc/vis/lookahead_point",
+     "visualization_msgs/msg/Marker"
+    ],
+    [
+     "/navigo/cs/lpc/vis/received_global_plan",
+     "nav_msgs/msg/Path"
+    ],
+    [
+     "/navigo/cs/ppc/vis/curvature_lookahead_point",
+     "geometry_msgs/msg/PointStamped"
+    ],
+    [
+     "/navigo/cs/ppc/vis/lookahead_collision_arc",
+     "nav_msgs/msg/Path"
+    ],
+    [
+     "/navigo/cs/ppc/vis/lookahead_point",
+     "geometry_msgs/msg/PointStamped"
+    ],
+    [
+     "/navigo/cs/ppc/vis/predicted_points",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/navigo/cs/ppc/vis/received_global_plan",
+     "nav_msgs/msg/Path"
+    ],
+    [
+     "/navigo/ea/cmn/intf/nav_error",
+     "robots_dog_msgs/msg/NavigationError"
+    ],
+    [
+     "/navigo/ea/cmn/intf/nav_error_clear",
+     "robots_dog_msgs/msg/NavigationError"
+    ],
+    [
+     "/navigo/lm/cmn/dbg/controller_server/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/navigo/lm/cmn/intf/bond",
+     "bond/msg/Status"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/laser_scan",
+     "sensor_msgs/msg/LaserScan"
+    ],
+    [
+     "/navigo/cs/cmn/intf/cmd_vel_raw",
+     "geometry_msgs/msg/Twist"
+    ],
+    [
+     "/navigo/lm/cmn/intf/bond",
+     "bond/msg/Status"
+    ],
+    [
+     "/odom/current_pose",
+     "nav_msgs/msg/Odometry"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/set_lookahead_distance",
+     "std_msgs/msg/Float32"
+    ],
+    [
+     "/set_speed_limit",
+     "nav2_msgs/msg/SpeedLimit"
+    ]
+   ],
+   "services": 11,
+   "actions": 1
+  },
+  "/error_aggregator": {
+   "pubs": [
+    [
+     "/navigo/ea/cmn/intf/nav_error_primary",
+     "robots_dog_msgs/msg/NavigationError"
+    ],
+    [
+     "/navigo/ea/cmn/intf/nav_error_report",
+     "robots_dog_msgs/msg/NavigationErrorReport"
+    ],
+    [
+     "/navigo/ea/cmn/intf/nav_errors",
+     "robots_dog_msgs/msg/NavigationErrorSet"
+    ],
+    [
+     "/navigo/ea/cmn/intf/nav_lifecycle/behavior_server/state",
+     "lifecycle_msgs/msg/State"
+    ],
+    [
+     "/navigo/ea/cmn/intf/nav_lifecycle/bt_navigator/state",
+     "lifecycle_msgs/msg/State"
+    ],
+    [
+     "/navigo/ea/cmn/intf/nav_lifecycle/collision_monitor/state",
+     "lifecycle_msgs/msg/State"
+    ],
+    [
+     "/navigo/ea/cmn/intf/nav_lifecycle/controller_server/state",
+     "lifecycle_msgs/msg/State"
+    ],
+    [
+     "/navigo/ea/cmn/intf/nav_lifecycle/global_costmap/global_costmap/state",
+     "lifecycle_msgs/msg/State"
+    ],
+    [
+     "/navigo/ea/cmn/intf/nav_lifecycle/local_costmap/local_costmap/state",
+     "lifecycle_msgs/msg/State"
+    ],
+    [
+     "/navigo/ea/cmn/intf/nav_lifecycle/local_costmap_controller/local_costmap_controller/state",
+     "lifecycle_msgs/msg/State"
+    ],
+    [
+     "/navigo/ea/cmn/intf/nav_lifecycle/map_server/state",
+     "lifecycle_msgs/msg/State"
+    ],
+    [
+     "/navigo/ea/cmn/intf/nav_lifecycle/planner_server/state",
+     "lifecycle_msgs/msg/State"
+    ],
+    [
+     "/navigo/ea/cmn/intf/nav_lifecycle/velocity_optimizer/state",
+     "lifecycle_msgs/msg/State"
+    ],
+    [
+     "/navigo/ea/cmn/intf/nav_lifecycle/waypoint_follower/state",
+     "lifecycle_msgs/msg/State"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/laser_scan",
+     "sensor_msgs/msg/LaserScan"
+    ],
+    [
+     "/navigo/ea/cmn/intf/nav_error",
+     "robots_dog_msgs/msg/NavigationError"
+    ],
+    [
+     "/navigo/ea/cmn/intf/nav_error_clear",
+     "robots_dog_msgs/msg/NavigationError"
+    ],
+    [
+     "/navigo/lm/cmn/dbg/behavior_server/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/navigo/lm/cmn/dbg/bt_navigator/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/navigo/lm/cmn/dbg/collision_monitor/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/navigo/lm/cmn/dbg/controller_server/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/navigo/lm/cmn/dbg/global_costmap/global_costmap/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/navigo/lm/cmn/dbg/local_costmap/local_costmap/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/navigo/lm/cmn/dbg/local_costmap_controller/local_costmap_controller/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/navigo/lm/cmn/dbg/map_server/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/navigo/lm/cmn/dbg/planner_server/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/navigo/lm/cmn/dbg/velocity_optimizer/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/navigo/lm/cmn/dbg/waypoint_follower/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/odom/current_pose",
+     "nav_msgs/msg/Odometry"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 17,
+   "actions": 0
+  },
+  "/global_costmap/global_costmap": {
+   "pubs": [
+    [
+     "/navigo/gc/cmn/vis/costmap",
+     "nav_msgs/msg/OccupancyGrid"
+    ],
+    [
+     "/navigo/gc/cmn/vis/costmap_raw",
+     "nav2_msgs/msg/Costmap"
+    ],
+    [
+     "/navigo/gc/cmn/vis/costmap_updates",
+     "map_msgs/msg/OccupancyGridUpdate"
+    ],
+    [
+     "/navigo/gc/cmn/vis/published_footprint",
+     "geometry_msgs/msg/PolygonStamped"
+    ],
+    [
+     "/navigo/gc/ftr/vis/grouped_frontiers_map",
+     "nav_msgs/msg/OccupancyGrid"
+    ],
+    [
+     "/navigo/gc/ftr/vis/include_frontiers_map",
+     "nav_msgs/msg/OccupancyGrid"
+    ],
+    [
+     "/navigo/gc/ftr/vis/processed_map",
+     "nav_msgs/msg/OccupancyGrid"
+    ],
+    [
+     "/navigo/lm/cmn/dbg/global_costmap/global_costmap/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/electronic_fence",
+     "robots_dog_msgs/msg/ElectronicMap"
+    ],
+    [
+     "/navigo/gc/cmn/intf/footprint",
+     "geometry_msgs/msg/Polygon"
+    ],
+    [
+     "/navigo/ms/cmn/intf/map",
+     "nav_msgs/msg/OccupancyGrid"
+    ],
+    [
+     "/odom/current_pose",
+     "nav_msgs/msg/Odometry"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 16,
+   "actions": 0
+  },
+  "/imu_driver": {
+   "pubs": [
+    [
+     "/imu_driver/imu_central",
+     "sensor_msgs/msg/Imu"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 6,
+   "actions": 0
+  },
+  "/kanon_rust_charge": {
+   "pubs": [
+    [
+     "/arc/pile_ele_cmd",
+     "std_msgs/msg/Int8"
+    ],
+    [
+     "/arc/start_arc",
+     "robots_dog_msgs/msg/StartArc"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/arc/arc_state",
+     "robots_dog_msgs/msg/ArcState"
+    ],
+    [
+     "/arc/dock_state",
+     "robots_dog_msgs/msg/DockState"
+    ],
+    [
+     "/arc/pile_ele_result",
+     "std_msgs/msg/Int8"
+    ],
+    [
+     "/arc_mapping_state",
+     "robots_dog_msgs/msg/SlamState"
+    ]
+   ],
+   "services": 1,
+   "actions": 0
+  },
+  "/kanon_rust_loc": {
+   "pubs": [
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/localization_state",
+     "robots_dog_msgs/msg/LocalizationState"
+    ]
+   ],
+   "services": 2,
+   "actions": 0
+  },
+  "/kanon_rust_nav": {
+   "pubs": [
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ],
+    [
+     "/start_navigation",
+     "robots_dog_msgs/msg/StartNavigation"
+    ]
+   ],
+   "subs": [
+    [
+     "/localization_info",
+     "robots_dog_msgs/msg/Localization"
+    ],
+    [
+     "/navigation_state",
+     "robots_dog_msgs/msg/NavigationState"
+    ]
+   ],
+   "services": 1,
+   "actions": 0
+  },
+  "/kanon_rust_slam": {
+   "pubs": [
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/pub_slam_state",
+     "robots_dog_msgs/msg/SlamState"
+    ]
+   ],
+   "services": 1,
+   "actions": 0
+  },
+  "/launch_ros_2483": {
+   "pubs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [],
+   "services": 6,
+   "actions": 0
+  },
+  "/lifecycle_manager_navigation": {
+   "pubs": [
+    [
+     "/diagnostics",
+     "diagnostic_msgs/msg/DiagnosticArray"
+    ],
+    [
+     "/navigo/lm/cmn/intf/bond",
+     "bond/msg/Status"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/navigo/lm/cmn/intf/bond",
+     "bond/msg/Status"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 24,
+   "actions": 0
+  },
+  "/local_costmap_controller/local_costmap_controller": {
+   "pubs": [
+    [
+     "/navigo/lcc/cmn/vis/costmap",
+     "nav_msgs/msg/OccupancyGrid"
+    ],
+    [
+     "/navigo/lcc/cmn/vis/costmap_raw",
+     "nav2_msgs/msg/Costmap"
+    ],
+    [
+     "/navigo/lcc/cmn/vis/costmap_updates",
+     "map_msgs/msg/OccupancyGridUpdate"
+    ],
+    [
+     "/navigo/lcc/cmn/vis/published_footprint",
+     "geometry_msgs/msg/PolygonStamped"
+    ],
+    [
+     "/navigo/lcc/obs/vis/published_goal_safe_area",
+     "geometry_msgs/msg/PolygonStamped"
+    ],
+    [
+     "/navigo/lm/cmn/dbg/local_costmap_controller/local_costmap_controller/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/laser_scan",
+     "sensor_msgs/msg/LaserScan"
+    ],
+    [
+     "/navigo/lcc/cmn/intf/footprint",
+     "geometry_msgs/msg/Polygon"
+    ],
+    [
+     "/navigo/ps/cmn/intf/clean_obstacles_around_goal",
+     "geometry_msgs/msg/PoseStamped"
+    ],
+    [
+     "/odom/current_pose",
+     "nav_msgs/msg/Odometry"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 15,
+   "actions": 0
+  },
+  "/local_costmap/local_costmap": {
+   "pubs": [
+    [
+     "/navigo/lc/cmn/vis/costmap",
+     "nav_msgs/msg/OccupancyGrid"
+    ],
+    [
+     "/navigo/lc/cmn/vis/costmap_raw",
+     "nav2_msgs/msg/Costmap"
+    ],
+    [
+     "/navigo/lc/cmn/vis/costmap_updates",
+     "map_msgs/msg/OccupancyGridUpdate"
+    ],
+    [
+     "/navigo/lc/cmn/vis/published_footprint",
+     "geometry_msgs/msg/PolygonStamped"
+    ],
+    [
+     "/navigo/lc/obs/vis/published_goal_safe_area",
+     "geometry_msgs/msg/PolygonStamped"
+    ],
+    [
+     "/navigo/lm/cmn/dbg/local_costmap/local_costmap/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/electronic_map",
+     "robots_dog_msgs/msg/ElectronicMap"
+    ],
+    [
+     "/laser_scan",
+     "sensor_msgs/msg/LaserScan"
+    ],
+    [
+     "/navigo/lc/cmn/intf/footprint",
+     "geometry_msgs/msg/Polygon"
+    ],
+    [
+     "/navigo/ps/cmn/intf/clean_obstacles_around_goal",
+     "geometry_msgs/msg/PoseStamped"
+    ],
+    [
+     "/odom/current_pose",
+     "nav_msgs/msg/Odometry"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 15,
+   "actions": 0
+  },
+  "/localization": {
+   "pubs": [
+    [
+     "/aligned_points",
+     "sensor_msgs/msg/PointCloud2"
+    ],
+    [
+     "/body_points",
+     "sensor_msgs/msg/PointCloud2"
+    ],
+    [
+     "/global_map_points",
+     "sensor_msgs/msg/PointCloud2"
+    ],
+    [
+     "/lio_pose",
+     "nav_msgs/msg/Odometry"
+    ],
+    [
+     "/localization_info",
+     "robots_dog_msgs/msg/Localization"
+    ],
+    [
+     "/localization_path",
+     "nav_msgs/msg/Path"
+    ],
+    [
+     "/localization_state",
+     "robots_dog_msgs/msg/LocalizationState"
+    ],
+    [
+     "/odom/localization_odom",
+     "nav_msgs/msg/Odometry"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/perception_points",
+     "robots_dog_msgs/msg/PerceptionPoints"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ],
+    [
+     "/tf",
+     "tf2_msgs/msg/TFMessage"
+    ]
+   ],
+   "subs": [
+    [
+     "/front_camera/image_compressed",
+     "sensor_msgs/msg/CompressedImage"
+    ],
+    [
+     "/front_lidar",
+     "sensor_msgs/msg/PointCloud2"
+    ],
+    [
+     "/front_lidar/imu",
+     "sensor_msgs/msg/Imu"
+    ],
+    [
+     "/gnss/data",
+     "robots_dog_msgs/msg/Nmea"
+    ],
+    [
+     "/gps/rtk",
+     "sensor_msgs/msg/NavSatFix"
+    ],
+    [
+     "/initialpose",
+     "geometry_msgs/msg/PoseWithCovarianceStamped"
+    ],
+    [
+     "/odom/mc_odom",
+     "nav_msgs/msg/Odometry"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rear_lidar",
+     "sensor_msgs/msg/PointCloud2"
+    ],
+    [
+     "/uni_best_nav",
+     "robots_dog_msgs/msg/UniBestNav"
+    ],
+    [
+     "/uni_heading",
+     "robots_dog_msgs/msg/UniHeading"
+    ],
+    [
+     "/uni_rtk_pvh",
+     "robots_dog_msgs/msg/UniRtkPvh"
+    ]
+   ],
+   "services": 9,
+   "actions": 0
+  },
+  "/map_server": {
+   "pubs": [
+    [
+     "/navigo/lm/cmn/dbg/map_server/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/navigo/lm/cmn/intf/bond",
+     "bond/msg/Status"
+    ],
+    [
+     "/navigo/ms/cmn/intf/map",
+     "nav_msgs/msg/OccupancyGrid"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/navigo/lm/cmn/intf/bond",
+     "bond/msg/Status"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 13,
+   "actions": 0
+  },
+  "/MEB": {
+   "pubs": [
+    [
+     "/cmd_vel",
+     "geometry_msgs/msg/Twist"
+    ],
+    [
+     "/meb/collision_debug",
+     "visualization_msgs/msg/Marker"
+    ],
+    [
+     "/meb/pred_path",
+     "nav_msgs/msg/Path"
+    ],
+    [
+     "/meb/safety_corridor",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/meb_brake",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/meb_status",
+     "std_msgs/msg/UInt8"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/handle_vel",
+     "geometry_msgs/msg/Twist"
+    ],
+    [
+     "/laser_scan",
+     "sensor_msgs/msg/LaserScan"
+    ],
+    [
+     "/meb_switch",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 6,
+   "actions": 0
+  },
+  "/nav2_container": {
+   "pubs": [
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 0,
+   "actions": 0
+  },
+  "/perception_jobs": {
+   "pubs": [
+    [
+     "/laser_scan",
+     "sensor_msgs/msg/LaserScan"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/perception_state",
+     "std_msgs/msg/Int32"
+    ],
+    [
+     "/polygons",
+     "robots_dog_msgs/msg/RectangleArray"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ],
+    [
+     "/seg_vis/compressed",
+     "sensor_msgs/msg/CompressedImage"
+    ]
+   ],
+   "subs": [
+    [
+     "/front_camera/image_compressed",
+     "sensor_msgs/msg/CompressedImage"
+    ],
+    [
+     "/front_lidar",
+     "sensor_msgs/msg/PointCloud2"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 7,
+   "actions": 0
+  },
+  "/planner_server": {
+   "pubs": [
+    [
+     "/navigo/ea/cmn/intf/nav_error",
+     "robots_dog_msgs/msg/NavigationError"
+    ],
+    [
+     "/navigo/ea/cmn/intf/nav_error_clear",
+     "robots_dog_msgs/msg/NavigationError"
+    ],
+    [
+     "/navigo/lm/cmn/dbg/planner_server/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/navigo/lm/cmn/intf/bond",
+     "bond/msg/Status"
+    ],
+    [
+     "/navigo/ps/cmn/intf/clean_obstacles_around_goal",
+     "geometry_msgs/msg/PoseStamped"
+    ],
+    [
+     "/navigo/ps/cmn/vis/get_optimized_path_all_paths_visualization",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/navigo/ps/cmn/vis/get_optimized_path_corridor_visualization",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/navigo/ps/cmn/vis/get_optimized_path_matched_points_markers",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/navigo/ps/cmn/vis/global_esdf_pos_distance",
+     "nav_msgs/msg/OccupancyGrid"
+    ],
+    [
+     "/navigo/ps/cmn/vis/local_esdf_pos_distance",
+     "nav_msgs/msg/OccupancyGrid"
+    ],
+    [
+     "/navigo/ps/cmn/vis/planned_path",
+     "nav_msgs/msg/Path"
+    ],
+    [
+     "/navigo/ps/cmn/vis/planned_trajectories",
+     "robots_dog_msgs/msg/Trajectory"
+    ],
+    [
+     "/navigo/ps/cmn/vis/quadtree_topo_graph",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/navigo/ps/slp/vis/start_end_visualization",
+     "geometry_msgs/msg/PoseArray"
+    ],
+    [
+     "/navigo/ps/stp/dbg/planner_debug_info",
+     "robots_dog_msgs/msg/PlannerDebugInfo"
+    ],
+    [
+     "/navigo/ps/stp/vis/corridor_clearance_visualization",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/navigo/ps/stp/vis/front_end_exploration_traj_visualization",
+     "robots_dog_msgs/msg/RectangleArray"
+    ],
+    [
+     "/navigo/ps/stp/vis/front_end_goal_connection_traj_visualization",
+     "robots_dog_msgs/msg/RectangleArray"
+    ],
+    [
+     "/navigo/ps/stp/vis/front_end_middle_traj_visualization",
+     "robots_dog_msgs/msg/RectangleArray"
+    ],
+    [
+     "/navigo/ps/stp/vis/front_end_shot_traj_visualization",
+     "robots_dog_msgs/msg/RectangleArray"
+    ],
+    [
+     "/navigo/ps/stp/vis/front_end_start_connection_traj_visualization",
+     "robots_dog_msgs/msg/RectangleArray"
+    ],
+    [
+     "/navigo/ps/stp/vis/front_end_traj_visualization",
+     "robots_dog_msgs/msg/RectangleArray"
+    ],
+    [
+     "/navigo/ps/stp/vis/guidance_path",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/navigo/ps/stp/vis/hybrid_astar_exploration_points",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/navigo/ps/stp/vis/hybrid_astar_search/candidate_inputs",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/navigo/ps/stp/vis/hybrid_astar_search/cost_indicators",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/navigo/ps/stp/vis/hybrid_astar_search/direction_arrows",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/navigo/ps/stp/vis/hybrid_astar_search/explored_nodes",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/navigo/ps/stp/vis/hybrid_astar_search/robot_footprint",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/navigo/ps/stp/vis/hybrid_astar_search/selected_input",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/navigo/ps/stp/vis/hybrid_astar_search/shot_path",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/navigo/ps/stp/vis/hybrid_astar_start_end_sampling_points",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/navigo/ps/stp/vis/quadtree_dijkstra_progress",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/navigo/ps/stp/vis/quadtree_multi_inflation_results",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/navigo/ps/stp/vis/quadtree_path_visualization",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/navigo/ps/stp/vis/quadtree_start_goal_grids",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/navigo/ps/stp/vis/safe_drive_corridor",
+     "robots_dog_msgs/msg/RectangleArray"
+    ],
+    [
+     "/navigo/ps/stp/vis/start_end_visualization",
+     "geometry_msgs/msg/PoseArray"
+    ],
+    [
+     "/navigo/ps/stp/vis/tracking_searcher_each_expansion_step_planner_goal",
+     "geometry_msgs/msg/PoseStamped"
+    ],
+    [
+     "/navigo/ps/tpg/vis/centerline_points",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/navigo/ps/tpg/vis/esdf_cloud",
+     "sensor_msgs/msg/PointCloud2"
+    ],
+    [
+     "/navigo/ps/tpg/vis/esdf_slice",
+     "nav_msgs/msg/OccupancyGrid"
+    ],
+    [
+     "/navigo/ps/tpg/vis/pcd_overlay",
+     "sensor_msgs/msg/PointCloud2"
+    ],
+    [
+     "/navigo/ps/tpg/vis/three_dim_search_path",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/navigo/ps/tpg/vis/three_dim_topo_edges",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/navigo/ps/tpg/vis/three_dim_topo_nodes",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/navigo/ps/tpg/vis/virtual_walls",
+     "visualization_msgs/msg/MarkerArray"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/navigo/lm/cmn/intf/bond",
+     "bond/msg/Status"
+    ],
+    [
+     "/odom/current_pose",
+     "nav_msgs/msg/Odometry"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/predicted_paths",
+     "robots_dog_msgs/msg/PredictedPathArray"
+    ]
+   ],
+   "services": 23,
+   "actions": 3
+  },
+  "/remoix_rust_interface": {
+   "pubs": [
+    [
+     "/arc/dock_state",
+     "robots_dog_msgs/msg/DockState"
+    ],
+    [
+     "/arc/mc_state",
+     "robots_dog_msgs/msg/McState"
+    ],
+    [
+     "/handle_vel",
+     "geometry_msgs/msg/Twist"
+    ],
+    [
+     "/odom/mc_odom",
+     "nav_msgs/msg/Odometry"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/arc/arc_state",
+     "robots_dog_msgs/msg/ArcState"
+    ],
+    [
+     "/arc/mc_mode_cmd",
+     "robots_dog_msgs/msg/McModeCmd"
+    ],
+    [
+     "/cmd_pos",
+     "geometry_msgs/msg/Pose"
+    ],
+    [
+     "/cmd_vel",
+     "geometry_msgs/msg/Twist"
+    ],
+    [
+     "/meb_brake",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/navigation_cmd",
+     "robots_dog_msgs/msg/NavigationCmd"
+    ]
+   ],
+   "services": 0,
+   "actions": 0
+  },
+  "/robot_slam": {
+   "pubs": [
+    [
+     "/odom/slam_odom",
+     "nav_msgs/msg/Odometry"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/perception_points",
+     "robots_dog_msgs/msg/PerceptionPoints"
+    ],
+    [
+     "/pub_slam_state",
+     "robots_dog_msgs/msg/SlamState"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ],
+    [
+     "/world_points",
+     "sensor_msgs/msg/PointCloud2"
+    ]
+   ],
+   "subs": [
+    [
+     "/front_camera/image_compressed",
+     "sensor_msgs/msg/CompressedImage"
+    ],
+    [
+     "/front_lidar",
+     "sensor_msgs/msg/PointCloud2"
+    ],
+    [
+     "/front_lidar/imu",
+     "sensor_msgs/msg/Imu"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rear_lidar",
+     "sensor_msgs/msg/PointCloud2"
+    ],
+    [
+     "/slam/manual_loop",
+     "std_msgs/msg/Float64MultiArray"
+    ]
+   ],
+   "services": 8,
+   "actions": 0
+  },
+  "/robot_tf": {
+   "pubs": [
+    [
+     "/odom/current_pose",
+     "nav_msgs/msg/Odometry"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ],
+    [
+     "/tf",
+     "tf2_msgs/msg/TFMessage"
+    ],
+    [
+     "/tf_manager/odom_type",
+     "std_msgs/msg/Header"
+    ],
+    [
+     "/tf_static",
+     "tf2_msgs/msg/TFMessage"
+    ]
+   ],
+   "subs": [
+    [
+     "/odom/gazebo_odom",
+     "nav_msgs/msg/Odometry"
+    ],
+    [
+     "/odom/localization_odom",
+     "nav_msgs/msg/Odometry"
+    ],
+    [
+     "/odom/mc_odom",
+     "nav_msgs/msg/Odometry"
+    ],
+    [
+     "/odom/mujoco_odom",
+     "nav_msgs/msg/Odometry"
+    ],
+    [
+     "/odom/slam_odom",
+     "nav_msgs/msg/Odometry"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 6,
+   "actions": 0
+  },
+  "/ros2_alg_interface": {
+   "pubs": [
+    [
+     "/meb_switch",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ],
+    [
+     "/srv/event",
+     "robots_dog_msgs/msg/SrvEvent"
+    ]
+   ],
+   "subs": [
+    [
+     "/goal",
+     "geometry_msgs/msg/PoseStamped"
+    ],
+    [
+     "/meb_status",
+     "std_msgs/msg/UInt8"
+    ],
+    [
+     "/navigo/bn/cmn/vis/global_path",
+     "nav_msgs/msg/Path"
+    ],
+    [
+     "/navigo/bn/cmn/vis/local_path",
+     "nav_msgs/msg/Path"
+    ],
+    [
+     "/odom/current_pose",
+     "nav_msgs/msg/Odometry"
+    ]
+   ],
+   "services": 0,
+   "actions": 0
+  },
+  "/rslidar_sdk/param_handle": {
+   "pubs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 6,
+   "actions": 0
+  },
+  "/rslidar_sdk/rslidar_points_destination_0": {
+   "pubs": [
+    [
+     "/front_lidar",
+     "sensor_msgs/msg/PointCloud2"
+    ],
+    [
+     "/front_lidar/imu",
+     "sensor_msgs/msg/Imu"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 6,
+   "actions": 0
+  },
+  "/rslidar_sdk/rslidar_points_destination_1": {
+   "pubs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rear_lidar",
+     "sensor_msgs/msg/PointCloud2"
+    ],
+    [
+     "/rear_lidar/imu",
+     "sensor_msgs/msg/Imu"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 6,
+   "actions": 0
+  },
+  "/rust_debug_node": {
+   "pubs": [
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/arc/arc_module_states_debug_info",
+     "std_msgs/msg/String"
+    ],
+    [
+     "/diagnostics/nav_error_report",
+     "robots_dog_msgs/msg/NavigationErrorReport"
+    ]
+   ],
+   "services": 0,
+   "actions": 0
+  },
+  "/sixents_gps_driver": {
+   "pubs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ],
+    [
+     "/rtk_pvh",
+     "robots_dog_msgs/msg/UniRtkPvh"
+    ],
+    [
+     "/uni_best_nav",
+     "robots_dog_msgs/msg/UniBestNav"
+    ],
+    [
+     "/uni_heading",
+     "robots_dog_msgs/msg/UniHeading"
+    ]
+   ],
+   "subs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 6,
+   "actions": 0
+  },
+  "/uss_driver": {
+   "pubs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ],
+    [
+     "/uss_driver/uss_left/range",
+     "sensor_msgs/msg/Range"
+    ],
+    [
+     "/uss_driver/uss_right/range",
+     "sensor_msgs/msg/Range"
+    ]
+   ],
+   "subs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 6,
+   "actions": 0
+  },
+  "/uwb_driver": {
+   "pubs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ],
+    [
+     "/uwb",
+     "uwb_driver/msg/Uwb"
+    ]
+   ],
+   "subs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 6,
+   "actions": 0
+  },
+  "/velocity_optimizer": {
+   "pubs": [
+    [
+     "/cmd_vel",
+     "geometry_msgs/msg/Twist"
+    ],
+    [
+     "/navigation_cmd",
+     "robots_dog_msgs/msg/NavigationCmd"
+    ],
+    [
+     "/navigo/lm/cmn/dbg/velocity_optimizer/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/navigo/lm/cmn/intf/bond",
+     "bond/msg/Status"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/navigo/cs/cmn/intf/cmd_vel_valid",
+     "geometry_msgs/msg/Twist"
+    ],
+    [
+     "/navigo/lm/cmn/intf/bond",
+     "bond/msg/Status"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 11,
+   "actions": 0
+  },
+  "/waypoint_follower": {
+   "pubs": [
+    [
+     "/navigation_state",
+     "robots_dog_msgs/msg/NavigationState"
+    ],
+    [
+     "/navigo/ea/cmn/intf/nav_error",
+     "robots_dog_msgs/msg/NavigationError"
+    ],
+    [
+     "/navigo/ea/cmn/intf/nav_error_clear",
+     "robots_dog_msgs/msg/NavigationError"
+    ],
+    [
+     "/navigo/lm/cmn/dbg/waypoint_follower/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/navigo/lm/cmn/intf/bond",
+     "bond/msg/Status"
+    ],
+    [
+     "/navigo/wf/cmn/intf/update_tracking_goal",
+     "geometry_msgs/msg/PoseStamped"
+    ],
+    [
+     "/navigo/wf/cmn/vis/original_reference_path",
+     "nav_msgs/msg/Path"
+    ],
+    [
+     "/odom/current_pose/history",
+     "nav_msgs/msg/Path"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/localization_state",
+     "robots_dog_msgs/msg/LocalizationState"
+    ],
+    [
+     "/navigo/lm/cmn/intf/bond",
+     "bond/msg/Status"
+    ],
+    [
+     "/odom/current_pose",
+     "nav_msgs/msg/Odometry"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/perception/detection3d",
+     "vision_msgs/msg/Detection3DArray"
+    ],
+    [
+     "/pers/state",
+     "robots_dog_msgs/msg/PerceptionState"
+    ],
+    [
+     "/start_navigation",
+     "robots_dog_msgs/msg/StartNavigation"
+    ],
+    [
+     "/uwb_point",
+     "geometry_msgs/msg/PointStamped"
+    ]
+   ],
+   "services": 19,
+   "actions": 4
+  }
+ },
+ "rk": {
+  "/battery_controller": {
+   "pubs": [
+    [
+     "/battery_controller/battery1",
+     "sensor_msgs/msg/BatteryState"
+    ],
+    [
+     "/battery_controller/battery2",
+     "sensor_msgs/msg/BatteryState"
+    ],
+    [
+     "/battery_controller/battery_all",
+     "sensor_msgs/msg/BatteryState"
+    ],
+    [
+     "/battery_controller/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 6,
+   "actions": 0
+  },
+  "/bridge_image_topics_66": {
+   "pubs": [
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/front_camera/image_compressed",
+     "sensor_msgs/msg/CompressedImage"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rear_camera/image_compressed",
+     "sensor_msgs/msg/CompressedImage"
+    ]
+   ],
+   "services": 0,
+   "actions": 0
+  },
+  "/ComponentManager": {
+   "pubs": [
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 0,
+   "actions": 0
+  },
+  "/controller_manager": {
+   "pubs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 16,
+   "actions": 0
+  },
+  "/fill_light_controller": {
+   "pubs": [
+    [
+     "/fill_light_controller/auto_work_state",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/fill_light_controller/back_light/state",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/fill_light_controller/front_light/state",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/fill_light_controller/lux",
+     "sensor_msgs/msg/Illuminance"
+    ],
+    [
+     "/fill_light_controller/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/fill_light_controller/auto_work",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/fill_light_controller/back_light/cmd",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/fill_light_controller/front_light/cmd",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 6,
+   "actions": 0
+  },
+  "/imu_shm_publisher": {
+   "pubs": [
+    [
+     "/imu_shm_publisher/imu_central",
+     "sensor_msgs/msg/Imu"
+    ],
+    [
+     "/imu_shm_publisher/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 6,
+   "actions": 0
+  },
+  "/joint_shm_controller": {
+   "pubs": [
+    [
+     "/joint_shm_controller/joint_cmd_echo",
+     "sensor_msgs/msg/JointState"
+    ],
+    [
+     "/joint_shm_controller/joint_sensor",
+     "robot_common_interface/msg/JointSensor"
+    ],
+    [
+     "/joint_shm_controller/joint_states",
+     "sensor_msgs/msg/JointState"
+    ],
+    [
+     "/joint_shm_controller/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/robot_manager/robot_status",
+     "robot_common_interface/msg/RobotStatus"
+    ]
+   ],
+   "services": 6,
+   "actions": 0
+  },
+  "/launch_ros_2132": {
+   "pubs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/robot_remote/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ]
+   ],
+   "services": 7,
+   "actions": 0
+  },
+  "/led_controller": {
+   "pubs": [
+    [
+     "/led_controller/auto_work_state",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/led_controller/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/battery_controller/battery1",
+     "sensor_msgs/msg/BatteryState"
+    ],
+    [
+     "/battery_controller/battery2",
+     "sensor_msgs/msg/BatteryState"
+    ],
+    [
+     "/battery_controller/battery_all",
+     "sensor_msgs/msg/BatteryState"
+    ],
+    [
+     "/estop_controller/hw_estop/state",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/estop_controller/sw_estop/state",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/led_controller/auto_work",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/led_controller/led_cmd",
+     "robot_common_interface/msg/LedCommand"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/robot_manager/robot_status",
+     "robot_common_interface/msg/RobotStatus"
+    ],
+    [
+     "/robot_monitor/diagnostic_status",
+     "robot_common_interface/msg/RobotDiagnosticStatus"
+    ],
+    [
+     "/robot_monitor/power_on_status",
+     "robot_common_interface/msg/PowerOnStatus"
+    ],
+    [
+     "/robot_remote/locked_state",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/robot_remote/reverse_head_tail",
+     "std_msgs/msg/String"
+    ],
+    [
+     "/robot_roamerx/alg_dtc",
+     "robot_common_interface/msg/RoamerxAlgDtc"
+    ],
+    [
+     "/robot_roamerx/alg_status",
+     "robot_common_interface/msg/RoamerxAlgStatus"
+    ]
+   ],
+   "services": 6,
+   "actions": 0
+  },
+  "/robot_camera": {
+   "pubs": [
+    [
+     "/front_camera/image_compressed",
+     "sensor_msgs/msg/CompressedImage"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rear_camera/image_compressed",
+     "sensor_msgs/msg/CompressedImage"
+    ],
+    [
+     "/robot_camera/record_mp4_ack",
+     "robot_common_interface/msg/RecordMp4Ack"
+    ],
+    [
+     "/robot_camera/record_mp4_status",
+     "robot_common_interface/msg/RecordMp4Status"
+    ],
+    [
+     "/robot_camera/take_photo_ack",
+     "robot_common_interface/msg/RecordPhotoAck"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ],
+    [
+     "/tf/tf_ack",
+     "robot_common_interface/msg/TFCardAck"
+    ]
+   ],
+   "subs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/robot_camera/record_mp4",
+     "robot_common_interface/msg/RecordMp4Request"
+    ],
+    [
+     "/robot_camera/take_photo",
+     "robot_common_interface/msg/RecordPhotoRequest"
+    ],
+    [
+     "/tf/tf_req",
+     "robot_common_interface/msg/TFCardRequest"
+    ]
+   ],
+   "services": 7,
+   "actions": 0
+  },
+  "/robot_diagnostic_analyzer": {
+   "pubs": [
+    [
+     "/diagnostics_agg",
+     "diagnostic_msgs/msg/DiagnosticArray"
+    ],
+    [
+     "/diagnostics_toplevel_state",
+     "diagnostic_msgs/msg/DiagnosticStatus"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/diagnostics",
+     "diagnostic_msgs/msg/DiagnosticArray"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 6,
+   "actions": 0
+  },
+  "/robot_diagnostic_manager": {
+   "pubs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/robot_monitor/diagnostic_status",
+     "robot_common_interface/msg/RobotDiagnosticStatus"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/diagnostics_agg",
+     "diagnostic_msgs/msg/DiagnosticArray"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 6,
+   "actions": 0
+  },
+  "/robot_hal": {
+   "pubs": [
+    [
+     "/diagnostics",
+     "diagnostic_msgs/msg/DiagnosticArray"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/robot_hal/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 12,
+   "actions": 0
+  },
+  "/robot_manager": {
+   "pubs": [
+    [
+     "/diagnostics",
+     "diagnostic_msgs/msg/DiagnosticArray"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/robot_manager/robot_status",
+     "robot_common_interface/msg/RobotStatus"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/robot_monitor/diagnostic_status",
+     "robot_common_interface/msg/RobotDiagnosticStatus"
+    ],
+    [
+     "/robot_roamerx/is_in_nav_control",
+     "std_msgs/msg/Bool"
+    ]
+   ],
+   "services": 6,
+   "actions": 0
+  },
+  "/robot_monitor": {
+   "pubs": [
+    [
+     "/diagnostics",
+     "diagnostic_msgs/msg/DiagnosticArray"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/robot_monitor/power_on_status",
+     "robot_common_interface/msg/PowerOnStatus"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 6,
+   "actions": 0
+  },
+  "/robot_remote": {
+   "pubs": [
+    [
+     "/diagnostics",
+     "diagnostic_msgs/msg/DiagnosticArray"
+    ],
+    [
+     "/estop_controller/sw_estop/state",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/fill_light_controller/auto_work",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/fill_light_controller/back_light/cmd",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/fill_light_controller/front_light/cmd",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/robot_camera/record_mp4",
+     "robot_common_interface/msg/RecordMp4Request"
+    ],
+    [
+     "/robot_camera/take_photo",
+     "robot_common_interface/msg/RecordPhotoRequest"
+    ],
+    [
+     "/robot_remote/knee_mode",
+     "std_msgs/msg/String"
+    ],
+    [
+     "/robot_remote/locked_state",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/robot_remote/obstacle_avoidance",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/robot_remote/reverse_head_tail",
+     "std_msgs/msg/String"
+    ],
+    [
+     "/robot_remote/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ],
+    [
+     "/tf/tf_req",
+     "robot_common_interface/msg/TFCardRequest"
+    ]
+   ],
+   "subs": [
+    [
+     "/arc/charging_dock_info",
+     "robot_common_interface/msg/ChargingDockInfo"
+    ],
+    [
+     "/battery_controller/battery1",
+     "sensor_msgs/msg/BatteryState"
+    ],
+    [
+     "/battery_controller/battery2",
+     "sensor_msgs/msg/BatteryState"
+    ],
+    [
+     "/diagnostics_agg",
+     "diagnostic_msgs/msg/DiagnosticArray"
+    ],
+    [
+     "/fill_light_controller/auto_work_state",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/fill_light_controller/back_light/state",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/fill_light_controller/front_light/state",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/fill_light_controller/lux",
+     "sensor_msgs/msg/Illuminance"
+    ],
+    [
+     "/imu_shm_publisher/imu_central",
+     "sensor_msgs/msg/Imu"
+    ],
+    [
+     "/joint_shm_controller/joint_sensor",
+     "robot_common_interface/msg/JointSensor"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/robot_camera/record_mp4_ack",
+     "robot_common_interface/msg/RecordMp4Ack"
+    ],
+    [
+     "/robot_camera/record_mp4_status",
+     "robot_common_interface/msg/RecordMp4Status"
+    ],
+    [
+     "/robot_camera/take_photo_ack",
+     "robot_common_interface/msg/RecordPhotoAck"
+    ],
+    [
+     "/robot_manager/robot_status",
+     "robot_common_interface/msg/RobotStatus"
+    ],
+    [
+     "/robot_monitor/diagnostic_status",
+     "robot_common_interface/msg/RobotDiagnosticStatus"
+    ],
+    [
+     "/robot_monitor/power_on_status",
+     "robot_common_interface/msg/PowerOnStatus"
+    ],
+    [
+     "/switch_controller/hw_estop/state",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/tf/tf_ack",
+     "robot_common_interface/msg/TFCardAck"
+    ]
+   ],
+   "services": 13,
+   "actions": 0
+  },
+  "/robot_roamerx": {
+   "pubs": [
+    [
+     "/arc/charging_dock_info",
+     "robot_common_interface/msg/ChargingDockInfo"
+    ],
+    [
+     "/diagnostics",
+     "diagnostic_msgs/msg/DiagnosticArray"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/robot_roamerx/alg_dtc",
+     "robot_common_interface/msg/RoamerxAlgDtc"
+    ],
+    [
+     "/robot_roamerx/alg_status",
+     "robot_common_interface/msg/RoamerxAlgStatus"
+    ],
+    [
+     "/robot_roamerx/is_in_nav_control",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/robot_roamerx/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/battery_controller/battery1",
+     "sensor_msgs/msg/BatteryState"
+    ],
+    [
+     "/battery_controller/battery2",
+     "sensor_msgs/msg/BatteryState"
+    ],
+    [
+     "/cmd_vel",
+     "geometry_msgs/msg/Twist"
+    ],
+    [
+     "/control_right/test",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/imu_shm_publisher/imu_central",
+     "sensor_msgs/msg/Imu"
+    ],
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 12,
+   "actions": 0
+  },
+  "/robot_self_test_manager": {
+   "pubs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 7,
+   "actions": 0
+  },
+  "/switch_controller": {
+   "pubs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ],
+    [
+     "/switch_controller/hw_estop/state",
+     "std_msgs/msg/Bool"
+    ],
+    [
+     "/switch_controller/transition_event",
+     "lifecycle_msgs/msg/TransitionEvent"
+    ]
+   ],
+   "subs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 6,
+   "actions": 0
+  },
+  "/zsi_actuator_driver": {
+   "pubs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 6,
+   "actions": 0
+  },
+  "/zsi_imu_driver": {
+   "pubs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ],
+    [
+     "/rosout",
+     "rcl_interfaces/msg/Log"
+    ]
+   ],
+   "subs": [
+    [
+     "/parameter_events",
+     "rcl_interfaces/msg/ParameterEvent"
+    ]
+   ],
+   "services": 6,
+   "actions": 0
+  }
+ }
+}

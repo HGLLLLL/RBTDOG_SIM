@@ -32,6 +32,9 @@ else                           RK_IP="${POS[0]:-192.168.234.1}"; fi
 NX_IP="${POS[1]:-192.168.168.100}"
 RK_PW="${RK_PW:-bot}"
 
+# ⚠️ 這行漏了會在最後重建圖表那步炸掉（set -u → HERE: unbound variable）
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 SSH_OPTS=(-o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new
           -o ControlMaster=auto -o ControlPersist=600
           -o ControlPath="/tmp/.recon5-%r@%h:%p")

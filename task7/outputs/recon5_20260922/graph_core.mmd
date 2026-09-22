@@ -1,0 +1,312 @@
+flowchart LR
+  subgraph NX["Orin NX（應用板）"]
+    subgraph nx_感測驅動["感測驅動"]
+      n1["/imu_driver"]
+      n2["/rslidar_sdk/param_handle"]
+      n3["/rslidar_sdk/rslidar_points_destination_0"]
+      n4["/rslidar_sdk/rslidar_points_destination_1"]
+      n5["/sixents_gps_driver"]
+      n6["/uss_driver"]
+      n7["/uwb_driver"]
+    end
+    subgraph nx_SLAM定位["SLAM／定位"]
+      n8["/arc_lvio_node"]
+      n9["/arc_mapping_node"]
+      n10["/aritag_location_pipline"]
+      n11["/kanon_rust_slam"]
+      n12["/localization"]
+      n13["/robot_slam"]
+      n14["/robot_tf"]
+    end
+    subgraph nx_感知["感知"]
+      n15["/perception_jobs"]
+    end
+    subgraph nx_導航["導航"]
+      n16["/MEB"]
+      n17["/behavior_server"]
+      n18["/bt_navigator"]
+      n19["/bt_navigator_navigate_through_poses_rclcpp_node"]
+      n20["/bt_navigator_navigate_to_pose_rclcpp_node"]
+      n21["/charging_alignment_server"]
+      n22["/collision_monitor"]
+      n23["/controller_server"]
+      n24["/global_costmap/global_costmap"]
+      n25["/kanon_rust_charge"]
+      n26["/kanon_rust_loc"]
+      n27["/kanon_rust_nav"]
+      n28["/lifecycle_manager_navigation"]
+      n29["/local_costmap/local_costmap"]
+      n30["/local_costmap_controller/local_costmap_controller"]
+      n31["/map_server"]
+      n32["/nav2_container"]
+      n33["/planner_server"]
+      n34["/velocity_optimizer"]
+      n35["/waypoint_follower"]
+    end
+    subgraph nx_其他["其他"]
+      n36["/arc_state_machine_node"]
+      n37["/bridge_image_topics_24"]
+      n38["/error_aggregator"]
+      n39["/launch_ros_2483"]
+      n40["/remoix_rust_interface"]
+      n41["/ros2_alg_interface"]
+      n42["/rust_debug_node"]
+    end
+  end
+  subgraph RK["RK3588（運控板）"]
+    subgraph rk_感測驅動["感測驅動"]
+      n43["/robot_camera"]
+      n44["/zsi_imu_driver"]
+    end
+    subgraph rk_導航["導航"]
+      n45["/battery_controller"]
+      n46["/controller_manager"]
+      n47["/fill_light_controller"]
+      n48["/joint_shm_controller"]
+      n49["/led_controller"]
+      n50["/switch_controller"]
+    end
+    subgraph rk_運控HAL["運控／HAL"]
+      n51["/imu_shm_publisher"]
+      n52["/robot_hal"]
+      n53["/robot_manager"]
+      n54["/robot_monitor"]
+      n55["/robot_remote"]
+    end
+    subgraph rk_其他["其他"]
+      n56["/ComponentManager"]
+      n57["/bridge_image_topics_66"]
+      n58["/launch_ros_2132"]
+      n59["/robot_diagnostic_analyzer"]
+      n60["/robot_diagnostic_manager"]
+      n61["/robot_roamerx"]
+      n62["/robot_self_test_manager"]
+      n63["/zsi_actuator_driver"]
+    end
+  end
+  n8 -- arc/slam_dock_pose --> n36
+  n8 -- arc/slam_state --> n36
+  n9 -- arc_mapping_state --> n25
+  n36 -- arc/arc_module_states_debug_info --> n42
+  n36 -- arc/arc_state --> n10
+  n36 -- arc/arc_state --> n25
+  n36 -- arc/arc_state --> n40
+  n36 -- arc/dock_pose --> n21
+  n36 -- arc/mc_mode_cmd --> n40
+  n36 -- arc/nav_coarse_alignment_mode_cmd --> n21
+  n36 -- arc/nav_contact_alignment_mode_cmd --> n21
+  n36 -- arc/nav_fine_alignment_mode_cmd --> n21
+  n36 -- arc/perception_mode_cmd --> n10
+  n36 -- arc/slam_mode_cmd --> n8
+  n36 -- navigation_cmd --> n40
+  n36 -- start_navigation --> n35
+  n10 -- arc/calibration_state --> n36
+  n10 -- arc/perception_dock_pose --> n36
+  n10 -- arc/perception_state --> n36
+  n17 -- navigo/cs/cmn/intf/cmd_vel_raw --> n22
+  n17 -- navigo/cs/cmn/intf/cmd_vel_raw --> n23
+  n17 -- navigo/lm/cmn/intf/bond --> n17
+  n17 -- navigo/lm/cmn/intf/bond --> n18
+  n17 -- navigo/lm/cmn/intf/bond --> n22
+  n17 -- navigo/lm/cmn/intf/bond --> n23
+  n17 -- navigo/lm/cmn/intf/bond --> n28
+  n17 -- navigo/lm/cmn/intf/bond --> n31
+  n17 -- navigo/lm/cmn/intf/bond --> n33
+  n17 -- navigo/lm/cmn/intf/bond --> n34
+  n17 -- navigo/lm/cmn/intf/bond --> n35
+  n37 -- front_camera/image_compressed --> n8
+  n37 -- front_camera/image_compressed --> n9
+  n37 -- front_camera/image_compressed --> n10
+  n37 -- front_camera/image_compressed --> n12
+  n37 -- front_camera/image_compressed --> n15
+  n37 -- front_camera/image_compressed --> n13
+  n18 -- navigo/ea/cmn/intf/nav_error --> n38
+  n18 -- navigo/ea/cmn/intf/nav_error_clear --> n38
+  n18 -- navigo/lm/cmn/intf/bond --> n17
+  n18 -- navigo/lm/cmn/intf/bond --> n18
+  n18 -- navigo/lm/cmn/intf/bond --> n22
+  n18 -- navigo/lm/cmn/intf/bond --> n23
+  n18 -- navigo/lm/cmn/intf/bond --> n28
+  n18 -- navigo/lm/cmn/intf/bond --> n31
+  n18 -- navigo/lm/cmn/intf/bond --> n33
+  n18 -- navigo/lm/cmn/intf/bond --> n34
+  n18 -- navigo/lm/cmn/intf/bond --> n35
+  n21 -- arc/nav_coarse_alignment_state --> n36
+  n21 -- arc/nav_contact_alignment_state --> n36
+  n21 -- arc/nav_fine_alignment_state --> n36
+  n21 -- cmd_pos --> n40
+  n21 -- cmd_vel --> n40
+  n21 -- navigation_cmd --> n40
+  n22 -- navigo/cs/cmn/intf/cmd_vel_valid --> n34
+  n22 -- navigo/ea/cmn/intf/nav_error --> n38
+  n22 -- navigo/ea/cmn/intf/nav_error_clear --> n38
+  n22 -- navigo/lm/cmn/intf/bond --> n17
+  n22 -- navigo/lm/cmn/intf/bond --> n18
+  n22 -- navigo/lm/cmn/intf/bond --> n22
+  n22 -- navigo/lm/cmn/intf/bond --> n23
+  n22 -- navigo/lm/cmn/intf/bond --> n28
+  n22 -- navigo/lm/cmn/intf/bond --> n31
+  n22 -- navigo/lm/cmn/intf/bond --> n33
+  n22 -- navigo/lm/cmn/intf/bond --> n34
+  n22 -- navigo/lm/cmn/intf/bond --> n35
+  n23 -- navigo/cs/cmn/intf/cmd_vel_raw --> n22
+  n23 -- navigo/cs/cmn/intf/cmd_vel_raw --> n23
+  n23 -- navigo/ea/cmn/intf/nav_error --> n38
+  n23 -- navigo/ea/cmn/intf/nav_error_clear --> n38
+  n23 -- navigo/lm/cmn/intf/bond --> n17
+  n23 -- navigo/lm/cmn/intf/bond --> n18
+  n23 -- navigo/lm/cmn/intf/bond --> n22
+  n23 -- navigo/lm/cmn/intf/bond --> n23
+  n23 -- navigo/lm/cmn/intf/bond --> n28
+  n23 -- navigo/lm/cmn/intf/bond --> n31
+  n23 -- navigo/lm/cmn/intf/bond --> n33
+  n23 -- navigo/lm/cmn/intf/bond --> n34
+  n23 -- navigo/lm/cmn/intf/bond --> n35
+  n25 -- arc/start_arc --> n36
+  n27 -- start_navigation --> n35
+  n28 -- navigo/lm/cmn/intf/bond --> n17
+  n28 -- navigo/lm/cmn/intf/bond --> n18
+  n28 -- navigo/lm/cmn/intf/bond --> n22
+  n28 -- navigo/lm/cmn/intf/bond --> n23
+  n28 -- navigo/lm/cmn/intf/bond --> n28
+  n28 -- navigo/lm/cmn/intf/bond --> n31
+  n28 -- navigo/lm/cmn/intf/bond --> n33
+  n28 -- navigo/lm/cmn/intf/bond --> n34
+  n28 -- navigo/lm/cmn/intf/bond --> n35
+  n12 -- localization_info --> n27
+  n12 -- localization_state --> n26
+  n12 -- localization_state --> n35
+  n12 -- odom/localization_odom --> n9
+  n12 -- odom/localization_odom --> n14
+  n31 -- navigo/lm/cmn/intf/bond --> n17
+  n31 -- navigo/lm/cmn/intf/bond --> n18
+  n31 -- navigo/lm/cmn/intf/bond --> n22
+  n31 -- navigo/lm/cmn/intf/bond --> n23
+  n31 -- navigo/lm/cmn/intf/bond --> n28
+  n31 -- navigo/lm/cmn/intf/bond --> n31
+  n31 -- navigo/lm/cmn/intf/bond --> n33
+  n31 -- navigo/lm/cmn/intf/bond --> n34
+  n31 -- navigo/lm/cmn/intf/bond --> n35
+  n31 -- navigo/ms/cmn/intf/map --> n24
+  n16 -- cmd_vel --> n40
+  n16 -- meb_brake --> n40
+  n16 -- meb_status --> n41
+  n15 -- laser_scan --> n22
+  n15 -- laser_scan --> n23
+  n15 -- laser_scan --> n38
+  n15 -- laser_scan --> n30
+  n15 -- laser_scan --> n29
+  n15 -- laser_scan --> n16
+  n33 -- navigo/ea/cmn/intf/nav_error --> n38
+  n33 -- navigo/ea/cmn/intf/nav_error_clear --> n38
+  n33 -- navigo/lm/cmn/intf/bond --> n17
+  n33 -- navigo/lm/cmn/intf/bond --> n18
+  n33 -- navigo/lm/cmn/intf/bond --> n22
+  n33 -- navigo/lm/cmn/intf/bond --> n23
+  n33 -- navigo/lm/cmn/intf/bond --> n28
+  n33 -- navigo/lm/cmn/intf/bond --> n31
+  n33 -- navigo/lm/cmn/intf/bond --> n33
+  n33 -- navigo/lm/cmn/intf/bond --> n34
+  n33 -- navigo/lm/cmn/intf/bond --> n35
+  n33 -- navigo/ps/cmn/intf/clean_obstacles_around_goal --> n30
+  n33 -- navigo/ps/cmn/intf/clean_obstacles_around_goal --> n29
+  n40 -- arc/dock_state --> n36
+  n40 -- arc/dock_state --> n25
+  n40 -- arc/mc_state --> n36
+  n40 -- handle_vel --> n16
+  n40 -- odom/mc_odom --> n12
+  n40 -- odom/mc_odom --> n14
+  n13 -- odom/slam_odom --> n14
+  n13 -- pub_slam_state --> n11
+  n14 -- odom/current_pose --> n36
+  n14 -- odom/current_pose --> n17
+  n14 -- odom/current_pose --> n18
+  n14 -- odom/current_pose --> n22
+  n14 -- odom/current_pose --> n23
+  n14 -- odom/current_pose --> n38
+  n14 -- odom/current_pose --> n24
+  n14 -- odom/current_pose --> n30
+  n14 -- odom/current_pose --> n29
+  n14 -- odom/current_pose --> n33
+  n14 -- odom/current_pose --> n41
+  n14 -- odom/current_pose --> n35
+  n41 -- meb_switch --> n16
+  n3 -- front_lidar --> n8
+  n3 -- front_lidar --> n12
+  n3 -- front_lidar --> n15
+  n3 -- front_lidar --> n13
+  n3 -- front_lidar/imu --> n8
+  n3 -- front_lidar/imu --> n12
+  n3 -- front_lidar/imu --> n13
+  n4 -- rear_lidar --> n8
+  n4 -- rear_lidar --> n12
+  n4 -- rear_lidar --> n13
+  n5 -- uni_best_nav --> n12
+  n5 -- uni_heading --> n12
+  n34 -- cmd_vel --> n40
+  n34 -- navigation_cmd --> n40
+  n34 -- navigo/lm/cmn/intf/bond --> n17
+  n34 -- navigo/lm/cmn/intf/bond --> n18
+  n34 -- navigo/lm/cmn/intf/bond --> n22
+  n34 -- navigo/lm/cmn/intf/bond --> n23
+  n34 -- navigo/lm/cmn/intf/bond --> n28
+  n34 -- navigo/lm/cmn/intf/bond --> n31
+  n34 -- navigo/lm/cmn/intf/bond --> n33
+  n34 -- navigo/lm/cmn/intf/bond --> n34
+  n34 -- navigo/lm/cmn/intf/bond --> n35
+  n35 -- navigation_state --> n36
+  n35 -- navigation_state --> n27
+  n35 -- navigo/ea/cmn/intf/nav_error --> n38
+  n35 -- navigo/ea/cmn/intf/nav_error_clear --> n38
+  n35 -- navigo/lm/cmn/intf/bond --> n17
+  n35 -- navigo/lm/cmn/intf/bond --> n18
+  n35 -- navigo/lm/cmn/intf/bond --> n22
+  n35 -- navigo/lm/cmn/intf/bond --> n23
+  n35 -- navigo/lm/cmn/intf/bond --> n28
+  n35 -- navigo/lm/cmn/intf/bond --> n31
+  n35 -- navigo/lm/cmn/intf/bond --> n33
+  n35 -- navigo/lm/cmn/intf/bond --> n34
+  n35 -- navigo/lm/cmn/intf/bond --> n35
+  n35 -- navigo/wf/cmn/intf/update_tracking_goal --> n18
+  n45 -- battery_controller/battery1 --> n49
+  n45 -- battery_controller/battery1 --> n55
+  n45 -- battery_controller/battery1 --> n61
+  n45 -- battery_controller/battery2 --> n49
+  n45 -- battery_controller/battery2 --> n55
+  n45 -- battery_controller/battery2 --> n61
+  n45 -- battery_controller/battery_all --> n49
+  n47 -- fill_light_controller/auto_work_state --> n55
+  n47 -- fill_light_controller/back_light/state --> n55
+  n47 -- fill_light_controller/front_light/state --> n55
+  n47 -- fill_light_controller/lux --> n55
+  n51 -- imu_shm_publisher/imu_central --> n55
+  n51 -- imu_shm_publisher/imu_central --> n61
+  n48 -- joint_shm_controller/joint_sensor --> n55
+  n43 -- front_camera/image_compressed --> n57
+  n43 -- rear_camera/image_compressed --> n57
+  n43 -- robot_camera/record_mp4_ack --> n55
+  n43 -- robot_camera/record_mp4_status --> n55
+  n43 -- robot_camera/take_photo_ack --> n55
+  n43 -- tf/tf_ack --> n55
+  n60 -- robot_monitor/diagnostic_status --> n49
+  n60 -- robot_monitor/diagnostic_status --> n53
+  n60 -- robot_monitor/diagnostic_status --> n55
+  n53 -- robot_manager/robot_status --> n48
+  n53 -- robot_manager/robot_status --> n49
+  n53 -- robot_manager/robot_status --> n55
+  n54 -- robot_monitor/power_on_status --> n49
+  n54 -- robot_monitor/power_on_status --> n55
+  n55 -- estop_controller/sw_estop/state --> n49
+  n55 -- fill_light_controller/auto_work --> n47
+  n55 -- fill_light_controller/back_light/cmd --> n47
+  n55 -- fill_light_controller/front_light/cmd --> n47
+  n55 -- robot_camera/record_mp4 --> n43
+  n55 -- robot_camera/take_photo --> n43
+  n55 -- robot_remote/locked_state --> n49
+  n55 -- robot_remote/reverse_head_tail --> n49
+  n55 -- tf/tf_req --> n43
+  n61 -- arc/charging_dock_info --> n55
+  n61 -- robot_roamerx/alg_dtc --> n49
+  n61 -- robot_roamerx/alg_status --> n49
+  n61 -- robot_roamerx/is_in_nav_control --> n53
+  n50 -- switch_controller/hw_estop/state --> n55

@@ -1,0 +1,77 @@
+------------------------------------------------------------
+### 自動判讀：8 個報告項目各拿到什麼
+------------------------------------------------------------
+  5.1 SLAM 架構（arc_lvio／robot_slam 的接線）       ✅
+  5.2 建圖／定位（map_server／localization／地圖檔） ✅
+  5.3 規劃／控制 plugin（param dump）                 ✅
+  5.3 避障（collision_monitor／costmap layer）          ✅
+  5.4 生命週期狀態（是不是 active）               ✅
+  6.1／6.3 感知設定檔（類別／輸入尺寸／門檻） ✅
+  6.2 AI 模型檔（onnx／engine／rknn）                 ✅
+  6.2 推論平台（TensorRT／CUDA／RKNN）               ✅
+  6.2 運控側 RKNN 模型（RK）                          ✅
+
+-- 找到的模型檔 --
+  -rw-r--r-- 1 root root 11M  1月 27  2026 /opt/robot/perception/install/perception/config/perception/detection/model/detection/yolo11n_bhwc_250918.onnx
+  -rw-r--r-- 1 root root 43M  1月 27  2026 /opt/robot/perception/install/perception/config/perception/detection/model/detection/reid.onnx
+  -rw-r--r-- 1 root root 63M  1月 27  2026 /opt/robot/perception/install/perception/config/perception/detection/model/detection/centernet_charger.onnx
+  -rw-r--r-- 1 root root 45M  1月 27  2026 /opt/robot/perception/install/perception/config/perception/detection/model/detection/reid_siamese.onnx
+  -rw-r--r-- 1 root root 110M  1月 27  2026 /opt/robot/perception/install/perception/config/perception/model/pidnet.onnx
+  -rw-r--r-- 1 root root 57M  3月 11  2026 /home/robot/.robot/cache/trt_engine/pidnet_0a0be8bc1dc385e69fec2328b06e04cf_fp16.engine
+  onnx_model_path: model/stereo_match.onnx
+    encode: detection/model/sam_track/sam2.1_tiny_preprocess.onnx
+    decode: detection/model/sam_track/sam2.1_tiny.onnx
+    memory_attention: detection/model/sam_track/sam2.1_tiny_memory_attention.onnx
+    memory_encoder: detection/model/sam_track/sam2.1_tiny_memory_encoder.onnx
+    encode: detection/model/sam_track/efficienttam_ti_512x512_preprocess.onnx
+    decode: detection/model/sam_track/efficienttam_ti_512x512.onnx
+    memory_attention: detection/model/sam_track/efficienttam_ti_512x512_memory_attention.onnx
+    memory_encoder: detection/model/sam_track/efficienttam_ti_512x512_memory_encoder.onnx
+  decode: detection/model/sam_track/efficienttam_ti_512x512.onnx
+  decode: detection/model/sam_track/sam2.1_tiny.onnx
+  encode: detection/model/sam_track/efficienttam_ti_512x512_preprocess.onnx
+  encode: detection/model/sam_track/sam2.1_tiny_preprocess.onnx
+  memory_attention: detection/model/sam_track/efficienttam_ti_512x512_memory_attention.onnx
+  memory_attention: detection/model/sam_track/sam2.1_tiny_memory_attention.onnx
+  memory_encoder: detection/model/sam_track/efficienttam_ti_512x512_memory_encoder.onnx
+  memory_encoder: detection/model/sam_track/sam2.1_tiny_memory_encoder.onnx
+  onnx_model_path: model/stereo_match.onnx
+
+-- nav2 的 plugin --
+  ======== ★★★ 5.3　nav2_params 的 plugin 段（上一趟被 head 截在 140 行，這次整份抓） ========
+  ======== ★★★ 5.3　nav2 的 plugin 與參數（planner／controller／costmap／BT） ========
+      behavior_plugins:
+      behavior_plugins: [ "spin", "backup", "drive_on_heading", "wait" ]
+  behavior_plugins: [ "spin", "backup", "drive_on_heading", "wait" ]
+      controller_plugins:
+      controller_plugins: [ "FollowPathPP", "FollowPathPID", "FollowPathLocalPlanner" ]
+  controller_plugins: [ "FollowPathPP", "FollowPathPID", "FollowPathLocalPlanner" ]
+      goal_checker_plugins:
+      goal_checker_plugins: [ "general_goal_checker" ] # "precise_goal_checker"
+  goal_checker_plugins: [ "general_goal_checker" ] # "precise_goal_checker"
+  /opt/robot/robot_nav/install/navigo_behaviors/share/navigo_behaviors/behavior_plugin.xml
+      planner_plugins:
+      planner_plugins: [ "GridBasedST", "GridBasedSL", "ThreeDimTopoBased" ]
+  planner_plugins: [ "GridBasedST", "GridBasedSL", "ThreeDimTopoBased" ]
+      plugin_lib_names:
+  plugin_lib_names:
+        plugin: "nav2_smoother::SimpleSmoother"
+  plugin: "nav2_smoother::SimpleSmoother"
+        plugin: "navigo_3d_topo_global_planner/Navigo3DTopoGlobalPlanner"
+        plugin: navigo_3d_topo_global_planner/Navigo3DTopoGlobalPlanner
+  plugin: "navigo_3d_topo_global_planner/Navigo3DTopoGlobalPlanner"
+        plugin: "navigo_behaviors/BackUp"
+        plugin: navigo_behaviors/BackUp
+  plugin: "navigo_behaviors/BackUp"
+  (沒有)
+
+-- 生命週期 --
+  /planner_server:
+  /controller_server:
+  /bt_navigator:
+  /map_server:
+  /planner_server: active [3]
+  /controller_server: active [3]
+  /bt_navigator: active [3]
+  /map_server: active [3]
+  /localization: Node not found

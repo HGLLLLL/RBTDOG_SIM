@@ -19,6 +19,30 @@ spec `docs/superpowers/specs/2026-09-22-cpg-rl-v3.6-step-apex-linear-penalties-d
 訓完：`local_infer_v3.py --preset v36 --gains factory --weights task7/weights/cpg_rl_v3_6f_params.pkl --seeds 3 --mesh --video task7/outputs/eval_v36f_mesh.mp4`，對 spec §5 表（平移主動側 步/秒 ≥ 1.5、抬腳 ≥ 15 mm；其餘同 v3.5）。
 ⚠️ 2026-09-22 前的所有 `outputs/eval_*.md` 都含每 2 s 的推力（roll std 直走 0.36 其實是 0.06）；v3.5f 已重跑無推力版當基準，右轉弱／ABAD 漂／平移不踏步在無推力下仍成立。
 
+### ★★★ 2026-09-22 下午：報告 **5.1–5.4／6.1–6.4** 也做完（不含導航效果實測，使用者指定）
+
+結果 `docs/results/O_導航與AI架構_2026-09-22.md`；原始資料 `outputs/recon5_20260922/`
+（含 `nodes_topics.md` —— NX 42 節點／223 topic、RK 21 節點／56 topic 的全表，
+以及 `graph.dot`／`graph_core.mmd`。狗上沒 GUI 跑不了 rqt_graph，改用 `recon5_graph.py` 本機重建）。
+
+**最關鍵的五條**：
+① **這台沒有地圖**：`/ota/alg_data/map` 是空目錄 → 建圖／定位要先實跑一次建圖才能驗。
+② 導航是 **nav2 底座 ＋ 廠商 `navigo` 的規劃控制與決策層**：planner 三個
+（`GridBasedST`／`GridBasedSL`／**`ThreeDimTopoBased` 3D 拓樸**）、controller 三個
+（預設 `FollowPathLocalPlanner`）、80＋ 個 `navigo_*` BT 節點（含自主探索、巡檢、重定位、UWB 導引）；
+四個 server 生命週期實測 **active**。足跡 0.90×0.36 m。
+③ SLAM：`robot_slam` LIO＋**GTSAM 位姿圖＋迴路閉合＋GNSS 因子**＋視覺詞袋 `map_voc.bin`；
+`arc_lvio` 是雙光達 LVIO；定位 `LIO_UKF` 10 Hz、**不吃輪速 odom**。
+★ `use_degradation_detection_flag: false` → 長走廊／空曠易漂。
+④ AI 感知模型全在：**YOLO11n**（fp16、800×448、**只有 person/car 兩類**）、ReID×2、
+**PIDNet**（已編 TensorRT fp16 engine）、**SAM2.1-tiny／EfficientTAM**、CenterNet（充電座）、立體匹配。
+推論平台 **TensorRT 10.3.0 / CUDA 12.6**（無 torch、無 onnxruntime → C++ TensorRT）。
+⑤ 擴充空間仍是 **RK 不是 NX**（NX CPU 70%、GPU 峰 99%；RK 的 NPU Core1/2 全閒，
+原廠自己就備了 `yolo11n_bchw_*.rknn`）。
+
+**recon5 的兩個 bug 已修**：`grep $(find …)` 空命中會讀 stdin 卡死；`HERE` 未定義
+（`set -u` 下最後重建圖那步炸掉，資料沒事，手動補跑 `recon5_graph.py` 即可）。
+
 ### ★★★ 2026-09-22 收工：報告 1.3／7.1／7.2／7.4 **四項全部有實機數據**
 
 結果 `docs/results/N_感測器與資源實測_2026-09-22.md`（最完整的填空表在 `outputs/recon3b_20260922/報告填空表.md`）。

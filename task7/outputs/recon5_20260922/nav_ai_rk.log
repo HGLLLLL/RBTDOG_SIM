@@ -1,0 +1,688 @@
+
+======== ★★★ 6.2　運控側的 RKNN 模型（原廠的 AI 運控策略） ========
+/opt/export/rknn_model_crypto:
+total 8.0K
+drwxr-xr-x 2 root root 4.0K Jan 28  2026 zg
+drwxr-xr-x 2 root root 4.0K Jan 28  2026 zg_wheels
+
+/opt/export/rknn_model_crypto/zg:
+total 50M
+-rw-r--r-- 1 root root 3.3M Jan 28  2026 odom
+-rw-r--r-- 1 root root 3.3M Jan 28  2026 odom_flipover
+-rw-r--r-- 1 root root 3.3M Jan 28  2026 odom_gait_walk
+-rw-r--r-- 1 root root 3.3M Jan 28  2026 odom_gait_walk_su
+-rw-r--r-- 1 root root 3.3M Jan 28  2026 odom_o2
+-rw-r--r-- 1 root root 3.3M Jan 28  2026 odom_rpy8
+-rw-r--r-- 1 root root 3.3M Jan 28  2026 odom_stair
+-rw-r--r-- 1 root root 3.3M Jan 28  2026 policy
+-rw-r--r-- 1 root root 3.3M Jan 28  2026 policy_flipover
+-rw-r--r-- 1 root root 3.4M Jan 28  2026 policy_gait_walk
+-rw-r--r-- 1 root root 3.4M Jan 28  2026 policy_gait_walk_su
+-rw-r--r-- 1 root root 3.3M Jan 28  2026 policy_o2
+-rw-r--r-- 1 root root 3.4M Jan 28  2026 policy_rpy8
+-rw-r--r-- 1 root root 3.4M Jan 28  2026 policy_stair
+-rw-r--r-- 1 root root 3.3M Jan 28  2026 zg_2ms_odom
+
+/opt/export/rknn_model_crypto/zg_wheels:
+total 87M
+-rw-r--r-- 1 root root 3.3M Jan 28  2026 odom
+-rw-r--r-- 1 root root 3.3M Jan 28  2026 odom_climb
+-rw-r--r-- 1 root root 3.3M Jan 28  2026 odom_dsb
+-rw-r--r-- 1 root root 3.3M Jan 28  2026 odom_gait_walk
+-rw-r--r-- 1 root root 3.3M Jan 28  2026 odom_handstand
+-rw-r--r-- 1 root root 3.3M Jan 28  2026 odom_mix_flipover
+-rw-r--r-- 1 root root 3.3M Jan 28  2026 odom_skwalk
+-rw-r--r-- 1 root root 3.3M Jan 28  2026 odom_slim
+-rw-r--r-- 1 root root 3.3M Jan 28  2026 odom_snow
+-rw-r--r-- 1 root root 3.3M Jan 28  2026 odom_stair
+-rw-r--r-- 1 root root 3.3M Jan 28  2026 odom_zgws_jump
+-rw-r--r-- 1 root root 3.3M Jan 28  2026 odom_zgws_rpy
+-rw-r--r-- 1 root root 3.3M Jan 28  2026 odom_zgwt_crawl_1029
+-rw-r--r-- 1 root root 3.4M Jan 28  2026 policy
+-rw-r--r-- 1 root root 3.4M Jan 28  2026 policy_climb
+-- 其他模型檔 --
+-- RKNN 執行庫 --
+-rwxr-xr-x 1 root  root  101K Jan 28  2026 /opt/export/mc/bin/librknn_model.so
+-rw-r--r-- 1 robot robot 5.4M Apr 10  2024 /usr/lib/librknnrt.so
+ input 
+input[
+rknn_init
+rknn_init error! ret = 
+rknn_init error ret=%d
+rknn_inputs_set
+rknn_outputs_get
+rknn_query
+rknn_run
+rknn_set_core_mask
+rknn_set_core_mask error ret=%d
+
+======== ★ 6.2　NPU 驅動與使用率（原廠的推論平台） ========
+version: RKNPU driver: v0.9.2
+load: NPU load:  Core0:  0%, Core1:  0%, Core2:  0%,
+
+======== ★ 6.1　mc_ctrl 有沒有在跑模型（看它載了什麼庫） ========
+bash: line 21: /proc/2422/maps: Permission denied
+
+======== ★★★ RK 這側的**全部**節點接線（畫圖用；預期沒有導航，導航全在 NX） ========
+@@NODE /battery_controller
+@@NODE /bridge_image_topics_66
+@@NODE /ComponentManager
+@@NODE /controller_manager
+@@NODE /fill_light_controller
+@@NODE /imu_shm_publisher
+@@NODE /joint_shm_controller
+@@NODE /launch_ros_2132
+@@NODE /led_controller
+@@NODE /robot_camera
+@@NODE /robot_diagnostic_analyzer
+@@NODE /robot_diagnostic_manager
+@@NODE /robot_hal
+@@NODE /robot_manager
+@@NODE /robot_monitor
+@@NODE /robot_remote
+@@NODE /robot_roamerx
+@@NODE /robot_self_test_manager
+@@NODE /switch_controller
+@@NODE /zsi_actuator_driver
+@@NODE /zsi_imu_driver
+節點數：21
+================ NODEINFO /battery_controller ================
+/battery_controller
+  Subscribers:
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+  Publishers:
+    /battery_controller/battery1: sensor_msgs/msg/BatteryState
+    /battery_controller/battery2: sensor_msgs/msg/BatteryState
+    /battery_controller/battery_all: sensor_msgs/msg/BatteryState
+    /battery_controller/transition_event: lifecycle_msgs/msg/TransitionEvent
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /rosout: rcl_interfaces/msg/Log
+  Service Servers:
+    /battery_controller/describe_parameters: rcl_interfaces/srv/DescribeParameters
+    /battery_controller/get_parameter_types: rcl_interfaces/srv/GetParameterTypes
+    /battery_controller/get_parameters: rcl_interfaces/srv/GetParameters
+    /battery_controller/list_parameters: rcl_interfaces/srv/ListParameters
+    /battery_controller/set_parameters: rcl_interfaces/srv/SetParameters
+    /battery_controller/set_parameters_atomically: rcl_interfaces/srv/SetParametersAtomically
+  Service Clients:
+
+  Action Servers:
+
+  Action Clients:
+
+================ NODEINFO /bridge_image_topics_66 ================
+/bridge_image_topics_66
+  Subscribers:
+    /front_camera/image_compressed: sensor_msgs/msg/CompressedImage
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /rear_camera/image_compressed: sensor_msgs/msg/CompressedImage
+  Publishers:
+    /rosout: rcl_interfaces/msg/Log
+  Service Servers:
+
+  Service Clients:
+
+  Action Servers:
+
+  Action Clients:
+
+================ NODEINFO /ComponentManager ================
+/ComponentManager
+  Subscribers:
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+  Publishers:
+    /rosout: rcl_interfaces/msg/Log
+  Service Servers:
+
+  Service Clients:
+
+  Action Servers:
+
+  Action Clients:
+
+================ NODEINFO /controller_manager ================
+/controller_manager
+  Subscribers:
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+  Publishers:
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /rosout: rcl_interfaces/msg/Log
+  Service Servers:
+    /controller_manager/configure_controller: controller_manager_msgs/srv/ConfigureController
+    /controller_manager/describe_parameters: rcl_interfaces/srv/DescribeParameters
+    /controller_manager/get_parameter_types: rcl_interfaces/srv/GetParameterTypes
+    /controller_manager/get_parameters: rcl_interfaces/srv/GetParameters
+    /controller_manager/list_controller_types: controller_manager_msgs/srv/ListControllerTypes
+    /controller_manager/list_controllers: controller_manager_msgs/srv/ListControllers
+    /controller_manager/list_hardware_components: controller_manager_msgs/srv/ListHardwareComponents
+    /controller_manager/list_hardware_interfaces: controller_manager_msgs/srv/ListHardwareInterfaces
+    /controller_manager/list_parameters: rcl_interfaces/srv/ListParameters
+    /controller_manager/load_controller: controller_manager_msgs/srv/LoadController
+    /controller_manager/reload_controller_libraries: controller_manager_msgs/srv/ReloadControllerLibraries
+    /controller_manager/set_hardware_component_state: controller_manager_msgs/srv/SetHardwareComponentState
+    /controller_manager/set_parameters: rcl_interfaces/srv/SetParameters
+    /controller_manager/set_parameters_atomically: rcl_interfaces/srv/SetParametersAtomically
+    /controller_manager/switch_controller: controller_manager_msgs/srv/SwitchController
+    /controller_manager/unload_controller: controller_manager_msgs/srv/UnloadController
+  Service Clients:
+
+  Action Servers:
+
+  Action Clients:
+
+================ NODEINFO /fill_light_controller ================
+/fill_light_controller
+  Subscribers:
+    /fill_light_controller/auto_work: std_msgs/msg/Bool
+    /fill_light_controller/back_light/cmd: std_msgs/msg/Bool
+    /fill_light_controller/front_light/cmd: std_msgs/msg/Bool
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+  Publishers:
+    /fill_light_controller/auto_work_state: std_msgs/msg/Bool
+    /fill_light_controller/back_light/state: std_msgs/msg/Bool
+    /fill_light_controller/front_light/state: std_msgs/msg/Bool
+    /fill_light_controller/lux: sensor_msgs/msg/Illuminance
+    /fill_light_controller/transition_event: lifecycle_msgs/msg/TransitionEvent
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /rosout: rcl_interfaces/msg/Log
+  Service Servers:
+    /fill_light_controller/describe_parameters: rcl_interfaces/srv/DescribeParameters
+    /fill_light_controller/get_parameter_types: rcl_interfaces/srv/GetParameterTypes
+    /fill_light_controller/get_parameters: rcl_interfaces/srv/GetParameters
+    /fill_light_controller/list_parameters: rcl_interfaces/srv/ListParameters
+    /fill_light_controller/set_parameters: rcl_interfaces/srv/SetParameters
+    /fill_light_controller/set_parameters_atomically: rcl_interfaces/srv/SetParametersAtomically
+  Service Clients:
+
+  Action Servers:
+
+  Action Clients:
+
+================ NODEINFO /imu_shm_publisher ================
+/imu_shm_publisher
+  Subscribers:
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+  Publishers:
+    /imu_shm_publisher/imu_central: sensor_msgs/msg/Imu
+    /imu_shm_publisher/transition_event: lifecycle_msgs/msg/TransitionEvent
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /rosout: rcl_interfaces/msg/Log
+  Service Servers:
+    /imu_shm_publisher/describe_parameters: rcl_interfaces/srv/DescribeParameters
+    /imu_shm_publisher/get_parameter_types: rcl_interfaces/srv/GetParameterTypes
+    /imu_shm_publisher/get_parameters: rcl_interfaces/srv/GetParameters
+    /imu_shm_publisher/list_parameters: rcl_interfaces/srv/ListParameters
+    /imu_shm_publisher/set_parameters: rcl_interfaces/srv/SetParameters
+    /imu_shm_publisher/set_parameters_atomically: rcl_interfaces/srv/SetParametersAtomically
+  Service Clients:
+
+  Action Servers:
+
+  Action Clients:
+
+================ NODEINFO /joint_shm_controller ================
+/joint_shm_controller
+  Subscribers:
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /robot_manager/robot_status: robot_common_interface/msg/RobotStatus
+  Publishers:
+    /joint_shm_controller/joint_cmd_echo: sensor_msgs/msg/JointState
+    /joint_shm_controller/joint_sensor: robot_common_interface/msg/JointSensor
+    /joint_shm_controller/joint_states: sensor_msgs/msg/JointState
+    /joint_shm_controller/transition_event: lifecycle_msgs/msg/TransitionEvent
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /rosout: rcl_interfaces/msg/Log
+  Service Servers:
+    /joint_shm_controller/describe_parameters: rcl_interfaces/srv/DescribeParameters
+    /joint_shm_controller/get_parameter_types: rcl_interfaces/srv/GetParameterTypes
+    /joint_shm_controller/get_parameters: rcl_interfaces/srv/GetParameters
+    /joint_shm_controller/list_parameters: rcl_interfaces/srv/ListParameters
+    /joint_shm_controller/set_parameters: rcl_interfaces/srv/SetParameters
+    /joint_shm_controller/set_parameters_atomically: rcl_interfaces/srv/SetParametersAtomically
+  Service Clients:
+
+  Action Servers:
+
+  Action Clients:
+
+================ NODEINFO /launch_ros_2132 ================
+/launch_ros_2132
+  Subscribers:
+    /robot_remote/transition_event: lifecycle_msgs/msg/TransitionEvent
+  Publishers:
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /rosout: rcl_interfaces/msg/Log
+  Service Servers:
+    /launch_ros_2132/describe_parameters: rcl_interfaces/srv/DescribeParameters
+    /launch_ros_2132/get_parameter_types: rcl_interfaces/srv/GetParameterTypes
+    /launch_ros_2132/get_parameters: rcl_interfaces/srv/GetParameters
+    /launch_ros_2132/list_parameters: rcl_interfaces/srv/ListParameters
+    /launch_ros_2132/set_parameters: rcl_interfaces/srv/SetParameters
+    /launch_ros_2132/set_parameters_atomically: rcl_interfaces/srv/SetParametersAtomically
+  Service Clients:
+    /robot_remote/change_state: lifecycle_msgs/srv/ChangeState
+  Action Servers:
+
+  Action Clients:
+
+================ NODEINFO /led_controller ================
+/led_controller
+  Subscribers:
+    /battery_controller/battery1: sensor_msgs/msg/BatteryState
+    /battery_controller/battery2: sensor_msgs/msg/BatteryState
+    /battery_controller/battery_all: sensor_msgs/msg/BatteryState
+    /estop_controller/hw_estop/state: std_msgs/msg/Bool
+    /estop_controller/sw_estop/state: std_msgs/msg/Bool
+    /led_controller/auto_work: std_msgs/msg/Bool
+    /led_controller/led_cmd: robot_common_interface/msg/LedCommand
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /robot_manager/robot_status: robot_common_interface/msg/RobotStatus
+    /robot_monitor/diagnostic_status: robot_common_interface/msg/RobotDiagnosticStatus
+    /robot_monitor/power_on_status: robot_common_interface/msg/PowerOnStatus
+    /robot_remote/locked_state: std_msgs/msg/Bool
+    /robot_remote/reverse_head_tail: std_msgs/msg/String
+    /robot_roamerx/alg_dtc: robot_common_interface/msg/RoamerxAlgDtc
+    /robot_roamerx/alg_status: robot_common_interface/msg/RoamerxAlgStatus
+  Publishers:
+    /led_controller/auto_work_state: std_msgs/msg/Bool
+    /led_controller/transition_event: lifecycle_msgs/msg/TransitionEvent
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /rosout: rcl_interfaces/msg/Log
+  Service Servers:
+    /led_controller/describe_parameters: rcl_interfaces/srv/DescribeParameters
+    /led_controller/get_parameter_types: rcl_interfaces/srv/GetParameterTypes
+    /led_controller/get_parameters: rcl_interfaces/srv/GetParameters
+    /led_controller/list_parameters: rcl_interfaces/srv/ListParameters
+    /led_controller/set_parameters: rcl_interfaces/srv/SetParameters
+    /led_controller/set_parameters_atomically: rcl_interfaces/srv/SetParametersAtomically
+  Service Clients:
+
+  Action Servers:
+
+  Action Clients:
+
+================ NODEINFO /robot_camera ================
+/robot_camera
+  Subscribers:
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /robot_camera/record_mp4: robot_common_interface/msg/RecordMp4Request
+    /robot_camera/take_photo: robot_common_interface/msg/RecordPhotoRequest
+    /tf/tf_req: robot_common_interface/msg/TFCardRequest
+  Publishers:
+    /front_camera/image_compressed: sensor_msgs/msg/CompressedImage
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /rear_camera/image_compressed: sensor_msgs/msg/CompressedImage
+    /robot_camera/record_mp4_ack: robot_common_interface/msg/RecordMp4Ack
+    /robot_camera/record_mp4_status: robot_common_interface/msg/RecordMp4Status
+    /robot_camera/take_photo_ack: robot_common_interface/msg/RecordPhotoAck
+    /rosout: rcl_interfaces/msg/Log
+    /tf/tf_ack: robot_common_interface/msg/TFCardAck
+  Service Servers:
+    /robot_camera/describe_parameters: rcl_interfaces/srv/DescribeParameters
+    /robot_camera/get_parameter_types: rcl_interfaces/srv/GetParameterTypes
+    /robot_camera/get_parameters: rcl_interfaces/srv/GetParameters
+    /robot_camera/list_parameters: rcl_interfaces/srv/ListParameters
+    /robot_camera/set_bps: robot_common_interface/srv/SetCameraBps
+    /robot_camera/set_parameters: rcl_interfaces/srv/SetParameters
+    /robot_camera/set_parameters_atomically: rcl_interfaces/srv/SetParametersAtomically
+  Service Clients:
+
+  Action Servers:
+
+  Action Clients:
+
+================ NODEINFO /robot_diagnostic_analyzer ================
+/robot_diagnostic_analyzer
+  Subscribers:
+    /diagnostics: diagnostic_msgs/msg/DiagnosticArray
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+  Publishers:
+    /diagnostics_agg: diagnostic_msgs/msg/DiagnosticArray
+    /diagnostics_toplevel_state: diagnostic_msgs/msg/DiagnosticStatus
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /rosout: rcl_interfaces/msg/Log
+  Service Servers:
+    /robot_diagnostic_analyzer/describe_parameters: rcl_interfaces/srv/DescribeParameters
+    /robot_diagnostic_analyzer/get_parameter_types: rcl_interfaces/srv/GetParameterTypes
+    /robot_diagnostic_analyzer/get_parameters: rcl_interfaces/srv/GetParameters
+    /robot_diagnostic_analyzer/list_parameters: rcl_interfaces/srv/ListParameters
+    /robot_diagnostic_analyzer/set_parameters: rcl_interfaces/srv/SetParameters
+    /robot_diagnostic_analyzer/set_parameters_atomically: rcl_interfaces/srv/SetParametersAtomically
+  Service Clients:
+
+  Action Servers:
+
+  Action Clients:
+
+================ NODEINFO /robot_diagnostic_manager ================
+/robot_diagnostic_manager
+  Subscribers:
+    /diagnostics_agg: diagnostic_msgs/msg/DiagnosticArray
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+  Publishers:
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /robot_monitor/diagnostic_status: robot_common_interface/msg/RobotDiagnosticStatus
+    /rosout: rcl_interfaces/msg/Log
+  Service Servers:
+    /robot_diagnostic_manager/describe_parameters: rcl_interfaces/srv/DescribeParameters
+    /robot_diagnostic_manager/get_parameter_types: rcl_interfaces/srv/GetParameterTypes
+    /robot_diagnostic_manager/get_parameters: rcl_interfaces/srv/GetParameters
+    /robot_diagnostic_manager/list_parameters: rcl_interfaces/srv/ListParameters
+    /robot_diagnostic_manager/set_parameters: rcl_interfaces/srv/SetParameters
+    /robot_diagnostic_manager/set_parameters_atomically: rcl_interfaces/srv/SetParametersAtomically
+  Service Clients:
+
+  Action Servers:
+
+  Action Clients:
+
+================ NODEINFO /robot_hal ================
+/robot_hal
+  Subscribers:
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+  Publishers:
+    /diagnostics: diagnostic_msgs/msg/DiagnosticArray
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /robot_hal/transition_event: lifecycle_msgs/msg/TransitionEvent
+    /rosout: rcl_interfaces/msg/Log
+  Service Servers:
+    /robot_hal/change_state: lifecycle_msgs/srv/ChangeState
+    /robot_hal/describe_parameters: rcl_interfaces/srv/DescribeParameters
+    /robot_hal/get_available_states: lifecycle_msgs/srv/GetAvailableStates
+    /robot_hal/get_available_transitions: lifecycle_msgs/srv/GetAvailableTransitions
+    /robot_hal/get_parameter_types: rcl_interfaces/srv/GetParameterTypes
+    /robot_hal/get_parameters: rcl_interfaces/srv/GetParameters
+    /robot_hal/get_state: lifecycle_msgs/srv/GetState
+    /robot_hal/get_transition_graph: lifecycle_msgs/srv/GetAvailableTransitions
+    /robot_hal/list_parameters: rcl_interfaces/srv/ListParameters
+    /robot_hal/self_test: diagnostic_msgs/srv/SelfTest
+    /robot_hal/set_parameters: rcl_interfaces/srv/SetParameters
+    /robot_hal/set_parameters_atomically: rcl_interfaces/srv/SetParametersAtomically
+  Service Clients:
+
+  Action Servers:
+
+  Action Clients:
+
+================ NODEINFO /robot_manager ================
+/robot_manager
+  Subscribers:
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /robot_monitor/diagnostic_status: robot_common_interface/msg/RobotDiagnosticStatus
+    /robot_roamerx/is_in_nav_control: std_msgs/msg/Bool
+  Publishers:
+    /diagnostics: diagnostic_msgs/msg/DiagnosticArray
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /robot_manager/robot_status: robot_common_interface/msg/RobotStatus
+    /rosout: rcl_interfaces/msg/Log
+  Service Servers:
+    /robot_manager/describe_parameters: rcl_interfaces/srv/DescribeParameters
+    /robot_manager/get_parameter_types: rcl_interfaces/srv/GetParameterTypes
+    /robot_manager/get_parameters: rcl_interfaces/srv/GetParameters
+    /robot_manager/list_parameters: rcl_interfaces/srv/ListParameters
+    /robot_manager/set_parameters: rcl_interfaces/srv/SetParameters
+    /robot_manager/set_parameters_atomically: rcl_interfaces/srv/SetParametersAtomically
+  Service Clients:
+
+  Action Servers:
+
+  Action Clients:
+
+================ NODEINFO /robot_monitor ================
+/robot_monitor
+  Subscribers:
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+  Publishers:
+    /diagnostics: diagnostic_msgs/msg/DiagnosticArray
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /robot_monitor/power_on_status: robot_common_interface/msg/PowerOnStatus
+    /rosout: rcl_interfaces/msg/Log
+  Service Servers:
+    /robot_monitor/describe_parameters: rcl_interfaces/srv/DescribeParameters
+    /robot_monitor/get_parameter_types: rcl_interfaces/srv/GetParameterTypes
+    /robot_monitor/get_parameters: rcl_interfaces/srv/GetParameters
+    /robot_monitor/list_parameters: rcl_interfaces/srv/ListParameters
+    /robot_monitor/set_parameters: rcl_interfaces/srv/SetParameters
+    /robot_monitor/set_parameters_atomically: rcl_interfaces/srv/SetParametersAtomically
+  Service Clients:
+
+  Action Servers:
+
+  Action Clients:
+
+================ NODEINFO /robot_remote ================
+/robot_remote
+  Subscribers:
+    /arc/charging_dock_info: robot_common_interface/msg/ChargingDockInfo
+    /battery_controller/battery1: sensor_msgs/msg/BatteryState
+    /battery_controller/battery2: sensor_msgs/msg/BatteryState
+    /diagnostics_agg: diagnostic_msgs/msg/DiagnosticArray
+    /fill_light_controller/auto_work_state: std_msgs/msg/Bool
+    /fill_light_controller/back_light/state: std_msgs/msg/Bool
+    /fill_light_controller/front_light/state: std_msgs/msg/Bool
+    /fill_light_controller/lux: sensor_msgs/msg/Illuminance
+    /imu_shm_publisher/imu_central: sensor_msgs/msg/Imu
+    /joint_shm_controller/joint_sensor: robot_common_interface/msg/JointSensor
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /robot_camera/record_mp4_ack: robot_common_interface/msg/RecordMp4Ack
+    /robot_camera/record_mp4_status: robot_common_interface/msg/RecordMp4Status
+    /robot_camera/take_photo_ack: robot_common_interface/msg/RecordPhotoAck
+    /robot_manager/robot_status: robot_common_interface/msg/RobotStatus
+    /robot_monitor/diagnostic_status: robot_common_interface/msg/RobotDiagnosticStatus
+    /robot_monitor/power_on_status: robot_common_interface/msg/PowerOnStatus
+    /switch_controller/hw_estop/state: std_msgs/msg/Bool
+    /tf/tf_ack: robot_common_interface/msg/TFCardAck
+  Publishers:
+    /diagnostics: diagnostic_msgs/msg/DiagnosticArray
+    /estop_controller/sw_estop/state: std_msgs/msg/Bool
+    /fill_light_controller/auto_work: std_msgs/msg/Bool
+    /fill_light_controller/back_light/cmd: std_msgs/msg/Bool
+    /fill_light_controller/front_light/cmd: std_msgs/msg/Bool
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /robot_camera/record_mp4: robot_common_interface/msg/RecordMp4Request
+    /robot_camera/take_photo: robot_common_interface/msg/RecordPhotoRequest
+    /robot_remote/knee_mode: std_msgs/msg/String
+    /robot_remote/locked_state: std_msgs/msg/Bool
+    /robot_remote/obstacle_avoidance: std_msgs/msg/Bool
+    /robot_remote/reverse_head_tail: std_msgs/msg/String
+    /robot_remote/transition_event: lifecycle_msgs/msg/TransitionEvent
+    /rosout: rcl_interfaces/msg/Log
+    /tf/tf_req: robot_common_interface/msg/TFCardRequest
+  Service Servers:
+    /robot_remote/change_state: lifecycle_msgs/srv/ChangeState
+    /robot_remote/describe_parameters: rcl_interfaces/srv/DescribeParameters
+    /robot_remote/get_available_states: lifecycle_msgs/srv/GetAvailableStates
+    /robot_remote/get_available_transitions: lifecycle_msgs/srv/GetAvailableTransitions
+    /robot_remote/get_parameter_types: rcl_interfaces/srv/GetParameterTypes
+    /robot_remote/get_parameters: rcl_interfaces/srv/GetParameters
+    /robot_remote/get_state: lifecycle_msgs/srv/GetState
+    /robot_remote/get_transition_graph: lifecycle_msgs/srv/GetAvailableTransitions
+    /robot_remote/list_parameters: rcl_interfaces/srv/ListParameters
+    /robot_remote/set_parameters: rcl_interfaces/srv/SetParameters
+    /robot_remote/set_parameters_atomically: rcl_interfaces/srv/SetParametersAtomically
+  Service Clients:
+    /robot_camera/set_bps: robot_common_interface/srv/SetCameraBps
+    /robot_monitor/self_test_overall_result: robot_common_interface/srv/SelfTestOverallResult
+  Action Servers:
+
+  Action Clients:
+
+================ NODEINFO /robot_roamerx ================
+/robot_roamerx
+  Subscribers:
+    /battery_controller/battery1: sensor_msgs/msg/BatteryState
+    /battery_controller/battery2: sensor_msgs/msg/BatteryState
+    /cmd_vel: geometry_msgs/msg/Twist
+    /control_right/test: std_msgs/msg/Bool
+    /imu_shm_publisher/imu_central: sensor_msgs/msg/Imu
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+  Publishers:
+    /arc/charging_dock_info: robot_common_interface/msg/ChargingDockInfo
+    /diagnostics: diagnostic_msgs/msg/DiagnosticArray
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /robot_roamerx/alg_dtc: robot_common_interface/msg/RoamerxAlgDtc
+    /robot_roamerx/alg_status: robot_common_interface/msg/RoamerxAlgStatus
+    /robot_roamerx/is_in_nav_control: std_msgs/msg/Bool
+    /robot_roamerx/transition_event: lifecycle_msgs/msg/TransitionEvent
+    /rosout: rcl_interfaces/msg/Log
+  Service Servers:
+    /robot_roamerx/change_state: lifecycle_msgs/srv/ChangeState
+    /robot_roamerx/describe_parameters: rcl_interfaces/srv/DescribeParameters
+    /robot_roamerx/get_available_states: lifecycle_msgs/srv/GetAvailableStates
+    /robot_roamerx/get_available_transitions: lifecycle_msgs/srv/GetAvailableTransitions
+    /robot_roamerx/get_parameter_types: rcl_interfaces/srv/GetParameterTypes
+    /robot_roamerx/get_parameters: rcl_interfaces/srv/GetParameters
+    /robot_roamerx/get_state: lifecycle_msgs/srv/GetState
+    /robot_roamerx/get_transition_graph: lifecycle_msgs/srv/GetAvailableTransitions
+    /robot_roamerx/list_parameters: rcl_interfaces/srv/ListParameters
+    /robot_roamerx/self_test: diagnostic_msgs/srv/SelfTest
+    /robot_roamerx/set_parameters: rcl_interfaces/srv/SetParameters
+    /robot_roamerx/set_parameters_atomically: rcl_interfaces/srv/SetParametersAtomically
+  Service Clients:
+
+  Action Servers:
+
+  Action Clients:
+
+================ NODEINFO /robot_self_test_manager ================
+/robot_self_test_manager
+  Subscribers:
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+  Publishers:
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /rosout: rcl_interfaces/msg/Log
+  Service Servers:
+    /robot_monitor/self_test_overall_result: robot_common_interface/srv/SelfTestOverallResult
+    /robot_self_test_manager/describe_parameters: rcl_interfaces/srv/DescribeParameters
+    /robot_self_test_manager/get_parameter_types: rcl_interfaces/srv/GetParameterTypes
+    /robot_self_test_manager/get_parameters: rcl_interfaces/srv/GetParameters
+    /robot_self_test_manager/list_parameters: rcl_interfaces/srv/ListParameters
+    /robot_self_test_manager/set_parameters: rcl_interfaces/srv/SetParameters
+    /robot_self_test_manager/set_parameters_atomically: rcl_interfaces/srv/SetParametersAtomically
+  Service Clients:
+
+  Action Servers:
+
+  Action Clients:
+
+================ NODEINFO /switch_controller ================
+/switch_controller
+  Subscribers:
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+  Publishers:
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /rosout: rcl_interfaces/msg/Log
+    /switch_controller/hw_estop/state: std_msgs/msg/Bool
+    /switch_controller/transition_event: lifecycle_msgs/msg/TransitionEvent
+  Service Servers:
+    /switch_controller/describe_parameters: rcl_interfaces/srv/DescribeParameters
+    /switch_controller/get_parameter_types: rcl_interfaces/srv/GetParameterTypes
+    /switch_controller/get_parameters: rcl_interfaces/srv/GetParameters
+    /switch_controller/list_parameters: rcl_interfaces/srv/ListParameters
+    /switch_controller/set_parameters: rcl_interfaces/srv/SetParameters
+    /switch_controller/set_parameters_atomically: rcl_interfaces/srv/SetParametersAtomically
+  Service Clients:
+
+  Action Servers:
+
+  Action Clients:
+
+================ NODEINFO /zsi_actuator_driver ================
+/zsi_actuator_driver
+  Subscribers:
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+  Publishers:
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /rosout: rcl_interfaces/msg/Log
+  Service Servers:
+    /zsi_actuator_driver/describe_parameters: rcl_interfaces/srv/DescribeParameters
+    /zsi_actuator_driver/get_parameter_types: rcl_interfaces/srv/GetParameterTypes
+    /zsi_actuator_driver/get_parameters: rcl_interfaces/srv/GetParameters
+    /zsi_actuator_driver/list_parameters: rcl_interfaces/srv/ListParameters
+    /zsi_actuator_driver/set_parameters: rcl_interfaces/srv/SetParameters
+    /zsi_actuator_driver/set_parameters_atomically: rcl_interfaces/srv/SetParametersAtomically
+  Service Clients:
+
+  Action Servers:
+
+  Action Clients:
+
+================ NODEINFO /zsi_imu_driver ================
+/zsi_imu_driver
+  Subscribers:
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+  Publishers:
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /rosout: rcl_interfaces/msg/Log
+  Service Servers:
+    /zsi_imu_driver/describe_parameters: rcl_interfaces/srv/DescribeParameters
+    /zsi_imu_driver/get_parameter_types: rcl_interfaces/srv/GetParameterTypes
+    /zsi_imu_driver/get_parameters: rcl_interfaces/srv/GetParameters
+    /zsi_imu_driver/list_parameters: rcl_interfaces/srv/ListParameters
+    /zsi_imu_driver/set_parameters: rcl_interfaces/srv/SetParameters
+    /zsi_imu_driver/set_parameters_atomically: rcl_interfaces/srv/SetParametersAtomically
+  Service Clients:
+
+  Action Servers:
+
+  Action Clients:
+
+-- topic 全表（含型別）--
+/arc/charging_dock_info [robot_common_interface/msg/ChargingDockInfo]
+/battery_controller/battery1 [sensor_msgs/msg/BatteryState]
+/battery_controller/battery2 [sensor_msgs/msg/BatteryState]
+/battery_controller/battery_all [sensor_msgs/msg/BatteryState]
+/battery_controller/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/cmd_vel [geometry_msgs/msg/Twist]
+/control_right/test [std_msgs/msg/Bool]
+/diagnostics_agg [diagnostic_msgs/msg/DiagnosticArray]
+/diagnostics [diagnostic_msgs/msg/DiagnosticArray]
+/diagnostics_toplevel_state [diagnostic_msgs/msg/DiagnosticStatus]
+/estop_controller/hw_estop/state [std_msgs/msg/Bool]
+/estop_controller/sw_estop/state [std_msgs/msg/Bool]
+/fill_light_controller/auto_work_state [std_msgs/msg/Bool]
+/fill_light_controller/auto_work [std_msgs/msg/Bool]
+/fill_light_controller/back_light/cmd [std_msgs/msg/Bool]
+/fill_light_controller/back_light/state [std_msgs/msg/Bool]
+/fill_light_controller/front_light/cmd [std_msgs/msg/Bool]
+/fill_light_controller/front_light/state [std_msgs/msg/Bool]
+/fill_light_controller/lux [sensor_msgs/msg/Illuminance]
+/fill_light_controller/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/front_camera/image_compressed [sensor_msgs/msg/CompressedImage]
+/imu_shm_publisher/imu_central [sensor_msgs/msg/Imu]
+/imu_shm_publisher/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/joint_shm_controller/joint_cmd_echo [sensor_msgs/msg/JointState]
+/joint_shm_controller/joint_sensor [robot_common_interface/msg/JointSensor]
+/joint_shm_controller/joint_states [sensor_msgs/msg/JointState]
+/joint_shm_controller/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/led_controller/auto_work_state [std_msgs/msg/Bool]
+/led_controller/auto_work [std_msgs/msg/Bool]
+/led_controller/led_cmd [robot_common_interface/msg/LedCommand]
+/led_controller/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/parameter_events [rcl_interfaces/msg/ParameterEvent]
+/rear_camera/image_compressed [sensor_msgs/msg/CompressedImage]
+/robot_camera/record_mp4_ack [robot_common_interface/msg/RecordMp4Ack]
+/robot_camera/record_mp4 [robot_common_interface/msg/RecordMp4Request]
+/robot_camera/record_mp4_status [robot_common_interface/msg/RecordMp4Status]
+/robot_camera/take_photo_ack [robot_common_interface/msg/RecordPhotoAck]
+/robot_camera/take_photo [robot_common_interface/msg/RecordPhotoRequest]
+/robot_hal/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/robot_manager/robot_status [robot_common_interface/msg/RobotStatus]
+/robot_monitor/diagnostic_status [robot_common_interface/msg/RobotDiagnosticStatus]
+/robot_monitor/power_on_status [robot_common_interface/msg/PowerOnStatus]
+/robot_remote/knee_mode [std_msgs/msg/String]
+/robot_remote/locked_state [std_msgs/msg/Bool]
+/robot_remote/obstacle_avoidance [std_msgs/msg/Bool]
+/robot_remote/reverse_head_tail [std_msgs/msg/String]
+/robot_remote/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/robot_roamerx/alg_dtc [robot_common_interface/msg/RoamerxAlgDtc]
+/robot_roamerx/alg_status [robot_common_interface/msg/RoamerxAlgStatus]
+/robot_roamerx/is_in_nav_control [std_msgs/msg/Bool]
+/robot_roamerx/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/rosout [rcl_interfaces/msg/Log]
+/switch_controller/hw_estop/state [std_msgs/msg/Bool]
+/switch_controller/transition_event [lifecycle_msgs/msg/TransitionEvent]
+/tf/tf_ack [robot_common_interface/msg/TFCardAck]
+/tf/tf_req [robot_common_interface/msg/TFCardRequest]
+
+======== RK 結束 ========

@@ -45,7 +45,7 @@
 1. **平移未解**：右平移航向 +42°、vx 漂 0.03–0.06、低速（0.12）仍偏滑。v3.7b 的前饋與鏡像增強是對這三項下的。
 2. **「夾抬高只在平移族生效」沒寫入**（使用者中止）。要做：`rl_env_v3.step` 的 `LIFT_NONNEG` 段乘 `_lat_weight(P["A"]) > 0.5`。
    背景：`--turn-weights` 用 v3.7f（平移）＋v3.6f（旋轉）跑過一次，旋轉只 +75／−77，因為全域夾抬高把 v3.6f 旋轉族的 lift 也夾了。
-3. **上機 M9 v3 路徑還沒做**（另開 spec；v3.4f 起增益與 v2.3 的 SOP 不同，不能沿用）：
+3. **上機 M9 v3 路徑還沒做** —— spec 已寫 `docs/superpowers/specs/2026-09-22-cpg-rl-v3.6f-on-dog-design.md`（鏡像右轉＋右平移、輪子走 effort 欄、零動作是退路、七段上機順序），等使用者審過再開 plan。要做的事：
    `rl_obs` 改 88 維（四輪速、cmd 3 維、head_err 積分）、v3 產生器搬 numpy、政策匯出 88→24、影子跟跑釘住、
    `mirror_obs` 的 numpy 版、實機腿增益 250→120、M9 護欄 ABAD 放寬到 0.6、輪 kd 0.5→0.1、`--tau-total` 慢速路徑開。
 4. 續訓：notebook 有 `RESUME`（`restore_params`），只做過原始碼比對，本機 jax 0.10 跑不動 `ppo.train`。

@@ -241,14 +241,15 @@ echo "-- ★★★ eCAL topic 全表（唯讀監看）--"
 #   1. 寫進管線是**全緩衝**，被 timeout 的 SIGTERM 砍掉時緩衝區沒 flush → 一個字都沒有。
 #      → `stdbuf -oL` 改行緩衝，並用 `timeout -s INT` 讓它自己收尾。
 #   2. 有些 eCAL 工具沒有 TTY 就不印東西 → 失敗時再用 `script` 給一個假終端。
-echo "usage:"; ecal_mon_cli --help 2>&1 | head -20
-for try in "stdbuf -oL -eL timeout -s INT 6 ecal_mon_cli" \
-           "stdbuf -oL -eL timeout -s INT 6 ecal_sample_monitoring_get_topics" \
-           "script -qec 'timeout -s INT 6 ecal_mon_cli' /dev/null"; do
+# ★ `ecal_mon_cli` 沒有參數時什麼都不印（2026-09-22 空手而回兩次才發現）——
+#   列 topic 要 `-l/--list`；`-d <topic>` 印該 topic 的 protobuf 描述（要解碼時用得上）。
+for try in "timeout -s INT 10 ecal_mon_cli -l" \
+           "stdbuf -oL -eL timeout -s INT 6 ecal_mon_cli -l" \
+           "stdbuf -oL -eL timeout -s INT 6 ecal_sample_monitoring_get_topics"; do
   echo "---- 嘗試：$try ----"
   out=$( ( set +u
            [ -f /opt/runtime/env.bash ] && . /opt/runtime/env.bash >/dev/null 2>&1
-           eval "$try" ) 2>&1 | head -80 )
+           eval "$try" ) 2>&1 | head -120 )
   echo "$out"
   [ -n "$(echo "$out" | tr -d '[:space:]')" ] && break
 done

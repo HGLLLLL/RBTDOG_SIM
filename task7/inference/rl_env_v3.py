@@ -133,10 +133,13 @@ W = dict(W_VX=2.0, W_VY=3.0, W_YAW=2.0, W_YAWI=0.5, W_YAWLIN=1.0, YAW_LIN_E=1.5,
          P_TURN_ONLY=0.35,        # 有 wz 時有 35% 把 vx、vy 歸零 → 純原地轉由 12% 提到約 25%（v3.3 最難的任務練最少）
          P_SWITCH=0.4, RAMP_STEPS=50, BIAS_EMA=0.02,
          W_ABADBIAS=0.0, W_DRIFT=0.0, W_HEADLIN=0.0, HEAD_LIN_E=0.5,     # v3.5 三項；預設權重 0 → v3.3 reward 逐位元不變（golden）
-         CYC_TURN_SYM=False)      # v3.5：True → env 把 ref["cyc_turn_sym"] 打開（放 W 裡是為了讓「權重預設」一個開關就帶齊訓練設定）
+         CYC_TURN_SYM=False,      # v3.5：True → env 把 ref["cyc_turn_sym"] 打開（放 W 裡是為了讓「權重預設」一個開關就帶齊訓練設定）
+         W_STEP=0.0, STEP_APEX=0.021)   # v3.6：平移每週期抬腳頂點獎勵；預設 0 → 逐位元不變（golden）
 W35 = dict(W, W_ABADBIAS=30.0, W_DRIFT=40.0, W_HEADLIN=1.0, W_VYREL=6.0, P_VY=0.60, CYC_TURN_SYM=True)   # v3.5（spec 2026-09-16 §2）：DualModeEnv(weights=v3.W35)
+# v3.6（spec 2026-09-22 §2）：t_step ＋ t_drift／t_abadbias 改死區線性（PEN_SHAPE="hinge"；二次式接近目標時梯度消失，v3.5 spec §9.1）
+W36 = dict(W35, W_STEP=1.5, STEP_APEX=0.021, PEN_SHAPE="hinge", W_DRIFT_L=8.0, DRIFT_DZ=0.010, W_ABADBIAS_L=6.0, ABAD_DZ=0.0436)
 T_KEYS = ("t_vx", "t_vy", "t_yaw", "t_yawi", "t_yawlin", "t_yawrel", "t_vyrel", "t_head", "t_h", "t_lift", "t_stance", "t_roll", "t_pitch", "t_rollrate",
-          "t_pitchrate", "t_bias", "t_act", "t_omdot", "t_qres", "t_tau", "t_taubar", "t_errbar", "t_kneev", "t_mode", "t_vz", "t_abadbias", "t_drift", "t_headlin")
+          "t_pitchrate", "t_bias", "t_act", "t_omdot", "t_qres", "t_tau", "t_taubar", "t_errbar", "t_kneev", "t_mode", "t_vz", "t_abadbias", "t_drift", "t_headlin", "t_step")
 METRIC_KEYS = ("height", "vx", "vy", "wz", "reward", "pitch", "roll", "mode", "s4", "s_arc", "cyc", "clr_step", "clr_stance",
                "yawerr", "vxerr", "vyerr", "tau_pk", "err_pk", "knee_v", "omega", "sway_y", "roll_bias", "abad_bias", "vx_drift", "head_deg", "head_abs") + T_KEYS
 # ⚠️ reset 與 step 的 metrics 鍵集合必須相同（brax EpisodeWrapper 用 lax.scan，結構不同會炸）；tests 有 wrapper 檢查
@@ -264,6 +267,22 @@ def drift_terms(abad_ema, drift_ema, w):
     """v3.5：ABAD 慢漂（4 腿偏離站姿的低通）與機身速度低頻誤差（vx, vy）的平方懲罰 → (t_abadbias, t_drift)。
     權重 0 時精確為 0.0（0.0·有限數）。"""
     return w["W_ABADBIAS"] * jnp.sum(abad_ema ** 2), w["W_DRIFT"] * jnp.sum(drift_ema ** 2)
+
+
+def step_apex_update(phi_new, phi_old, clr, apex_run, apex_last):
+    """v3.6：每週期抬腳頂點。phi_cyc 回繞（新 < 舊）＝週期結束：上一週期的 running max 交給 apex_last、apex_run 從當步 clr 重新起算。
+    phi 不前進（u4 ≤ 0.01）時不會回繞，apex_last 保持。"""
+    wrap = phi_new < phi_old
+    return (jnp.where(wrap, clr, jnp.maximum(apex_run, clr)), jnp.where(wrap, apex_run, apex_last))
+
+
+def step_apex_reward(apex_last, s_leg, cmd_vy, w):
+    """v3.6：主動腿（正規化活動度 ≥ 0.9 → 1，0.7 → 0）上一週期頂點對目標的線性分數，到目標飽和。
+    目標隨指令縮：週期表的抬高跟幅度一起縮，零動作 vy 0.12 只抬 7 mm，低速逼 21 mm 會拿平衡去換（spec §2.1）。"""
+    s_n = s_leg / jnp.maximum(jnp.max(s_leg), 1e-6)
+    w_leg = jnp.clip((s_n - 0.9) / 0.1, 0.0, 1.0)
+    tgt = w["STEP_APEX"] * jnp.clip(jnp.abs(cmd_vy) / 0.15, 0.5, 1.0)
+    return jnp.sum(w_leg * jnp.clip(apex_last / tgt, 0.0, 1.0)) / jnp.maximum(jnp.sum(w_leg), 1e-3)
 
 
 def err_barrier_j(err12, bar12=ERR_BAR12):
@@ -553,6 +572,7 @@ class DualModeEnv(Env):
                 "qvel_prev": data.qvel[LEG_QVEL_IDX], "om_prev": jnp.zeros(()), "wheel_theta": wheel_theta,
                 "roll_ema": jnp.zeros(()), "sway_ema": jnp.zeros(()),
                 "abad_ema": jnp.zeros(4), "drift_ema": jnp.zeros(2),
+                "apex_run": jnp.zeros(4), "apex_last": jnp.zeros(4),
                 "kill": jnp.zeros((), jnp.int32), "step": 0}
         obs = self._obs(data, info, z)
         zz = jnp.zeros(())
@@ -631,6 +651,7 @@ class DualModeEnv(Env):
         q12 = data.qpos[LEG_QPOS_IDX]
         err12 = q_des - q12
         clr = self._wheel_clearance(data)
+        apex_run, apex_last = step_apex_update(phi_cyc, info["phi_cyc"], clr, info["apex_run"], info["apex_last"])   # v3.6
         knee_v = jnp.max(jnp.abs(data.qvel[LEG_QVEL_IDX][KNEE12]))
         roll_ema = info["roll_ema"] + w["BIAS_EMA"] * (grav[1] - info["roll_ema"])
         sway_ema = info["sway_ema"] + w["BIAS_EMA"] * (sway[1] - info["sway_ema"])
@@ -668,6 +689,8 @@ class DualModeEnv(Env):
         post = jnp.stack([jnp.zeros(4), P["post_y"], jnp.zeros(4)], 1)
         foot_dev = jnp.sum((foot_actual(q12) - STANCE_FEET_j - post) ** 2, 1)
         r_stance = (1 - u_mode) * jnp.mean(jnp.exp(-foot_dev / (0.02 ** 2)))
+        r_step = step_apex_reward(apex_last, s_leg, cmd[1], w)                            # v3.6：每週期抬腳頂點（只在平移族）
+        t_step = w["W_STEP"] * u4 * _lat_weight(P["A"]) * r_step
         c_act = jnp.sum((action - info["last_a"]) ** 2)
         c_omdot = (om - info["om_prev"]) ** 2 * u_mode
         c_tau = jnp.sum(data.actuator_force[LEG_ACT_IDX] ** 2)
@@ -684,9 +707,10 @@ class DualModeEnv(Env):
             "t_mode": w["W_MODE"] * lift_pen, "t_vz": w["W_VZ"] * data.qvel[2] ** 2,
             "t_abadbias": t_abadbias * u_mode, "t_drift": t_drift,   # v3.5；ABAD 項只在踏步時開（輪行的站姿由 r_stance 管；攤帳：直走本來就有 5° 常態外張，不該罰）
             "t_headlin": w["W_HEADLIN"] * r_headlin,
+            "t_step": t_step,                                                     # v3.6
         }
         pos = (T["t_vx"] + T["t_vy"] + T["t_yaw"] + T["t_yawi"] + T["t_yawlin"] + T["t_yawrel"] + T["t_vyrel"] + T["t_head"] + T["t_h"]
-               + T["t_lift"] + T["t_stance"] + T["t_headlin"])
+               + T["t_lift"] + T["t_stance"] + T["t_headlin"] + T["t_step"])
         neg = (T["t_roll"] + T["t_pitch"] + T["t_rollrate"] + T["t_pitchrate"] + T["t_bias"] + T["t_act"] + T["t_omdot"]
                + T["t_qres"] + T["t_tau"] + T["t_taubar"] + T["t_errbar"] + T["t_kneev"] + T["t_mode"] + T["t_vz"] + T["t_abadbias"] + T["t_drift"])
         reward = pos - neg
@@ -696,7 +720,7 @@ class DualModeEnv(Env):
         info.update({"rng": rng, "c": c, "cmd": info["cmd"], "u_mode": u_mode, "head_err": head_err,
                      "ph": ph, "s4": P["A"]["s4"], "s_arc": P["A"]["arc"], "phi_cyc": phi_cyc, "u4": u4, "wz_ema": wz_ema, "vy_ema": vy_ema, "qres": qres,
                      "a_hist": a_hist, "last_a": action, "sway": sway, "qvel_prev": data.qvel[LEG_QVEL_IDX],
-                     "om_prev": om, "roll_ema": roll_ema, "sway_ema": sway_ema, "abad_ema": abad_ema, "drift_ema": drift_ema, "kill": kill, "step": step_i + 1,
+                     "om_prev": om, "roll_ema": roll_ema, "sway_ema": sway_ema, "abad_ema": abad_ema, "drift_ema": drift_ema, "apex_run": apex_run, "apex_last": apex_last, "kill": kill, "step": step_i + 1,
                      "wheel_theta": wheel_theta})
         info_obs = dict(info, cmd=cmd)
         obs = self._obs(data, info_obs, action)

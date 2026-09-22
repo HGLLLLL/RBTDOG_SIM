@@ -448,12 +448,13 @@ def foot_actual(q12):
 
 # ---------------------------------------------------------------- env
 class DualModeEnv(Env):
-    def __init__(self, scene: str = None, wheel_pos: bool = False, ref: dict = None, weights: dict = None, gains: str = "kp250"):
+    def __init__(self, scene: str = None, wheel_pos: bool = False, ref: dict = None, weights: dict = None, gains: str = "kp250", push: bool = True):
         """`wheel_pos=False`（預設）：純速度伺服（M11 實機已驗的 kd 1.0）；
         True：位置＋速度伺服（scene_flat_mjx_v3p，kp 60，ctrl=累加目標角；實機未驗，v3.1 不用）。
         `gains="kp250"`＝v3.3；`"factory"`＝馬達增益完全照原廠錄檔動作段（v3.4f）。`ref`／`weights` 覆寫 REF／W（掃參數用）。"""
         assert gains in GAIN_SETS, f"gains 只能是 {set(GAIN_SETS)}"
         self.gains = gains
+        self.push_vel = PUSH_VEL if push else 0.0        # v3.6：push=False（驗收用）關掉每 PUSH_EVERY 步的隨機推力；訓練預設開
         G = GAIN_SETS[gains]
         self.w = dict(W, **(weights or {}))
         self.ref = {**REF, **G["ref"], **(ref or {})}      # 用 dict(REF, **a, **b) 會在 key 重複時炸（掃描時覆寫 REF_FACTORY 的鍵就會踩到）
@@ -638,7 +639,7 @@ class DualModeEnv(Env):
         rng, k_push, k_dir, k_obs = jax.random.split(info["rng"], 4)
         do_push = (step_i % PUSH_EVERY) == (PUSH_EVERY - 1)
         ang = jax.random.uniform(k_dir, minval=0.0, maxval=2 * jnp.pi)
-        mag = jax.random.uniform(k_push, minval=0.0, maxval=PUSH_VEL)
+        mag = jax.random.uniform(k_push, minval=0.0, maxval=self.push_vel)
         kick = jnp.where(do_push, jnp.array([mag * jnp.cos(ang), mag * jnp.sin(ang), 0.0]), jnp.zeros(3))
         data = data.replace(qvel=data.qvel.at[0:3].add(kick))
         ctrl = self._ctrl(q_des, self._wheel_ctrl(wheel_q, v_wheel_meas, wheel_theta))

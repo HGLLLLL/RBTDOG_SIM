@@ -107,3 +107,16 @@ def test_dr_com_y_shift_zero_mean_and_default_untouched():
     sys_0, in_axes_0 = v3.make_domain_randomize("factory")(env.sys, keys)
     assert in_axes_0.body_ipos is None and np.array_equal(np.asarray(sys_0.body_ipos), np.asarray(env.sys.body_ipos))
     assert np.array_equal(np.asarray(sys_0.actuator_gainprm), np.asarray(sys_b.actuator_gainprm))   # 舊十個抽樣沒被新鍵擾動
+
+
+def test_push_false_removes_kick_at_step_99():
+    """STAND 零動作：push=True 在第 99 步（PUSH_EVERY 100）機身速度跳；push=False 沒有。"""
+    def kick(env, seed):
+        S = _env_rollout(env, (0.0, 0.0, 0.0), v3.PUSH_EVERY + 1, seed)
+        v = np.array([[float(s.metrics["vx"]), float(s.metrics["vy"])] for s in S])
+        return float(np.linalg.norm(v[v3.PUSH_EVERY - 1] - v[v3.PUSH_EVERY - 2]))
+    env_p = v3.DualModeEnv(gains="factory", ref=dict(cyc_amp_rand=False))
+    env_n = v3.DualModeEnv(gains="factory", ref=dict(cyc_amp_rand=False), push=False)
+    assert env_p.push_vel == v3.PUSH_VEL and env_n.push_vel == 0.0
+    assert max(kick(env_p, sd) for sd in range(3)) > 0.05
+    assert max(kick(env_n, sd) for sd in range(3)) < 0.005

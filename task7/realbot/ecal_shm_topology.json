@@ -1,28 +1,33 @@
 {
-  "_comment": "運控板 (RK3588) 上 ROS 2 看不到的兩層：eCAL 匯流排與具名共享記憶體。ros2 node info 撈不到這些，所以手工整理成這份、由 recon5_graph.py 疊到圖上。每條邊都標 verified。",
+  "_comment": "運控板 (RK3588) 上 ROS 2 看不到的兩層：eCAL 匯流排與具名共享記憶體。ros2 node info 撈不到這些，所以整理成這份、由 recon5_graph.py 疊到圖上。eCAL 的 topic 名與頻率來自機上 `ecal_mon_cli -l`（不是推測）。",
   "as_of": "2026-09-22",
   "source": [
-    "sudo ss -lunp | grep ':1400[0-2]' → 四個 eCAL 參與者與其 PID",
-    "ls /dev/shm | grep '^ecal' → 8 個段 ＋ 每個訂閱者的 _<pid>_evt 事件",
-    "sudo ls -l /proc/<pid>/fd | grep ecal → 每段的持有者（發布者＝持有但不在訂閱清單裡）",
-    "docs/D1Max_機器狗資訊.md §4.1 控制鏈路（偵察二，三個獨立證據交叉確認）",
-    "docs/D1Max_機器狗資訊.md §4.1b eCAL 拓樸"
+    "ecal_mon_cli -l（機上 eCAL 5.13.3 全套工具）→ topic 名、型別、方向、pid、頻率",
+    "sudo ss -lunp | grep ':1400[0-2]' → 四個參與者與 PID",
+    "ls /dev/shm | grep '^ecal' ＋ sudo ls -l /proc/<pid>/fd → 8 個段與持有者",
+    "docs/D1Max_機器狗資訊.md §4.1 控制鏈路（偵察二，三個獨立證據交叉確認）"
   ],
+  "pids": {"2243": "robot_remote", "2279": "robot_roamerx_node", "2281": "robot_hal_node", "2447": "mc_ctrl"},
   "extra_nodes": [
     {"id": "mc_ctrl", "label": "mc_ctrl\\n閉源運控核心\\nROBOT_TYPE=ZGWS", "group": "運控／HAL"},
     {"id": "motors", "label": "16 顆馬達\\nCAN ×4", "group": "其他"}
   ],
   "ecal": [
-    {"from": "/robot_remote",   "to": "mc_ctrl", "seg": "ebf608ea", "note": "遙控器指令", "verified": true},
-    {"from": "/robot_roamerx",  "to": "mc_ctrl", "seg": "d87af588", "note": "導航指令（NX 來的）", "verified": true},
-    {"from": "/robot_hal",      "to": "mc_ctrl", "seg": "a74ae66c", "note": "硬體層回饋（內容未驗）", "verified": true},
-    {"from": "mc_ctrl", "to": "/robot_remote",  "seg": "8a14b62c", "note": "狀態廣播", "verified": true},
-    {"from": "mc_ctrl", "to": "/robot_roamerx", "seg": "8a14b62c", "note": "狀態廣播", "verified": true}
+    {"from": "/robot_remote",  "to": "mc_ctrl", "seg": "ebf608ea", "note": "app_cmd (AppCmd) 49.8 Hz\\n遙控器指令", "verified": true},
+    {"from": "/robot_roamerx", "to": "mc_ctrl", "seg": "d87af588", "note": "app_cmd 已註冊但 0 Hz\\n（沒有導航任務在跑）", "verified": true},
+    {"from": "/robot_hal",     "to": "mc_ctrl", "seg": "a74ae66c", "note": "app_cmd 已註冊但 0 Hz", "verified": true},
+    {"from": "mc_ctrl", "to": "/robot_remote",  "seg": "8a14b62c", "note": "app_state (AppState) 50.0 Hz\\n152 B", "verified": true},
+    {"from": "mc_ctrl", "to": "/robot_roamerx", "seg": "8a14b62c", "note": "app_state 50.0 Hz", "verified": true}
   ],
   "ecal_orphans": {
     "publisher": "mc_ctrl",
-    "segs": ["200f526f", "301fbb4b", "449d205f", "cd623317"],
-    "note": "mc_ctrl 發出、目前沒有任何訂閱者"
+    "segs": ["leg_cmd 500 Hz", "leg_data 500 Hz", "sdk_robotstate 500 Hz", "mc_dtc 50 Hz"],
+    "note": "mc_ctrl 發、**沒有任何訂閱者**（就是那 4 個無人訂閱的段）"
+  },
+  "ecal_no_publisher": {
+    "subscriber": "mc_ctrl",
+    "topics": ["battery_state", "sdk_cmd", "visual_data"],
+    "note": "mc_ctrl 訂閱、**沒有發布者**（同一份程式碼在小狗上有人發）"
   },
   "shm": [
     {"from": "mc_ctrl", "to": "/joint_shm_controller", "name": "joint_cmd",

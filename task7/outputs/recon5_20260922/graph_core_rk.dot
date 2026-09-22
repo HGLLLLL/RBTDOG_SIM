@@ -63,13 +63,15 @@ digraph ros_core {
   "rk:/robot_roamerx" -> "rk:/robot_remote" [label="arc/charging_dock_info"];
   "rk:/switch_controller" -> "rk:/robot_remote" [label="switch_controller/hw_estop/state"];
   // ---- 疊圖：eCAL 匯流排與具名共享記憶體（2026-09-22 實測）----
-  "rk:/robot_remote" -> "rk:mc_ctrl" [label="eCAL ebf608ea\n遙控器指令", style=dashed, color="#2b6cb0", fontcolor="#2b6cb0", penwidth=1.6];
-  "rk:/robot_roamerx" -> "rk:mc_ctrl" [label="eCAL d87af588\n導航指令（NX 來的）", style=dashed, color="#2b6cb0", fontcolor="#2b6cb0", penwidth=1.6];
-  "rk:/robot_hal" -> "rk:mc_ctrl" [label="eCAL a74ae66c\n硬體層回饋（內容未驗）", style=dashed, color="#2b6cb0", fontcolor="#2b6cb0", penwidth=1.6];
-  "rk:mc_ctrl" -> "rk:/robot_remote" [label="eCAL 8a14b62c\n狀態廣播", style=dashed, color="#2b6cb0", fontcolor="#2b6cb0", penwidth=1.6];
-  "rk:mc_ctrl" -> "rk:/robot_roamerx" [label="eCAL 8a14b62c\n狀態廣播", style=dashed, color="#2b6cb0", fontcolor="#2b6cb0", penwidth=1.6];
-  "rk:ecal_orphans" [label="eCAL 200f526f／301fbb4b／449d205f／cd623317\nmc_ctrl 發出、目前沒有任何訂閱者", shape=note, style=filled, fillcolor="#eef4fb", color="#2b6cb0", fontsize=9];
+  "rk:/robot_remote" -> "rk:mc_ctrl" [label="eCAL ebf608ea\napp_cmd (AppCmd) 49.8 Hz\n遙控器指令", style=dashed, color="#2b6cb0", fontcolor="#2b6cb0", penwidth=1.6];
+  "rk:/robot_roamerx" -> "rk:mc_ctrl" [label="eCAL d87af588\napp_cmd 已註冊但 0 Hz\n（沒有導航任務在跑）", style=dashed, color="#2b6cb0", fontcolor="#2b6cb0", penwidth=1.6];
+  "rk:/robot_hal" -> "rk:mc_ctrl" [label="eCAL a74ae66c\napp_cmd 已註冊但 0 Hz", style=dashed, color="#2b6cb0", fontcolor="#2b6cb0", penwidth=1.6];
+  "rk:mc_ctrl" -> "rk:/robot_remote" [label="eCAL 8a14b62c\napp_state (AppState) 50.0 Hz\n152 B", style=dashed, color="#2b6cb0", fontcolor="#2b6cb0", penwidth=1.6];
+  "rk:mc_ctrl" -> "rk:/robot_roamerx" [label="eCAL 8a14b62c\napp_state 50.0 Hz", style=dashed, color="#2b6cb0", fontcolor="#2b6cb0", penwidth=1.6];
+  "rk:ecal_orphans" [label="leg_cmd 500 Hz\nleg_data 500 Hz\nsdk_robotstate 500 Hz\nmc_dtc 50 Hz\nmc_ctrl 發、**沒有任何訂閱者**（就是那 4 個無人訂閱的段）", shape=note, style=filled, fillcolor="#eef4fb", color="#2b6cb0", fontsize=9];
   "rk:mc_ctrl" -> "rk:ecal_orphans" [style=dashed, color="#2b6cb0"];
+  "rk:ecal_nopub" [label="battery_state、sdk_cmd、visual_data\nmc_ctrl 訂閱、**沒有發布者**（同一份程式碼在小狗上有人發）", shape=note, style=filled, fillcolor="#f7f7f7", color="#999999", fontsize=9];
+  "rk:ecal_nopub" -> "rk:mc_ctrl" [style=dotted, color="#999999"];
   "rk:mc_ctrl" -> "rk:/joint_shm_controller" [label="/dev/shm/joint_cmd\n16×{pos,vel,eff,kp,kd} f64；讀 1 kHz\n★ 我們的插入點", style=bold, color="#b03030", fontcolor="#b03030", penwidth=2.4];
   "rk:/joint_shm_controller" -> "rk:/zsi_actuator_driver" [label="ros2_control\n80 個 command interface", style=bold, color="#8a4b4b", fontcolor="#8a4b4b", penwidth=1.8];
   "rk:/zsi_actuator_driver" -> "rk:motors" [label="CAN ×4", style=bold, color="#8a4b4b", fontcolor="#8a4b4b", penwidth=1.8];

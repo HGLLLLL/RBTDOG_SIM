@@ -216,7 +216,37 @@ SDK 編號規則：`1` = hip_roll(abad)、`2` = hip_pitch、`3` = knee_pitch、`
    → 小狗的 `spline_shm` 與 eCAL 的 spline topic 很可能是同一份資料的兩個面向（推測）。
 
 **訊息定義兩台共用**：`robot_sdk.pb.*`、`hal_fault.*`、`zsibot_msg.*` 這些 protobuf 命名空間，
-與中狗 `mc_ctrl` 字串表裡的 protobuf 一致 → 同一家的訊息定義。
+兩台完全一致 → 同一家、同一套訊息定義。
+
+#### ★★ 兩台的 eCAL topic 逐條對照（都是實測）
+
+| topic | 小狗 D1 EDU | 中狗 D1 Max |
+|---|---|---|
+| `app_cmd` / `app_state` | `dog_task` ⟷ `mc_ctrl`，49.7 / 50.0 Hz | **`robot_remote` ⟷ `mc_ctrl`**，49.8 / 50.0 Hz（另有 roamerx 與 hal 註冊但 0 Hz） |
+| `leg_cmd` / `leg_data` | `mc_ctrl` 發、500 Hz、無訂閱者 | **一樣**：`mc_ctrl` 發、500 Hz、**無訂閱者** |
+| `sdk_robotstate` / `sdk_cmd` | `mc_ctrl` ⟷ **`ecal2ros`**，500 Hz | `mc_ctrl` 發 500 Hz **沒人收**；`sdk_cmd` **沒人發** |
+| `nav_cmd` / `nav_state` | **`ecal2ros`** ⟷ `mc_ctrl`，50 Hz | **沒有這兩個 topic**（導航指令改走 `app_cmd`） |
+| `mc_dtc` | `mc_ctrl` → `dog_task`，50 Hz | `mc_ctrl` 發 50 Hz **沒人收** |
+| `battery_state` | **`dog_task` 發**，0.59 Hz | **沒有發布者**（改由 ROS 2 的 `battery_controller` 發 1 Hz） |
+| `visual_data` | 只有 `mc_ctrl` 訂閱 | **一樣**，只有訂閱 |
+| **`spline_leg_cmd` / `spline_leg_state`** | **`SPLINE Publisher` 發、904 Hz** | **沒有這兩個 topic，也沒有 `SPLINE Publisher`** |
+| **`attitude_data`** | **`IMU Publisher` 發、986 Hz** | **沒有**（IMU 改走 `/dev/shm/imu_central` ＋ ROS 2） |
+| `hal_fault`、`motor_log` | `IMU/SPLINE Publisher` → `dog_task` | 沒有 |
+| `image_ecal` / `image_h264_ecal` | → **`ecal2ros`** | 沒有（影像走 ROS 2 ＋ RTSP） |
+| eCAL 行程 | `mc_ctrl`、`dog_task`、`SPLINE Publisher`、`IMU Publisher`、**`ecal2ros`** | `mc_ctrl`、`robot_remote`、`robot_roamerx_node`、`robot_hal_node`（**沒有橋接行程**） |
+
+**這張表要看的就一句話**：中狗把小狗那四個 eCAL 週邊行程的職責**全部搬進 ROS 2**——
+
+| 小狗的 eCAL 行程 | 中狗由誰接手 |
+|---|---|
+| `SPLINE Publisher`（904 Hz 關節） | **`joint_shm_controller` ＋ `zsi_actuator_driver`（ros2_control）＋ 三個具名 shm 段** |
+| `IMU Publisher`（986 Hz 姿態） | `robot_hal_node/imu_recv_thread` → `/dev/shm/imu_central` → `imu_shm_publisher` |
+| `dog_task`（app／電池／DTC） | `robot_remote`、`robot_manager`、`battery_controller` 等 ROS 2 節點 |
+| `ecal2ros`（橋接） | **不需要**：ROS 2 節點自己就是 eCAL 參與者 |
+
+**留在中狗 eCAL 上真正還在跑的只有 `app_cmd`／`app_state` 這一組指令與狀態**，
+其餘（`leg_cmd`／`leg_data`／`sdk_robotstate`／`mc_dtc`）都是**同一份程式碼帶過來、
+在這台沒人訂閱的遺留 topic**。
 
 #### ★ 中狗機上就有完整的 eCAL 工具鏈（2026-09-22 確認）
 
@@ -389,47 +419,54 @@ UDP 那三個埠主要是註冊與跨主機用。
 實際上 **D1 Max 內部同樣是 eCAL**，差別在它**另外疊了一層完整的 ROS 2**對外。
 → 兩台狗的運控核心是同一套範式，task6 對 eCAL 的理解沒有白費。
 
-#### eCAL 的完整拓樸（2026-09-22 實測，**已定案**）
+#### eCAL 的完整拓樸（2026-09-22 實測，**8 個段全部對上 topic 名**）
 
-判定方法：段 `ecal_<雜湊>` 是**發布者**建的記憶體檔，`_<pid>_evt` 是**訂閱者**的事件握手，
-`/proc/<pid>/fd` 則列出**所有開著這段的行程**。
-三者一交叉，發布者＝開著但不在訂閱清單裡的那個。
+`ecal_mon_cli -l`（機上有 eCAL 5.13.3 全套工具）給出 topic 名、型別、方向、pid 與頻率；
+再與 `/dev/shm` 的段持有者交叉，8 個不透明段名全部解開：
 
-| 段 | 發布者 | 訂閱者 | 方向 |
-|---|---|---|---|
-| `ecal_ebf608ea` | **`robot_remote`**（遙控器） | `mc_ctrl` | 遙控器指令 → 運控 |
-| `ecal_d87af588` | **`robot_roamerx_node`**（導航轉接） | `mc_ctrl` | 導航指令 → 運控 |
-| `ecal_a74ae66c` | **`robot_hal_node`** | `mc_ctrl` | 硬體層 → 運控 |
-| `ecal_8a14b62c` | **`mc_ctrl`** | `robot_remote` ＋ `robot_roamerx_node` | 運控狀態廣播 |
-| `ecal_200f526f`／`301fbb4b`／`449d205f`／`cd623317` | **`mc_ctrl`** | **無**（只有它自己開著） | 運控發出、目前沒人收 |
+| topic | 型別（protobuf） | 發布者 | 訂閱者 | 實測頻率 | 對應段 |
+|---|---|---|---|---|---|
+| **`app_cmd`** | `robot_sdk.pb.AppCmd` | **`robot_remote`**（2243） | `mc_ctrl` | **49.812 Hz**、3 B | `ebf608ea` |
+| `app_cmd` | 同上 | `robot_roamerx_node`（2279） | `mc_ctrl` | **0 Hz**（已註冊、沒在發） | `d87af588` |
+| `app_cmd` | 同上 | `robot_hal_node`（2281） | `mc_ctrl` | **0 Hz**（已註冊、沒在發） | `a74ae66c` |
+| **`app_state`** | `robot_sdk.pb.AppState` | **`mc_ctrl`**（2447） | `robot_remote` ＋ `robot_roamerx_node` | **49.998 Hz**、152 B | `8a14b62c` |
+| `leg_cmd` | `robot_sdk.pb.RobotCmd` | `mc_ctrl` | **無** | **499.984 Hz** | 四個無訂閱者的段之一 |
+| `leg_data` | `robot_sdk.pb.RobotState` | `mc_ctrl` | **無** | **499.983 Hz** | 同上 |
+| `sdk_robotstate` | `robot_sdk.pb.SDKRobotState` | `mc_ctrl` | **無** | **499.997 Hz** | 同上 |
+| `mc_dtc` | `robot_sdk.pb.McDtc` | `mc_ctrl` | **無** | **49.999 Hz** | 同上 |
+| `battery_state` | `robot_sdk.pb.BatteryState` | **無** | `mc_ctrl` | — | （沒有段） |
+| `sdk_cmd` | `robot_sdk.pb.SDKCmd` | **無** | `mc_ctrl` | — | （沒有段） |
+| `visual_data` | `robot_sdk.pb.VisualData` | **無** | `mc_ctrl` | — | （沒有段） |
 
-**共 8 個 topic**，`mc_ctrl` 是中心（8 段全開：收 3 條、發 5 條）。
+**★★ 進運控的指令只有一個 topic：`app_cmd`（50 Hz、3 bytes）。**
+三個行程都註冊了發布者（遙控器、導航轉接、HAL），但**只有遙控器真的在發**；
+導航那個是 0 Hz，因為當時沒有導航任務在跑。回去的狀態是 `app_state`（50 Hz、152 B）。
 
-**★ 最關鍵的一條：`robot_hal_node` 在 eCAL 上「只發不收」。**
-它只開 `ecal_a74ae66c` 這一段，而那一段的訂閱者是 `mc_ctrl`。
-→ **`mc_ctrl` → HAL 這個方向在 eCAL 上完全沒有通道**，
-只能走 `/dev/shm/joint_cmd`。**這正好解釋我們直寫 `joint_cmd` 為什麼有效**：
-那不是「另一條旁路」，那就是原廠下行指令的唯一通道。
+**★★ `robot_hal_node` 在 eCAL 上只發不收（而且那條還是 0 Hz）**
+→ **`mc_ctrl` → HAL 這個方向在 eCAL 上完全沒有通道**，只能走 `/dev/shm/joint_cmd`。
+**這正好解釋我們直寫 `joint_cmd` 為什麼有效**：那不是旁路，那就是原廠下行指令的唯一通道。
 
-（勘誤：本節先前寫「HAL 在 eCAL 上沒有訂閱任何東西 → 關節資料不在 eCAL 上」。
-前半句對，後半句講得太滿 —— HAL **有發**一條 eCAL topic 給 `mc_ctrl`。
-**上行**回饋因此有兩條並存：eCAL 的 `a74ae66c` 與具名段 `joint_state`，
-**哪條載什麼還沒驗**。下行只有 `joint_cmd` 這一條，這點沒有變。）
+**`leg_cmd`／`leg_data` 500 Hz 卻沒有任何訂閱者** —— 關節層的 eCAL topic 在中狗上是
+**沒人收的遺留廣播**（小狗那邊的對照見 §2.0b）。同理 `sdk_robotstate` 500 Hz 沒人收、
+`sdk_cmd` 有人等卻沒人發（SDK client 沒連線時就是這樣）。
 
-**序列化是 protobuf**：`mc_ctrl` 的字串表裡有 `/usr/include/google/protobuf/repeated_field.h`。
-→ 就算之後想接 eCAL，**沒有 `.proto` 定義還是解不開內容**，仍然不建議走那條。
+**`battery_state` 有訂閱者沒發布者** —— 小狗是 `dog_task` 在發；中狗的電池改由 ROS 2 的
+`battery_controller` 發（1 Hz）。**同一份 `mc_ctrl` 程式碼、不同外殼**的直接證據。
+
+（勘誤：本節先前把 `a74ae66c` 標成「硬體層回饋」。實際上它是 `robot_hal_node` 註冊的
+**`app_cmd` 發布者且 0 Hz**。方向沒錯，內容標錯了。）
+
+**序列化是 protobuf**，型別名稱在 `ecal_mon_cli` 裡就看得到（`robot_sdk.pb.*`）。
+要解內容可以用 `ecal_mon_cli -d <topic>` 取描述、`--proto <topic>` 看解碼後的訊息。
 
 **順便從字串表看到的**（`strings /opt/export/mc/bin/mc_ctrl`）：
 - 建置路徑 `/Users/robdog/jenkins_ws_do_not_move/workspace/zsibot_mc_macmini/...`
-  → 在 macOS 的 Jenkins 上交叉編譯的
-- **`custom/Quad_Controller/src/FSM_States/Motion_State.cpp` 與
-  `custom/Wheel_Controller/src/FSM_States/Motion_State.cpp`**
-  → `mc_ctrl` 內含**四足**與**輪足兩套控制器**，都是 FSM 狀態機架構
+  → 在 macOS 的 Jenkins 上交叉編譯
+- **`custom/Quad_Controller/...Motion_State.cpp` 與 `custom/Wheel_Controller/...Motion_State.cpp`**
+  → `mc_ctrl` 內含**四足**與**輪足兩套控制器**，都是 FSM 狀態機
 - 動力學 `common/include/Dynamics/Quadruped.h`、線代用 **Eigen3**
 
-> 還沒驗：那 8 個 topic 的名字（段名是雜湊）。真要查可以
-> `sudo strings /opt/export/mc/bin/mc_ctrl | grep -aiE "zsibot|/cmd|/state|joint|imu" | sort -u | head -40`，
-> 但架構層級已經定案，這條對報告不是必要的。
+⚠️ **`ecal_stop` 絕對不要跑**（會停掉 eCAL、運控就斷）；`ecal_rec` 會在機上寫檔，也別用。
 
 ---
 

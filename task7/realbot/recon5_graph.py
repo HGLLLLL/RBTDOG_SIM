@@ -295,11 +295,18 @@ def overlay_lines(ov, b):
                  % (nid(e["from"]), nid(e["to"]), e["seg"], e["note"]))
     orph = ov.get("ecal_orphans")
     if orph:
-        L.append('  "%s:ecal_orphans" [label="eCAL %s\\n%s", shape=note, '
+        L.append('  "%s:ecal_orphans" [label="%s\\n%s", shape=note, '
                  'style=filled, fillcolor="#eef4fb", color="#2b6cb0", fontsize=9];'
-                 % (b, "／".join(orph["segs"]), orph["note"]))
+                 % (b, "\\n".join(orph["segs"]), orph["note"]))
         L.append('  %s -> "%s:ecal_orphans" [style=dashed, color="#2b6cb0"];'
                  % (nid(orph["publisher"]), b))
+    nopub = ov.get("ecal_no_publisher")
+    if nopub:
+        L.append('  "%s:ecal_nopub" [label="%s\\n%s", shape=note, '
+                 'style=filled, fillcolor="#f7f7f7", color="#999999", fontsize=9];'
+                 % (b, "、".join(nopub["topics"]), nopub["note"]))
+        L.append('  "%s:ecal_nopub" -> %s [style=dotted, color="#999999"];'
+                 % (b, nid(nopub["subscriber"])))
     for e in ov.get("shm", []):
         lab = ("/dev/shm/%s\\n%s" % (e["name"], e["note"])) if e["name"] else e["note"]
         style = "bold" if e.get("verified") else "dotted"

@@ -151,7 +151,9 @@ W36 = dict(W35, W_STEP=1.5, STEP_APEX=0.021, PEN_SHAPE="hinge", W_DRIFT_L=8.0, D
 W37 = dict(W36, CYC_LAT_DECOUPLE=True, CMD_VY=(0.04, 0.22))
 # v3.7b（2026-09-22 夜，v3.7f 訓到 64M `step` 0.41→0.25 停損）：名目的漂移／航向由輪前饋補（REF cyc_lat_*_ff，見 E14／E15）、lift 通道只能加不能減、W_STEP 2.5
 #   MIRROR_AUG：每回合 50% 鏡像（obs 鏡像給 policy、動作鏡像回物理）→ 同一組權重服務左右兩種情境，訓出來的 policy 本身對稱（右轉弱＝policy 不對稱，E5–E10）
-W37B = dict(W37, LIFT_NONNEG=True, W_STEP=2.5, MIRROR_AUG=True)
+W37B = dict(W37, CYC_LAT_FF=True, LIFT_NONNEG=True, W_STEP=2.5, MIRROR_AUG=True)
+# v3.7f 權重的部署設定（不重訓）：訓練時的產生器 ＋ 輪前饋 ＋ lift 夾在 ≥ 名目（policy 靠縮 lift 避漂移懲罰，部署時把這條路關掉、漂移用前饋補）
+W37D = dict(W37, CYC_LAT_FF=True, LIFT_NONNEG=True)
 T_KEYS = ("t_vx", "t_vy", "t_yaw", "t_yawi", "t_yawlin", "t_yawrel", "t_vyrel", "t_head", "t_h", "t_lift", "t_stance", "t_roll", "t_pitch", "t_rollrate",
           "t_pitchrate", "t_bias", "t_act", "t_omdot", "t_qres", "t_tau", "t_taubar", "t_errbar", "t_kneev", "t_mode", "t_vz", "t_abadbias", "t_drift", "t_headlin", "t_step")
 METRIC_KEYS = ("height", "vx", "vy", "wz", "reward", "pitch", "roll", "mode", "s4", "s_arc", "cyc", "clr_step", "clr_stance",
@@ -713,12 +715,12 @@ class DualModeEnv(Env):
         #   力矩空間（v3.4f，原廠 kd 0.1）：差速走外環 τ = G_w·(v_des − v)，錄檔 τ 與殘差直接是 N·m
         data = state.pipeline_state                                       # 外環回授用的是這一控制步開始時的實測輪速（在 kick 之前）
         cmd_w = cmd
-        if self.ref["cyc_lat_decouple"]:                                 # v3.7b：平移名目的漂移／航向前饋（只進輪命令）
+        if self.ref["cyc_lat_decouple"] and w.get("CYC_LAT_FF", False):   # v3.7b：平移名目的漂移／航向前饋（只進輪命令）；v3.7f 訓練時沒有 → W 旗標控制
             a_, b_, lo_, hi_ = self.ref["cyc_lat_vx_ff"]
             has_vy = (jnp.abs(cmd[1]) > 0.02).astype(jnp.float32) * _lat_weight(P["A"]) * u4
             cmd_w = cmd + has_vy * jnp.array([1.0, 0.0, 0.0]) * jnp.clip(a_ + b_ * jnp.abs(cmd[1]), lo_, hi_) \
                         + has_vy * jnp.array([0.0, 0.0, 1.0]) * self.ref["cyc_lat_wz_ff"] * jnp.sign(cmd[1])
-        A_w = activity(cmd_w, self.ref) if self.ref["cyc_lat_decouple"] else P["A"]   # 輪命令的活動度 gate 要看前饋後的指令
+        A_w = activity(cmd_w, self.ref) if (self.ref["cyc_lat_decouple"] and w.get("CYC_LAT_FF", False)) else P["A"]   # 輪命令的活動度 gate 要看前饋後的指令
         v_nom = wheel_cmd(cmd_w, A_w, jnp.zeros(4), self.ref)
         v_wheel_meas = data.qvel[WHEEL_QVEL_IDX]
         if self.wheel_space == "tau":

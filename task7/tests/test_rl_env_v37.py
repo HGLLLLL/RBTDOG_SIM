@@ -69,7 +69,8 @@ def test_decouple_flag_default_off_and_scales_as_designed():
 
 def test_w37b_values_and_lift_nonneg_mapping():
     assert v3.W37["CYC_LAT_DECOUPLE"] is True and v3.W37["CMD_VY"] == (0.04, 0.22) and "LIFT_NONNEG" not in v3.W37 and "MIRROR_AUG" not in v3.W37
-    assert v3.W37B["LIFT_NONNEG"] is True and v3.W37B["W_STEP"] == 2.5 and v3.W37B["MIRROR_AUG"] is True
+    assert v3.W37B["LIFT_NONNEG"] is True and v3.W37B["W_STEP"] == 2.5 and v3.W37B["MIRROR_AUG"] is True and v3.W37B["CYC_LAT_FF"] is True
+    assert "CYC_LAT_FF" not in v3.W37 and v3.W37D["CYC_LAT_FF"] is True and v3.W37D["LIFT_NONNEG"] is True and "MIRROR_AUG" not in v3.W37D and v3.W37D["W_STEP"] == 1.5
     assert v3.REF["cyc_lat_wz_ff"] == 0.4 and v3.REF["cyc_lat_vx_ff"] == (0.15, -0.43, 0.05, 0.10)
     # lift 通道：a ≤ 0 → 1.0（死區＝名目）、a = +∞ → 1.4；預設路徑 a=−∞ → 0.6
     for a5, exp in ((-3.0, 1.0), (0.0, 1.0), (3.0, 1.0 + v3.LIFT_SCALE * float(jnp.tanh(3.0)))):
@@ -79,9 +80,9 @@ def test_w37b_values_and_lift_nonneg_mapping():
     assert abs(float(v3.act_split(jnp.zeros(v3.ACT_DIM).at[5].set(-3.0))["lift"]) - (1.0 - v3.LIFT_SCALE * float(jnp.tanh(3.0)))) < 1e-6
 
 
-@pytest.mark.parametrize("weights,vx_tol,head_tol", [(v3.W37, 0.10, 70.0), (v3.W37B, 0.03, 45.0)])
+@pytest.mark.parametrize("weights,vx_tol,head_tol", [(v3.W37, 0.10, 70.0), (v3.W37B, 0.03, 45.0), (v3.W37D, 0.03, 45.0)])
 def test_decouple_env_zero_action_lifts_tracks_and_feedforward(weights, vx_tol, head_tol):
-    """W37／W37B 都走解耦產生器（前饋是 REF 預設，兩者都有）；W37B 零動作＝名目（lift 死區）。"""
+    """W37（訓練時、無前饋：漂 −0.065／航向 −48°）；W37B／W37D 有前饋（漂 < 0.03／航向 < 45°）；零動作都＝名目。"""
     env = v3.DualModeEnv(gains="factory", weights=weights, ref=dict(cyc_amp_rand=False), push=False)
     jr, js = jax.jit(env.reset), jax.jit(env.step)
     s = jr(jax.random.PRNGKey(0)); s = s.replace(info={**s.info, "cmd": jnp.array((0.0, 0.20, 0.0)), "cmd2": jnp.array((0.0, 0.20, 0.0)), "t_switch": 10 ** 6})

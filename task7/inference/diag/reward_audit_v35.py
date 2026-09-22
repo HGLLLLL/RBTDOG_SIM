@@ -64,6 +64,7 @@ def main() -> int:
     a = ap.parse_args()
     V36 = a.wset in ("v36", "v37", "v37b")
     W_ = {"v35": v3.W35, "v36": v3.W36, "v37": v3.W37, "v37b": v3.W37B}[a.wset]
+    W_ = dict(W_, MIRROR_AUG=False)                  # 攤帳不抽鏡像回合
     env = v3.DualModeEnv(gains=a.gains, ref=dict(cyc_amp_rand=False), weights=W_, push=not V36)   # W35 含 CYC_TURN_SYM → 右轉鏡像；攤帳看的是 reward 項，圖案差異對 kp250/v3.4f 舊權重只影響右轉；v36 不要推力
     cases = CASES36 if V36 else tuple((n, c, True) for n, c in CASES)
     gate = {"v35": GATE, "v36": GATE36, "v37": GATE37, "v37b": GATE37}[a.wset]

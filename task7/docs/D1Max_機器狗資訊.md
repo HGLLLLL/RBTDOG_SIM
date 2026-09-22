@@ -307,12 +307,40 @@ UDP 那三個埠主要是註冊與跨主機用。
 實際上 **D1 Max 內部同樣是 eCAL**，差別在它**另外疊了一層完整的 ROS 2**對外。
 → 兩台狗的運控核心是同一套範式，task6 對 eCAL 的理解沒有白費。
 
-**推測（未驗）**：`robot_remote`（遙控器指令）與 `robot_roamerx_node`（NX 來的導航指令）
-應該是經 eCAL 把命令送給 `mc_ctrl`，而每毫秒等級的關節指令與狀態走那三個具名 shm 段。
-**要證實得看 eCAL 的 topic 名稱**：
+#### eCAL 上實際有幾個 topic、誰訂閱誰（`ls /dev/shm | grep ^ecal`，2026-09-22）
+
+eCAL v5 的段命名規則：`ecal_<topic 名的雜湊>` 是**發布者的記憶體檔**、
+`_mtx` 是它的互斥鎖、`_<pid>_evt`／`_ack_evt` 是**每個訂閱者**的事件握手。
+所以段名讀不出 topic 名字（是雜湊），但**訂閱關係讀得出來**：
+
+| 段 | 訂閱者（由 `_<pid>_evt` 判定） |
+|---|---|
+| `ecal_8a14b62c` | **2243 `robot_remote`** ＋ **2279 `robot_roamerx_node`** |
+| `ecal_a74ae66c` | **2447 `mc_ctrl`** |
+| `ecal_d87af588` | **2447 `mc_ctrl`** |
+| `ecal_ebf608ea` | **2447 `mc_ctrl`** |
+| `ecal_200f526f`／`301fbb4b`／`449d205f`／`cd623317` | 沒有共享記憶體訂閱者 |
+
+**共 8 個 eCAL topic**；`ecal_shutdown_process_*_evt` 證實參與者就是那四個行程
+（2243 `robot_remote`、2279 `robot_roamerx_node`、2281 `robot_hal_node`、2447 `mc_ctrl`）。
+
+**兩個可以直接下的結論**：
+
+1. **`mc_ctrl` 是收 3 個 topic 的那一端** → 指令是**進** `mc_ctrl`（遙控器與導航速度指令
+   最可能就在這三個裡）；另有一個 topic 被 `robot_remote` 與 `robot_roamerx` 同時訂閱，
+   那形狀像是 `mc_ctrl` 發出去的狀態廣播。
+2. **`robot_hal_node`（2281）在 eCAL 上沒有訂閱任何東西** —— 沒有 `_2281_evt`，
+   也沒有綁 UDP payload 埠 14002。
+   → **關節資料那條路真的不在 eCAL 上**，就是 `/dev/shm/{joint_cmd,joint_state,imu_central}`
+   三個具名段。這條與我們自己實測的寫入路徑一致。
+
+**還沒驗**：那 8 個 topic 的名字與內容（段名是雜湊）。要問的話：
 ```bash
-ssh robot@192.168.234.1 "ls /dev/shm | grep '^ecal' "      # 段名常帶 topic 名
-ssh robot@192.168.234.1 "sudo -n grep -i ecal /proc/\$(pgrep -x mc_ctrl)/maps | head"   # libecal 版本
+# 哪個行程開著哪一段 → 發布者＝開著但不在訂閱清單裡的那個
+ssh robot@192.168.234.1 "sudo -n bash -c 'for p in 2447 2281 2279 2243; do \
+  echo \"== \$p \$(cat /proc/\$p/comm)\"; ls -l /proc/\$p/fd | grep -oE \"ecal_[0-9a-f]+\" | sort -u; done'"
+# mc_ctrl binary 裡的 eCAL topic 名稱字串
+ssh robot@192.168.234.1 "sudo -n strings /opt/export/mc/bin/mc_ctrl | grep -aiE '^(/|ecal|topic)' | sort -u | head -40"
 ```
 
 ---

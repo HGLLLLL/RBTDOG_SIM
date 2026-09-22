@@ -88,7 +88,18 @@ SSH_OPTS=(-o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new
           -o ControlPath="/tmp/.recon3-%r@%h:%p")
 
 OUT_DIR="${RECON_OUT:-./recon3_$(date +%Y%m%d_%H%M%S)}"
-mkdir -p "$OUT_DIR"
+# ⚠️ 防呆：`RECON_OUT=$(ls -dt recon3_* | head -1)` 會抓到打包好的 .tar.gz（2026-09-22 踩過），
+#    輸出目錄變成一個「檔案」，後面每個重導向都失敗 —— 而且是在狗走完之後才發現。
+#    要選最近的目錄請用 `ls -dt recon3_*/`（尾巴的斜線才只列目錄）。
+if [ -e "$OUT_DIR" ] && [ ! -d "$OUT_DIR" ]; then
+  echo "❌ RECON_OUT=$OUT_DIR 存在但不是目錄（打包檔？）。" >&2
+  echo "   選最近的目錄：RECON_OUT=\$(ls -dt recon3_*/ | head -1)" >&2
+  exit 1
+fi
+mkdir -p "$OUT_DIR" || { echo "❌ 建不了輸出目錄 $OUT_DIR" >&2; exit 1; }
+if [ ! -w "$OUT_DIR" ]; then
+  echo "❌ 輸出目錄 $OUT_DIR 不可寫" >&2; exit 1
+fi
 
 hr()  { printf '%s\n' "------------------------------------------------------------"; }
 hdr() { hr; printf '### %s\n' "$*"; hr; }

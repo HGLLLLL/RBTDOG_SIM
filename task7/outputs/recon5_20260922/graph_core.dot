@@ -1,0 +1,186 @@
+digraph ros_core {
+  rankdir=LR; splines=spline; concentrate=true;
+  graph [fontname="Sans", fontsize=11, nodesep=0.3, ranksep=1.4];
+  node [fontname="Sans", fontsize=11];
+  edge [fontname="Sans", fontsize=8, color="#8a8a8a", fontcolor="#444444"];
+  subgraph cluster_nx {
+    label="Orin NX（應用板）"; style=dashed; fontsize=15; color="#bbbbbb";
+    subgraph cluster_nx_感測驅動 {
+      label="感測驅動"; style="filled"; color="#f2f2f2"; fontsize=12;
+      "nx:/rslidar_sdk/rslidar_points_destination_0" [label="/rslidar_sdk/rslidar_points_destination_0", shape=box, style="rounded,filled", fillcolor="#cde8d0"];
+      "nx:/rslidar_sdk/rslidar_points_destination_1" [label="/rslidar_sdk/rslidar_points_destination_1", shape=box, style="rounded,filled", fillcolor="#cde8d0"];
+      "nx:/sixents_gps_driver" [label="/sixents_gps_driver", shape=box, style="rounded,filled", fillcolor="#cde8d0"];
+    }
+    subgraph cluster_nx_SLAM定位 {
+      label="SLAM／定位"; style="filled"; color="#f2f2f2"; fontsize=12;
+      "nx:/MEB" [label="/MEB", shape=box, style="rounded,filled", fillcolor="#cfe2f3"];
+      "nx:/arc_lvio_node" [label="/arc_lvio_node", shape=box, style="rounded,filled", fillcolor="#cfe2f3"];
+      "nx:/arc_mapping_node" [label="/arc_mapping_node", shape=box, style="rounded,filled", fillcolor="#cfe2f3"];
+      "nx:/aritag_location_pipline" [label="/aritag_location_pipline", shape=box, style="rounded,filled", fillcolor="#cfe2f3"];
+      "nx:/kanon_rust_slam" [label="/kanon_rust_slam", shape=box, style="rounded,filled", fillcolor="#cfe2f3"];
+      "nx:/localization" [label="/localization", shape=box, style="rounded,filled", fillcolor="#cfe2f3"];
+      "nx:/robot_slam" [label="/robot_slam", shape=box, style="rounded,filled", fillcolor="#cfe2f3"];
+      "nx:/robot_tf" [label="/robot_tf", shape=box, style="rounded,filled", fillcolor="#cfe2f3"];
+    }
+    subgraph cluster_nx_感知 {
+      label="感知"; style="filled"; color="#f2f2f2"; fontsize=12;
+      "nx:/perception_jobs" [label="/perception_jobs", shape=box, style="rounded,filled", fillcolor="#fce5cd"];
+    }
+    subgraph cluster_nx_導航 {
+      label="導航"; style="filled"; color="#f2f2f2"; fontsize=12;
+      "nx:/behavior_server" [label="/behavior_server", shape=box, style="rounded,filled", fillcolor="#d9d2e9"];
+      "nx:/bt_navigator" [label="/bt_navigator", shape=box, style="rounded,filled", fillcolor="#d9d2e9"];
+      "nx:/charging_alignment_server" [label="/charging_alignment_server", shape=box, style="rounded,filled", fillcolor="#d9d2e9"];
+      "nx:/collision_monitor" [label="/collision_monitor", shape=box, style="rounded,filled", fillcolor="#d9d2e9"];
+      "nx:/controller_server" [label="/controller_server", shape=box, style="rounded,filled", fillcolor="#d9d2e9"];
+      "nx:/global_costmap/global_costmap" [label="/global_costmap/global_costmap", shape=box, style="rounded,filled", fillcolor="#d9d2e9"];
+      "nx:/kanon_rust_charge" [label="/kanon_rust_charge", shape=box, style="rounded,filled", fillcolor="#d9d2e9"];
+      "nx:/kanon_rust_loc" [label="/kanon_rust_loc", shape=box, style="rounded,filled", fillcolor="#d9d2e9"];
+      "nx:/kanon_rust_nav" [label="/kanon_rust_nav", shape=box, style="rounded,filled", fillcolor="#d9d2e9"];
+      "nx:/local_costmap/local_costmap" [label="/local_costmap/local_costmap", shape=box, style="rounded,filled", fillcolor="#d9d2e9"];
+      "nx:/local_costmap_controller/local_costmap_controller" [label="/local_costmap_controller/local_costmap_controller", shape=box, style="rounded,filled", fillcolor="#d9d2e9"];
+      "nx:/map_server" [label="/map_server", shape=box, style="rounded,filled", fillcolor="#d9d2e9"];
+      "nx:/planner_server" [label="/planner_server", shape=box, style="rounded,filled", fillcolor="#d9d2e9"];
+      "nx:/remoix_rust_interface" [label="/remoix_rust_interface", shape=box, style="rounded,filled", fillcolor="#d9d2e9"];
+      "nx:/ros2_alg_interface" [label="/ros2_alg_interface", shape=box, style="rounded,filled", fillcolor="#d9d2e9"];
+      "nx:/velocity_optimizer" [label="/velocity_optimizer", shape=box, style="rounded,filled", fillcolor="#d9d2e9"];
+      "nx:/waypoint_follower" [label="/waypoint_follower", shape=box, style="rounded,filled", fillcolor="#d9d2e9"];
+    }
+    subgraph cluster_nx_其他 {
+      label="其他"; style="filled"; color="#f2f2f2"; fontsize=12;
+      "nx:/arc_state_machine_node" [label="/arc_state_machine_node", shape=box, style="rounded,filled", fillcolor="#eeeeee"];
+      "nx:/bridge_image_topics_24" [label="/bridge_image_topics_24", shape=box, style="rounded,filled", fillcolor="#eeeeee"];
+      "nx:/error_aggregator" [label="/error_aggregator", shape=box, style="rounded,filled", fillcolor="#eeeeee"];
+      "nx:/rust_debug_node" [label="/rust_debug_node", shape=box, style="rounded,filled", fillcolor="#eeeeee"];
+    }
+  }
+  "nx:/MEB" -> "nx:/remoix_rust_interface" [label="cmd_vel\nmeb_brake"];
+  "nx:/MEB" -> "nx:/ros2_alg_interface" [label="meb_status"];
+  "nx:/arc_lvio_node" -> "nx:/arc_state_machine_node" [label="arc/slam_dock_pose\narc/slam_state"];
+  "nx:/arc_mapping_node" -> "nx:/kanon_rust_charge" [label="arc_mapping_state"];
+  "nx:/arc_state_machine_node" -> "nx:/arc_lvio_node" [label="arc/slam_mode_cmd"];
+  "nx:/arc_state_machine_node" -> "nx:/aritag_location_pipline" [label="arc/arc_state\narc/perception_mode_cmd"];
+  "nx:/arc_state_machine_node" -> "nx:/charging_alignment_server" [label="arc/dock_pose\narc/nav_coarse_alignment_mode_cmd\n+2 個"];
+  "nx:/arc_state_machine_node" -> "nx:/kanon_rust_charge" [label="arc/arc_state"];
+  "nx:/arc_state_machine_node" -> "nx:/remoix_rust_interface" [label="arc/arc_state\narc/mc_mode_cmd\n+1 個"];
+  "nx:/arc_state_machine_node" -> "nx:/rust_debug_node" [label="arc/arc_module_states_debug_info"];
+  "nx:/arc_state_machine_node" -> "nx:/waypoint_follower" [label="start_navigation"];
+  "nx:/aritag_location_pipline" -> "nx:/arc_state_machine_node" [label="arc/calibration_state\narc/perception_dock_pose\n+1 個"];
+  "nx:/behavior_server" -> "nx:/collision_monitor" [label="navigo/cs/cmn/intf/cmd_vel_raw"];
+  "nx:/behavior_server" -> "nx:/controller_server" [label="navigo/cs/cmn/intf/cmd_vel_raw"];
+  "nx:/bridge_image_topics_24" -> "nx:/arc_lvio_node" [label="front_camera/image_compressed"];
+  "nx:/bridge_image_topics_24" -> "nx:/arc_mapping_node" [label="front_camera/image_compressed"];
+  "nx:/bridge_image_topics_24" -> "nx:/aritag_location_pipline" [label="front_camera/image_compressed"];
+  "nx:/bridge_image_topics_24" -> "nx:/localization" [label="front_camera/image_compressed"];
+  "nx:/bridge_image_topics_24" -> "nx:/perception_jobs" [label="front_camera/image_compressed"];
+  "nx:/bridge_image_topics_24" -> "nx:/robot_slam" [label="front_camera/image_compressed"];
+  "nx:/bt_navigator" -> "nx:/error_aggregator" [label="navigo/ea/cmn/intf/nav_error\nnavigo/ea/cmn/intf/nav_error_clear"];
+  "nx:/charging_alignment_server" -> "nx:/arc_state_machine_node" [label="arc/nav_coarse_alignment_state\narc/nav_contact_alignment_state\n+1 個"];
+  "nx:/charging_alignment_server" -> "nx:/remoix_rust_interface" [label="cmd_pos\ncmd_vel\n+1 個"];
+  "nx:/collision_monitor" -> "nx:/error_aggregator" [label="navigo/ea/cmn/intf/nav_error\nnavigo/ea/cmn/intf/nav_error_clear"];
+  "nx:/collision_monitor" -> "nx:/velocity_optimizer" [label="navigo/cs/cmn/intf/cmd_vel_valid"];
+  "nx:/controller_server" -> "nx:/collision_monitor" [label="navigo/cs/cmn/intf/cmd_vel_raw"];
+  "nx:/controller_server" -> "nx:/error_aggregator" [label="navigo/ea/cmn/intf/nav_error\nnavigo/ea/cmn/intf/nav_error_clear"];
+  "nx:/kanon_rust_charge" -> "nx:/arc_state_machine_node" [label="arc/start_arc"];
+  "nx:/kanon_rust_nav" -> "nx:/waypoint_follower" [label="start_navigation"];
+  "nx:/localization" -> "nx:/arc_mapping_node" [label="odom/localization_odom"];
+  "nx:/localization" -> "nx:/kanon_rust_loc" [label="localization_state"];
+  "nx:/localization" -> "nx:/kanon_rust_nav" [label="localization_info"];
+  "nx:/localization" -> "nx:/robot_tf" [label="odom/localization_odom"];
+  "nx:/localization" -> "nx:/waypoint_follower" [label="localization_state"];
+  "nx:/map_server" -> "nx:/global_costmap/global_costmap" [label="navigo/ms/cmn/intf/map"];
+  "nx:/perception_jobs" -> "nx:/MEB" [label="laser_scan"];
+  "nx:/perception_jobs" -> "nx:/collision_monitor" [label="laser_scan"];
+  "nx:/perception_jobs" -> "nx:/controller_server" [label="laser_scan"];
+  "nx:/perception_jobs" -> "nx:/error_aggregator" [label="laser_scan"];
+  "nx:/perception_jobs" -> "nx:/local_costmap/local_costmap" [label="laser_scan"];
+  "nx:/perception_jobs" -> "nx:/local_costmap_controller/local_costmap_controller" [label="laser_scan"];
+  "nx:/planner_server" -> "nx:/error_aggregator" [label="navigo/ea/cmn/intf/nav_error\nnavigo/ea/cmn/intf/nav_error_clear"];
+  "nx:/planner_server" -> "nx:/local_costmap/local_costmap" [label="navigo/ps/cmn/intf/clean_obstacles_around_goal"];
+  "nx:/planner_server" -> "nx:/local_costmap_controller/local_costmap_controller" [label="navigo/ps/cmn/intf/clean_obstacles_around_goal"];
+  "nx:/remoix_rust_interface" -> "nx:/MEB" [label="handle_vel"];
+  "nx:/remoix_rust_interface" -> "nx:/arc_state_machine_node" [label="arc/dock_state\narc/mc_state"];
+  "nx:/remoix_rust_interface" -> "nx:/kanon_rust_charge" [label="arc/dock_state"];
+  "nx:/remoix_rust_interface" -> "nx:/localization" [label="odom/mc_odom"];
+  "nx:/remoix_rust_interface" -> "nx:/robot_tf" [label="odom/mc_odom"];
+  "nx:/robot_slam" -> "nx:/kanon_rust_slam" [label="pub_slam_state"];
+  "nx:/robot_slam" -> "nx:/robot_tf" [label="odom/slam_odom"];
+  "nx:/robot_tf" -> "nx:/arc_state_machine_node" [label="odom/current_pose"];
+  "nx:/robot_tf" -> "nx:/behavior_server" [label="odom/current_pose"];
+  "nx:/robot_tf" -> "nx:/bt_navigator" [label="odom/current_pose"];
+  "nx:/robot_tf" -> "nx:/collision_monitor" [label="odom/current_pose"];
+  "nx:/robot_tf" -> "nx:/controller_server" [label="odom/current_pose"];
+  "nx:/robot_tf" -> "nx:/error_aggregator" [label="odom/current_pose"];
+  "nx:/robot_tf" -> "nx:/global_costmap/global_costmap" [label="odom/current_pose"];
+  "nx:/robot_tf" -> "nx:/local_costmap/local_costmap" [label="odom/current_pose"];
+  "nx:/robot_tf" -> "nx:/local_costmap_controller/local_costmap_controller" [label="odom/current_pose"];
+  "nx:/robot_tf" -> "nx:/planner_server" [label="odom/current_pose"];
+  "nx:/robot_tf" -> "nx:/ros2_alg_interface" [label="odom/current_pose"];
+  "nx:/robot_tf" -> "nx:/waypoint_follower" [label="odom/current_pose"];
+  "nx:/ros2_alg_interface" -> "nx:/MEB" [label="meb_switch"];
+  "nx:/rslidar_sdk/rslidar_points_destination_0" -> "nx:/arc_lvio_node" [label="front_lidar\nfront_lidar/imu"];
+  "nx:/rslidar_sdk/rslidar_points_destination_0" -> "nx:/localization" [label="front_lidar\nfront_lidar/imu"];
+  "nx:/rslidar_sdk/rslidar_points_destination_0" -> "nx:/perception_jobs" [label="front_lidar"];
+  "nx:/rslidar_sdk/rslidar_points_destination_0" -> "nx:/robot_slam" [label="front_lidar\nfront_lidar/imu"];
+  "nx:/rslidar_sdk/rslidar_points_destination_1" -> "nx:/arc_lvio_node" [label="rear_lidar"];
+  "nx:/rslidar_sdk/rslidar_points_destination_1" -> "nx:/localization" [label="rear_lidar"];
+  "nx:/rslidar_sdk/rslidar_points_destination_1" -> "nx:/robot_slam" [label="rear_lidar"];
+  "nx:/sixents_gps_driver" -> "nx:/localization" [label="uni_best_nav\nuni_heading"];
+  "nx:/velocity_optimizer" -> "nx:/remoix_rust_interface" [label="cmd_vel\nnavigation_cmd"];
+  "nx:/waypoint_follower" -> "nx:/arc_state_machine_node" [label="navigation_state"];
+  "nx:/waypoint_follower" -> "nx:/bt_navigator" [label="navigo/wf/cmn/intf/update_tracking_goal"];
+  "nx:/waypoint_follower" -> "nx:/error_aggregator" [label="navigo/ea/cmn/intf/nav_error\nnavigo/ea/cmn/intf/nav_error_clear"];
+  "nx:/waypoint_follower" -> "nx:/kanon_rust_nav" [label="navigation_state"];
+  subgraph cluster_rk {
+    label="RK3588（運控板）"; style=dashed; fontsize=15; color="#bbbbbb";
+    subgraph cluster_rk_感測驅動 {
+      label="感測驅動"; style="filled"; color="#f2f2f2"; fontsize=12;
+      "rk:/robot_camera" [label="/robot_camera", shape=box, style="rounded,filled", fillcolor="#cde8d0"];
+    }
+    subgraph cluster_rk_運控HAL {
+      label="運控／HAL"; style="filled"; color="#f2f2f2"; fontsize=12;
+      "rk:/battery_controller" [label="/battery_controller", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
+      "rk:/fill_light_controller" [label="/fill_light_controller", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
+      "rk:/imu_shm_publisher" [label="/imu_shm_publisher", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
+      "rk:/joint_shm_controller" [label="/joint_shm_controller", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
+      "rk:/led_controller" [label="/led_controller", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
+      "rk:/robot_diagnostic_manager" [label="/robot_diagnostic_manager", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
+      "rk:/robot_manager" [label="/robot_manager", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
+      "rk:/robot_monitor" [label="/robot_monitor", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
+      "rk:/robot_remote" [label="/robot_remote", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
+      "rk:/switch_controller" [label="/switch_controller", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
+    }
+    subgraph cluster_rk_導航 {
+      label="導航"; style="filled"; color="#f2f2f2"; fontsize=12;
+      "rk:/robot_roamerx" [label="/robot_roamerx", shape=box, style="rounded,filled", fillcolor="#d9d2e9"];
+    }
+    subgraph cluster_rk_其他 {
+      label="其他"; style="filled"; color="#f2f2f2"; fontsize=12;
+      "rk:/bridge_image_topics_66" [label="/bridge_image_topics_66", shape=box, style="rounded,filled", fillcolor="#eeeeee"];
+    }
+  }
+  "rk:/battery_controller" -> "rk:/led_controller" [label="battery_controller/battery1\nbattery_controller/battery2\n+1 個"];
+  "rk:/battery_controller" -> "rk:/robot_remote" [label="battery_controller/battery1\nbattery_controller/battery2"];
+  "rk:/battery_controller" -> "rk:/robot_roamerx" [label="battery_controller/battery1\nbattery_controller/battery2"];
+  "rk:/fill_light_controller" -> "rk:/robot_remote" [label="fill_light_controller/auto_work_state\nfill_light_controller/back_light/state\n+2 個"];
+  "rk:/imu_shm_publisher" -> "rk:/robot_remote" [label="imu_shm_publisher/imu_central"];
+  "rk:/imu_shm_publisher" -> "rk:/robot_roamerx" [label="imu_shm_publisher/imu_central"];
+  "rk:/joint_shm_controller" -> "rk:/robot_remote" [label="joint_shm_controller/joint_sensor"];
+  "rk:/robot_camera" -> "rk:/bridge_image_topics_66" [label="front_camera/image_compressed\nrear_camera/image_compressed"];
+  "rk:/robot_camera" -> "rk:/robot_remote" [label="robot_camera/record_mp4_ack\nrobot_camera/record_mp4_status\n+2 個"];
+  "rk:/robot_diagnostic_manager" -> "rk:/led_controller" [label="robot_monitor/diagnostic_status"];
+  "rk:/robot_diagnostic_manager" -> "rk:/robot_manager" [label="robot_monitor/diagnostic_status"];
+  "rk:/robot_diagnostic_manager" -> "rk:/robot_remote" [label="robot_monitor/diagnostic_status"];
+  "rk:/robot_manager" -> "rk:/joint_shm_controller" [label="robot_manager/robot_status"];
+  "rk:/robot_manager" -> "rk:/led_controller" [label="robot_manager/robot_status"];
+  "rk:/robot_manager" -> "rk:/robot_remote" [label="robot_manager/robot_status"];
+  "rk:/robot_monitor" -> "rk:/led_controller" [label="robot_monitor/power_on_status"];
+  "rk:/robot_monitor" -> "rk:/robot_remote" [label="robot_monitor/power_on_status"];
+  "rk:/robot_remote" -> "rk:/fill_light_controller" [label="fill_light_controller/auto_work\nfill_light_controller/back_light/cmd\n+1 個"];
+  "rk:/robot_remote" -> "rk:/led_controller" [label="estop_controller/sw_estop/state\nrobot_remote/locked_state\n+1 個"];
+  "rk:/robot_remote" -> "rk:/robot_camera" [label="robot_camera/record_mp4\nrobot_camera/take_photo\n+1 個"];
+  "rk:/robot_roamerx" -> "rk:/led_controller" [label="robot_roamerx/alg_dtc\nrobot_roamerx/alg_status"];
+  "rk:/robot_roamerx" -> "rk:/robot_manager" [label="robot_roamerx/is_in_nav_control"];
+  "rk:/robot_roamerx" -> "rk:/robot_remote" [label="arc/charging_dock_info"];
+  "rk:/switch_controller" -> "rk:/robot_remote" [label="switch_controller/hw_estop/state"];
+}

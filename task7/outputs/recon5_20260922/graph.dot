@@ -4,7 +4,7 @@ digraph ros {
   edge [color="#888888"];
   subgraph cluster_nx {
     label="Orin NX（應用板）"; style=dashed;
-    "nx:/MEB" [label="/MEB", shape=box, style=filled, fillcolor="#d9d2e9"];
+    "nx:/MEB" [label="/MEB", shape=box, style=filled, fillcolor="#cfe2f3"];
     "nx:/arc_lvio_node" [label="/arc_lvio_node", shape=box, style=filled, fillcolor="#cfe2f3"];
     "nx:/arc_mapping_node" [label="/arc_mapping_node", shape=box, style=filled, fillcolor="#cfe2f3"];
     "nx:/arc_state_machine_node" [label="/arc_state_machine_node", shape=box, style=filled, fillcolor="#eeeeee"];
@@ -33,10 +33,10 @@ digraph ros {
     "nx:/nav2_container" [label="/nav2_container", shape=box, style=filled, fillcolor="#d9d2e9"];
     "nx:/perception_jobs" [label="/perception_jobs", shape=box, style=filled, fillcolor="#fce5cd"];
     "nx:/planner_server" [label="/planner_server", shape=box, style=filled, fillcolor="#d9d2e9"];
-    "nx:/remoix_rust_interface" [label="/remoix_rust_interface", shape=box, style=filled, fillcolor="#eeeeee"];
+    "nx:/remoix_rust_interface" [label="/remoix_rust_interface", shape=box, style=filled, fillcolor="#d9d2e9"];
     "nx:/robot_slam" [label="/robot_slam", shape=box, style=filled, fillcolor="#cfe2f3"];
     "nx:/robot_tf" [label="/robot_tf", shape=box, style=filled, fillcolor="#cfe2f3"];
-    "nx:/ros2_alg_interface" [label="/ros2_alg_interface", shape=box, style=filled, fillcolor="#eeeeee"];
+    "nx:/ros2_alg_interface" [label="/ros2_alg_interface", shape=box, style=filled, fillcolor="#d9d2e9"];
     "nx:/rslidar_sdk/param_handle" [label="/rslidar_sdk/param_handle", shape=box, style=filled, fillcolor="#cde8d0"];
     "nx:/rslidar_sdk/rslidar_points_destination_0" [label="/rslidar_sdk/rslidar_points_destination_0", shape=box, style=filled, fillcolor="#cde8d0"];
     "nx:/rslidar_sdk/rslidar_points_destination_1" [label="/rslidar_sdk/rslidar_points_destination_1", shape=box, style=filled, fillcolor="#cde8d0"];
@@ -50,24 +50,24 @@ digraph ros {
   subgraph cluster_rk {
     label="RK3588（運控板）"; style=dashed;
     "rk:/ComponentManager" [label="/ComponentManager", shape=box, style=filled, fillcolor="#eeeeee"];
-    "rk:/battery_controller" [label="/battery_controller", shape=box, style=filled, fillcolor="#d9d2e9"];
+    "rk:/battery_controller" [label="/battery_controller", shape=box, style=filled, fillcolor="#f4cccc"];
     "rk:/bridge_image_topics_66" [label="/bridge_image_topics_66", shape=box, style=filled, fillcolor="#eeeeee"];
-    "rk:/controller_manager" [label="/controller_manager", shape=box, style=filled, fillcolor="#d9d2e9"];
-    "rk:/fill_light_controller" [label="/fill_light_controller", shape=box, style=filled, fillcolor="#d9d2e9"];
+    "rk:/controller_manager" [label="/controller_manager", shape=box, style=filled, fillcolor="#eeeeee"];
+    "rk:/fill_light_controller" [label="/fill_light_controller", shape=box, style=filled, fillcolor="#f4cccc"];
     "rk:/imu_shm_publisher" [label="/imu_shm_publisher", shape=box, style=filled, fillcolor="#f4cccc"];
-    "rk:/joint_shm_controller" [label="/joint_shm_controller", shape=box, style=filled, fillcolor="#d9d2e9"];
+    "rk:/joint_shm_controller" [label="/joint_shm_controller", shape=box, style=filled, fillcolor="#f4cccc"];
     "rk:/launch_ros_2132" [label="/launch_ros_2132", shape=box, style=filled, fillcolor="#eeeeee"];
-    "rk:/led_controller" [label="/led_controller", shape=box, style=filled, fillcolor="#d9d2e9"];
+    "rk:/led_controller" [label="/led_controller", shape=box, style=filled, fillcolor="#f4cccc"];
     "rk:/robot_camera" [label="/robot_camera", shape=box, style=filled, fillcolor="#cde8d0"];
-    "rk:/robot_diagnostic_analyzer" [label="/robot_diagnostic_analyzer", shape=box, style=filled, fillcolor="#eeeeee"];
-    "rk:/robot_diagnostic_manager" [label="/robot_diagnostic_manager", shape=box, style=filled, fillcolor="#eeeeee"];
+    "rk:/robot_diagnostic_analyzer" [label="/robot_diagnostic_analyzer", shape=box, style=filled, fillcolor="#f4cccc"];
+    "rk:/robot_diagnostic_manager" [label="/robot_diagnostic_manager", shape=box, style=filled, fillcolor="#f4cccc"];
     "rk:/robot_hal" [label="/robot_hal", shape=box, style=filled, fillcolor="#f4cccc"];
     "rk:/robot_manager" [label="/robot_manager", shape=box, style=filled, fillcolor="#f4cccc"];
     "rk:/robot_monitor" [label="/robot_monitor", shape=box, style=filled, fillcolor="#f4cccc"];
     "rk:/robot_remote" [label="/robot_remote", shape=box, style=filled, fillcolor="#f4cccc"];
-    "rk:/robot_roamerx" [label="/robot_roamerx", shape=box, style=filled, fillcolor="#eeeeee"];
+    "rk:/robot_roamerx" [label="/robot_roamerx", shape=box, style=filled, fillcolor="#d9d2e9"];
     "rk:/robot_self_test_manager" [label="/robot_self_test_manager", shape=box, style=filled, fillcolor="#eeeeee"];
-    "rk:/switch_controller" [label="/switch_controller", shape=box, style=filled, fillcolor="#d9d2e9"];
+    "rk:/switch_controller" [label="/switch_controller", shape=box, style=filled, fillcolor="#f4cccc"];
     "rk:/zsi_actuator_driver" [label="/zsi_actuator_driver", shape=box, style=filled, fillcolor="#eeeeee"];
     "rk:/zsi_imu_driver" [label="/zsi_imu_driver", shape=box, style=filled, fillcolor="#cde8d0"];
   }
@@ -105,7 +105,6 @@ digraph ros {
   "Tnx:/navigation_state" [label="/navigation_state", shape=ellipse, style=filled, fillcolor="#ffffff"];
   "Tnx:/odom/current_pose" [label="/odom/current_pose", shape=ellipse, style=filled, fillcolor="#ffffff"];
   "Tnx:/navigo/cs/cmn/intf/cmd_vel_raw" [label="/navigo/cs/cmn/intf/cmd_vel_raw", shape=ellipse, style=filled, fillcolor="#ffffff"];
-  "Tnx:/navigo/lm/cmn/intf/bond" [label="/navigo/lm/cmn/intf/bond", shape=ellipse, style=filled, fillcolor="#ffffff"];
   "Tnx:/navigo/lcc/cmn/vis/costmap_raw" [label="/navigo/lcc/cmn/vis/costmap_raw", shape=ellipse, style=filled, fillcolor="#ffffff"];
   "Tnx:/navigo/lcc/cmn/vis/published_footprint" [label="/navigo/lcc/cmn/vis/published_footprint", shape=ellipse, style=filled, fillcolor="#ffffff"];
   "Tnx:/rear_camera/image_compressed" [label="/rear_camera/image_compressed", shape=ellipse, style=filled, fillcolor="#ffffff"];
@@ -321,17 +320,13 @@ digraph ros {
   "Tnx:/arc/perception_mode_cmd" -> "nx:/aritag_location_pipline";
   "Tnx:/front_camera/image_compressed" -> "nx:/aritag_location_pipline";
   "nx:/behavior_server" -> "Tnx:/navigo/cs/cmn/intf/cmd_vel_raw";
-  "nx:/behavior_server" -> "Tnx:/navigo/lm/cmn/intf/bond";
   "Tnx:/navigo/lcc/cmn/vis/costmap_raw" -> "nx:/behavior_server";
   "Tnx:/navigo/lcc/cmn/vis/published_footprint" -> "nx:/behavior_server";
-  "Tnx:/navigo/lm/cmn/intf/bond" -> "nx:/behavior_server";
   "Tnx:/odom/current_pose" -> "nx:/behavior_server";
   "nx:/bridge_image_topics_24" -> "Tnx:/front_camera/image_compressed";
   "nx:/bridge_image_topics_24" -> "Tnx:/rear_camera/image_compressed";
   "nx:/bt_navigator" -> "Tnx:/navigo/ea/cmn/intf/nav_error";
   "nx:/bt_navigator" -> "Tnx:/navigo/ea/cmn/intf/nav_error_clear";
-  "nx:/bt_navigator" -> "Tnx:/navigo/lm/cmn/intf/bond";
-  "Tnx:/navigo/lm/cmn/intf/bond" -> "nx:/bt_navigator";
   "Tnx:/navigo/wf/cmn/intf/update_tracking_goal" -> "nx:/bt_navigator";
   "Tnx:/odom/current_pose" -> "nx:/bt_navigator";
   "Tnx:/set_desired_angular_vel_z" -> "nx:/bt_navigator";
@@ -371,10 +366,8 @@ digraph ros {
   "nx:/collision_monitor" -> "Tnx:/navigo/cs/cmn/intf/cmd_vel_valid";
   "nx:/collision_monitor" -> "Tnx:/navigo/ea/cmn/intf/nav_error";
   "nx:/collision_monitor" -> "Tnx:/navigo/ea/cmn/intf/nav_error_clear";
-  "nx:/collision_monitor" -> "Tnx:/navigo/lm/cmn/intf/bond";
   "Tnx:/laser_scan" -> "nx:/collision_monitor";
   "Tnx:/navigo/cs/cmn/intf/cmd_vel_raw" -> "nx:/collision_monitor";
-  "Tnx:/navigo/lm/cmn/intf/bond" -> "nx:/collision_monitor";
   "Tnx:/odom/current_pose" -> "nx:/collision_monitor";
   "nx:/controller_server" -> "Tnx:/cmd_vel_with_mc_trajectory";
   "nx:/controller_server" -> "Tnx:/navigo/cs/cmn/intf/cmd_vel_raw";
@@ -394,10 +387,8 @@ digraph ros {
   "nx:/controller_server" -> "Tnx:/navigo/cs/ppc/vis/received_global_plan";
   "nx:/controller_server" -> "Tnx:/navigo/ea/cmn/intf/nav_error";
   "nx:/controller_server" -> "Tnx:/navigo/ea/cmn/intf/nav_error_clear";
-  "nx:/controller_server" -> "Tnx:/navigo/lm/cmn/intf/bond";
   "Tnx:/laser_scan" -> "nx:/controller_server";
   "Tnx:/navigo/cs/cmn/intf/cmd_vel_raw" -> "nx:/controller_server";
-  "Tnx:/navigo/lm/cmn/intf/bond" -> "nx:/controller_server";
   "Tnx:/odom/current_pose" -> "nx:/controller_server";
   "Tnx:/set_lookahead_distance" -> "nx:/controller_server";
   "Tnx:/set_speed_limit" -> "nx:/controller_server";
@@ -442,8 +433,6 @@ digraph ros {
   "Tnx:/localization_info" -> "nx:/kanon_rust_nav";
   "Tnx:/navigation_state" -> "nx:/kanon_rust_nav";
   "Tnx:/pub_slam_state" -> "nx:/kanon_rust_slam";
-  "nx:/lifecycle_manager_navigation" -> "Tnx:/navigo/lm/cmn/intf/bond";
-  "Tnx:/navigo/lm/cmn/intf/bond" -> "nx:/lifecycle_manager_navigation";
   "nx:/local_costmap_controller/local_costmap_controller" -> "Tnx:/navigo/lcc/cmn/vis/costmap";
   "nx:/local_costmap_controller/local_costmap_controller" -> "Tnx:/navigo/lcc/cmn/vis/costmap_raw";
   "nx:/local_costmap_controller/local_costmap_controller" -> "Tnx:/navigo/lcc/cmn/vis/costmap_updates";
@@ -483,9 +472,7 @@ digraph ros {
   "Tnx:/uni_best_nav" -> "nx:/localization";
   "Tnx:/uni_heading" -> "nx:/localization";
   "Tnx:/uni_rtk_pvh" -> "nx:/localization";
-  "nx:/map_server" -> "Tnx:/navigo/lm/cmn/intf/bond";
   "nx:/map_server" -> "Tnx:/navigo/ms/cmn/intf/map";
-  "Tnx:/navigo/lm/cmn/intf/bond" -> "nx:/map_server";
   "nx:/MEB" -> "Tnx:/cmd_vel";
   "nx:/MEB" -> "Tnx:/meb/collision_debug";
   "nx:/MEB" -> "Tnx:/meb/pred_path";
@@ -503,7 +490,6 @@ digraph ros {
   "Tnx:/front_lidar" -> "nx:/perception_jobs";
   "nx:/planner_server" -> "Tnx:/navigo/ea/cmn/intf/nav_error";
   "nx:/planner_server" -> "Tnx:/navigo/ea/cmn/intf/nav_error_clear";
-  "nx:/planner_server" -> "Tnx:/navigo/lm/cmn/intf/bond";
   "nx:/planner_server" -> "Tnx:/navigo/ps/cmn/intf/clean_obstacles_around_goal";
   "nx:/planner_server" -> "Tnx:/navigo/ps/cmn/vis/get_optimized_path_all_paths_visualization";
   "nx:/planner_server" -> "Tnx:/navigo/ps/cmn/vis/get_optimized_path_corridor_visualization";
@@ -547,7 +533,6 @@ digraph ros {
   "nx:/planner_server" -> "Tnx:/navigo/ps/tpg/vis/three_dim_topo_edges";
   "nx:/planner_server" -> "Tnx:/navigo/ps/tpg/vis/three_dim_topo_nodes";
   "nx:/planner_server" -> "Tnx:/navigo/ps/tpg/vis/virtual_walls";
-  "Tnx:/navigo/lm/cmn/intf/bond" -> "nx:/planner_server";
   "Tnx:/odom/current_pose" -> "nx:/planner_server";
   "Tnx:/predicted_paths" -> "nx:/planner_server";
   "nx:/remoix_rust_interface" -> "Tnx:/arc/dock_state";
@@ -596,18 +581,14 @@ digraph ros {
   "nx:/uwb_driver" -> "Tnx:/uwb";
   "nx:/velocity_optimizer" -> "Tnx:/cmd_vel";
   "nx:/velocity_optimizer" -> "Tnx:/navigation_cmd";
-  "nx:/velocity_optimizer" -> "Tnx:/navigo/lm/cmn/intf/bond";
   "Tnx:/navigo/cs/cmn/intf/cmd_vel_valid" -> "nx:/velocity_optimizer";
-  "Tnx:/navigo/lm/cmn/intf/bond" -> "nx:/velocity_optimizer";
   "nx:/waypoint_follower" -> "Tnx:/navigation_state";
   "nx:/waypoint_follower" -> "Tnx:/navigo/ea/cmn/intf/nav_error";
   "nx:/waypoint_follower" -> "Tnx:/navigo/ea/cmn/intf/nav_error_clear";
-  "nx:/waypoint_follower" -> "Tnx:/navigo/lm/cmn/intf/bond";
   "nx:/waypoint_follower" -> "Tnx:/navigo/wf/cmn/intf/update_tracking_goal";
   "nx:/waypoint_follower" -> "Tnx:/navigo/wf/cmn/vis/original_reference_path";
   "nx:/waypoint_follower" -> "Tnx:/odom/current_pose/history";
   "Tnx:/localization_state" -> "nx:/waypoint_follower";
-  "Tnx:/navigo/lm/cmn/intf/bond" -> "nx:/waypoint_follower";
   "Tnx:/odom/current_pose" -> "nx:/waypoint_follower";
   "Tnx:/perception/detection3d" -> "nx:/waypoint_follower";
   "Tnx:/pers/state" -> "nx:/waypoint_follower";

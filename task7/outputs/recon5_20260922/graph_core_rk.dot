@@ -1,0 +1,58 @@
+digraph ros_core {
+  rankdir=LR; splines=spline; concentrate=true;
+  graph [fontname="Sans", fontsize=11, nodesep=0.3, ranksep=1.4];
+  node [fontname="Sans", fontsize=11];
+  edge [fontname="Sans", fontsize=8, color="#8a8a8a", fontcolor="#444444"];
+  subgraph cluster_rk {
+    label="RK3588（運控板）"; style=dashed; fontsize=15; color="#bbbbbb";
+    subgraph cluster_rk_感測驅動 {
+      label="感測驅動"; style="filled"; color="#f2f2f2"; fontsize=12;
+      "rk:/robot_camera" [label="/robot_camera", shape=box, style="rounded,filled", fillcolor="#cde8d0"];
+    }
+    subgraph cluster_rk_運控HAL {
+      label="運控／HAL"; style="filled"; color="#f2f2f2"; fontsize=12;
+      "rk:/battery_controller" [label="/battery_controller", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
+      "rk:/fill_light_controller" [label="/fill_light_controller", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
+      "rk:/imu_shm_publisher" [label="/imu_shm_publisher", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
+      "rk:/joint_shm_controller" [label="/joint_shm_controller", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
+      "rk:/led_controller" [label="/led_controller", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
+      "rk:/robot_diagnostic_manager" [label="/robot_diagnostic_manager", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
+      "rk:/robot_manager" [label="/robot_manager", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
+      "rk:/robot_monitor" [label="/robot_monitor", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
+      "rk:/robot_remote" [label="/robot_remote", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
+      "rk:/switch_controller" [label="/switch_controller", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
+    }
+    subgraph cluster_rk_導航 {
+      label="導航"; style="filled"; color="#f2f2f2"; fontsize=12;
+      "rk:/robot_roamerx" [label="/robot_roamerx", shape=box, style="rounded,filled", fillcolor="#d9d2e9"];
+    }
+    subgraph cluster_rk_其他 {
+      label="其他"; style="filled"; color="#f2f2f2"; fontsize=12;
+      "rk:/bridge_image_topics_66" [label="/bridge_image_topics_66", shape=box, style="rounded,filled", fillcolor="#eeeeee"];
+    }
+  }
+  "rk:/battery_controller" -> "rk:/led_controller" [label="battery_controller/battery1\nbattery_controller/battery2\n+1 個"];
+  "rk:/battery_controller" -> "rk:/robot_remote" [label="battery_controller/battery1\nbattery_controller/battery2"];
+  "rk:/battery_controller" -> "rk:/robot_roamerx" [label="battery_controller/battery1\nbattery_controller/battery2"];
+  "rk:/fill_light_controller" -> "rk:/robot_remote" [label="fill_light_controller/auto_work_state\nfill_light_controller/back_light/state\n+2 個"];
+  "rk:/imu_shm_publisher" -> "rk:/robot_remote" [label="imu_shm_publisher/imu_central"];
+  "rk:/imu_shm_publisher" -> "rk:/robot_roamerx" [label="imu_shm_publisher/imu_central"];
+  "rk:/joint_shm_controller" -> "rk:/robot_remote" [label="joint_shm_controller/joint_sensor"];
+  "rk:/robot_camera" -> "rk:/bridge_image_topics_66" [label="front_camera/image_compressed\nrear_camera/image_compressed"];
+  "rk:/robot_camera" -> "rk:/robot_remote" [label="robot_camera/record_mp4_ack\nrobot_camera/record_mp4_status\n+2 個"];
+  "rk:/robot_diagnostic_manager" -> "rk:/led_controller" [label="robot_monitor/diagnostic_status"];
+  "rk:/robot_diagnostic_manager" -> "rk:/robot_manager" [label="robot_monitor/diagnostic_status"];
+  "rk:/robot_diagnostic_manager" -> "rk:/robot_remote" [label="robot_monitor/diagnostic_status"];
+  "rk:/robot_manager" -> "rk:/joint_shm_controller" [label="robot_manager/robot_status"];
+  "rk:/robot_manager" -> "rk:/led_controller" [label="robot_manager/robot_status"];
+  "rk:/robot_manager" -> "rk:/robot_remote" [label="robot_manager/robot_status"];
+  "rk:/robot_monitor" -> "rk:/led_controller" [label="robot_monitor/power_on_status"];
+  "rk:/robot_monitor" -> "rk:/robot_remote" [label="robot_monitor/power_on_status"];
+  "rk:/robot_remote" -> "rk:/fill_light_controller" [label="fill_light_controller/auto_work\nfill_light_controller/back_light/cmd\n+1 個"];
+  "rk:/robot_remote" -> "rk:/led_controller" [label="estop_controller/sw_estop/state\nrobot_remote/locked_state\n+1 個"];
+  "rk:/robot_remote" -> "rk:/robot_camera" [label="robot_camera/record_mp4\nrobot_camera/take_photo\n+1 個"];
+  "rk:/robot_roamerx" -> "rk:/led_controller" [label="robot_roamerx/alg_dtc\nrobot_roamerx/alg_status"];
+  "rk:/robot_roamerx" -> "rk:/robot_manager" [label="robot_roamerx/is_in_nav_control"];
+  "rk:/robot_roamerx" -> "rk:/robot_remote" [label="arc/charging_dock_info"];
+  "rk:/switch_controller" -> "rk:/robot_remote" [label="switch_controller/hw_estop/state"];
+}

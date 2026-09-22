@@ -10,7 +10,7 @@
 
 | 節點 | 分類 | 發布 | 訂閱 | 服務 | 動作 |
 |---|---|---|---|---|---|
-| `/MEB` | 導航 | 8 | 4 | 6 | 0 |
+| `/MEB` | SLAM／定位 | 8 | 4 | 6 | 0 |
 | `/arc_lvio_node` | SLAM／定位 | 5 | 6 | 6 | 0 |
 | `/arc_mapping_node` | SLAM／定位 | 4 | 3 | 7 | 0 |
 | `/arc_state_machine_node` | 其他 | 15 | 15 | 6 | 0 |
@@ -39,10 +39,10 @@
 | `/nav2_container` | 導航 | 1 | 1 | 0 | 0 |
 | `/perception_jobs` | 感知 | 6 | 3 | 7 | 0 |
 | `/planner_server` | 導航 | 49 | 4 | 23 | 3 |
-| `/remoix_rust_interface` | 其他 | 5 | 6 | 0 | 0 |
+| `/remoix_rust_interface` | 導航 | 5 | 6 | 0 | 0 |
 | `/robot_slam` | SLAM／定位 | 6 | 6 | 8 | 0 |
 | `/robot_tf` | SLAM／定位 | 6 | 6 | 6 | 0 |
-| `/ros2_alg_interface` | 其他 | 3 | 5 | 0 | 0 |
+| `/ros2_alg_interface` | 導航 | 3 | 5 | 0 | 0 |
 | `/rslidar_sdk/param_handle` | 感測驅動 | 2 | 1 | 6 | 0 |
 | `/rslidar_sdk/rslidar_points_destination_0` | 感測驅動 | 4 | 1 | 6 | 0 |
 | `/rslidar_sdk/rslidar_points_destination_1` | 感測驅動 | 4 | 1 | 6 | 0 |
@@ -283,7 +283,7 @@
 
 ### 每個節點的完整接線
 
-**`/MEB`**（導航）
+**`/MEB`**（SLAM／定位）
 - 發布：`/cmd_vel`、`/meb/collision_debug`、`/meb/pred_path`、`/meb/safety_corridor`、`/meb_brake`、`/meb_status`、`/parameter_events`、`/rosout`
 - 訂閱：`/handle_vel`、`/laser_scan`、`/meb_switch`、`/parameter_events`
 
@@ -399,7 +399,7 @@
 - 發布：`/navigo/ea/cmn/intf/nav_error`、`/navigo/ea/cmn/intf/nav_error_clear`、`/navigo/lm/cmn/dbg/planner_server/transition_event`、`/navigo/lm/cmn/intf/bond`、`/navigo/ps/cmn/intf/clean_obstacles_around_goal`、`/navigo/ps/cmn/vis/get_optimized_path_all_paths_visualization`、`/navigo/ps/cmn/vis/get_optimized_path_corridor_visualization`、`/navigo/ps/cmn/vis/get_optimized_path_matched_points_markers`、`/navigo/ps/cmn/vis/global_esdf_pos_distance`、`/navigo/ps/cmn/vis/local_esdf_pos_distance`、`/navigo/ps/cmn/vis/planned_path`、`/navigo/ps/cmn/vis/planned_trajectories`、`/navigo/ps/cmn/vis/quadtree_topo_graph`、`/navigo/ps/slp/vis/start_end_visualization`、`/navigo/ps/stp/dbg/planner_debug_info`、`/navigo/ps/stp/vis/corridor_clearance_visualization`、`/navigo/ps/stp/vis/front_end_exploration_traj_visualization`、`/navigo/ps/stp/vis/front_end_goal_connection_traj_visualization`、`/navigo/ps/stp/vis/front_end_middle_traj_visualization`、`/navigo/ps/stp/vis/front_end_shot_traj_visualization`、`/navigo/ps/stp/vis/front_end_start_connection_traj_visualization`、`/navigo/ps/stp/vis/front_end_traj_visualization`、`/navigo/ps/stp/vis/guidance_path`、`/navigo/ps/stp/vis/hybrid_astar_exploration_points`、`/navigo/ps/stp/vis/hybrid_astar_search/candidate_inputs`、`/navigo/ps/stp/vis/hybrid_astar_search/cost_indicators`、`/navigo/ps/stp/vis/hybrid_astar_search/direction_arrows`、`/navigo/ps/stp/vis/hybrid_astar_search/explored_nodes`、`/navigo/ps/stp/vis/hybrid_astar_search/robot_footprint`、`/navigo/ps/stp/vis/hybrid_astar_search/selected_input`、`/navigo/ps/stp/vis/hybrid_astar_search/shot_path`、`/navigo/ps/stp/vis/hybrid_astar_start_end_sampling_points`、`/navigo/ps/stp/vis/quadtree_dijkstra_progress`、`/navigo/ps/stp/vis/quadtree_multi_inflation_results`、`/navigo/ps/stp/vis/quadtree_path_visualization`、`/navigo/ps/stp/vis/quadtree_start_goal_grids`、`/navigo/ps/stp/vis/safe_drive_corridor`、`/navigo/ps/stp/vis/start_end_visualization`、`/navigo/ps/stp/vis/tracking_searcher_each_expansion_step_planner_goal`、`/navigo/ps/tpg/vis/centerline_points`、`/navigo/ps/tpg/vis/esdf_cloud`、`/navigo/ps/tpg/vis/esdf_slice`、`/navigo/ps/tpg/vis/pcd_overlay`、`/navigo/ps/tpg/vis/three_dim_search_path`、`/navigo/ps/tpg/vis/three_dim_topo_edges`、`/navigo/ps/tpg/vis/three_dim_topo_nodes`、`/navigo/ps/tpg/vis/virtual_walls`、`/parameter_events`、`/rosout`
 - 訂閱：`/navigo/lm/cmn/intf/bond`、`/odom/current_pose`、`/parameter_events`、`/predicted_paths`
 
-**`/remoix_rust_interface`**（其他）
+**`/remoix_rust_interface`**（導航）
 - 發布：`/arc/dock_state`、`/arc/mc_state`、`/handle_vel`、`/odom/mc_odom`、`/rosout`
 - 訂閱：`/arc/arc_state`、`/arc/mc_mode_cmd`、`/cmd_pos`、`/cmd_vel`、`/meb_brake`、`/navigation_cmd`
 
@@ -411,7 +411,7 @@
 - 發布：`/odom/current_pose`、`/parameter_events`、`/rosout`、`/tf`、`/tf_manager/odom_type`、`/tf_static`
 - 訂閱：`/odom/gazebo_odom`、`/odom/localization_odom`、`/odom/mc_odom`、`/odom/mujoco_odom`、`/odom/slam_odom`、`/parameter_events`
 
-**`/ros2_alg_interface`**（其他）
+**`/ros2_alg_interface`**（導航）
 - 發布：`/meb_switch`、`/rosout`、`/srv/event`
 - 訂閱：`/goal`、`/meb_status`、`/navigo/bn/cmn/vis/global_path`、`/navigo/bn/cmn/vis/local_path`、`/odom/current_pose`
 
@@ -460,24 +460,24 @@
 | 節點 | 分類 | 發布 | 訂閱 | 服務 | 動作 |
 |---|---|---|---|---|---|
 | `/ComponentManager` | 其他 | 1 | 1 | 0 | 0 |
-| `/battery_controller` | 導航 | 6 | 1 | 6 | 0 |
+| `/battery_controller` | 運控／HAL | 6 | 1 | 6 | 0 |
 | `/bridge_image_topics_66` | 其他 | 1 | 3 | 0 | 0 |
-| `/controller_manager` | 導航 | 2 | 1 | 16 | 0 |
-| `/fill_light_controller` | 導航 | 7 | 4 | 6 | 0 |
+| `/controller_manager` | 其他 | 2 | 1 | 16 | 0 |
+| `/fill_light_controller` | 運控／HAL | 7 | 4 | 6 | 0 |
 | `/imu_shm_publisher` | 運控／HAL | 4 | 1 | 6 | 0 |
-| `/joint_shm_controller` | 導航 | 6 | 2 | 6 | 0 |
+| `/joint_shm_controller` | 運控／HAL | 6 | 2 | 6 | 0 |
 | `/launch_ros_2132` | 其他 | 2 | 1 | 7 | 0 |
-| `/led_controller` | 導航 | 4 | 15 | 6 | 0 |
+| `/led_controller` | 運控／HAL | 4 | 15 | 6 | 0 |
 | `/robot_camera` | 感測驅動 | 8 | 4 | 7 | 0 |
-| `/robot_diagnostic_analyzer` | 其他 | 4 | 2 | 6 | 0 |
-| `/robot_diagnostic_manager` | 其他 | 3 | 2 | 6 | 0 |
+| `/robot_diagnostic_analyzer` | 運控／HAL | 4 | 2 | 6 | 0 |
+| `/robot_diagnostic_manager` | 運控／HAL | 3 | 2 | 6 | 0 |
 | `/robot_hal` | 運控／HAL | 4 | 1 | 12 | 0 |
 | `/robot_manager` | 運控／HAL | 4 | 3 | 6 | 0 |
 | `/robot_monitor` | 運控／HAL | 4 | 1 | 6 | 0 |
 | `/robot_remote` | 運控／HAL | 15 | 19 | 13 | 0 |
-| `/robot_roamerx` | 其他 | 8 | 6 | 12 | 0 |
+| `/robot_roamerx` | 導航 | 8 | 6 | 12 | 0 |
 | `/robot_self_test_manager` | 其他 | 2 | 1 | 7 | 0 |
-| `/switch_controller` | 導航 | 4 | 1 | 6 | 0 |
+| `/switch_controller` | 運控／HAL | 4 | 1 | 6 | 0 |
 | `/zsi_actuator_driver` | 其他 | 2 | 1 | 6 | 0 |
 | `/zsi_imu_driver` | 感測驅動 | 2 | 1 | 6 | 0 |
 
@@ -548,7 +548,7 @@
 - 發布：`/rosout`
 - 訂閱：`/parameter_events`
 
-**`/battery_controller`**（導航）
+**`/battery_controller`**（運控／HAL）
 - 發布：`/battery_controller/battery1`、`/battery_controller/battery2`、`/battery_controller/battery_all`、`/battery_controller/transition_event`、`/parameter_events`、`/rosout`
 - 訂閱：`/parameter_events`
 
@@ -556,11 +556,11 @@
 - 發布：`/rosout`
 - 訂閱：`/front_camera/image_compressed`、`/parameter_events`、`/rear_camera/image_compressed`
 
-**`/controller_manager`**（導航）
+**`/controller_manager`**（其他）
 - 發布：`/parameter_events`、`/rosout`
 - 訂閱：`/parameter_events`
 
-**`/fill_light_controller`**（導航）
+**`/fill_light_controller`**（運控／HAL）
 - 發布：`/fill_light_controller/auto_work_state`、`/fill_light_controller/back_light/state`、`/fill_light_controller/front_light/state`、`/fill_light_controller/lux`、`/fill_light_controller/transition_event`、`/parameter_events`、`/rosout`
 - 訂閱：`/fill_light_controller/auto_work`、`/fill_light_controller/back_light/cmd`、`/fill_light_controller/front_light/cmd`、`/parameter_events`
 
@@ -568,7 +568,7 @@
 - 發布：`/imu_shm_publisher/imu_central`、`/imu_shm_publisher/transition_event`、`/parameter_events`、`/rosout`
 - 訂閱：`/parameter_events`
 
-**`/joint_shm_controller`**（導航）
+**`/joint_shm_controller`**（運控／HAL）
 - 發布：`/joint_shm_controller/joint_cmd_echo`、`/joint_shm_controller/joint_sensor`、`/joint_shm_controller/joint_states`、`/joint_shm_controller/transition_event`、`/parameter_events`、`/rosout`
 - 訂閱：`/parameter_events`、`/robot_manager/robot_status`
 
@@ -576,7 +576,7 @@
 - 發布：`/parameter_events`、`/rosout`
 - 訂閱：`/robot_remote/transition_event`
 
-**`/led_controller`**（導航）
+**`/led_controller`**（運控／HAL）
 - 發布：`/led_controller/auto_work_state`、`/led_controller/transition_event`、`/parameter_events`、`/rosout`
 - 訂閱：`/battery_controller/battery1`、`/battery_controller/battery2`、`/battery_controller/battery_all`、`/estop_controller/hw_estop/state`、`/estop_controller/sw_estop/state`、`/led_controller/auto_work`、`/led_controller/led_cmd`、`/parameter_events`、`/robot_manager/robot_status`、`/robot_monitor/diagnostic_status`、`/robot_monitor/power_on_status`、`/robot_remote/locked_state`、`/robot_remote/reverse_head_tail`、`/robot_roamerx/alg_dtc`、`/robot_roamerx/alg_status`
 
@@ -584,11 +584,11 @@
 - 發布：`/front_camera/image_compressed`、`/parameter_events`、`/rear_camera/image_compressed`、`/robot_camera/record_mp4_ack`、`/robot_camera/record_mp4_status`、`/robot_camera/take_photo_ack`、`/rosout`、`/tf/tf_ack`
 - 訂閱：`/parameter_events`、`/robot_camera/record_mp4`、`/robot_camera/take_photo`、`/tf/tf_req`
 
-**`/robot_diagnostic_analyzer`**（其他）
+**`/robot_diagnostic_analyzer`**（運控／HAL）
 - 發布：`/diagnostics_agg`、`/diagnostics_toplevel_state`、`/parameter_events`、`/rosout`
 - 訂閱：`/diagnostics`、`/parameter_events`
 
-**`/robot_diagnostic_manager`**（其他）
+**`/robot_diagnostic_manager`**（運控／HAL）
 - 發布：`/parameter_events`、`/robot_monitor/diagnostic_status`、`/rosout`
 - 訂閱：`/diagnostics_agg`、`/parameter_events`
 
@@ -608,7 +608,7 @@
 - 發布：`/diagnostics`、`/estop_controller/sw_estop/state`、`/fill_light_controller/auto_work`、`/fill_light_controller/back_light/cmd`、`/fill_light_controller/front_light/cmd`、`/parameter_events`、`/robot_camera/record_mp4`、`/robot_camera/take_photo`、`/robot_remote/knee_mode`、`/robot_remote/locked_state`、`/robot_remote/obstacle_avoidance`、`/robot_remote/reverse_head_tail`、`/robot_remote/transition_event`、`/rosout`、`/tf/tf_req`
 - 訂閱：`/arc/charging_dock_info`、`/battery_controller/battery1`、`/battery_controller/battery2`、`/diagnostics_agg`、`/fill_light_controller/auto_work_state`、`/fill_light_controller/back_light/state`、`/fill_light_controller/front_light/state`、`/fill_light_controller/lux`、`/imu_shm_publisher/imu_central`、`/joint_shm_controller/joint_sensor`、`/parameter_events`、`/robot_camera/record_mp4_ack`、`/robot_camera/record_mp4_status`、`/robot_camera/take_photo_ack`、`/robot_manager/robot_status`、`/robot_monitor/diagnostic_status`、`/robot_monitor/power_on_status`、`/switch_controller/hw_estop/state`、`/tf/tf_ack`
 
-**`/robot_roamerx`**（其他）
+**`/robot_roamerx`**（導航）
 - 發布：`/arc/charging_dock_info`、`/diagnostics`、`/parameter_events`、`/robot_roamerx/alg_dtc`、`/robot_roamerx/alg_status`、`/robot_roamerx/is_in_nav_control`、`/robot_roamerx/transition_event`、`/rosout`
 - 訂閱：`/battery_controller/battery1`、`/battery_controller/battery2`、`/cmd_vel`、`/control_right/test`、`/imu_shm_publisher/imu_central`、`/parameter_events`
 
@@ -616,7 +616,7 @@
 - 發布：`/parameter_events`、`/rosout`
 - 訂閱：`/parameter_events`
 
-**`/switch_controller`**（導航）
+**`/switch_controller`**（運控／HAL）
 - 發布：`/parameter_events`、`/rosout`、`/switch_controller/hw_estop/state`、`/switch_controller/transition_event`
 - 訂閱：`/parameter_events`
 

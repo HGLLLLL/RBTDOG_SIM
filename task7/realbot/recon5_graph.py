@@ -6,7 +6,9 @@
 
 產出（都寫進輸出目錄）：
   nodes_topics.md   完整表格：節點→發布／訂閱、topic→發布者／訂閱者（報告直接用這份）
-  graph.dot         Graphviz 原始檔 → `dot -Tsvg graph.dot -o graph.svg`
+  graph.dot         完整圖（Graphviz）→ `dot -Tsvg graph.dot -o graph.svg`
+  graph_core.dot    主幹圖（只留有發也有收、非視覺化的 topic；同一對節點的多條 topic 併成一條邊）
+  graph_core_nx.dot / graph_core_rk.dot   同上，每塊板一張（報告用這兩張）
   graph_core.mmd    Mermaid（只留感測→SLAM／定位→導航→cmd_vel 的主幹，看得懂的那張）
   graph.json        機器可讀
 
@@ -21,21 +23,30 @@ import sys
 
 # 這些 topic 每個節點都接，畫進圖只會變成毛球 → 主幹圖排除（完整表格照樣保留）
 NOISE = re.compile(r"^/(parameter_events|rosout)$|/transition_event$|"
-                   r"^/tf(_static)?$|^/clock$|^/diagnostics")
-VIS = re.compile(r"/vis/|visualization|/debug|marker", re.I)
+                   r"^/tf(_static)?$|^/clock$|^/diagnostics|"
+                   # nav2 生命週期的 bond 心跳：每個 lifecycle 節點都跟管理者連一條，
+                   # 不濾掉整張圖會被它淹成毛球（2026-09-22 第一版就是這樣）
+                   r"/bond$")
+VIS = re.compile(r"/vis/|visualization|/debug|/dbg/|marker", re.I)
 
 BOARD_FILES = {"nx": "nav_ai_nx.log", "rk": "nav_ai_rk.log"}
 BOARD_NAME = {"nx": "Orin NX（應用板）", "rk": "RK3588（運控板）"}
 
 # 主幹圖的分組（依名稱歸類，只影響畫圖的顏色與階層）
+# ⚠️ 順序就是優先序（第一個命中的贏）。運控／HAL 一定要排在導航前面，
+#    否則 `battery_controller`、`joint_shm_controller` 這些會被「controller」誤抓進導航
+#    （2026-09-22 第一版畫出來就是這樣錯的）。導航那條也不能用裸的 `controller`。
 GROUPS = [
-    ("感測驅動", r"rslidar|imu_driver|uss_driver|uwb_driver|gps_driver|sixents|robot_camera"),
-    ("SLAM／定位", r"slam|lvio|mapping|localization|aritag|apriltag|robot_tf"),
-    ("感知", r"perception"),
-    ("導航", r"planner|controller|bt_navigator|behavior|costmap|collision|waypoint|"
-             r"velocity_optimizer|nav2|navigo|map_server|charging|MEB|kanon|lifecycle"),
+    ("感測驅動", r"rslidar|imu_driver|uss_driver|uwb_driver|gps_driver|sixents|robot_camera|"
+                r"livox|camera_driver"),
+    ("SLAM／定位", r"slam|lvio|mapping|localization|aritag|apriltag|robot_tf|^/MEB$"),
+    ("感知", r"perception|stereo|detect|track|segment"),
     ("運控／HAL", r"robot_hal|joint_shm|imu_shm|mc_ctrl|switch_controller|estop|battery|"
-                  r"led_controller|fill_light|robot_remote|robot_monitor|robot_manager"),
+                  r"led_controller|fill_light|robot_remote|robot_monitor|robot_manager|"
+                  r"robot_diagnostic"),
+    ("導航", r"planner_server|controller_server|bt_navigator|behavior_server|costmap|"
+             r"collision_monitor|waypoint|velocity_optimizer|nav2|navigo|map_server|"
+             r"charging|charge|kanon|lifecycle_manager|roamerx|alg_interface|remoix"),
 ]
 
 
@@ -172,6 +183,66 @@ def dot(boards):
     return "\n".join(L)
 
 
+def dot_core(boards, only_board=None):
+    """主幹圖（DOT）：只留**真的有人發也有人收**的 topic，去掉視覺化與雜訊。
+
+    完整圖 42＋21 個節點、280 個 topic，畫出來 1777×11390 pt 一條細長帶子，沒人看得懂。
+    這張為了能放進報告做了四件事：
+      - 去掉 /parameter_events、/rosout、/tf、transition_event（每個節點都接）
+      - 去掉 /vis/、marker、debug（給 RViz 看的，不是資料流）
+      - 去掉只有發布者沒有訂閱者的 topic（沒人用的輸出）
+      - **把同一對節點之間的多條 topic 併成一條邊**（不併的話光邊標籤就 5611 pt 寬）
+    `only_board` 給值就只畫那塊板，兩塊板各一張才塞得進一頁。
+    """
+    colors = {"感測驅動": "#cde8d0", "SLAM／定位": "#cfe2f3", "感知": "#fce5cd",
+              "導航": "#d9d2e9", "運控／HAL": "#f4cccc", "其他": "#eeeeee"}
+    L = ["digraph ros_core {",
+         '  rankdir=LR; splines=spline; concentrate=true;',
+         '  graph [fontname="Sans", fontsize=11, nodesep=0.3, ranksep=1.4];',
+         '  node [fontname="Sans", fontsize=11];',
+         '  edge [fontname="Sans", fontsize=8, color="#8a8a8a", fontcolor="#444444"];']
+    for b, nodes in boards.items():
+        if only_board and b != only_board:
+            continue
+        pub, sub = {}, {}
+        for n, info in nodes.items():
+            for t, _ in info["pubs"]:
+                pub.setdefault(t, []).append(n)
+            for t, _ in info["subs"]:
+                sub.setdefault(t, []).append(n)
+        keep = {t for t in pub if t in sub
+                and not NOISE.search(t) and not VIS.search(t)}
+        # 併邊：同一對節點之間的所有 topic 收進一條
+        edges = {}
+        for t in sorted(keep):
+            for p_ in sorted(set(pub[t])):
+                for q_ in sorted(set(sub[t])):
+                    if p_ != q_:
+                        edges.setdefault((p_, q_), []).append(t.lstrip("/"))
+        used = {n for e in edges for n in e}
+        L.append('  subgraph cluster_%s {' % b)
+        L.append('    label="%s"; style=dashed; fontsize=15; color="#bbbbbb";' % BOARD_NAME[b])
+        for g, _ in GROUPS + [("其他", "")]:
+            members = [n for n in sorted(used) if group_of(n) == g]
+            if not members:
+                continue
+            L.append('    subgraph cluster_%s_%s {' % (b, re.sub(r"\W", "", g)))
+            L.append('      label="%s"; style="filled"; color="#f2f2f2"; fontsize=12;' % g)
+            for n in members:
+                L.append('      "%s:%s" [label="%s", shape=box, style="rounded,filled", '
+                         'fillcolor="%s"];' % (b, n, n, colors[g]))
+            L.append("    }")
+        L.append("  }")
+        for (p_, q_), ts in sorted(edges.items()):
+            if len(ts) <= 2:
+                lab = "\\n".join(ts)
+            else:
+                lab = "\\n".join(ts[:2]) + "\\n+%d 個" % (len(ts) - 2)
+            L.append('  "%s:%s" -> "%s:%s" [label="%s"];' % (b, p_, b, q_, lab))
+    L.append("}")
+    return "\n".join(L)
+
+
 def mermaid_core(boards):
     """主幹圖：去掉雜訊與視覺化 topic，只留真正的資料流，人看得懂的那張。"""
     L = ["flowchart LR"]
@@ -231,6 +302,11 @@ def main():
         f.write(md_tables(boards) + "\n")
     with open(os.path.join(d, "graph.dot"), "w") as f:
         f.write(dot(boards) + "\n")
+    with open(os.path.join(d, "graph_core.dot"), "w") as f:
+        f.write(dot_core(boards) + "\n")
+    for b in boards:
+        with open(os.path.join(d, "graph_core_%s.dot" % b), "w") as f:
+            f.write(dot_core(boards, only_board=b) + "\n")
     with open(os.path.join(d, "graph_core.mmd"), "w") as f:
         f.write(mermaid_core(boards) + "\n")
     with open(os.path.join(d, "graph.json"), "w") as f:

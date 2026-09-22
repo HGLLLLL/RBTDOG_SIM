@@ -163,7 +163,7 @@ SDK 編號規則：`1` = hip_roll(abad)、`2` = hip_pitch、`3` = knee_pitch、`
 
 | | **D1 EDU 輪足（小狗）** | **D1 Max（中狗）** |
 |---|---|---|
-| eCAL | 原廠文件與 SDK 調查說「**eCAL 為主，ROS 2 只是橋接**」—— ⚠️ **我們從沒在小狗上實測過**（task6 的紀錄裡沒有任何 eCAL 證據） | ✅ **2026-09-22 實測**：4 個參與者、**8 個 topic**、`/dev/shm` 30 個 `ecal_*` 段、UDP 14000–14002；`mc_ctrl` 是中心（見 §4.1b） |
+| eCAL | ✅ **有實測**（`ecal_mon_tui`，小狗拆機前留下的畫面）：5 個行程、**16 個發布 / 13 個訂閱**，**topic 名字與型別全都看得到**（見下表） | ✅ **2026-09-22 實測**：4 個參與者、**8 個 topic**、`/dev/shm` 30 個 `ecal_*` 段、UDP 14000–14002；但**段名不透明，topic 名字看不到**（見 §4.1b） |
 | ROS 2 | 只有**薄橋接**（節點數與內容我們沒量） | **完整一層**：21 節點／56 topic、`rmw_zenoh`、`ROS_DOMAIN_ID=66`，而且是 **ros2_control**（`controller_manager` ＋ `zsi_actuator_driver` 硬體元件 ＋ **80 個 command interface**） |
 | 我們用的共享記憶體 | **`/spline_shm` 一段 10240 B**（cmd 與 state 同一段）＋ `imu_shm` 1024 B | **三段各 1 MiB**：`joint_cmd`／`joint_state`／`imu_central`，Boost.Interprocess managed segment ＋ `SharedVector` |
 | shm 誰建立 | 未查 | **ros2_control 端建立**，`mc_ctrl` 是寫入者（`start_motion_control.sh` 等 `joint_cmd` 出現才起 `mc_ctrl`） |
@@ -180,8 +180,47 @@ SDK 編號規則：`1` = hip_roll(abad)、`2` = hip_pitch、`3` = knee_pitch、`
 `joint_cmd_echo` 可以回看驗證寫入、`ros2 control list_hardware_interfaces` 可以列出全部介面、
 所有狀態都能用 ROS 2 旁聽。**盲寫的風險比小狗那時低得多。**
 
-> 待驗：小狗到底有沒有真的在跑 eCAL。要確認就在小狗上跑同樣兩行：
-> `ls /dev/shm | grep '^ecal'` 與 `sudo ss -lunp | grep -E ':1400[0-2]'`。
+#### 小狗的 eCAL 實測表（`ecal_mon_tui`，host `firefly`；**頻率欄是 mHz，要除以 1000**）
+
+**五個行程**：`mc_ctrl`、`dog_task`、`SPLINE Publisher`、`IMU Publisher`、**`ecal2ros`**。
+
+| topic | 型別（protobuf） | 發布 → 訂閱 | 頻率 |
+|---|---|---|---|
+| `spline_leg_cmd` / `spline_leg_state` | `leg_msg.control_cmd` / `control_state` | `SPLINE Publisher` → （表上沒有訂閱者） | **904.1 Hz** |
+| `attitude_data` | `attitude_data.AttitudeData` | `IMU Publisher` → — | **986.3 Hz** |
+| `leg_cmd` / `leg_data` | `robot_sdk.pb.RobotCmd` / `RobotState` | `mc_ctrl` → — | **500.0 Hz** |
+| `sdk_robotstate` | `robot_sdk.pb.SDKRobotState` | `mc_ctrl` → **`ecal2ros`** | **500.0 Hz** |
+| `sdk_cmd` | `robot_sdk.pb.SDKCmd` | **`ecal2ros`** → `mc_ctrl` | — |
+| `nav_state` | `robot_sdk.pb.NavigationState` | `mc_ctrl` → **`ecal2ros`** | **50.0 Hz** |
+| `nav_cmd` | `robot_sdk.pb.NavigationCmd` | **`ecal2ros`** → `mc_ctrl` | — |
+| `app_cmd` / `app_state` | `robot_sdk.pb.AppCmd` / `AppState` | `dog_task` ⟷ `mc_ctrl` | **49.7 / 50.0 Hz** |
+| `mc_dtc` | `robot_sdk.pb.McDtc` | `mc_ctrl` → `dog_task` | **50.0 Hz** |
+| `battery_state` | `robot_sdk.pb.BatteryState` | `dog_task` → `mc_ctrl` | **0.59 Hz** |
+| `hal_fault` | `hal_fault.FaultStatus` | `IMU Publisher`／`SPLINE Publisher` → `dog_task` | — |
+| `motor_log` / `motor_log_done` | `spline_messages.saveMotorLog(Done)` | `dog_task` ⟷ — | — |
+| `image_ecal` / `image_h264_ecal` | `zsibot_msg.Image` | — → `ecal2ros` | — |
+| `visual_data` | `robot_sdk.pb.VisualData` | — → `mc_ctrl` | — |
+
+**三件事因此確定了**：
+
+1. **`ecal2ros` 是一個獨立的橋接行程** —— 這就是「ROS 2 只是橋接」的直接證據。
+   小狗的 ROS 那一側只能透過它跟 eCAL 講話。**中狗沒有這個東西**：
+   `robot_hal_node`／`robot_remote`／`robot_roamerx` **自己就是 eCAL 參與者**，
+   同時也是 ROS 2 節點，橋接被打散進節點裡。
+2. **小狗的關節指令走 eCAL**（`spline_leg_cmd`／`spline_leg_state` 904 Hz、
+   `leg_cmd`／`leg_data` 500 Hz）。**中狗的關節資料不在 eCAL 上** ——
+   `robot_hal_node` 在 eCAL 上只發不收，下行只有 `/dev/shm/joint_cmd`（§4.1b）。
+   **這是兩台最大的架構差別。**
+3. **904 Hz 正好對上 task6 在 `/dev/shm/spline_shm` 量到的約 880 Hz** ——
+   `SPLINE Publisher` 這個行程名也對得上。
+   → 小狗的 `spline_shm` 與 eCAL 的 spline topic 很可能是同一份資料的兩個面向（推測）。
+
+**訊息定義兩台共用**：`robot_sdk.pb.*`、`hal_fault.*`、`zsibot_msg.*` 這些 protobuf 命名空間，
+與中狗 `mc_ctrl` 字串表裡的 protobuf 一致 → 同一家的訊息定義。
+
+> **中狗的 8 個 topic 叫什麼還沒解**（段名不透明）。下一趟先看機上有沒有 `ecal_mon_tui`：
+> `ssh robot@192.168.234.1 "ls /opt/*/bin /usr/local/bin /usr/bin 2>/dev/null | grep -i ecal"`。
+> 有的話跑一次就會得到跟上表一樣的東西；`recon5_nav_ai.sh` 已加這段檢查。
 
 ---
 

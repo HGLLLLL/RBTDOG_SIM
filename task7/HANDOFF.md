@@ -1,12 +1,23 @@
 # task7 交接：D1 Max 現況與下一步
 
-- 最後更新：**2026-09-16 夜（v3.5f 訓完：航向大幅改善、左轉 105% 原廠、九指令 0 摔 → 目前最佳權重 `weights/cpg_rl_v3_5f_params.pkl`；右轉 64 對左轉 81、ABAD 漂與 vx 漂沒到目標，根因是二次懲罰接近目標時消失，見 spec §9）**
+- 最後更新：**2026-09-22（v3.6f 備好等 Colab：平移抬腳頂點獎勵＋hinge 懲罰＋質心 DR＋驗收關推力；量到 v3.5f 平移靠側滑不踏步、直走頓點＝訓練推力。目前最佳權重仍是 `weights/cpg_rl_v3_5f_params.pkl`）**
 - 分支：`feat/d1-edu-cpg-rl`
 - **接手先讀這份，再讀 `README.md`。** 查狗的規格／SHM／座標／IMU 慣例／原廠參數 → `docs/D1Max_機器狗資訊.md`（2026-09-09 由 11 份偵察文件整合；原件與舊操作卡都在 `docs/archive/`）。
 
 ---
 
 ## ▶▶ 下次上班從這裡開始（2026-09-15 收工，全部已 commit 到 `main`）
+
+### ★★★★★ v3.6f 已備好，下一步：Colab 跑 `notebooks/cpg_rl_v3_6f_colab.ipynb`（2026-09-22）
+
+spec `docs/superpowers/specs/2026-09-22-cpg-rl-v3.6-step-apex-linear-penalties-design.md`（§0 量到的事實、§8 執行紀錄）。
+四件事：①`t_step` 平移每週期抬腳頂點線性獎勵（v3.5f 平移靠側滑、主動側步/秒 0.2–0.5 對原廠 2.1；原廠週期模式下 `t_lift`／`t_mode`／`t_stance` 恆 0 是漏洞）
+②`t_drift`／`t_abadbias` 改死區＋線性（`PEN_SHAPE="hinge"`）③DR 橫向質心 ±5 mm 零均值 ④驗收工具預設關推力（直走每 2 s 的頓點就是訓練推力）＋ 步/秒欄＋摔欄兩組。
+鏡像增強沒做（要改 brax loss；先看質心 DR 夠不夠）。
+上 Colab 前證據：golden 過、G0 `outputs/g0_v36_regress.txt` 逐字同、攤帳 `outputs/reward_audit_v36.md` 五列過（零動作 t_step 0.84 贏過 policy 0.36）。
+停損：1 億步 進度 yaw < 3.5 或 len < 600 或 `step` < 0.3 → 停。
+訓完：`local_infer_v3.py --preset v36 --gains factory --weights task7/weights/cpg_rl_v3_6f_params.pkl --seeds 3 --mesh --video task7/outputs/eval_v36f_mesh.mp4`，對 spec §5 表（平移主動側 步/秒 ≥ 1.5、抬腳 ≥ 15 mm；其餘同 v3.5）。
+⚠️ 2026-09-22 前的所有 `outputs/eval_*.md` 都含每 2 s 的推力（roll std 直走 0.36 其實是 0.06）；v3.5f 已重跑無推力版當基準，右轉弱／ABAD 漂／平移不踏步在無推力下仍成立。
 
 ### ★★★ 2026-09-22 收工：報告 1.3／7.1／7.2／7.4 **四項全部有實機數據**
 

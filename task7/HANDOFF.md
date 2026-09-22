@@ -8,6 +8,16 @@
 
 ## ▶▶ 下次上班從這裡開始（2026-09-15 收工，全部已 commit 到 `main`）
 
+### ★ 2026-09-22：報告 1.3／7.1／7.2／7.4 的偵察腳本已備好（還沒上機跑）
+
+使用者要在中狗上跑，補報告這四項的實機數據（目前只有手冊宣稱值）。
+`realbot/recon3_sensors_d1max.sh`（PC 端驅動）＋ `recon3_sample.py`（資源採樣，
+用 `ssh 'python3 -' < 檔` 從 stdin 餵進去，**狗上不留檔**）＋ `recon3_report.py`（產填空表）。
+現場照 `docs/現場操作卡_recon3_感測器與資源_2026-09-22.md`；設計在
+`docs/superpowers/specs/2026-09-22-recon3-sensors-resources-design.md`。
+**全程唯讀**（唯讀 sudo、不啟停行程、不碰 shm 寫入）；走路那段由人用遙控器操作，腳本只採樣。
+本機已驗採樣器與產表器（`bash -n`／實跑／假資料產表都過），**ROS2 與感測那段只能上機驗**。
+
 ### ★★★★★ v3.5f 訓完（2026-09-16 夜）—— **目前最佳權重，下一步待使用者定**
 
 表 `outputs/eval_cpg_rl_v3_5f_params.md`、影片 `outputs/eval_v35f_mesh.mp4`、完整分析 **spec §9**。

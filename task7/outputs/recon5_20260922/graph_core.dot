@@ -1,5 +1,5 @@
 digraph ros_core {
-  rankdir=LR; splines=spline; concentrate=true;
+  rankdir=LR; splines=spline; concentrate=true; newrank=true;
   graph [fontname="Sans", fontsize=11, nodesep=0.3, ranksep=1.4];
   node [fontname="Sans", fontsize=11];
   edge [fontname="Sans", fontsize=8, color="#8a8a8a", fontcolor="#444444"];
@@ -145,6 +145,7 @@ digraph ros_core {
       "rk:/joint_shm_controller" [label="/joint_shm_controller", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
       "rk:/led_controller" [label="/led_controller", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
       "rk:/robot_diagnostic_manager" [label="/robot_diagnostic_manager", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
+      "rk:/robot_hal" [label="/robot_hal", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
       "rk:/robot_manager" [label="/robot_manager", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
       "rk:/robot_monitor" [label="/robot_monitor", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
       "rk:/robot_remote" [label="/robot_remote", shape=box, style="rounded,filled", fillcolor="#f4cccc"];
@@ -157,6 +158,12 @@ digraph ros_core {
     subgraph cluster_rk_其他 {
       label="其他"; style="filled"; color="#f2f2f2"; fontsize=12;
       "rk:/bridge_image_topics_66" [label="/bridge_image_topics_66", shape=box, style="rounded,filled", fillcolor="#eeeeee"];
+      "rk:/zsi_actuator_driver" [label="/zsi_actuator_driver", shape=box, style="rounded,filled", fillcolor="#eeeeee"];
+    }
+    subgraph cluster_rk_nonros {
+      label="非 ROS 行程（走 eCAL／共享記憶體）"; style=filled; color="#fdf0f0"; fontsize=12;
+      "rk:mc_ctrl" [label="mc_ctrl\n閉源運控核心\nROBOT_TYPE=ZGWS", shape=box, style="rounded,filled,bold", fillcolor="#ffe9e9", color="#b03030", fontsize=12];
+      "rk:motors" [label="16 顆馬達\nCAN ×4", shape=box, style="rounded,filled,bold", fillcolor="#ffe9e9", color="#b03030", fontsize=12];
     }
   }
   "rk:/battery_controller" -> "rk:/led_controller" [label="battery_controller/battery1\nbattery_controller/battery2\n+1 個"];
@@ -183,4 +190,26 @@ digraph ros_core {
   "rk:/robot_roamerx" -> "rk:/robot_manager" [label="robot_roamerx/is_in_nav_control"];
   "rk:/robot_roamerx" -> "rk:/robot_remote" [label="arc/charging_dock_info"];
   "rk:/switch_controller" -> "rk:/robot_remote" [label="switch_controller/hw_estop/state"];
+  // ---- 疊圖：eCAL 匯流排與具名共享記憶體（2026-09-22 實測）----
+  "rk:/robot_remote" -> "rk:mc_ctrl" [label="eCAL ebf608ea\n遙控器指令", style=dashed, color="#2b6cb0", fontcolor="#2b6cb0", penwidth=1.6];
+  "rk:/robot_roamerx" -> "rk:mc_ctrl" [label="eCAL d87af588\n導航指令（NX 來的）", style=dashed, color="#2b6cb0", fontcolor="#2b6cb0", penwidth=1.6];
+  "rk:/robot_hal" -> "rk:mc_ctrl" [label="eCAL a74ae66c\n硬體層回饋（內容未驗）", style=dashed, color="#2b6cb0", fontcolor="#2b6cb0", penwidth=1.6];
+  "rk:mc_ctrl" -> "rk:/robot_remote" [label="eCAL 8a14b62c\n狀態廣播", style=dashed, color="#2b6cb0", fontcolor="#2b6cb0", penwidth=1.6];
+  "rk:mc_ctrl" -> "rk:/robot_roamerx" [label="eCAL 8a14b62c\n狀態廣播", style=dashed, color="#2b6cb0", fontcolor="#2b6cb0", penwidth=1.6];
+  "rk:ecal_orphans" [label="eCAL 200f526f／301fbb4b／449d205f／cd623317\nmc_ctrl 發出、目前沒有任何訂閱者", shape=note, style=filled, fillcolor="#eef4fb", color="#2b6cb0", fontsize=9];
+  "rk:mc_ctrl" -> "rk:ecal_orphans" [style=dashed, color="#2b6cb0"];
+  "rk:mc_ctrl" -> "rk:/joint_shm_controller" [label="/dev/shm/joint_cmd\n16×{pos,vel,eff,kp,kd} f64；讀 1 kHz\n★ 我們的插入點", style=bold, color="#b03030", fontcolor="#b03030", penwidth=2.4];
+  "rk:/joint_shm_controller" -> "rk:/zsi_actuator_driver" [label="ros2_control\n80 個 command interface", style=bold, color="#8a4b4b", fontcolor="#8a4b4b", penwidth=1.8];
+  "rk:/zsi_actuator_driver" -> "rk:motors" [label="CAN ×4", style=bold, color="#8a4b4b", fontcolor="#8a4b4b", penwidth=1.8];
+  "rk:/zsi_actuator_driver" -> "rk:/joint_shm_controller" [label="/dev/shm/joint_state\n16×{pos,vel,eff,temp,volt,err}", style=bold, color="#8a4b4b", fontcolor="#8a4b4b", penwidth=1.8];
+  "rk:/joint_shm_controller" -> "rk:mc_ctrl" [label="/dev/shm/joint_state\n讀取者未驗", style=dotted, color="#aaaaaa", fontcolor="#aaaaaa", penwidth=1.8];
+  "rk:/robot_hal" -> "rk:/imu_shm_publisher" [label="/dev/shm/imu_central\nimu_recv_thread 寫入", style=bold, color="#8a4b4b", fontcolor="#8a4b4b", penwidth=1.8];
+  subgraph cluster_legend_rk {
+    label="圖例"; style=filled; color="#fafafa"; fontsize=11;
+    lg1 [label="→ ROS 2 topic（rmw_zenoh, DOMAIN 66）", shape=plaintext, fontsize=10];
+    lg2 [label="⇢ eCAL（廠商內部匯流排, protobuf）", shape=plaintext, fontsize=10, fontcolor="#2b6cb0"];
+    lg3 [label="⇒ /dev/shm 具名段（★ 我們的插入點）", shape=plaintext, fontsize=10, fontcolor="#b03030"];
+    lg4 [label="點線＝方向或內容未驗", shape=plaintext, fontsize=10, fontcolor="#888888"];
+    lg1 -> lg2 [style=invis]; lg2 -> lg3 [style=invis]; lg3 -> lg4 [style=invis];
+  }
 }

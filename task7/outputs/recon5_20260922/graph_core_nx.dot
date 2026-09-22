@@ -1,5 +1,5 @@
 digraph ros_core {
-  rankdir=LR; splines=spline; concentrate=true;
+  rankdir=LR; splines=spline; concentrate=true; newrank=true;
   graph [fontname="Sans", fontsize=11, nodesep=0.3, ranksep=1.4];
   node [fontname="Sans", fontsize=11];
   edge [fontname="Sans", fontsize=8, color="#8a8a8a", fontcolor="#444444"];

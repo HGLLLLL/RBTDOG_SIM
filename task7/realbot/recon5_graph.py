@@ -50,6 +50,22 @@ GROUPS = [
 ]
 
 
+def load_overlay():
+    """讀 ecal_shm_topology.json —— ROS 2 看不到的那兩層（eCAL 與具名共享記憶體）。
+
+    `ros2 node info` 只看得到 ROS 2 的 topic，但運控板真正的控制匯流排是 eCAL，
+    高速關節資料走 `/dev/shm` 的具名段。只畫 ROS 2 那層會讓人以為 `mc_ctrl` 不存在
+    （它根本不是 ROS 節點）。所以把實測到的那兩層疊上來。
+    """
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "ecal_shm_topology.json")
+    try:
+        with open(path, errors="replace") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
 def group_of(name: str) -> str:
     for g, pat in GROUPS:
         if re.search(pat, name, re.I):
@@ -183,7 +199,7 @@ def dot(boards):
     return "\n".join(L)
 
 
-def dot_core(boards, only_board=None):
+def dot_core(boards, only_board=None, ov=None):
     """主幹圖（DOT）：只留**真的有人發也有人收**的 topic，去掉視覺化與雜訊。
 
     完整圖 42＋21 個節點、280 個 topic，畫出來 1777×11390 pt 一條細長帶子，沒人看得懂。
@@ -197,7 +213,9 @@ def dot_core(boards, only_board=None):
     colors = {"感測驅動": "#cde8d0", "SLAM／定位": "#cfe2f3", "感知": "#fce5cd",
               "導航": "#d9d2e9", "運控／HAL": "#f4cccc", "其他": "#eeeeee"}
     L = ["digraph ros_core {",
-         '  rankdir=LR; splines=spline; concentrate=true;',
+         # newrank=true 是必要的：疊圖的節點在 cluster 外、邊又跨進 cluster，
+         # 舊的 ranking 會炸 "trouble in init_rank"（2026-09-22 兩塊板合圖時中過）
+         '  rankdir=LR; splines=spline; concentrate=true; newrank=true;',
          '  graph [fontname="Sans", fontsize=11, nodesep=0.3, ranksep=1.4];',
          '  node [fontname="Sans", fontsize=11];',
          '  edge [fontname="Sans", fontsize=8, color="#8a8a8a", fontcolor="#444444"];']
@@ -220,6 +238,14 @@ def dot_core(boards, only_board=None):
                     if p_ != q_:
                         edges.setdefault((p_, q_), []).append(t.lstrip("/"))
         used = {n for e in edges for n in e}
+        # 疊圖（eCAL／shm）引用到的 ROS 節點，主圖可能因為沒有保留的 topic 邊而沒畫到
+        # → 先併進來，否則 Graphviz 會自動生一個「框外、標籤是原始 id」的圓圈
+        #   （2026-09-22 第一版 /robot_hal 與 /zsi_actuator_driver 就長那樣）
+        if b == "rk" and ov:
+            for e in ov.get("ecal", []) + ov.get("shm", []):
+                for x in (e["from"], e["to"]):
+                    if x.startswith("/") and x in nodes:
+                        used.add(x)
         L.append('  subgraph cluster_%s {' % b)
         L.append('    label="%s"; style=dashed; fontsize=15; color="#bbbbbb";' % BOARD_NAME[b])
         for g, _ in GROUPS + [("其他", "")]:
@@ -232,6 +258,15 @@ def dot_core(boards, only_board=None):
                 L.append('      "%s:%s" [label="%s", shape=box, style="rounded,filled", '
                          'fillcolor="%s"];' % (b, n, n, colors[g]))
             L.append("    }")
+        if b == "rk" and ov and ov.get("extra_nodes"):
+            L.append('    subgraph cluster_%s_nonros {' % b)
+            L.append('      label="非 ROS 行程（走 eCAL／共享記憶體）"; style=filled; '
+                     'color="#fdf0f0"; fontsize=12;')
+            for n in ov["extra_nodes"]:
+                L.append('      "%s:%s" [label="%s", shape=box, '
+                         'style="rounded,filled,bold", fillcolor="#ffe9e9", '
+                         'color="#b03030", fontsize=12];' % (b, n["id"], n["label"]))
+            L.append("    }")
         L.append("  }")
         for (p_, q_), ts in sorted(edges.items()):
             if len(ts) <= 2:
@@ -239,8 +274,52 @@ def dot_core(boards, only_board=None):
             else:
                 lab = "\\n".join(ts[:2]) + "\\n+%d 個" % (len(ts) - 2)
             L.append('  "%s:%s" -> "%s:%s" [label="%s"];' % (b, p_, b, q_, lab))
+
+        if b == "rk" and ov:
+            L += overlay_lines(ov, b)
     L.append("}")
     return "\n".join(L)
+
+
+def overlay_lines(ov, b):
+    """把 eCAL 與 /dev/shm 兩層畫進 rk 叢集：eCAL 虛線藍、shm 粗紅、未驗的用點線。"""
+    def nid(x):
+        return '"%s:%s"' % (b, x)
+
+    L = ['  // ---- 疊圖：eCAL 匯流排與具名共享記憶體（%s 實測）----' % ov.get("as_of", "")]
+    # 節點（含 mc_ctrl／馬達）都已經在叢集裡宣告過了 ——
+    # 在這裡再宣告一次不會把它移進叢集，反而會讓它留在框外。
+    for e in ov.get("ecal", []):
+        L.append('  %s -> %s [label="eCAL %s\\n%s", style=dashed, color="#2b6cb0", '
+                 'fontcolor="#2b6cb0", penwidth=1.6];'
+                 % (nid(e["from"]), nid(e["to"]), e["seg"], e["note"]))
+    orph = ov.get("ecal_orphans")
+    if orph:
+        L.append('  "%s:ecal_orphans" [label="eCAL %s\\n%s", shape=note, '
+                 'style=filled, fillcolor="#eef4fb", color="#2b6cb0", fontsize=9];'
+                 % (b, "／".join(orph["segs"]), orph["note"]))
+        L.append('  %s -> "%s:ecal_orphans" [style=dashed, color="#2b6cb0"];'
+                 % (nid(orph["publisher"]), b))
+    for e in ov.get("shm", []):
+        lab = ("/dev/shm/%s\\n%s" % (e["name"], e["note"])) if e["name"] else e["note"]
+        style = "bold" if e.get("verified") else "dotted"
+        color = "#b03030" if e.get("ours") else ("#8a4b4b" if e.get("verified") else "#aaaaaa")
+        pen = "2.4" if e.get("ours") else "1.8"
+        L.append('  %s -> %s [label="%s", style=%s, color="%s", fontcolor="%s", '
+                 'penwidth=%s];'
+                 % (nid(e["from"]), nid(e["to"]), lab, style, color, color, pen))
+    L += ['  subgraph cluster_legend_%s {' % b,
+          '    label="圖例"; style=filled; color="#fafafa"; fontsize=11;',
+          '    lg1 [label="→ ROS 2 topic（rmw_zenoh, DOMAIN 66）", shape=plaintext, fontsize=10];',
+          '    lg2 [label="⇢ eCAL（廠商內部匯流排, protobuf）", shape=plaintext, '
+          'fontsize=10, fontcolor="#2b6cb0"];',
+          '    lg3 [label="⇒ /dev/shm 具名段（★ 我們的插入點）", shape=plaintext, '
+          'fontsize=10, fontcolor="#b03030"];',
+          '    lg4 [label="點線＝方向或內容未驗", shape=plaintext, fontsize=10, '
+          'fontcolor="#888888"];',
+          '    lg1 -> lg2 [style=invis]; lg2 -> lg3 [style=invis]; lg3 -> lg4 [style=invis];',
+          '  }']
+    return L
 
 
 def mermaid_core(boards):
@@ -302,11 +381,15 @@ def main():
         f.write(md_tables(boards) + "\n")
     with open(os.path.join(d, "graph.dot"), "w") as f:
         f.write(dot(boards) + "\n")
+    ov = load_overlay()
+    if ov:
+        print("疊圖：ecal_shm_topology.json（%s）—— eCAL %d 條、shm %d 條"
+              % (ov.get("as_of", "?"), len(ov.get("ecal", [])), len(ov.get("shm", []))))
     with open(os.path.join(d, "graph_core.dot"), "w") as f:
-        f.write(dot_core(boards) + "\n")
+        f.write(dot_core(boards, ov=ov) + "\n")
     for b in boards:
         with open(os.path.join(d, "graph_core_%s.dot" % b), "w") as f:
-            f.write(dot_core(boards, only_board=b) + "\n")
+            f.write(dot_core(boards, only_board=b, ov=ov) + "\n")
     with open(os.path.join(d, "graph_core.mmd"), "w") as f:
         f.write(mermaid_core(boards) + "\n")
     with open(os.path.join(d, "graph.json"), "w") as f:

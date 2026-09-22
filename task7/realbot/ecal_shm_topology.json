@@ -1,0 +1,41 @@
+{
+  "_comment": "運控板 (RK3588) 上 ROS 2 看不到的兩層：eCAL 匯流排與具名共享記憶體。ros2 node info 撈不到這些，所以手工整理成這份、由 recon5_graph.py 疊到圖上。每條邊都標 verified。",
+  "as_of": "2026-09-22",
+  "source": [
+    "sudo ss -lunp | grep ':1400[0-2]' → 四個 eCAL 參與者與其 PID",
+    "ls /dev/shm | grep '^ecal' → 8 個段 ＋ 每個訂閱者的 _<pid>_evt 事件",
+    "sudo ls -l /proc/<pid>/fd | grep ecal → 每段的持有者（發布者＝持有但不在訂閱清單裡）",
+    "docs/D1Max_機器狗資訊.md §4.1 控制鏈路（偵察二，三個獨立證據交叉確認）",
+    "docs/D1Max_機器狗資訊.md §4.1b eCAL 拓樸"
+  ],
+  "extra_nodes": [
+    {"id": "mc_ctrl", "label": "mc_ctrl\\n閉源運控核心\\nROBOT_TYPE=ZGWS", "group": "運控／HAL"},
+    {"id": "motors", "label": "16 顆馬達\\nCAN ×4", "group": "其他"}
+  ],
+  "ecal": [
+    {"from": "/robot_remote",   "to": "mc_ctrl", "seg": "ebf608ea", "note": "遙控器指令", "verified": true},
+    {"from": "/robot_roamerx",  "to": "mc_ctrl", "seg": "d87af588", "note": "導航指令（NX 來的）", "verified": true},
+    {"from": "/robot_hal",      "to": "mc_ctrl", "seg": "a74ae66c", "note": "硬體層回饋（內容未驗）", "verified": true},
+    {"from": "mc_ctrl", "to": "/robot_remote",  "seg": "8a14b62c", "note": "狀態廣播", "verified": true},
+    {"from": "mc_ctrl", "to": "/robot_roamerx", "seg": "8a14b62c", "note": "狀態廣播", "verified": true}
+  ],
+  "ecal_orphans": {
+    "publisher": "mc_ctrl",
+    "segs": ["200f526f", "301fbb4b", "449d205f", "cd623317"],
+    "note": "mc_ctrl 發出、目前沒有任何訂閱者"
+  },
+  "shm": [
+    {"from": "mc_ctrl", "to": "/joint_shm_controller", "name": "joint_cmd",
+     "note": "16×{pos,vel,eff,kp,kd} f64；讀 1 kHz\\n★ 我們的插入點", "verified": true, "ours": true},
+    {"from": "/joint_shm_controller", "to": "/zsi_actuator_driver", "name": "",
+     "note": "ros2_control\\n80 個 command interface", "verified": true},
+    {"from": "/zsi_actuator_driver", "to": "motors", "name": "",
+     "note": "CAN ×4", "verified": true},
+    {"from": "/zsi_actuator_driver", "to": "/joint_shm_controller", "name": "joint_state",
+     "note": "16×{pos,vel,eff,temp,volt,err}", "verified": true},
+    {"from": "/joint_shm_controller", "to": "mc_ctrl", "name": "joint_state",
+     "note": "讀取者未驗", "verified": false},
+    {"from": "/robot_hal", "to": "/imu_shm_publisher", "name": "imu_central",
+     "note": "imu_recv_thread 寫入", "verified": true}
+  ]
+}

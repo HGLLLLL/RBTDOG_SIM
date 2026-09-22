@@ -159,6 +159,32 @@ SDK 編號規則：`1` = hip_roll(abad)、`2` = hip_pitch、`3` = knee_pitch、`
 4. **待向原廠確認**：D1 MaxPro 官方文件的 SSH 帳號是 `jetson`，但實機量到的主控板是
    Firefly RK3588。**以實測為準，但值得問一句。**（三機型對照）
 
+### 2.0b ★ 小狗（D1 EDU）與中狗（D1 Max）在 eCAL／ROS 這層差在哪
+
+| | **D1 EDU 輪足（小狗）** | **D1 Max（中狗）** |
+|---|---|---|
+| eCAL | 原廠文件與 SDK 調查說「**eCAL 為主，ROS 2 只是橋接**」—— ⚠️ **我們從沒在小狗上實測過**（task6 的紀錄裡沒有任何 eCAL 證據） | ✅ **2026-09-22 實測**：4 個參與者、**8 個 topic**、`/dev/shm` 30 個 `ecal_*` 段、UDP 14000–14002；`mc_ctrl` 是中心（見 §4.1b） |
+| ROS 2 | 只有**薄橋接**（節點數與內容我們沒量） | **完整一層**：21 節點／56 topic、`rmw_zenoh`、`ROS_DOMAIN_ID=66`，而且是 **ros2_control**（`controller_manager` ＋ `zsi_actuator_driver` 硬體元件 ＋ **80 個 command interface**） |
+| 我們用的共享記憶體 | **`/spline_shm` 一段 10240 B**（cmd 與 state 同一段）＋ `imu_shm` 1024 B | **三段各 1 MiB**：`joint_cmd`／`joint_state`／`imu_central`，Boost.Interprocess managed segment ＋ `SharedVector` |
+| shm 誰建立 | 未查 | **ros2_control 端建立**，`mc_ctrl` 是寫入者（`start_motion_control.sh` 等 `joint_cmd` 出現才起 `mc_ctrl`） |
+| 寫入能不能回看驗證 | ❌ 沒有這種管道 | ✅ 訂閱 `/joint_shm_controller/joint_cmd_echo` 就看得到我們寫進去的東西 |
+| 接管方式 | `SIGSTOP mc_ctrl` → 寫 shm → `SIGCONT` | **一樣**（實測可凍 38.1 秒，見 §5.2／§5.3） |
+| 高層 SDK | `mc_sdk::zsl_1w::HighLevel`（`zsibot/genisom_L1_sdk`） | `robot_sdk::SDKClient`（`AgibotTech/Agibot_D1_Max`），UDP 8082 |
+| `mc_ctrl` | 同名行程 | 同名；字串表證實**同一份程式碼含 `Quad_Controller` 與 `Wheel_Controller` 兩套 FSM** |
+
+**一句話**：兩台狗的**運控核心與「靠共享記憶體下指令」的範式是同一套**，
+差別是**中狗在外面多包了一整層 ROS 2 ＋ ros2_control**，小狗那層只是橋接；
+共享記憶體也從「一段 10 KB 混著用」變成「三段各 1 MB、職責分開」。
+
+**對我們的實務差別**：中狗多了三個小狗沒有的東西 ——
+`joint_cmd_echo` 可以回看驗證寫入、`ros2 control list_hardware_interfaces` 可以列出全部介面、
+所有狀態都能用 ROS 2 旁聽。**盲寫的風險比小狗那時低得多。**
+
+> 待驗：小狗到底有沒有真的在跑 eCAL。要確認就在小狗上跑同樣兩行：
+> `ls /dev/shm | grep '^ecal'` 與 `sudo ss -lunp | grep -E ':1400[0-2]'`。
+
+---
+
 ### 2.1 D1 Max 的 SDK 鏡像有兩份（控制方式調查）
 
 - `AgibotTech/Agibot_D1_Max` —— 附**完整中文手冊**（`docs/source/*.md`）與 **URDF**

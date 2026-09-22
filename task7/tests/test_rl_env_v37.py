@@ -71,6 +71,7 @@ def test_w37b_values_and_lift_nonneg_mapping():
     assert v3.W37["CYC_LAT_DECOUPLE"] is True and v3.W37["CMD_VY"] == (0.04, 0.22) and "LIFT_NONNEG" not in v3.W37 and "MIRROR_AUG" not in v3.W37
     assert v3.W37B["LIFT_NONNEG"] is True and v3.W37B["W_STEP"] == 2.5 and v3.W37B["MIRROR_AUG"] is True and v3.W37B["CYC_LAT_FF"] is True
     assert "CYC_LAT_FF" not in v3.W37 and v3.W37D["CYC_LAT_FF"] is True and v3.W37D["LIFT_NONNEG"] is True and "MIRROR_AUG" not in v3.W37D and v3.W37D["W_STEP"] == 1.5
+    assert v3.W37C["LIFT_NONNEG"] is True and "CYC_LAT_FF" not in v3.W37C
     assert v3.REF["cyc_lat_wz_ff"] == 0.4 and v3.REF["cyc_lat_vx_ff"] == (0.15, -0.43, 0.05, 0.10)
     # lift 通道：a ≤ 0 → 1.0（死區＝名目）、a = +∞ → 1.4；預設路徑 a=−∞ → 0.6
     for a5, exp in ((-3.0, 1.0), (0.0, 1.0), (3.0, 1.0 + v3.LIFT_SCALE * float(jnp.tanh(3.0)))):

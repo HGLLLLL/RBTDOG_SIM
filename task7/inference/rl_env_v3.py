@@ -154,6 +154,7 @@ W37 = dict(W36, CYC_LAT_DECOUPLE=True, CMD_VY=(0.04, 0.22))
 W37B = dict(W37, CYC_LAT_FF=True, LIFT_NONNEG=True, W_STEP=2.5, MIRROR_AUG=True)
 # v3.7f 權重的部署設定（不重訓）：訓練時的產生器 ＋ 輪前饋 ＋ lift 夾在 ≥ 名目（policy 靠縮 lift 避漂移懲罰，部署時把這條路關掉、漂移用前饋補）
 W37D = dict(W37, CYC_LAT_FF=True, LIFT_NONNEG=True)
+W37C = dict(W37, LIFT_NONNEG=True)                 # 只夾 lift、不加前饋（policy 若已學會補名目的漂移，前饋反而過補）
 T_KEYS = ("t_vx", "t_vy", "t_yaw", "t_yawi", "t_yawlin", "t_yawrel", "t_vyrel", "t_head", "t_h", "t_lift", "t_stance", "t_roll", "t_pitch", "t_rollrate",
           "t_pitchrate", "t_bias", "t_act", "t_omdot", "t_qres", "t_tau", "t_taubar", "t_errbar", "t_kneev", "t_mode", "t_vz", "t_abadbias", "t_drift", "t_headlin", "t_step")
 METRIC_KEYS = ("height", "vx", "vy", "wz", "reward", "pitch", "roll", "mode", "s4", "s_arc", "cyc", "clr_step", "clr_stance",

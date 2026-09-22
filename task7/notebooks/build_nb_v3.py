@@ -10,25 +10,29 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 _ap = argparse.ArgumentParser()
 _ap.add_argument("--gains", default="kp250", choices=("kp250", "factory"))
-_ap.add_argument("--weights", default="v33", choices=("v33", "v35"), help="v35＝DualModeEnv(weights=v3.W35)（慢漂懲罰＋線性航向，spec 2026-09-16）")
+_ap.add_argument("--weights", default="v33", choices=("v33", "v35", "v36"),
+                 help="v35＝DualModeEnv(weights=v3.W35)（慢漂懲罰＋線性航向，spec 2026-09-16）；v36＝W36（抬腳頂點獎勵＋hinge 懲罰＋質心 DR，spec 2026-09-22）")
 ARGS = _ap.parse_args()
 FACTORY = ARGS.gains == "factory"
 V35 = ARGS.weights == "v35"
-_tag = {(False, False): "v3", (True, False): "v3_4f", (False, True): "v3_5", (True, True): "v3_5f"}[(FACTORY, V35)]
+V36 = ARGS.weights == "v36"
+VNEW = V35 or V36                                   # v3.5 起共用的東西（RESUME、vy 分母 6、progress 三欄）
+assert not V36 or FACTORY, "v3.6 只跑原廠增益線"
+_tag = {(False, "v33"): "v3", (True, "v33"): "v3_4f", (False, "v35"): "v3_5", (True, "v35"): "v3_5f", (True, "v36"): "v3_6f"}[(FACTORY, ARGS.weights)]
 OUT = HERE / f"cpg_rl_{_tag}_colab.ipynb"
 WEIGHTS = f"cpg_rl_{_tag}_params.pkl"
 GAINS_KW = 'gains="factory"' if FACTORY else ''
 GAINS_KW2 = 'gains="factory", ' if FACTORY else ''    # 後面還有其他參數時用
-W_KW = "weights=v3.W35" if V35 else ""
+W_KW = {"v33": "", "v35": "weights=v3.W35", "v36": "weights=v3.W36"}[ARGS.weights]
 ENV_ARGS = ", ".join(x for x in (GAINS_KW, W_KW) if x)        # '' | 'gains="factory"' | 'weights=v3.W35' | 'gains="factory", weights=v3.W35'
 ENV_ARGS2 = ENV_ARGS + ", " if ENV_ARGS else ""              # 後面還有參數時用
-PROG_EXTRA = "abad {ps('abad_bias'):.1f}° drift {ps('vx_drift'):+.3f} head {ps('head_abs'):.1f}° | " if V35 else ""   # 以值插進 train_src 的 f-string，不會再被展開，所以用單層大括號
-VY_DEN = "6" if V35 else "3"
-RESTORE_KW = ", restore_params=_restore" if V35 else ""
+PROG_EXTRA = ("abad {ps('abad_bias'):.1f}° drift {ps('vx_drift'):+.3f} head {ps('head_abs'):.1f}° | " if VNEW else "") + ("step {ps('t_step'):.2f} | " if V36 else "")   # 以值插進 train_src 的 f-string，不會再被展開，所以用單層大括號
+VY_DEN = "6" if VNEW else "3"
+RESTORE_KW = ", restore_params=_restore" if VNEW else ""
 # v3.3 的 notebook 要逐字元不變（產生器是共用的），所以這兩行在 kp250 分支輸出舊文字
 ENV_PRINT = ('"gains", env.gains, "wheel_space", env.wheel_space' if FACTORY else '"wheel_pos", env.wheel_pos')
 REF_SRC = "env.ref" if FACTORY else "v3.REF"
-DR_FN = f'v3.make_domain_randomize("{ARGS.gains}")' if FACTORY else "v3.domain_randomize"
+DR_FN = ('v3.make_domain_randomize("factory", com_y_mm=5.0)' if V36 else f'v3.make_domain_randomize("{ARGS.gains}")') if FACTORY else "v3.domain_randomize"
 OLD = json.loads((HERE / "cpg_rl_max_colab.ipynb").read_text(encoding="utf-8"))
 _code = [c for c in OLD["cells"] if c["cell_type"] == "code"]
 install_src, version_src = "".join(_code[0]["source"]), "".join(_code[1]["source"])
@@ -76,6 +80,22 @@ if V35:
 
 **停損**：同 v3.3 —— 1 億步 `進度 yaw` < 3.5 或 len < 600 → 停；**另加**：1 億步 `abad` 沒比 step 0 低、或 `drift`／`head` 沒往 0 走 → 新 reward 沒被學到，停下來查。
 v3.3 在 1 億步時 3.3 沒過線、160M 才破到 4.2 —— 沒存中繼檢查點，決定跑完就別關分頁。
+**注意**：G0 格的原地轉是開迴路原廠週期，**預期會倒**，那格只 assert 其他四個指令。
+"""
+
+if V36:
+    md0 = """# CPG-RL **v3.6f**：智元 D1 Max · 平移抬腳頂點獎勵＋線性懲罰＋質心 DR · MJX · Colab GPU（2026-09-22）
+
+在 v3.5f（`weights/cpg_rl_v3_5f_params.pkl`：九指令 0 摔、左轉 105% 原廠、航向 −32.7°→+4.5°）之上修四件事：
+- **平移不踏步、靠側滑**：原廠週期模式下 `t_lift`／`t_mode`／`t_stance` 恆 0，policy 把每週期抬腳壓到 5–6 mm（零動作 14／11、原廠 21）→ 加 `t_step`：
+  主動側兩腿**每週期抬腳頂點**對目標（21 mm，隨指令縮）的線性分數 × 1.5，只在平移族。
+- **`t_drift`／`t_abadbias` 改死區＋線性**（`PEN_SHAPE="hinge"`）：二次式在 0.038 m/s 時每步只剩 0.058、推不到目標。
+- **DR 加橫向質心偏移**（整機 ±5 mm 零均值）：模型質心偏左 1.5 mm 讓 v3.5f 右轉只有左轉的 79%，policy 學的是方向專屬補償。
+- 驗收工具改預設無推力（之前每 2 s 一次的訓練推力污染了 roll／航向／vx 漂）。
+設計：`docs/superpowers/specs/2026-09-22-cpg-rl-v3.6-step-apex-linear-penalties-design.md`；攤帳 `outputs/reward_audit_v36.md`。
+
+**停損**：同 v3.5f —— 1 億步 `進度 yaw` < 3.5 或 len < 600 → 停；**另加**：1 億步 `step` < 0.3（平移族約佔回合四成、零動作名目 ≈ 0.6）→ 抬腳學不起來，停下來查 `W_STEP`。
+`abad`／`drift`／`head` 三欄跨指令平均不可信（v3.5 spec §9.2），只看方向。
 **注意**：G0 格的原地轉是開迴路原廠週期，**預期會倒**，那格只 assert 其他四個指令。
 """
 
@@ -130,7 +150,7 @@ RESUME_SRC = '''
 RESUME = None
 from brax.io import model as _bm
 _restore = None if RESUME is None else _bm.load_params(RESUME)
-''' if V35 else ''
+''' if VNEW else ''
 
 train_src = f'''import functools, time
 from brax.training.agents.ppo import train as ppo

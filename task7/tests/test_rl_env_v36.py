@@ -76,3 +76,16 @@ def test_t_step_zero_by_default_and_positive_in_lateral_with_w36():
     assert max(ts[-50:]) > 0.5, ts[-50:]
     S = _env_rollout(env, (0.0, 0.0, 1.3), 60)
     assert all(float(s.metrics["t_step"]) == 0.0 for s in S)
+
+
+def test_drift_terms_hinge_values_and_w35_unchanged():
+    ab = jnp.array([0.11, 0.0, 0.0, 0.0]); dr = jnp.array([0.038, 0.0])
+    ta, td = v3.drift_terms(ab, dr, v3.W36)
+    assert float(ta) == pytest.approx(6.0 * (0.11 - 0.0436), abs=1e-6)     # 0.398／步
+    assert float(td) == pytest.approx(8.0 * (0.038 - 0.010), abs=1e-6)     # 0.224／步
+    ta, td = v3.drift_terms(jnp.array([0.04, -0.04, 0.0, 0.0]), jnp.array([0.009, -0.009]), v3.W36)
+    assert float(ta) == 0.0 and float(td) == 0.0                            # 死區內精確 0
+    ta35, td35 = v3.drift_terms(ab, dr, v3.W35)
+    assert float(ta35) == float(30.0 * jnp.sum(ab ** 2)) and float(td35) == float(40.0 * jnp.sum(dr ** 2))
+    ta0, td0 = v3.drift_terms(ab, dr, v3.W)
+    assert float(ta0) == 0.0 and float(td0) == 0.0

@@ -264,8 +264,13 @@ def ema(prev, x, k):
 
 
 def drift_terms(abad_ema, drift_ema, w):
-    """v3.5：ABAD 慢漂（4 腿偏離站姿的低通）與機身速度低頻誤差（vx, vy）的平方懲罰 → (t_abadbias, t_drift)。
-    權重 0 時精確為 0.0（0.0·有限數）。"""
+    """v3.5：ABAD 慢漂（4 腿偏離站姿的低通）與機身速度低頻誤差（vx, vy）的懲罰 → (t_abadbias, t_drift)。
+    預設二次式（權重 0 時精確為 0.0）；v3.6 `PEN_SHAPE="hinge"`：死區＋線性 —— 二次式在接近目標時梯度自己消失
+    （0.038 m/s 時只剩 0.058／步），線性到目標仍有斜率；死區留給原廠圖案本來就有的 ±3° 不對稱（spec 2026-09-22 §2.2）。"""
+    if w.get("PEN_SHAPE") == "hinge":
+        ta = w["W_ABADBIAS_L"] * jnp.sum(jnp.maximum(jnp.abs(abad_ema) - w["ABAD_DZ"], 0.0))
+        td = w["W_DRIFT_L"] * jnp.sum(jnp.maximum(jnp.abs(drift_ema) - w["DRIFT_DZ"], 0.0))
+        return ta, td
     return w["W_ABADBIAS"] * jnp.sum(abad_ema ** 2), w["W_DRIFT"] * jnp.sum(drift_ema ** 2)
 
 

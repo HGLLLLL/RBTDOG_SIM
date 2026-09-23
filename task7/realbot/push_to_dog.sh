@@ -39,6 +39,9 @@ FILES=(
   "$HERE/rl_obs.py"         # ★★★ RL obs 組裝（shm → 66 維）
   "$HERE/teleop_cmd.py"     # 遙控指令映射（純 CPG 版遙控用；RL 遙控不需要，但同套件一起走）
   "$HERE/../weights/cpg_rl_max_v2_3_np.npz"   # ★★★ v2.3 權重（export_policy_np 產）
+  "$HERE/gen_v3.py"         # ★★★ v3 產生器 numpy 版（M9 --v3 要用，2026-09-23）
+  "$HERE/rl_obs_v3.py"      # ★★★ v3 88 維 obs ＋ 鏡像
+  "$HERE/../weights/cpg_rl_v3_6f_np.npz"      # ★★★ v3.6f 權重＋產生器快照（export_policy_v3 產）
 )
 
 # ★ 軌跡檔（`M9_gait.py --traj` 要用）。2026-09-03 加：清單原本只有 .py/.sh，

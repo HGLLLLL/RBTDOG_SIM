@@ -123,3 +123,87 @@ def test_wheel_dead_matches_wheel_ctrl_tau(p, env):
         v = np.array([0.1, 0.2, 0.3, 0.4])
         ctrl = np.asarray(v3.wheel_ctrl_tau(jnp.array(tau, jnp.float32), jnp.array(v, jnp.float32), kv))
         _close(g.wheel_dead(tau, p), (ctrl - v) * kv, atol=1e-5)
+
+
+def _env_rollout_ctrl(env, cmd, steps, acts, seed=0):
+    """env 跑 steps 步（固定 cmd、給定動作序列），回每步的 (ctrl_leg12, ctrl_wheel4, v_wheel_meas4, delay, c)。
+    q_des 就是 pipeline_state.ctrl[LEG_ACT_IDX]；輪 ctrl = v_meas + τ_dead/kv（wheel_ctrl_tau）。
+    也回 reset 當下的 cmd：env.reset 的 u_mode／ph／s4／s_arc 是用「抽到的那個 cmd」算的（我們只改之後每步的 cmd），
+    所以 Gen 的 cmd0 要餵 reset cmd，不是跟跑用的 cmd —— 順便讓 u_mode 從別的值斜率追過來，多測到 slew 那條路。"""
+    jr, js = jax.jit(env.reset), jax.jit(env.step)
+    s = jr(jax.random.PRNGKey(seed))
+    cmd_reset = np.asarray(s.info["cmd"], float)
+    s = s.replace(info={**s.info, "cmd": jnp.array(cmd, jnp.float32), "cmd2": jnp.array(cmd, jnp.float32), "t_switch": 10 ** 6})
+    delay = int(s.info["delay"])
+    out = []
+    for i in range(steps):
+        v_meas = np.asarray(s.pipeline_state.qvel[v3.WHEEL_QVEL_IDX])
+        s = js(s, jnp.array(acts[i], jnp.float32))
+        d = s.pipeline_state
+        out.append(dict(q_des=np.asarray(d.ctrl[v3.LEG_ACT_IDX]), wctrl=np.asarray(d.ctrl[v3.WHEEL_ACT_IDX]), v_meas=v_meas,
+                        c={k: np.asarray(v) for k, v in s.info["c"].items()}, s4=float(s.info["s4"]), s_arc=float(s.info["s_arc"])))
+    return out, delay, cmd_reset
+
+
+@pytest.mark.parametrize("cmd", [(0.5, 0.0, 0.0), (0.0, 0.20, 0.0), (0.0, 0.0, 1.3), (0.0, -0.12, -0.8)])
+def test_gen_step_shadows_env_ctrl(p, env, cmd):
+    """300 步、固定隨機動作序列：Gen 的 q_des 對 env 的 ctrl < 1e-4 rad、τ（死區後）< 1e-3。
+    env 有 1–2 步動作延遲 → 測試端餵 Gen 的是 acts[i-delay]；env 的 u_ramp 與 Gen 的 i 同步。"""
+    steps = 300
+    rng = np.random.default_rng(5)
+    acts = rng.normal(size=(steps, 24)) * 0.5
+    ref_rows, delay, cmd_reset = _env_rollout_ctrl(env, cmd, steps, acts)
+    gen = g.Gen(p, cmd0=cmd_reset)
+    worst_q = worst_t = 0.0
+    for i, row in enumerate(ref_rows):
+        act = acts[i - delay] if i >= delay else np.zeros(24)
+        q_des, tau, c = gen.step(np.array(cmd), act, row["v_meas"])
+        tau_d = g.wheel_dead(tau, p)
+        w_ref = (row["wctrl"] - row["v_meas"]) * env.kv_wheel
+        worst_q = max(worst_q, float(np.max(np.abs(q_des - row["q_des"]))))
+        worst_t = max(worst_t, float(np.max(np.abs(tau_d - w_ref))))
+        for k in ("theta", "amp", "cyc_abad", "cyc_knee"):
+            assert np.max(np.abs(c[k] - row["c"][k])) < 1e-3, (i, k)
+        assert abs(gen.s4 - row["s4"]) < 1e-6 and abs(gen.s_arc - row["s_arc"]) < 1e-6
+    print(f"cmd {cmd} worst q_des {worst_q:.2e} rad, tau {worst_t:.2e} N·m, n_clamp {gen.n_clamp}")
+    assert worst_q < 1e-4 and worst_t < 1e-3
+    assert gen.n_clamp == 0                       # 影子跟跑全程 IK 都構得到；非 0 代表足端目標飛出工作空間
+
+
+def test_gen_zero_action_cmd0_holds_stance(p):
+    gen = g.Gen(p)
+    for _ in range(100):
+        q, tau, _ = gen.step(np.zeros(3), np.zeros(24), np.zeros(4))
+    # 1e-9 是 float32 來源做不到的：STANCE_FEET／STANCE_Q12 是 jax float32 存進 npz，IK 往返只能還原到 ~1e-7 rad
+    _close(q, gen.stance_q12(), atol=1e-6)
+    _close(tau, np.zeros(4), atol=1e-12)
+    assert gen.head_err == 0.0
+
+
+def test_gen_head_err_integrates_after_first_step(p):
+    gen = g.Gen(p, cmd0=(0.0, 0.0, 1.0))
+    gen.integrate_head(0.5)                         # i == 0：不積分（env reset 的 head_err 是 0）
+    assert gen.head_err == 0.0
+    gen.step(np.array([0.0, 0.0, 1.0]), np.zeros(24), np.zeros(4))
+    gen.integrate_head(0.5)
+    assert abs(gen.head_err - (0.5 - 1.0) * p.K["CTRL_DT"]) < 1e-12
+
+
+def test_joint_targets_n_reports_ik_clamp(p):
+    """構不到的足端目標 → kin.ik 沿徑向縮，clamped 要被數出來（靜默縮限＝動作變鈍查不出原因）。"""
+    feet = np.asarray(p.T["STANCE_FEET"], float).copy()
+    q_ok, n_ok = g.joint_targets_n(feet, p)
+    assert n_ok == 0
+    _close(q_ok, g.joint_targets(feet, p), atol=1e-12)
+    feet[0, 0] += 1.0                                # 前右腿往前 1 m：遠超二連桿長度
+    _, n_bad = g.joint_targets_n(feet, p)
+    assert n_bad > 0
+
+
+def test_params_guards_raise_valueerror(p):
+    """守門是上機安全閘，要用 ValueError（python -O 會把 assert 拿掉）；npz 存的一定是 SYM 週期表。"""
+    for bad in (dict(wheel_space="vel"), dict(cyc_lat_decouple=True), dict(cyc_recenter=False), dict(cyc_turn_sym=False)):
+        ref = dict(p.ref, **bad)
+        with pytest.raises(ValueError):
+            g.Params(ref, p.K, p.T)
+    g.Params(dict(p.ref), p.K, p.T)                 # 原樣要過

@@ -28,9 +28,15 @@ class Params:
 
     def __init__(self, ref: dict, K: dict, T: dict):
         self.ref, self.K, self.T = ref, K, T
-        assert ref["wheel_space"] == "tau", "v3.6f 只走力矩空間"
-        assert not ref.get("cyc_lat_decouple", False), "v3.7 解耦不在本移植範圍"
-        assert ref["cyc_recenter"], "cyc_recenter=False 的絕對模式沒移植"
+        # 上機安全閘：用 ValueError 不用 assert（python -O 會把 assert 整條拿掉，守門就消失了）
+        if ref["wheel_space"] != "tau":
+            raise ValueError("v3.6f 只走力矩空間")
+        if ref.get("cyc_lat_decouple", False):
+            raise ValueError("v3.7 解耦不在本移植範圍")
+        if not ref["cyc_recenter"]:
+            raise ValueError("cyc_recenter=False 的絕對模式沒移植")
+        if ref.get("cyc_turn_sym") is not True:     # npz 存的一定是 SYM 週期表；非 SYM 權重載進來會默默配錯表
+            raise ValueError("npz 的週期表是 SYM 版，只能配 cyc_turn_sym=True 的權重")
 
 
 def load_params(path: str) -> Params:
@@ -159,13 +165,21 @@ def foot_targets(theta, amp, g, vec, lift4, sway, u, foot_x, foot_z, duty, post_
     return p.T["STANCE_FEET"] + post + step_off + (1.0 - u) * wheel_off
 
 
-def joint_targets(feet, p: Params) -> np.ndarray:
+def joint_targets_n(feet, p: Params) -> tuple[np.ndarray, int]:
+    """IK 十二軸，並回報這一步有幾條腿被 `kin.ik` 縮限（構不到 → 沿徑向縮）。
+    靜默的縮限在狗上表現成「動作突然變鈍」而查不出原因，所以要數出來。"""
     ks = p.T["KNEE_SIGN4"]
     out = np.zeros(12)
+    n_clamped = 0
     for k in range(4):
-        (q1, q2, q3), _ = kin.ik(LEG_SHM[k], float(feet[k, 0]), float(feet[k, 1]), float(feet[k, 2]), float(ks[k]))
+        (q1, q2, q3), clamped = kin.ik(LEG_SHM[k], float(feet[k, 0]), float(feet[k, 1]), float(feet[k, 2]), float(ks[k]))
         out[3 * k:3 * k + 3] = (q1, q2, q3)
-    return out
+        n_clamped += int(clamped)
+    return out, n_clamped
+
+
+def joint_targets(feet, p: Params) -> np.ndarray:
+    return joint_targets_n(feet, p)[0]
 
 
 def cyc_interp(table, phi: float, p: Params) -> np.ndarray:
@@ -208,3 +222,72 @@ def wheel_dead(tau, p: Params) -> np.ndarray:
     tau = np.asarray(tau, float)
     ff = p.K["TAU_FF"]
     return np.where(np.abs(tau) < ff, 0.0, tau + np.sign(tau) * ff)
+
+
+# ---------------------------------------------------------------- 產生器狀態機（對應 DualModeEnv.reset／step 的產生器部分）
+class Gen:
+    """v3 產生器。狀態 = env `info` 裡產生器會用到的那幾個；不含延遲、EMA、reward。"""
+
+    def __init__(self, p: Params, cmd0=(0.0, 0.0, 0.0)):
+        self.p = p
+        K = p.K
+        self.dt = K["CTRL_DT"]
+        cmd0 = np.asarray(cmd0, float)
+        P0 = step_pattern(cmd0, p)
+        self.c = dict(theta=np.zeros(4), amp=np.zeros(4), wheel=np.zeros(4), cyc_abad=np.zeros(4), cyc_knee=np.zeros(4))
+        self.u_mode = float(np.max(P0["s"]))
+        self.ph = P0["ph"].copy()
+        self.s4, self.s_arc = P0["A"]["s4"], P0["A"]["arc"]
+        self.phi_cyc = 0.0
+        self.u4 = 0.0
+        self.qres = np.zeros(12)
+        self.sway = np.zeros(2)
+        self.head_err = 0.0
+        self.cmd_prev = cmd0
+        self.i = 0
+        self.n_clamp = 0                            # 累計 IK 被縮限的腿次；正常跟跑應該一路是 0
+
+    def stance_q12(self) -> np.ndarray:
+        return self.p.T["STANCE_Q12"].copy()
+
+    def integrate_head(self, gyro_z: float) -> None:
+        if self.i > 0:
+            self.head_err += (float(gyro_z) - float(self.cmd_prev[2])) * self.dt
+
+    def step(self, cmd, act, v_wheel):
+        p, K, ref, T = self.p, self.p.K, self.p.ref, self.p.T
+        cmd = np.asarray(cmd, float); act = np.asarray(act, float); v_wheel = np.asarray(v_wheel, float)
+        P = step_pattern(cmd, p)
+        u_tgt = float(np.max(P["s"]))
+        du = self.dt / ref["trans_s"]
+        u_mode = float(np.clip(self.u_mode + np.clip(u_tgt - self.u_mode, -du, du), 0.0, 1.0))
+        u_ramp = min(1.0, self.i / K["RAMP_STEPS"])
+        A = act_split(u_ramp * act, p)
+        om = P["hz"] * A["om"]
+        ph = slew_phase(self.ph, P["ph"], p)
+        theta_free = self.c["theta"] + TWO_PI * om * self.dt
+        ph_rad = TWO_PI * ph
+        phi0 = theta_free[0] - ph_rad[0]
+        theta = np.mod(phi0 + ph_rad if u_mode > 0.01 else self.c["theta"], TWO_PI)
+        amp = self.c["amp"] + np.clip(P["g"] * A["amp"] - self.c["amp"], -0.05, 0.05)
+        sway = self.sway + np.clip(A["sway"] * u_mode - self.sway, -K["SWAY_SLEW"], K["SWAY_SLEW"])
+        lift4 = P["lift"] * A["lift"]
+        feet = foot_targets(theta, amp, P["g"], P["vec"], lift4, sway, u_mode, A["foot_x"], A["foot_z"], P["duty"], P["post_y"], ref["z_sag"], p)
+        u4_tgt = float(np.clip(P["A"]["s4"] / 0.3, 0.0, 1.0)) * P["cyc_on"]
+        u4 = float(np.clip(self.u4 + np.clip(u4_tgt - self.u4, -du, du), 0.0, 1.0))
+        CY = cycle_offsets(self.phi_cyc, cmd, P["A"], p)
+        phi_cyc = np.mod(self.phi_cyc + TWO_PI * CY["hz"] * A["om"] * self.dt * float(u4 > 0.01), TWO_PI)
+        delta = (CY["delta"].reshape(4, 3) * A["amp"][:, None] * np.array([1.0, A["lift"], A["lift"]])[None, :]).reshape(12) * u4
+        qres = self.qres + np.clip(A["qres"] - self.qres, -K["QRES_SLEW"], K["QRES_SLEW"])
+        q_ik, n_clamped = joint_targets_n(feet, p)
+        self.n_clamp += n_clamped
+        q_des = np.clip(q_ik + delta + qres, T["LO12"], T["HI12"])
+        v_nom = wheel_cmd(cmd, P["A"], np.zeros(4), p)
+        tau = ref["wheel_outer_gain"] * (v_nom - v_wheel) + A["wres"] + u4 * CY["wheel_tau"]
+        d3 = delta.reshape(4, 3)
+        self.c = dict(theta=theta, amp=amp, wheel=tau, cyc_abad=d3[:, 0].copy(), cyc_knee=d3[:, 2].copy())
+        self.u_mode, self.ph, self.u4, self.phi_cyc, self.qres, self.sway = u_mode, ph, u4, phi_cyc, qres, sway
+        self.s4, self.s_arc = P["A"]["s4"], P["A"]["arc"]
+        self.cmd_prev = cmd
+        self.i += 1
+        return q_des, tau, self.c

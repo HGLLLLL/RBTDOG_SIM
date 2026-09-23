@@ -38,7 +38,7 @@ def read_frame(state_ro, imu_shm, idx: dict, state_stride: int) -> Frame:
 
 def is_right(cmd) -> bool:
     """鏡像觸發：|wz| > 0.1 時看 wz < 0，否則看 vy < −0.02（= mirror_policy(turn_only=False)）。"""
-    vx, vy, wz = (float(x) for x in cmd)
+    _, vy, wz = (float(x) for x in cmd)                                   # vx 不參與判斷
     return (wz < 0.0) if abs(wz) > 0.1 else (vy < -0.02)
 
 
@@ -52,6 +52,7 @@ class Obs:
             self.as_ = np.asarray(z["ACT_MIRROR_SGN"], dtype=float)
             self.lr = np.asarray(z["MIRROR_LR"]).astype(int)
         assert self.stance12.shape == (12,) and self.oi.shape == (OBS_DIM,) and self.ai.shape == (ACT_DIM,)
+        assert self.os.shape == (OBS_DIM,) and self.as_.shape == (ACT_DIM,) and self.lr.shape == (4,)
 
     def wheel_v(self, fr: Frame) -> np.ndarray:
         return np.array([fr.vel[n] for n in WHEEL_NAMES], dtype=float) * WHEEL_SIGN4
@@ -61,6 +62,11 @@ class Obs:
         return float(fr.gyro[2])
 
     def build(self, fr: Frame, c: dict, cmd, last_a, head_err: float, s4: float, s_arc: float) -> np.ndarray:
+        """組 88 維 obs。`c` 就是 `gen_v3.Gen.c`：五個 (4,) 陣列（MJCF 腿序）
+        theta／amp／wheel／cyc_abad／cyc_knee。
+
+        輪力矩的 `/ 5.0` 與 head_err 的 `±1` clip 必須與 `rl_env_v3.DualModeEnv._obs` 同步，改一邊就要改另一邊。
+        """
         cmd = np.asarray(cmd, dtype=np.float64).reshape(-1)
         last_a = np.asarray(last_a, dtype=np.float64).reshape(-1)
         assert cmd.size == 3, f"cmd 應為 3 維 (vx, vy, wz)，實得 {cmd.size}"

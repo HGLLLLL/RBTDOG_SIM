@@ -17,6 +17,9 @@ import rl_obs  # noqa: E402
 import rl_obs_v3 as ro  # noqa: E402
 
 NPZ = ROOT / "weights" / "cpg_rl_v3_6f_np.npz"
+# 故意寫死：馬達 → MJCF 的輪符號 (FR, FL, RR, RL)。不可改成 ro.WHEEL_SIGN4，
+# 否則輸入乘一次、Obs.wheel_v 再乘一次會互相抵消，任何符號向量都會通過。
+WSIGN_LIT = np.array([1.0, -1.0, 1.0, -1.0])
 
 
 @pytest.fixture(scope="module")
@@ -35,7 +38,7 @@ def _case(seed):
     pos = {n: coord.to_motor(n, float(q12[k])) for k, n in enumerate(rl_obs.LEG_NAMES)}
     vel = {n: float(qv12[k]) * rl_obs._SIGN12[k] for k, n in enumerate(rl_obs.LEG_NAMES)}
     for k, n in enumerate(ro.WHEEL_NAMES):
-        pos[n] = 0.0; vel[n] = float(wv4[k]) * ro.WHEEL_SIGN4[k]
+        pos[n] = 0.0; vel[n] = float(wv4[k]) * WSIGN_LIT[k]   # 馬達座標輸入用字面值符號
     c = dict(theta=rng.uniform(0, 2 * np.pi, 4), amp=rng.uniform(0, 1.2, 4), wheel=rng.normal(size=4) * 5,
              cyc_abad=rng.normal(size=4) * 0.3, cyc_knee=rng.normal(size=4) * 0.3)
     cmd, last_a = rng.normal(size=3) * 0.5, rng.normal(size=24)
@@ -71,6 +74,9 @@ def test_build_matches_env_obs(O, seed):
     np.testing.assert_allclose(got, ref, atol=1e-6, rtol=0)      # grav 經 jax float32 四元數旋轉，其餘位元相同
     np.testing.assert_array_equal(got[6:], ref[6:])
     np.testing.assert_allclose(O.wheel_v(fr), C["wv4"])
+    # 直接對 Frame 原始（馬達座標）讀值檢查：FR 不翻、FL 要翻號
+    assert O.wheel_v(fr)[0] == pytest.approx(fr.vel["fr4_foot"])
+    assert O.wheel_v(fr)[1] == pytest.approx(-fr.vel["fl4_foot"])
 
 
 def test_leg_wheel_order_and_stance_errors_are_caught(O):

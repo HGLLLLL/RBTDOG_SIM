@@ -51,7 +51,7 @@
 | 段 | 指令（共同旗標之外） | 看什麼 | 過關 |
 |---|---|---|---|
 | ⓪ 乾跑 | `--policy-gain 0 --cmd 0 0 0`（**不帶** `--confirm`） | 說兩次 ✅、推論＋產生器 ms、限位表 ✅、命令速度 | 兩個 ✅ 都在；推論＋產生器 **< 5 ms**（程式的門是 10 ms，5 是保守要求）；**「貼止點」那一行有印出來**（`n/N 步至少有一個關節貼在止點上`；段 ⓪ 是 `--cmd 0 0 0`，印 `0/550` 就對；平移 0.12 的乾跑才會看到約 56%，見 §3）—— 這是限位飽和有在被量的證據，段 ① 之後才有 JSON 的 `n_sat` 可看 |
-| ① 軟增益站立 | `sudo … --policy-gain 0 --cmd 0 0 0 --confirm --walk-max 5` | 起身 250 →（1.5 s 靜止）→ 60/120/120 kd 1.0；機身**再下沉 ≈ 36 mm**；四膝誤差與力矩 | 站住、誤差 < 護欄一半、無中止；**收工 JSON `policy.fallback_total == 0`、`open_loop == false`、且 `n_sat` 欄存在** —— 這一段是 `rl_obs_v3.read_frame`（真 shm 讀取）第一次被真的跑到，本機沒有測試，有一步退回就代表讀法不對（`cmd 0 0 0` 這趟 `n_sat` 應該是 0） |
+| ① 軟增益站立 | `sudo … --policy-gain 0 --cmd 0 0 0 --confirm --walk-max 5` | 起身 250 →（1.5 s 靜止）→ 60/120/120 kd 1.0；機身**再下沉 ≈ 36 mm**；四膝誤差與力矩 | 站住、誤差 < 護欄一半、無中止；**收工 JSON `policy.fallback_total == 0`、`open_loop_why` 必須正好是「按停淡出：指令歸零、零動作名目」（按 Enter 停走本來就會把 `open_loop` 設成 true，那是設計；是別的原因才算退回）、且 `n_sat` 欄存在** —— 這一段是 `rl_obs_v3.read_frame`（真 shm 讀取）第一次被真的跑到，本機沒有測試，有一步退回就代表讀法不對（`cmd 0 0 0` 這趟 `n_sat` 應該是 0） |
 | ② 零動作直走 | `--policy-gain 0 --cmd 0.3 0 0 --walk-max 5` | **第一次走輪子 effort 路徑**：四輪 `velocity` 與 `effort` 的**符號**（往前走四顆應同號、effort 與速度同向）、跟得上 v_nom、無抖振；腿不跨步是對的。⚠️ 讀側輪符號由影子跟跑釘住，**寫側（effort 欄）的符號實機沒驗過** —— 接反就是往後走 | 走直、無抖振、vx ≥ 0.2 |
 | ③ 零動作踏步 | `--policy-gain 0 --cmd 0 0.12 0`（5 s）；`--policy-gain 0 --cmd 0 0 0.8`（5 s，吊帶） | **硬門**（見 §4）：抬腳、側傾、`fl1/bl1_hip_roll` 的 ABAD 力矩與誤差 | 不倒、不中止 |
 | ④ policy 直走 | `--policy-gain 1 --cmd 0.3 0 0 --walk-max 5` | 與 ② 的差別（policy 應該只做小修正） | 同 ② |
@@ -150,7 +150,7 @@ bash task7/realbot/pull_from_dog.sh <trip>       # 例：pull_from_dog.sh trip22
 `q_des(12)`、`tau(4)`、`v_wheel(4)`、`right`、`cmd(3)`、**`sat`（這一步有幾個關節的目標被限位夾掉）**、原始 imu、ms、退回原因；
 整趟另有 `n_clamp`（產生器 IK 縮限次數，正常是 0）、**`n_sat`（至少一個關節頂住限位的步數 —— 平移趟本來就會很大，見 §3）**、`fallback_total`、`open_loop`。
 
-先看三件事：**退回次數與原因**（`stale`／`obs_nan`／`act_nan`／`slow`／`exc:*`／`exc_gen:*`／**`gen_nan`**）、**`right` 旗標對不對**（⑥ 應該 True）、
+先看三件事：**退回次數與原因**（`open_loop=true` 且 `open_loop_why` 是「按停淡出…」是正常的，每趟按 Enter 停走都會這樣）（`stale`／`obs_nan`／`act_nan`／`slow`／`exc:*`／`exc_gen:*`／**`gen_nan`**）、**`right` 旗標對不對**（⑥ 應該 True）、
 **中止那一刻的關節**（ABAD 還是膝？誤差還是力矩還是速度？）。`n_clamp > 0` ＝ 產生器被縮限，那是另一類問題，回報。
 
 ## 7. 每段的完整指令（狗上 T1，`cd ~`；每段兩行：先乾跑、再 `sudo … --confirm`）

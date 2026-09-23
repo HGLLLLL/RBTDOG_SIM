@@ -172,9 +172,13 @@ sudo bash ~/estop_max.sh
 
 共同旗標存成變數，之後每段只換 gain 與 cmd：
 ```bash
-C="--v3 cpg_rl_v3_6f_np.npz --interactive --kp 120 --kp-abad 60 --kd 1.0 --wheel-kd 0.1 --vmax 18 --vcmd-max 16 --emax-abad 0.91 --emax 0.55 --tau-total 5 --wheel-vmax 30 --hold-max 15"
+C="--v3 cpg_rl_v3_6f_np.npz --interactive --kp 120 --kp-abad 60 --kd 1.0 --wheel-mode kd1 --wheel-kd 1.0 --vmax 18 --vcmd-max 16 --emax-abad 0.91 --emax 0.55 --tau-total 5 --wheel-vmax 30 --hold-max 15"
 ```
 
+- `--wheel-mode kd1 --wheel-kd 1.0`（2026-09-23 現場 trip22 段 ⑤a 後改）：原本的 `tau` 模式（50 Hz 外環算好寫 effort、kd 0.1）在**腳離地時發散**
+  —— 後左輪 −4→+4→−8→−13→+12→−20→+35 rad/s 每步翻號放大，被 `--wheel-vmax 30` 擋下。輪子沒負載時慣量太小，1 N·m 在 20 ms 內改 2.5 rad/s，
+  50 Hz 外環迴路增益 > 2。kd1 ＝ spec §2.2 備案：velocity 給名目輪速、kd 1.0 讓驅動器 1 kHz 自己算 1.0·(v_nom − v)（M11 驗過不抖）、effort 只剩 wres＋週期表力矩。
+  法則和模擬一樣、只是外環快 20 倍。段 ①②④ 是用 tau 模式跑過的（有負載時沒問題）。
 - `--hold-max 15`（2026-09-23 現場加）：互動模式的承重預算把兩個「等 Enter」各算 `--hold-max` 秒，預設 25 會讓最壞情況 77 s 超過 `--max-secs 60` 被拒跑。15 → 57 s。
   **意思是 READY 站著 15 s 沒按 Enter 就自己起走、STOPPED 15 s 沒按就自己趴下**，手要放在 Enter 上。`--walk-max 10` 的趟要再改 `--hold-max 12`（56 s）。
 

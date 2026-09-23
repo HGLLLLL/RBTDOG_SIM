@@ -242,3 +242,12 @@ def test_params_guards_raise_valueerror(p):
         with pytest.raises(ValueError):
             g.Params(ref, p.K, p.T)
     g.Params(dict(p.ref), p.K, p.T)                 # 原樣要過
+
+
+def test_gen_records_v_nom_and_v_meas(p):
+    gen = g.Gen(p)
+    v = np.array([0.5, -0.5, 1.0, 2.0])
+    _, tau, _ = gen.step(np.array([0.3, 0.0, 0.0]), np.zeros(24), v)
+    np.testing.assert_allclose(gen.v_nom, np.full(4, 0.3 / p.ref["r_wheel"]))
+    np.testing.assert_array_equal(gen.v_meas, v)
+    np.testing.assert_allclose(tau, p.ref["wheel_outer_gain"] * (gen.v_nom - v))      # 零動作、u4=0：τ 就只有外環

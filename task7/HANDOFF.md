@@ -24,7 +24,7 @@
 共同旗標（增益 npz 會「說兩次」，不要自己改）：
 
 ```
---v3 cpg_rl_v3_6f_np.npz --interactive --kp 120 --kp-abad 60 --kd 1.0 --wheel-kd 0.1 \
+--v3 cpg_rl_v3_6f_np.npz --interactive --kp 120 --kp-abad 60 --kd 1.0 --wheel-mode kd1 --wheel-kd 1.0 \
 --vmax 18 --vcmd-max 16 --emax-abad 0.91 --emax 0.55 --tau-total 5 --wheel-vmax 30 --hold-max 15
 ```
 

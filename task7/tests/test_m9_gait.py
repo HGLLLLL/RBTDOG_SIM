@@ -1768,3 +1768,45 @@ def test_push_list_has_v3_files():
     src = (ROOT / "realbot" / "push_to_dog.sh").read_text(encoding="utf-8")
     for f in ("gen_v3.py", "rl_obs_v3.py", "cpg_rl_v3_6f_np.npz"):
         assert f in src, f
+
+
+# ══════════════════════════ kd1 輪模式（2026-09-23 trip22 段 ⑤a 現場：50 Hz 外環在腳離地時發散）
+def test_v3_wheel_rows_kd1_moves_outer_loop_to_driver():
+    P = gen_v3.load_params(str(NPZ_V3))
+    G = P.ref["wheel_outer_gain"]; ff_dead = P.K["TAU_FF"]
+    tau = np.array([3.0, -1.0, 0.05, 0.0]); v_nom = np.array([3.12, -2.2, 0.0, 1.0]); v_used = np.array([1.0, -1.0, 0.0, 1.0])
+    rows = m9.v3_wheel_rows_kd1(tau, v_nom, v_used, P)
+    sign = rl_obs_v3.WHEEL_SIGN4
+    assert [r["kp"] for r in rows] == [0.0] * 4 and [r["kd"] for r in rows] == [G] * 4 and all(r["hold_velocity"] for r in rows)
+    np.testing.assert_allclose([r["velocity"] for r in rows], v_nom * sign)          # velocity = 名目（馬達方向）
+    ff = tau - G * (v_nom - v_used)                                                  # 只剩前饋：wres + 週期 τ
+    exp = np.where(np.abs(ff) < ff_dead, 0.0, ff + np.sign(ff) * ff_dead) * sign
+    np.testing.assert_allclose([r["effort"] for r in rows], exp, atol=1e-12)
+    big = m9.v3_wheel_rows_kd1(np.array([80.0, -80.0, 80.0, -80.0]), np.zeros(4), np.zeros(4), P)
+    assert [abs(r["effort"]) for r in big] == [P.K["WHEEL_TAU_MAX"]] * 4
+
+
+def test_v3_gain_record_depends_on_wheel_mode():
+    P = gen_v3.load_params(str(NPZ_V3))
+    assert m9.v3_gain_record(P, "tau")["wheel_kd"] == 0.1
+    assert m9.v3_gain_record(P, "kd1")["wheel_kd"] == P.ref["wheel_outer_gain"] == 1.0
+    assert m9.param_mismatches(m9.v3_gain_record(P, "kd1"), {"kp": 120.0, "kp_abad": 60.0, "kd": 1.0, "wheel_kd": 1.0}) == []
+    assert [b[0] for b in m9.param_mismatches(m9.v3_gain_record(P, "kd1"), {"kp": 120.0, "kp_abad": 60.0, "kd": 1.0, "wheel_kd": 0.1})] == ["wheel_kd"]
+
+
+def test_v3_stream_exposes_wheel_v_nom_and_zeroes_it_on_degrade():
+    gs, log, P = _v3_stream(_fake_policy_v3(0.0), gain=1.0, cmd=(0.3, 0.0, 0.0))
+    gs.arm_cmd()
+    _run_v3(gs, secs=2.0)
+    np.testing.assert_allclose(gs.wheel_v_nom, np.full(4, 0.3 / P.ref["r_wheel"]), atol=1e-9)   # 直走名目 = vx / r
+    assert gs.wheel_v_used.shape == (4,)
+    gs.gen.step = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom"))
+    _run_v3(gs, secs=2.02)
+    assert log[-1]["fb"].startswith("exc_gen:") and np.all(gs.wheel_v_nom == 0) and np.all(gs.wheel_v_used == 0)
+
+
+def test_v3_kd1_source_markers():
+    src = Path(m9.__file__).read_text(encoding="utf-8")
+    assert 'choices=("tau", "kd1")' in src and 'v3_wheel_rows_kd1(gs.wheel_tau_mjcf, gs.wheel_v_nom, gs.wheel_v_used, P3)' in src
+    assert 'vel_w = r["velocity"] if r.get("hold_velocity") else st_w[wi]["velocity"]' in src
+    assert "v3_gain_record(P3, a.wheel_mode)" in src

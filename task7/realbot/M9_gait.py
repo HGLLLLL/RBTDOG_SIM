@@ -528,6 +528,8 @@ class V3GaitStream(GaitStream):
         self.gain, self.mirror = float(gain), bool(mirror)
         self.last_a = np.zeros(24)
         self.wheel_tau_mjcf = np.zeros(4)
+        self.wheel_v_nom = np.zeros(4)          # kd1 模式：這一步的名目輪速（MJCF 序）
+        self.wheel_v_used = np.zeros(4)         # kd1 模式：這一步外環用到的實測輪速
         self.i = 0
         self._armed_at = None          # 進 GAIT 的步序（None = 還沒進 → cmd 恆 0），見 arm_cmd()
         self.n_fallback = self.n_fallback_total = 0
@@ -638,6 +640,9 @@ class V3GaitStream(GaitStream):
             fb = f"{fb}+{lab}" if fb else lab
             q12, tau, v_wheel = self._q12, np.zeros(4), np.zeros(4)
             a_use = np.zeros(24)          # 這一步的動作根本沒送進產生器 → log 與 obs 的 last_a 都要記 0
+            gen_ok = False
+        else:
+            gen_ok = True
         # ★ 退回計數放在產生器之後：`exc_gen:*` 也要算進連續退回，否則產生器一直炸、永遠進不了永久零動作。
         if fb:
             self.n_fallback += 1
@@ -650,6 +655,13 @@ class V3GaitStream(GaitStream):
         self.worst_ms = max(self.worst_ms, ms)
         self._q12 = q12
         self.wheel_tau_mjcf = tau
+        # kd1 輪模式用：名目輪速與外環用到的實測。降級那一步兩個都給 0 → rows 的 ff = 0、velocity = 0，
+        # 驅動器 kd 把輪子煞到停，不會用上一步的 v_nom 配這一步的 τ=0 算出假前饋。
+        if gen_ok:
+            self.wheel_v_nom = np.array(getattr(self.gen, "v_nom", np.zeros(4)), float)
+            self.wheel_v_used = np.array(getattr(self.gen, "v_meas", np.zeros(4)), float)
+        else:
+            self.wheel_v_nom, self.wheel_v_used = np.zeros(4), np.zeros(4)
         self.last_a = a_use
         self.log.append({"i": self.i, "seg": self.seg, "tg": round(self.t_next, 3),
                          "cmd": [float(x) for x in cmd], "right": bool(right),
@@ -1101,10 +1113,33 @@ def v3_wheel_rows(tau_mjcf4, v_meas_motor4, wheel_kd: float, p) -> list:
     return [dict(velocity=float(v_meas_motor4[k]), effort=float(tau[k]), kp=0.0, kd=float(wheel_kd)) for k in range(4)]
 
 
-def v3_gain_record(p) -> dict:
-    """npz 的增益「說一次」：與命令列比（param_mismatches）。"""
+def v3_wheel_rows_kd1(tau_mjcf4, v_nom_mjcf4, v_meas_used_mjcf4, p) -> list:
+    """v3 輪子寫入的 kd1 模式（spec §2.2 備案；2026-09-23 現場啟用）。
+
+    模擬的輪法則是 τ = G·(v_nom − v) ＋ wres ＋ u4·週期 τ，G = ref wheel_outer_gain（1.0），50 Hz 算一次。
+    tau 模式把整條算好寫 effort；腳離地時輪慣量太小，50 Hz 外環發散（trip22 段 ⑤a：−4→+4→−8→−13→+12→−20→+35 rad/s）。
+    這裡把外環那一項還給驅動器：velocity = v_nom、kd = G，驅動器 1 kHz 算 G·(v_nom − v)；effort 只放前饋
+    ff = τ − G·(v_nom − v_used)（＝ wres ＋ u4·週期 τ），過死區、換馬達方向、夾 ±WHEEL_TAU_MAX。
+    法則相同、只是外環快 20 倍；velocity 由 M9 零階保持（不像 tau 模式每拍重讀實測）。
+    """
+    import numpy as np
+
+    import gen_v3
+    import rl_obs_v3
+    G = float(p.ref["wheel_outer_gain"])
+    tmax = float(p.K["WHEEL_TAU_MAX"])
+    tau = np.asarray(tau_mjcf4, float); v_nom = np.asarray(v_nom_mjcf4, float); v_used = np.asarray(v_meas_used_mjcf4, float)
+    ff = tau - G * (v_nom - v_used)
+    eff = np.clip(gen_v3.wheel_dead(ff, p) * rl_obs_v3.WHEEL_SIGN4, -tmax, tmax)
+    vel = v_nom * rl_obs_v3.WHEEL_SIGN4
+    return [dict(velocity=float(vel[k]), effort=float(eff[k]), kp=0.0, kd=G, hold_velocity=True) for k in range(4)]
+
+
+def v3_gain_record(p, wheel_mode: str = "tau") -> dict:
+    """npz 的增益「說一次」：與命令列比（param_mismatches）。kd1 模式的步態段輪 kd 就是外環增益（ref wheel_outer_gain）。"""
     G = p.K["gains"]
-    return {"kp": G["kp3"][1], "kp_abad": G["kp3"][0], "kd": G["kd3"][1], "wheel_kd": G["wheel_kd"]}
+    wkd = G["wheel_kd"] if wheel_mode == "tau" else float(p.ref["wheel_outer_gain"])
+    return {"kp": G["kp3"][1], "kp_abad": G["kp3"][0], "kd": G["kd3"][1], "wheel_kd": wkd}
 
 
 def v3_limit_checks(G_rows_mjcf_order, p) -> tuple[list, list, int]:
@@ -1356,6 +1391,12 @@ def main() -> int:
                          "馬達規格 190 RPM = 19.9 rad/s，16 是它的 80%%")
     ap.add_argument("--vcmd-max", type=float, default=14.0, dest="vcmd_max",
                     help="★ 命令速度 rad/s（乾跑檢查）。基準步態要 13.1")
+    ap.add_argument("--wheel-mode", choices=("tau", "kd1"), default="tau", dest="wheel_mode",
+                    help="★ v3 輪子怎麼寫（2026-09-23 trip22 段 ⑤a 現場加）。tau＝50 Hz 外環 τ=G·(v_nom−v) 全部算好寫 effort、"
+                         "velocity 給實測、kd 0.1（與模擬同構）—— 但腳離地時輪子只剩自己的小慣量，1 N·m 在 20 ms 內就改 2.5 rad/s，"
+                         "50 Hz 外環極限環發散到 35 rad/s 被 --wheel-vmax 擋下。kd1＝外環交給驅動器 1 kHz 做："
+                         "velocity=v_nom、kd=外環增益 1.0（M11 實機驗過不抖）、effort 只剩 wres＋週期表力矩（spec §2.2 備案）。"
+                         "kd1 要配 --wheel-kd 1.0")
     ap.add_argument("--wheel-vmax", type=float, default=30.0, dest="wheel_vmax",
                     help="★ v3 專用，四輪實測 |velocity| 超過即中止 —— effort 路徑單向失控不會被 "
                          "ChatterWatch 抓（那條看的是高頻正負翻轉；力矩把輪子往同一個方向愈推愈快時，"
@@ -1518,11 +1559,11 @@ def main() -> int:
                 print(f"❌ npz 太舊：gen_json 缺 {k!r}（要 export_policy_v3.py 重匯出並重推 push_to_dog.sh）。")
                 return 1
         # ★ 說兩次：npz 記的增益（訓練時的 factory 組）vs 命令列。不一致拒跑（同軌跡檔的邏輯）。
-        bad = param_mismatches(v3_gain_record(P3), {"kp": a.kp, "kp_abad": a.kp_abad, "kd": a.kd, "wheel_kd": a.wheel_kd})
+        bad = param_mismatches(v3_gain_record(P3, a.wheel_mode), {"kp": a.kp, "kp_abad": a.kp_abad, "kd": a.kd, "wheel_kd": a.wheel_kd})
         if bad:
             for k, got, want in bad:
                 print(f"❌ npz 的 {k} = {got:g}，與 --{k.replace('_', '-')}（{want:g}）不一致。")
-            print("   → v3.6f 要這樣跑：--kp 120 --kp-abad 60 --kd 1.0 --wheel-kd 0.1")
+            print("   → v3.6f 要這樣跑：--kp 120 --kp-abad 60 --kd 1.0 ＋ --wheel-mode tau 配 --wheel-kd 0.1／--wheel-mode kd1 配 --wheel-kd 1.0")
             return 1
         print(f"\nCPG-RL v3.6f：{os.path.basename(a.v3)}　sha {policy.src_sha256[:12]}　obs 88 act 24　"
               f"指令 vx {a.cmd[0]:g} vy {a.cmd[1]:g} wz {a.cmd[2]:g}　鏡像 {'開' if a.mirror else '關'}"
@@ -1740,7 +1781,7 @@ def main() -> int:
 
     print(f"\n增益：步態 ABAD {a.kp_abad:g} / HIP·KNEE {a.kp:g}　kd {a.kd}"
           f"（站立段一律 {STANDUP_KP:g}）　"
-          + (f"輪 kp 0 / 步態段 kd {a.wheel_kd}＋effort 力矩、起身坐下 kd {WHEEL_KD_SAFE}"
+          + (f"輪 kp 0 / 步態段 {a.wheel_mode}：kd {a.wheel_kd}＋effort {'前饋（外環交驅動器 1 kHz）' if a.wheel_mode == 'kd1' else '力矩（50 Hz 外環）'}、起身坐下 kd {WHEEL_KD_SAFE}"
              if a.v3 else f"輪 **kp 0** kd {a.wheel_kd}（純阻尼）"))
     print(f"保護：力矩 ABAD {TMAX['1_hip_roll']:.0f} / HIP {TMAX['2_hip_pitch']:.0f}"
           f" / KNEE {TMAX['3_knee_pitch']:.0f}、硬上限 {TAU_HARD:.0f}")
@@ -1805,7 +1846,9 @@ def main() -> int:
             for k, w in enumerate(rl_obs_v3.WHEEL_NAMES):
                 wi = widx[w]
                 r = v3_wheel["rows"][k]
-                shm.write_cmd(wi, position=st_w[wi]["position"], velocity=st_w[wi]["velocity"],
+                # kd1 模式：velocity 是名目輪速（零階保持），驅動器自己算 kd·(v_nom − v)；tau 模式：給當下實測讓 kd 項≈0
+                vel_w = r["velocity"] if r.get("hold_velocity") else st_w[wi]["velocity"]
+                shm.write_cmd(wi, position=st_w[wi]["position"], velocity=vel_w,
                               effort=r["effort"], kp=0.0, kd=r["kd"])
             return
         for w, wi in widx.items():
@@ -2093,7 +2136,10 @@ def main() -> int:
                 if gait_now:
                     import rl_obs_v3
                     st_v = [stt[widx[w]]["velocity"] for w in rl_obs_v3.WHEEL_NAMES]
-                    v3_wheel["rows"] = v3_wheel_rows(gs.wheel_tau_mjcf, st_v, a.wheel_kd, P3)
+                    if a.wheel_mode == "kd1":
+                        v3_wheel["rows"] = v3_wheel_rows_kd1(gs.wheel_tau_mjcf, gs.wheel_v_nom, gs.wheel_v_used, P3)
+                    else:
+                        v3_wheel["rows"] = v3_wheel_rows(gs.wheel_tau_mjcf, st_v, a.wheel_kd, P3)
             write_frame(des_now, kp_now, kd_now, wheel_kd_for(nm, a.wheel_kd, bool(a.v3)), kp_abad_now)
             shm.write_tick(tick_state)
             # ★ 收工判斷放在寫完這一幀之後 —— 直接 break 會少寫最後一幀，

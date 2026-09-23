@@ -253,6 +253,7 @@ class Gen:
         #   橫移時 ABAD 幾乎每步都頂在 ±0.523 的停點，policy 要的那一段位移根本沒送出去，而且完全無聲。
         self.n_sat = 0
         self.sat_mask = np.zeros(12, dtype=bool)    # 最近一步哪幾軸飽和（索引 0/3/6/9 = 四條腿的 ABAD）
+        self.v_nom, self.v_meas = np.zeros(4), np.zeros(4)   # 最近一步的名目輪速／用到的實測（kd1 輪模式用）
 
     def stance_q12(self) -> np.ndarray:
         return self.p.T["STANCE_Q12"].copy()
@@ -295,6 +296,8 @@ class Gen:
         v_nom = wheel_cmd(cmd, P["A"], np.zeros(4), p)
         tau = ref["wheel_outer_gain"] * (v_nom - v_wheel) + A["wres"] + u4 * CY["wheel_tau"]
         d3 = delta.reshape(4, 3)
+        # kd1 輪模式要拆開「外環」與「前饋」：外環交給驅動器 1 kHz 做，所以把 v_nom 與這一步用的實測輪速留給 M9
+        self.v_nom, self.v_meas = v_nom.copy(), v_wheel.copy()
         self.c = dict(theta=theta, amp=amp, wheel=tau, cyc_abad=d3[:, 0].copy(), cyc_knee=d3[:, 2].copy())
         self.u_mode, self.ph, self.u4, self.phi_cyc, self.qres, self.sway = u_mode, ph, u4, phi_cyc, qres, sway
         self.s4, self.s_arc = P["A"]["s4"], P["A"]["arc"]

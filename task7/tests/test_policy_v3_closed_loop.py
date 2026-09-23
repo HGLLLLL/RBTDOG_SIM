@@ -89,7 +89,8 @@ def test_dog_stack_shadows_jax_stack(stack, name, cmd):
         a_j = np.asarray(pol(jnp.array(obs_j)))
         # 鏡像判斷要照 mirror_policy：它讀的是 **obs 裡的指令**。第 0 步的 obs 還帶著 reset 抽到的指令
         # （測試是 reset 之後才覆寫 info["cmd"]），所以這裡也得讀 obs，否則第 0 步兩邊的鏡像決定會不一致。
-        # 狗上 cmd_prev 一直等於當前指令（M9_gait 用 is_right(cmd)），兩種寫法同義。
+        # 狗上 M9_gait 現在也是讀 `is_right(gen.cmd_prev)`（＝ obs 帶的那個指令），與這裡同源；
+        # 差別只在 cmd 0→指令切換的那一步（obs 還帶著 0），讀 cmd 會多鏡像一步、和 jax 對不起來。
         right = ro.is_right(obs_d[34:37])
         right_seen |= right
         a_d = O.mirror_act(polnp.infer(O.mirror_obs(obs_d))) if right else polnp.infer(obs_d)

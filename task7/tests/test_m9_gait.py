@@ -1535,6 +1535,9 @@ def test_v3_policy_block_carries_n_clamp():
     pb = m9.policy_block(a, _fake_policy_v3(0.3), plan, log)
     assert pb["segments"] == 1 and pb["steps"] == gs.i == len(pb["log"]) == 100
     assert pb["n_clamp"] == 3
+    # ★ 關節限位飽和（與 IK 縮限是兩件事）：橫移 cmd 下 ABAD 會頂在 ±0.523，收工 JSON 要帶得出來。
+    assert pb["n_sat"] == gs.n_sat == gs.gen.n_sat > 0
+    assert pb["log"][-1]["sat"] == int(np.count_nonzero(gs.gen.sat_mask))
     assert pb["path"] == "w.npz" and pb["cmd"] == [0.0, 0.20, 0.0] and pb["mirror"] is True
     assert pb["log"][-1]["a_raw"] is not None and len(pb["log"][-1]["a_raw"]) == 24
     json.dumps(pb, ensure_ascii=False)                       # 收工 JSON 要序列化得出來

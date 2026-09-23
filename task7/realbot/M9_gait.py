@@ -529,8 +529,20 @@ class V3GaitStream(GaitStream):
     def n_clamp(self) -> int:
         """IK 被縮限的累計腿次 —— 直接讀產生器的計數器（這條流自己不夾，夾的是 `gen_v3.joint_targets_n`）。
         以前這裡放一個永遠 0 的欄位，收工 JSON 就會誠實地寫「沒縮限過」，但真的縮限了也是 0。
-        縮限是靜默的（步態會突然變鈍、卻沒有任何中止），所以一定要往上報。"""
+        縮限是靜默的（步態會突然變鈍、卻沒有任何中止），所以一定要往上報。
+
+        ★ 陷阱：這是**唯讀** property，沒有 setter。能這樣寫是因為 `V3GaitStream.__init__` **不呼叫**
+          `GaitStream.__init__`（那裡有 `self.n_clamp = 0`，一旦被呼叫就會 AttributeError：
+          屬性賦值不會落到基底類別的實例字典，而是撞上這個沒有 setter 的 property）。
+          哪天改成繼承基底的初始化，這裡要一起改成讀 `self._n_clamp` 之類的欄位。"""
         return int(getattr(self.gen, "n_clamp", 0))
+
+    @property
+    def n_sat(self) -> int:
+        """關節限位飽和的累計步數 —— 同樣是轉讀產生器（`gen_v3.Gen.n_sat`），唯讀、同上面的陷阱。
+        `np.clip(q_ik + delta + qres, LO12, HI12)` 也是靜默的：橫移時 ABAD 幾乎每步都頂在 ±0.523 的機構停點，
+        policy 要的量根本沒送出去，而 log 上看不出來。"""
+        return int(getattr(self.gen, "n_sat", 0))
 
     def _compute(self) -> dict:
         import rl_obs
@@ -583,14 +595,19 @@ class V3GaitStream(GaitStream):
         #   降級的內容：這一步沿用上一步的 q_des（`self._q12` 不動 → 200 Hz 內插停在原地，不是跳步）、
         #   輪 τ 給 0（不確定狀態就不要推輪子），並記一次退回；下一步照常重試，連續 25 步才永久零動作。
         v_wheel = np.zeros(4)
+        n_sat_step = 0
         try:
             if fr is not None:
                 v_wheel = np.asarray(self.O.wheel_v(fr), float)
                 if not np.all(np.isfinite(v_wheel)):
                     v_wheel = np.zeros(4)
             q12, tau, _ = self.gen.step(cmd, a_use, v_wheel)
+            # 這一步有幾個關節的目標被 LO12/HI12 夾掉（0 = 都在限位內）。例外那步維持 0：那一步根本沒算到。
+            n_sat_step = int(np.count_nonzero(getattr(self.gen, "sat_mask", np.zeros(12, bool))))
         except Exception as e:            # noqa: BLE001 —— 同上，承重中不能讓例外炸掉主迴圈
-            fb = fb or f"exc_gen:{type(e).__name__}"
+            # ★ 標籤用疊的不用 `or`：已經是 stale 的那一步若產生器又炸了，`fb or ...` 會把產生器例外整個蓋掉，
+            #   log 上只看得到 "stale"，事後查「那一步到底發生什麼」就少了一半。
+            fb = f"{fb}+exc_gen:{type(e).__name__}" if fb else f"exc_gen:{type(e).__name__}"
             q12, tau, v_wheel = self._q12, np.zeros(4), np.zeros(4)
             a_use = np.zeros(24)          # 這一步的動作根本沒送進產生器 → log 與 obs 的 last_a 都要記 0
         # ★ 退回計數放在產生器之後：`exc_gen:*` 也要算進連續退回，否則產生器一直炸、永遠進不了永久零動作。
@@ -617,7 +634,8 @@ class V3GaitStream(GaitStream):
                          "a_raw": None if a is None else [round(float(x), 5) for x in a],
                          "q_des": [round(float(x), 5) for x in q12], "tau": [round(float(x), 4) for x in tau],
                          "v_wheel": [round(float(x), 3) for x in v_wheel], "head": round(float(self.gen.head_err), 5),
-                         "imu": imu, "ms": round(ms, 3), "fb": fb, "ol": self.open_loop})
+                         "imu": imu, "ms": round(ms, 3), "fb": fb, "ol": self.open_loop,
+                         "sat": n_sat_step})
         self.i += 1
 
 
@@ -965,7 +983,7 @@ def policy_block(a, policy, plan, policy_log: list):
     if not streams:
         return {"path": a.policy or getattr(a, "v3", ""), "sha256": policy.src_sha256, "preset": policy.preset,
                 "vx": a.vx, "wz": a.wz, "cmd": list(getattr(a, "cmd", [])), "mirror": bool(getattr(a, "mirror", False)),
-                "gain": a.policy_gain, "segments": 0, "steps": 0, "n_clamp": 0,
+                "gain": a.policy_gain, "segments": 0, "steps": 0, "n_clamp": 0, "n_sat": 0,
                 "fallback_total": 0, "open_loop": False, "open_loop_why": "", "worst_ms": 0.0,
                 "log": [], "log_truncated": False}
     log = policy_log if policy_log else [e for x in streams for e in x.log]
@@ -978,6 +996,9 @@ def policy_block(a, policy, plan, policy_log: list):
             # ★ IK 縮限累計：靜默的縮限會讓步態突然變鈍卻不中止，收工 JSON 一定要留一筆。
             #   PolicyGaitStream 自己算、V3GaitStream 轉讀 gen.n_clamp；沒這個欄位的流當 0。
             "n_clamp": sum(int(getattr(x, "n_clamp", 0)) for x in streams),
+            # ★ 關節限位飽和累計步數：與 n_clamp 是兩件事（那是 IK 構不到、這是 IK 之後被 LO12/HI12 夾掉）。
+            #   橫移指令下 ABAD 常態頂在 ±0.523，policy 的 qres 有一段是白給的 —— 收工 JSON 要看得到。
+            "n_sat": sum(int(getattr(x, "n_sat", 0)) for x in streams),
             "open_loop": any(x.open_loop for x in streams),
             "open_loop_why": "; ".join(x.open_loop_why for x in streams if x.open_loop),
             "worst_ms": round(max(x.worst_ms for x in streams), 3),
@@ -1660,8 +1681,12 @@ def main() -> int:
              if a.v3 else f"輪 **kp 0** kd {a.wheel_kd}（純阻尼）"))
     print(f"保護：力矩 ABAD {TMAX['1_hip_roll']:.0f} / HIP {TMAX['2_hip_pitch']:.0f}"
           f" / KNEE {TMAX['3_knee_pitch']:.0f}、硬上限 {TAU_HARD:.0f}")
-    print(f"      誤差 髖膝 {a.emax} / ABAD {a.emax_abad} rad、速度 {a.vmax} rad/s、傾角 ±{a.tilt_max:.0f}°、"
-          f"迴圈間隔 {a.gap_max*1000:.0f} ms")
+    # ★ 分關節 ABAD 護欄**只有 v3 走**（見下面 `emax_j` 的判斷）：`--traj/--policy` 的 ABAD 用的是 a.emax。
+    #   這行印出來的數字就是現場卡片照抄的來源，印 a.emax_abad 而實際守 a.emax ＝ 操作員手上的合約是錯的。
+    emax_abad_now = a.emax_abad if a.v3 else a.emax
+    print(f"      誤差 髖膝 {a.emax} / ABAD {emax_abad_now} rad"
+          f"（{'v3：ABAD 分關節' if a.v3 else 'traj/policy：ABAD 與髖膝同值'}）、"
+          f"速度 {a.vmax} rad/s、傾角 ±{a.tilt_max:.0f}°、迴圈間隔 {a.gap_max*1000:.0f} ms")
 
     if not a.confirm:
         print("\n[乾跑] 沒有帶 --confirm，到此為止。沒有凍結、沒有寫入。")

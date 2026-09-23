@@ -180,6 +180,41 @@ def test_gen_zero_action_cmd0_holds_stance(p):
     assert gen.head_err == 0.0
 
 
+def test_gen_n_sat_counts_joint_limit_saturation(p):
+    """★ `np.clip(q_ik + delta + qres, LO12, HI12)` 是靜默的：橫移時 ABAD 頂在 ±0.523 的機構停點，
+    產生器想要的那一段位移根本沒送出去，log 上卻完全看不出來 —— 所以要數出來（n_sat 是步數，不是軸次）。
+    零動作站立（cmd 0）一定是 0；橫移 0.12 m/s 會踩到，而且只踩 ABAD（索引 0/3/6/9）。"""
+    gen = g.Gen(p)
+    for _ in range(100):
+        gen.step(np.zeros(3), np.zeros(24), np.zeros(4))
+    assert gen.n_sat == 0 and not gen.sat_mask.any()
+
+    gen = g.Gen(p)
+    seen = np.zeros(12, dtype=bool)
+    for i in range(350):
+        cmd = np.zeros(3) if i < 50 else np.array([0.0, 0.12, 0.0])
+        gen.step(cmd, np.zeros(24), np.zeros(4))
+        seen |= gen.sat_mask
+    assert gen.n_sat > 0, "橫移 350 步一次都沒頂到限位 → 先確認 sat_mask 真的有在算"
+    ABAD = {0, 3, 6, 9}
+    hit = set(int(k) for k in np.flatnonzero(seen))
+    assert hit and hit <= ABAD, f"飽和不該發生在 ABAD 以外：{sorted(hit)}"
+    assert hit == {3, 9}, f"+vy（往左）頂住的是左側兩條腿的 ABAD；變成 {sorted(hit)} 代表限位或姿態偏置動過"
+
+
+def test_gen_cmd_prev_is_a_copy_not_an_alias(p):
+    """★ 呼叫端常常原地改同一個 cmd 陣列（遙控就是）。存參考的話 cmd_prev 會跟著變 ——
+    而 obs 帶的就是 cmd_prev，「上一步的指令」會偷偷變成「這一步的」，鏡像判斷跟著錯。"""
+    cmd = np.array([0.0, 0.12, 0.0])
+    gen = g.Gen(p, cmd0=cmd)
+    cmd[1] = -0.30                                  # 原地改：cmd_prev 不該跟著動
+    assert gen.cmd_prev[1] == 0.12
+    cmd2 = np.array([0.0, 0.20, 0.0])
+    gen.step(cmd2, np.zeros(24), np.zeros(4))
+    cmd2[1] = -0.30
+    assert gen.cmd_prev[1] == 0.20
+
+
 def test_gen_head_err_integrates_after_first_step(p):
     gen = g.Gen(p, cmd0=(0.0, 0.0, 1.0))
     gen.integrate_head(0.5)                         # i == 0：不積分（env reset 的 head_err 是 0）

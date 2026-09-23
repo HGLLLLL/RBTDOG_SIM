@@ -243,9 +243,16 @@ class Gen:
         self.qres = np.zeros(12)
         self.sway = np.zeros(2)
         self.head_err = 0.0
-        self.cmd_prev = cmd0
+        # ★ 存**複本**：呼叫端常常重複用同一個 cmd 陣列（遙控就是原地改值），存參考的話 cmd_prev 會跟著一起變，
+        #   而 obs 帶的就是 cmd_prev —— 「上一步的指令」偷偷變成「這一步的指令」，鏡像判斷與 obs 都會錯。
+        self.cmd_prev = np.array(cmd0, dtype=float)
         self.i = 0
         self.n_clamp = 0                            # 累計 IK 被縮限的腿次；正常跟跑應該一路是 0
+        # ★ 關節限位飽和：IK 之後的 `q_ik + delta + qres` 被 LO12/HI12 夾掉的步數（每步最多算一次）。
+        #   與 n_clamp 是兩件事：n_clamp 是「足端構不到、沿徑向縮」，這裡是「算得出來、但超出機構限位」。
+        #   橫移時 ABAD 幾乎每步都頂在 ±0.523 的停點，policy 要的那一段位移根本沒送出去，而且完全無聲。
+        self.n_sat = 0
+        self.sat_mask = np.zeros(12, dtype=bool)    # 最近一步哪幾軸飽和（索引 0/3/6/9 = 四條腿的 ABAD）
 
     def stance_q12(self) -> np.ndarray:
         return self.p.T["STANCE_Q12"].copy()
@@ -281,13 +288,16 @@ class Gen:
         qres = self.qres + np.clip(A["qres"] - self.qres, -K["QRES_SLEW"], K["QRES_SLEW"])
         q_ik, n_clamped = joint_targets_n(feet, p)
         self.n_clamp += n_clamped
-        q_des = np.clip(q_ik + delta + qres, T["LO12"], T["HI12"])
+        q_raw = q_ik + delta + qres
+        self.sat_mask = (q_raw < T["LO12"]) | (q_raw > T["HI12"])
+        self.n_sat += int(self.sat_mask.any())      # 每步最多 +1（「這一步有沒有人頂住限位」），不是軸次
+        q_des = np.clip(q_raw, T["LO12"], T["HI12"])
         v_nom = wheel_cmd(cmd, P["A"], np.zeros(4), p)
         tau = ref["wheel_outer_gain"] * (v_nom - v_wheel) + A["wres"] + u4 * CY["wheel_tau"]
         d3 = delta.reshape(4, 3)
         self.c = dict(theta=theta, amp=amp, wheel=tau, cyc_abad=d3[:, 0].copy(), cyc_knee=d3[:, 2].copy())
         self.u_mode, self.ph, self.u4, self.phi_cyc, self.qres, self.sway = u_mode, ph, u4, phi_cyc, qres, sway
         self.s4, self.s_arc = P["A"]["s4"], P["A"]["arc"]
-        self.cmd_prev = cmd
+        self.cmd_prev = np.array(cmd, dtype=float)   # 同 __init__：存複本，不要把呼叫端的陣列別名留下來
         self.i += 1
         return q_des, tau, self.c

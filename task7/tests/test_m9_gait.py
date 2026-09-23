@@ -321,7 +321,8 @@ def test_fast_abort_path_uses_raw_tau_never_the_filtered_count():
     assert "tau_hot[j] >= a.tau_hits" in body
     assert "tau_hot[j] >= 2" in body
     # 慢速路徑用的是 commit_peak 累計的 over[]，不是 over_raw[]
-    assert "over[j] >= a.tau_total" in body
+    # 2026-09-23：v3 只算步態段 → 條件改成 over_eff，但 over_eff 仍由濾後的 over[] 算，不是 over_raw[]
+    assert "over_eff >= a.tau_total" in body and "over_eff = over[j] - over_base[j] if a.v3 else over[j]" in body
     assert "over_raw[j] >= a.tau_total" not in body
 
 

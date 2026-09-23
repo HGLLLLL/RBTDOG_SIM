@@ -485,6 +485,110 @@ class PolicyGaitStream(GaitStream):
         self.i += 1
 
 
+class V3GaitStream(GaitStream):
+    """CPG-RL v3.6f 步態流（2026-09-23）：每個 50 Hz 推進點
+    讀 shm（12 腿＋4 輪＋IMU）→ `rl_obs_v3.Obs.build` → （右向指令）鏡像 → `policy_np` → 鏡像回 → `gen_v3.Gen.step`
+    → 12 關節目標（線性內插到 200 Hz）＋ 4 輪 τ（零階保持，主迴圈寫 effort）。
+    與本機 jax 堆疊的對應由 `tests/test_policy_v3_closed_loop.py` 影子跟跑釘住。
+
+    ★ 退路是**零動作名目**（不是 A 步態）：當步異常（obs NaN／幀沒前進／推論超時／例外）→ 該步動作 0；
+      連續 FALLBACK_LIMIT 步 → 永久零動作；鍵 `o` → 永久零動作＋cmd 0。gain 0 ＝ 乾跑（obs、推論照跑照記，動作 0）。
+    指令時序：進 GAIT_IN 後前 CMD_DELAY_STEPS（1 s）cmd=0（產生器輸出站姿，與 smoothstep 淡入相容），之後切到 --cmd；
+    `set_open_loop`（Enter 停走進 GAIT_OUT 時 InteractivePlan 會呼叫）後 cmd=0，產生器自己在 trans_s 內收回站姿。
+    **不加動作延遲、不加雜訊** —— 實機的是真的。
+    """
+
+    FALLBACK_LIMIT = 25
+    CMD_DELAY_STEPS = 50
+    INFER_BUDGET_MS = 10.0
+
+    def __init__(self, gen, obs_builder, policy, reader, cmd3, gain: float, mirror: bool, log: list = None):
+        import numpy as np
+        self._np = np
+        self.gen, self.O, self.policy, self.reader = gen, obs_builder, policy, reader
+        self.cmd_target = np.asarray(cmd3, dtype=float).reshape(3)
+        self.gain, self.mirror = float(gain), bool(mirror)
+        self.last_a = np.zeros(24)
+        self.wheel_tau_mjcf = np.zeros(4)
+        self.i = 0
+        self.n_fallback = self.n_fallback_total = 0
+        self.open_loop, self.open_loop_why = False, ""
+        self.last_tick = None
+        self.log = log if log is not None else []
+        self.worst_ms = 0.0
+        self.seg = 1
+        self.n_clamp = 0
+        self.t_next = 0.0
+        self._q12 = gen.stance_q12()
+        self.q_prev = self.q_next = self._compute()
+
+    def _compute(self) -> dict:
+        import rl_obs
+        return {n: float(self._q12[k]) for k, n in enumerate(rl_obs.LEG_NAMES)}
+
+    def set_open_loop(self, why: str) -> None:
+        if not self.open_loop:
+            self.open_loop, self.open_loop_why = True, why
+            print(f"\n  ▸ policy 退回零動作名目、指令歸零（{why}）—— 產生器繼續\n")
+
+    def _cmd_now(self):
+        if self.open_loop or self.i < self.CMD_DELAY_STEPS:
+            return self._np.zeros(3)
+        return self.cmd_target
+
+    def _advance(self) -> None:
+        import time
+        import rl_obs_v3
+        np = self._np
+        t0 = time.perf_counter()
+        fb, obs, a, imu, right, fr = "", None, None, None, False, None
+        cmd = self._cmd_now()
+        try:
+            fr = self.reader()
+            imu = (list(map(float, fr.quat_xyzw)), list(map(float, fr.gyro)))
+            if self.last_tick is not None and fr.tick == self.last_tick:
+                fb = "stale"
+            self.last_tick = fr.tick
+            self.gen.integrate_head(self.O.gyro_z(fr))
+            obs = self.O.build(fr, self.gen.c, self.gen.cmd_prev, self.last_a, self.gen.head_err, self.gen.s4, self.gen.s_arc)
+            if not np.all(np.isfinite(obs)):
+                fb = fb or "obs_nan"
+            right = self.mirror and rl_obs_v3.is_right(cmd)
+            a = self.O.mirror_act(self.policy.infer(self.O.mirror_obs(obs))) if right else self.policy.infer(obs)
+            if not np.all(np.isfinite(a)):
+                fb = fb or "act_nan"
+        except Exception as e:            # noqa: BLE001 —— 承重中不能讓例外炸掉主迴圈
+            fb = fb or f"exc:{type(e).__name__}"
+        ms = (time.perf_counter() - t0) * 1000.0
+        if not fb and ms > self.INFER_BUDGET_MS:
+            fb = f"slow:{ms:.1f}ms"
+        if fb:
+            self.n_fallback += 1
+            self.n_fallback_total += 1
+            if self.n_fallback >= self.FALLBACK_LIMIT:
+                self.set_open_loop(f"連續 {self.n_fallback} 步退回（最後：{fb}）")
+        else:
+            self.n_fallback = 0
+        a_use = np.zeros(24) if (fb or a is None or self.open_loop or self.gain == 0.0) else self.gain * np.asarray(a, float)
+        v_wheel = self.O.wheel_v(fr) if fr is not None else np.zeros(4)
+        if fr is not None and not np.all(np.isfinite(v_wheel)):
+            v_wheel = np.zeros(4)
+        q12, tau, _ = self.gen.step(cmd, a_use, v_wheel)
+        ms = (time.perf_counter() - t0) * 1000.0
+        self.worst_ms = max(self.worst_ms, ms)
+        self._q12 = q12
+        self.wheel_tau_mjcf = tau
+        self.last_a = a_use
+        self.log.append({"i": self.i, "seg": self.seg, "tg": round(self.t_next, 3),
+                         "cmd": [float(x) for x in cmd], "right": bool(right),
+                         "obs": None if obs is None else [round(float(x), 5) for x in obs],
+                         "a": [round(float(x), 5) for x in a_use],
+                         "q_des": [round(float(x), 5) for x in q12], "tau": [round(float(x), 4) for x in tau],
+                         "v_wheel": [round(float(x), 3) for x in v_wheel], "head": round(float(self.gen.head_err), 5),
+                         "imu": imu, "ms": round(ms, 3), "fb": fb, "ol": self.open_loop})
+        self.i += 1
+
+
 class InteractivePlan:
     """互動式三段流程的狀態機：站起來 →〔Enter〕→ 走 →〔Enter〕→ 停 →〔Enter〕→ 趴下。
 
@@ -827,13 +931,15 @@ def policy_block(a, policy, plan, policy_log: list):
     streams = list(getattr(plan, "streams", None) or ([plan.gs] if plan.gs is not None else []))
     streams = [x for x in streams if hasattr(x, "n_fallback_total")]
     if not streams:
-        return {"path": a.policy, "sha256": policy.src_sha256, "preset": policy.preset,
-                "vx": a.vx, "wz": a.wz, "gain": a.policy_gain, "segments": 0, "steps": 0,
+        return {"path": a.policy or getattr(a, "v3", ""), "sha256": policy.src_sha256, "preset": policy.preset,
+                "vx": a.vx, "wz": a.wz, "cmd": list(getattr(a, "cmd", [])), "mirror": bool(getattr(a, "mirror", False)),
+                "gain": a.policy_gain, "segments": 0, "steps": 0,
                 "fallback_total": 0, "open_loop": False, "open_loop_why": "", "worst_ms": 0.0,
                 "log": [], "log_truncated": False}
     log = policy_log if policy_log else [e for x in streams for e in x.log]
-    return {"path": a.policy, "sha256": policy.src_sha256, "preset": policy.preset,
-            "vx": a.vx, "wz": a.wz, "gain": a.policy_gain,
+    return {"path": a.policy or getattr(a, "v3", ""), "sha256": policy.src_sha256, "preset": policy.preset,
+            "vx": a.vx, "wz": a.wz, "cmd": list(getattr(a, "cmd", [])), "mirror": bool(getattr(a, "mirror", False)),
+            "gain": a.policy_gain,
             "segments": len(streams),
             "steps": sum(x.i for x in streams),
             "fallback_total": sum(x.n_fallback_total for x in streams),
@@ -874,6 +980,29 @@ def wheel_vmax(wrec) -> float:
     if not wrec:
         return float("nan")
     return max(abs(x[1]) for x in wrec.values())
+
+
+def wheel_kd_for(nm: str, wheel_kd: float, v3_mode: bool) -> float:
+    """輪阻尼按階段：步態段用 --wheel-kd；其餘段 v3 模式一律 WHEEL_KD_SAFE（0.5，起身承重滾動要阻尼），
+    舊模式維持 min(--wheel-kd, SAFE)（--wheel-kd 3.0 事故的護欄）。v3 的 --wheel-kd 是 0.1，min() 會把起身段也變 0.1，所以分開。"""
+    if nm.replace("TELEOP_", "") in ("GAIT", "GAIT_IN", "GAIT_OUT"):
+        return wheel_kd
+    return WHEEL_KD_SAFE if v3_mode else min(wheel_kd, WHEEL_KD_SAFE)
+
+
+def v3_wheel_rows(tau_mjcf4, v_meas_motor4, wheel_kd: float, p) -> list:
+    """v3 輪子寫入（MJCF 序）：velocity=實測（kd 項≈0）、effort=死區後 τ 換到馬達方向、kp 0、kd 步態值。
+    等於模擬 wheel_ctrl_tau 的實機版（模擬把 τ 折進 velocity 是因為 MJX 只有速度致動器；SHM 本來就有 effort 欄）。"""
+    import gen_v3
+    import rl_obs_v3
+    tau = gen_v3.wheel_dead(tau_mjcf4, p) * rl_obs_v3.WHEEL_SIGN4
+    return [dict(velocity=float(v_meas_motor4[k]), effort=float(tau[k]), kp=0.0, kd=float(wheel_kd)) for k in range(4)]
+
+
+def v3_gain_record(p) -> dict:
+    """npz 的增益「說一次」：與命令列比（param_mismatches）。"""
+    G = p.K["gains"]
+    return {"kp": G["kp3"][1], "kp_abad": G["kp3"][0], "kd": G["kd3"][1], "wheel_kd": G["wheel_kd"]}
 
 
 def gain_mismatches(D: dict, kp: float, kd: float, wheel_kd: float) -> list:
@@ -961,6 +1090,7 @@ def main() -> int:
     src = ap.add_mutually_exclusive_group(required=True)
     src.add_argument("--traj", help="播放軌跡檔（gen_gait_traj.py 產生）")
     src.add_argument("--live", action="store_true", help="狗上即時算 CPG")
+    src.add_argument("--v3", default="", help="★ CPG-RL v3.6f（2026-09-23）：npz（export_policy_v3 產）。狗上 numpy 產生器＋policy；必須搭 --interactive")
     ap.add_argument("--confirm", action="store_true", help="不帶就是乾跑")
 
     # ---- live 模式的步態參數
@@ -1018,7 +1148,14 @@ def main() -> int:
                          "空白鍵急停（M9 中止路徑：凍結目標角撐住）、站好時按 Enter 收工坐下。"
                          "需 --interactive（--policy 則走 RL 步態）。--walk-max 是整個遙控段的逾時")
     ap.add_argument("--policy-gain", type=float, default=1.0, dest="policy_gain",
-                    help="★ policy 動作的混合比例 0–1。0 = 乾跑：obs/推論照跑照記，動作固定基準")
+                    help="★ policy 動作的混合比例 0–1。0 = 乾跑：obs/推論照跑照記，動作固定基準。"
+                         "--v3：0 ＝零動作名目、1 ＝ policy")
+    ap.add_argument("--cmd", type=float, nargs=3, default=[0.0, 0.0, 0.0], metavar=("VX", "VY", "WZ"),
+                    help="--v3 這趟的固定指令 (m/s, m/s, rad/s)；GAIT 進入 1 s 後生效。原地右轉／右平移自動走鏡像推論")
+    ap.add_argument("--mirror", action=argparse.BooleanOptionalAction, default=True,
+                    help="--v3：右向指令用鏡像推論（obs 鏡像 → policy → 動作鏡像）。--no-mirror 只為對照")
+    ap.add_argument("--emax-abad", type=float, default=1.2, dest="emax_abad",
+                    help="--v3：ABAD 追蹤誤差護欄 rad（原廠平移 ABAD 命令差實測到 1.02；--emax 只管髖膝）。值照影子跟跑峰值 ×1.3")
     ap.add_argument("--hold-max", type=float, default=25.0, dest="hold_max",
                     help="★ 每個等待階段的逾時（秒）。逾時不是中止，是自動往下走。"
                          "⚠️ 等待中狗是承重站著的，而**腿吃 41 kg 的發熱從沒量過**")
@@ -1078,6 +1215,14 @@ def main() -> int:
     ap.add_argument("--gap-max", type=float, default=0.25, dest="gap_max",
                     help="單次迴圈間隔上限。controller 逾時 500 ms → 超過就清零")
     a = ap.parse_args()
+
+    # ★ v3 的兩道前置擋（2026-09-23）：這兩件事錯了，錯誤會在狗承重之後才顯現。
+    if a.v3 and not a.interactive:
+        print("❌ --v3 必須搭 --interactive（每趟一個 --cmd，Enter 停）。")
+        return 1
+    if a.v3 and (a.policy or a.teleop):
+        print("❌ --v3 不能搭 --policy／--teleop（v3 自帶 policy；遙控版還沒做）。")
+        return 1
 
     if a.march:
         a.d_step = 0.0
@@ -1189,6 +1334,53 @@ def main() -> int:
         print(f"\n軌跡檔：{'原地踏步' if p['march'] else '前進'}　"
               f"duty {p['duty']} ω {p['omega']} d_step {p['d_step']} "
               f"x_off {p['x_off']} g_c {p['g_c']} z_sag {p['z_sag']:.4f}")
+    elif a.v3:
+        try:
+            import numpy as _np
+            import gen_v3
+            import policy_np
+            import rl_obs_v3
+        except ImportError as e:
+            print(f"❌ 狗上少了 v3 需要的模組：{e}（numpy / gen_v3.py / rl_obs_v3.py / policy_np.py 有推嗎？）")
+            return 1
+        P3 = gen_v3.load_params(a.v3)
+        policy = policy_np.load(a.v3)
+        O3 = rl_obs_v3.Obs(a.v3)
+        assert policy.layout == "v3" and policy.obs_dim == 88 and policy.act_dim == 24, (policy.layout, policy.obs_dim)
+        # ★ 說兩次：npz 記的增益（訓練時的 factory 組）vs 命令列。不一致拒跑（同軌跡檔的邏輯）。
+        bad = param_mismatches(v3_gain_record(P3), {"kp": a.kp, "kp_abad": a.kp_abad, "kd": a.kd, "wheel_kd": a.wheel_kd})
+        if bad:
+            for k, got, want in bad:
+                print(f"❌ npz 的 {k} = {got:g}，與 --{k.replace('_', '-')}（{want:g}）不一致。")
+            print("   → v3.6f 要這樣跑：--kp 120 --kp-abad 60 --kd 1.0 --wheel-kd 0.1")
+            return 1
+        print(f"\nCPG-RL v3.6f：{os.path.basename(a.v3)}　sha {policy.src_sha256[:12]}　obs 88 act 24　"
+              f"指令 vx {a.cmd[0]:g} vy {a.cmd[1]:g} wz {a.cmd[2]:g}　鏡像 {'開' if a.mirror else '關'}"
+              f"（這趟{'走鏡像' if a.mirror and rl_obs_v3.is_right(a.cmd) else '不鏡像'}）　混合比例 {a.policy_gain:g}"
+              f"{'（乾跑：零動作名目）' if a.policy_gain == 0 else ''}")
+        _t0 = time.perf_counter()
+        for _ in range(20):
+            policy.infer(_np.zeros(88, dtype=_np.float32))
+        _ms = (time.perf_counter() - _t0) / 20 * 1000
+        _g = gen_v3.Gen(P3); _t0 = time.perf_counter()
+        for _ in range(20):
+            _g.step(_np.array(a.cmd), _np.zeros(24), _np.zeros(4))
+        _ms_g = (time.perf_counter() - _t0) / 20 * 1000
+        print(f"✅ 推論 {_ms:.2f} ms ＋ 產生器 {_ms_g:.2f} ms（預算 {V3GaitStream.INFER_BUDGET_MS:g} ms）")
+        if _ms + _ms_g > V3GaitStream.INFER_BUDGET_MS:
+            print("❌ 太慢，狗上會整趟退回零動作。")
+            return 1
+        # 乾跑檢查用的名目軌跡：cmd 0 一秒 → --cmd 共 --secs 秒（零動作），跑既有的限位／命令速度檢查
+        gait_dt = P3.K["CTRL_DT"]
+        gait_names = list(rl_obs_v3.LEG_NAMES)
+        _g = gen_v3.Gen(P3)
+        n_gait = int(round((1.0 + a.secs) / gait_dt))
+        gait_q = []
+        for i in range(n_gait):
+            c_ = _np.zeros(3) if i < V3GaitStream.CMD_DELAY_STEPS else _np.array(a.cmd)
+            q_, _, _ = _g.step(c_, _np.zeros(24), _np.zeros(4))
+            gait_q.append([float(x) for x in q_])
+        print(f"✅ 零動作名目 {n_gait} 步（站姿 hip {gait_q[0][1]:+.2f} / knee {gait_q[0][2]:+.2f}，高 {P3.ref['nominal_height']:.2f} m）")
     else:
         gait_dt = 0.02          # ★ 50 Hz —— 與模擬驗證時的 CTRL_DT 相同
         gait_names = LEGS12
@@ -1261,7 +1453,8 @@ def main() -> int:
     q_gaitN = {j: G[-1][i] for i, j in enumerate(LEGS12)}
 
     # ---------------------------------------------------------------- policy
-    policy = None
+    if not a.v3:
+        policy = None       # ★ v3 的 policy 在「步態來源」那段就載好了（增益說兩次要它），這裡不能清掉
     if a.policy:
         if not (a.traj and a.interactive):
             print("❌ --policy 必須搭 --traj（基準步態檔）＋ --interactive。")
@@ -1353,10 +1546,12 @@ def main() -> int:
     print("✅ 步態全程在機構限位內")
 
     print(f"\n增益：步態 ABAD {a.kp_abad:g} / HIP·KNEE {a.kp:g}　kd {a.kd}"
-          f"（站立段一律 {STANDUP_KP:g}）　輪 **kp 0** kd {a.wheel_kd}（純阻尼）")
+          f"（站立段一律 {STANDUP_KP:g}）　"
+          + (f"輪 kp 0 / 步態段 kd {a.wheel_kd}＋effort 力矩、起身坐下 kd {WHEEL_KD_SAFE}"
+             if a.v3 else f"輪 **kp 0** kd {a.wheel_kd}（純阻尼）"))
     print(f"保護：力矩 ABAD {TMAX['1_hip_roll']:.0f} / HIP {TMAX['2_hip_pitch']:.0f}"
           f" / KNEE {TMAX['3_knee_pitch']:.0f}、硬上限 {TAU_HARD:.0f}")
-    print(f"      誤差 {a.emax} rad、速度 {a.vmax} rad/s、傾角 ±{a.tilt_max:.0f}°、"
+    print(f"      誤差 髖膝 {a.emax} / ABAD {a.emax_abad} rad、速度 {a.vmax} rad/s、傾角 ±{a.tilt_max:.0f}°、"
           f"迴圈間隔 {a.gap_max*1000:.0f} ms")
 
     if not a.confirm:
@@ -1396,6 +1591,10 @@ def main() -> int:
     n_tick = 0
     t_prev = None
 
+    # ★ v3 的輪子力矩走這個可變容器分流，**不是**多加一個 write_frame 參數 ——
+    #   簽名一改就要掃全部呼叫點（Keepalive 那個漏掉＝塌狗），AST 測試釘住 5 個引數。
+    v3_wheel = {"on": False, "rows": None}       # 主迴圈每 tick 設定；on 時輪子寫 velocity=實測、effort=τ
+
     def write_frame(des, kp, kd, wheel_kd, kp_abad):
         for j in LEGS12:
             # ★ ABAD 與 hip/knee 分開的 kp —— 模擬與原廠都是 [60,120,120]
@@ -1403,6 +1602,15 @@ def main() -> int:
             shm.write_cmd(idx[j], position=coord.to_motor(j, des[j]),
                           velocity=0.0, effort=0.0, kp=kj, kd=kd)
         st_w = state_ro.states()
+        if v3_wheel["on"] and v3_wheel["rows"] is not None:
+            # v3 步態段：kp 0、kd 步態值、velocity 給**當下實測**（阻尼項≈0）、effort 給 50 Hz 那步的 τ（零階保持）
+            import rl_obs_v3
+            for k, w in enumerate(rl_obs_v3.WHEEL_NAMES):
+                wi = widx[w]
+                r = v3_wheel["rows"][k]
+                shm.write_cmd(wi, position=st_w[wi]["position"], velocity=st_w[wi]["velocity"],
+                              effort=r["effort"], kp=0.0, kd=r["kd"])
+            return
         for w, wi in widx.items():
             # ★ 輪子全程純阻尼（kp=0）。步態需要輪子能自由滾。
             shm.write_cmd(wi, position=st_w[wi]["position"],
@@ -1421,10 +1629,11 @@ def main() -> int:
           `--wheel-kd` 只作用在步態段（GAIT_IN/GAIT/GAIT_OUT）。
         ⚠️ kd=3.0 連步態段行不行都還是未知 —— 走路的支撐腳同樣是承重+滾動。
           上機前先做吊掛抖振測試分辨（driver 迴路不穩 vs 地面黏滑）。
+
+        ★ 2026-09-23 本體搬到模組層的 `wheel_kd_for`（可測，v3 起身段一律 SAFE）；這裡保留函式名，
+          ChatterWatch 的錯誤訊息還在用它印當下的阻尼值。
         """
-        if nm.replace("TELEOP_", "") in ("GAIT", "GAIT_IN", "GAIT_OUT"):
-            return a.wheel_kd
-        return min(a.wheel_kd, WHEEL_KD_SAFE)
+        return wheel_kd_for(nm, a.wheel_kd, bool(a.v3))
 
     bounds, tt = [], 0.0
     for nm, dur, p0, p1 in pre:
@@ -1443,7 +1652,17 @@ def main() -> int:
         #   參數從既有來源取，**與上面所有乾跑檢查用的是同一組**。
         gp = dict(p_src, mu_x=mu_x_src, mu_y=mu_y_src, d_step_y=d_step_y_src)
         f0_h, ks_h = cpg.home_foot(coord.POSES["home"]), cpg.knee_signs(coord.POSES["home"])
-        if policy is not None:
+        if a.v3:
+            # ★ v3：讀 16 個關節（12 腿＋4 輪）＋ imu_central。idx 只有 12 腿，輪子要補進去。
+            import rl_obs_v3
+            imu_shm = shm_io.Shm("imu_central")
+            idx16 = dict(idx, **{w: shm_io.idx_of(w) for w in rl_obs_v3.WHEEL_NAMES})
+
+            def gs_factory():
+                return V3GaitStream(gen_v3.Gen(P3), O3, policy,
+                                    lambda: rl_obs_v3.read_frame(state_ro, imu_shm, idx16, shm_io.STATE_STRIDE),
+                                    a.cmd, a.policy_gain, a.mirror, policy_log)
+        elif a.policy:
             import rl_obs
             imu_shm = shm_io.Shm("imu_central")
 
@@ -1601,8 +1820,11 @@ def main() -> int:
                 if a.tau_total and over[j] >= a.tau_total:
                     abort = (f"{j} 整趟累計 {over[j]} 筆超過 {lim}"
                              f"（峰值 {peak[j]:+.1f}）—— 衝擊尖峰型超載")
-                if abs(err) > a.emax:
-                    abort = f"{j} 追蹤誤差 {err:+.3f} 超過 {a.emax}"
+                # ★ 分關節護欄（2026-09-23）：v3 的平移把 ABAD 推得很遠（原廠實測命令差 1.02 rad），
+                #   用髖膝那條 0.6 會在第一個平移週期誤殺。髖膝維持 --emax。
+                emax_j = a.emax_abad if j.endswith("1_hip_roll") else a.emax
+                if abs(err) > emax_j:
+                    abort = f"{j} 追蹤誤差 {err:+.3f} 超過 {emax_j}"
                 if abs(v) > a.vmax:
                     abort = f"{j} 速度 {v:+.2f} 超過 {a.vmax}"
                 if r["temp_C"] > a.temp_max:
@@ -1657,7 +1879,16 @@ def main() -> int:
 
             if stale:
                 n_stale += 1
-            write_frame(des_now, kp_now, kd_now, wheel_kd_of(nm), kp_abad_now)
+            # ★ v3：只有步態三段送輪力矩（effort）。起身／等待／坐下一律純阻尼 0.5，
+            #   與 trip17 的教訓一致 —— 承重滾動時輪子不該收到外加力矩。
+            if a.v3:
+                gait_now = nm in ("GAIT_IN", "GAIT", "GAIT_OUT")
+                v3_wheel["on"] = gait_now
+                if gait_now:
+                    import rl_obs_v3
+                    st_v = [stt[widx[w]]["velocity"] for w in rl_obs_v3.WHEEL_NAMES]
+                    v3_wheel["rows"] = v3_wheel_rows(gs.wheel_tau_mjcf, st_v, a.wheel_kd, P3)
+            write_frame(des_now, kp_now, kd_now, wheel_kd_for(nm, a.wheel_kd, bool(a.v3)), kp_abad_now)
             shm.write_tick(tick_state)
             # ★ 收工判斷放在寫完這一幀之後 —— 直接 break 會少寫最後一幀，
             #   而最後一幀正是「kp 已降到 0」的那一幀。
@@ -1692,6 +1923,7 @@ def main() -> int:
     held_des, held_kp = dict(des_now), (kp_now if abort else 0.0)
     held_kd = kd_now if abort else STANDUP_KD
     held_kp_abad = kp_abad_now if abort else 0.0
+    v3_wheel["on"] = False        # ★ 凍結／零增益保持／坐回趴姿一律純阻尼 0.5，不再送輪力矩
     keeper = Keepalive(shm, state_ro,
                        (lambda: write_frame(held_des, held_kp, held_kd,
                                             WHEEL_KD_SAFE, held_kp_abad)), a.hz,

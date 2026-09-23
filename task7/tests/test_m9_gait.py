@@ -1344,3 +1344,178 @@ def test_single_segment_policy_block_matches_stream():
     pb = m9.policy_block(a, pol, plan, log)
     assert pb["segments"] == 1 and pb["steps"] == gs.i == len(pb["log"]) > 0
     assert all(e["seg"] == 1 for e in pb["log"])
+
+
+# ══════════════════════════ v3 模式（--v3，2026-09-23）
+import gen_v3      # noqa: E402
+import rl_obs_v3   # noqa: E402
+
+NPZ_V3 = ROOT / "weights" / "cpg_rl_v3_6f_np.npz"
+
+
+class _ReaderV3:
+    """假 shm：v3 站姿、靜止、水平；含四輪；tick 每次 +1（可停住／給 NaN）。"""
+
+    def __init__(self, stance12, stale=False, nan=False):
+        self.tick, self.stale, self.nan, self.n = 0, stale, nan, 0
+        self.pos = {n: coord.to_motor(n, float(stance12[k])) for k, n in enumerate(rl_obs.LEG_NAMES)}
+        for n in rl_obs_v3.WHEEL_NAMES:
+            self.pos[n] = 0.0
+
+    def __call__(self):
+        self.n += 1
+        if not self.stale:
+            self.tick += 1
+        vel = {n: 0.0 for n in self.pos}
+        gyro = [float("nan"), 0.0, 0.0] if self.nan else [0.0, 0.0, 0.0]
+        return rl_obs.Frame(dict(self.pos), vel, [0.0, 0.0, 0.0, 1.0], gyro, self.tick)
+
+
+def _fake_policy_v3(delta=0.0):
+    return type("P", (), {"layout": "v3", "act_dim": 24, "obs_dim": 88, "preset": "v36", "src_sha256": "y" * 64,
+                          "baseline": {}, "infer": staticmethod(lambda o: np.full(24, delta))})()
+
+
+def _v3_stream(policy, gain, cmd=(0.0, 0.20, 0.0), reader=None, mirror=True):
+    P = gen_v3.load_params(str(NPZ_V3))
+    O = rl_obs_v3.Obs(str(NPZ_V3))
+    gen = gen_v3.Gen(P)
+    log = []
+    gs = m9.V3GaitStream(gen, O, policy, reader or _ReaderV3(gen.stance_q12()), cmd, gain, mirror, log)
+    return gs, log, P
+
+
+def _run_v3(gs, secs=4.0, dt=1 / 200):
+    q = None
+    for k in range(int(secs / dt)):
+        q = gs.sample(k * dt)
+    return q
+
+
+def test_v3_stream_runs_100_steps_and_logs_shape():
+    gs, log, _ = _v3_stream(_fake_policy_v3(0.3), gain=1.0)
+    _run_v3(gs, secs=2.0)
+    assert gs.i == 100 and len(log) == 100 and gs.n_fallback_total == 0
+    e = log[-1]
+    assert len(e["obs"]) == 88 and len(e["a"]) == 24 and len(e["q_des"]) == 12 and len(e["tau"]) == 4 and len(e["v_wheel"]) == 4
+    assert e["right"] is False and e["fb"] == "" and "ms" in e
+
+
+def test_v3_stream_gain0_equals_gen_zero_action():
+    """gain 0：policy 亂輸出也不影響，q_des == 獨立跑的 Gen 零動作（同 cmd 時序）。
+
+    ⚠️ log 的 q_des 是 **round(…, 5)** 的（與 PolicyGaitStream 同規格，為了 JSON 大小），
+       所以對照值也要同樣捨入再比 —— 比的是「逐位元相同」，不是「差 1e-9 以內」。
+    """
+    gs, log, P = _v3_stream(_fake_policy_v3(0.7), gain=0.0)
+    _run_v3(gs, secs=3.0)
+    gen = gen_v3.Gen(P)
+    worst = 0.0
+    for i, e in enumerate(log):
+        cmd = np.zeros(3) if i < m9.V3GaitStream.CMD_DELAY_STEPS else np.array([0.0, 0.20, 0.0])
+        q, _, _ = gen.step(cmd, np.zeros(24), np.zeros(4))
+        q = [round(float(x), 5) for x in q]
+        worst = max(worst, float(np.max(np.abs(np.array(e["q_des"]) - np.array(q)))))
+    assert worst < 1e-9
+    assert all(np.allclose(e["a"], 0.0) for e in log)
+
+
+def test_v3_stream_first_second_holds_stance_then_cmd_kicks_in():
+    gs, log, P = _v3_stream(_fake_policy_v3(0.0), gain=1.0)
+    _run_v3(gs, secs=2.0)
+    st = gen_v3.Gen(P).stance_q12()
+    # ⚠️ 容差 1e-6 不是 1e-9：npz 的 STANCE_Q12 是 float32（0.52 存成 0.51999998），
+    #    產生器走一遍 IK 再回來必然差 ~5e-8。真正要分辨的是「站姿」vs「已經在走」（下一行 1e-3）。
+    assert np.max(np.abs(np.array(log[49]["q_des"]) - st)) < 1e-6
+    assert np.max(np.abs(np.array(log[99]["q_des"]) - st)) > 1e-3
+    # sample(t) 的 t 必須單調不減 → 回頭問 t=0 要用新的流（剛建好、還沒推進）
+    gs2, _, _ = _v3_stream(_fake_policy_v3(0.0), gain=1.0)
+    q = gs2.sample(0.0)
+    assert set(q) == set(m9.LEGS12) and abs(q["fl2_hip_pitch"] - 0.52) < 1e-6 and abs(q["bl3_knee_pitch"] - 1.20) < 1e-6
+
+
+def test_v3_stream_mirror_flag_and_right_detection():
+    gs, log, _ = _v3_stream(_fake_policy_v3(0.2), gain=1.0, cmd=(0.0, 0.0, -0.8))
+    _run_v3(gs, secs=2.0)
+    assert log[10]["right"] is False and log[99]["right"] is True          # 前 1 s cmd=0 → 不鏡像
+    gs2, log2, _ = _v3_stream(_fake_policy_v3(0.2), gain=1.0, cmd=(0.0, 0.0, -0.8), mirror=False)
+    _run_v3(gs2, secs=2.0)
+    assert log2[99]["right"] is False
+
+
+def test_v3_stream_nan_and_stale_fall_back_to_zero_action():
+    P = gen_v3.load_params(str(NPZ_V3))
+    stance = gen_v3.Gen(P).stance_q12()
+    gs, log, _ = _v3_stream(_fake_policy_v3(0.5), gain=1.0, reader=_ReaderV3(stance, nan=True))
+    _run_v3(gs, secs=1.0)
+    assert all(e["fb"] == "obs_nan" and np.allclose(e["a"], 0.0) for e in log) and gs.open_loop
+    gs, log, _ = _v3_stream(_fake_policy_v3(0.5), gain=1.0, reader=_ReaderV3(stance, stale=True))
+    _run_v3(gs, secs=1.0)
+    assert log[0]["fb"] == "" and log[1]["fb"] == "stale" and gs.open_loop and gs.n_fallback_total == 49
+
+
+def test_v3_stream_exception_in_policy_does_not_raise():
+    bad = type("P", (), {"layout": "v3", "act_dim": 24, "obs_dim": 88, "preset": "v36", "src_sha256": "z" * 64, "baseline": {},
+                         "infer": staticmethod(lambda o: 1 / 0)})()
+    gs, log, _ = _v3_stream(bad, gain=1.0)
+    _run_v3(gs, secs=1.0)
+    assert all(e["fb"].startswith("exc:ZeroDivisionError") for e in log)
+
+
+def test_v3_stream_manual_open_loop_zeroes_cmd_and_action():
+    gs, log, P = _v3_stream(_fake_policy_v3(0.4), gain=1.0)
+    _run_v3(gs, secs=2.0)
+    gs.set_open_loop("現場輸入 o")
+    _run_v3(gs, secs=4.0)                       # 再 2 s
+    assert gs.open_loop and np.allclose(log[-1]["a"], 0.0)
+    assert np.max(np.abs(np.array(log[-1]["q_des"]) - gen_v3.Gen(P).stance_q12())) < 1e-6   # cmd=0 → 產生器回站姿
+
+
+def test_v3_wheel_rows_use_effort_and_measured_velocity():
+    P = gen_v3.load_params(str(NPZ_V3))
+    rows = m9.v3_wheel_rows(np.array([0.05, -0.5, 2.0, 0.0]), np.array([1.0, 2.0, 3.0, 4.0]), 0.1, P)
+    assert [r["kp"] for r in rows] == [0.0] * 4 and [r["kd"] for r in rows] == [0.1] * 4
+    assert [r["velocity"] for r in rows] == [1.0, 2.0, 3.0, 4.0]                    # 實測速度（馬達座標）→ kd 項 ≈ 0
+    ff = P.K["TAU_FF"]
+    # 死區後乘 WHEEL_SIGN4（MJCF → 馬達）：0.05 → 0；−0.5 → −(0.5+ff)·(−1)；2.0 → (2+ff)·(+1)；0 → 0
+    assert rows[0]["effort"] == 0.0 and abs(rows[1]["effort"] - (0.5 + ff)) < 1e-12 and abs(rows[2]["effort"] - (2.0 + ff)) < 1e-12 and rows[3]["effort"] == 0.0
+
+
+def test_v3_wheel_kd_schedule_is_safe_outside_gait():
+    for nm in ("RAMP_UP", "GO_stand", "READY", "KP_DOWN", "KP_UP", "STOPPED", "SIT_LIE"):
+        assert m9.wheel_kd_for(nm, 0.1, v3_mode=True) == m9.WHEEL_KD_SAFE
+        assert m9.wheel_kd_for(nm, 0.1, v3_mode=False) == 0.1                # 舊行為 min(0.1, 0.5)
+    for nm in ("GAIT_IN", "GAIT", "GAIT_OUT"):
+        assert m9.wheel_kd_for(nm, 0.1, v3_mode=True) == 0.1
+
+
+def test_v3_args_and_guards_source_markers():
+    """主迴圈裡的東西本機跑不到（要 /dev/shm），釘原始碼標記。"""
+    src = Path(m9.__file__).read_text(encoding="utf-8")
+    assert 'src.add_argument("--v3"' in src and '"--cmd"' in src and '"--emax-abad"' in src and '"--mirror"' in src
+    assert "emax_j = a.emax_abad if j.endswith(\"1_hip_roll\") else a.emax" in src
+    assert "if abs(err) > emax_j:" in src
+    assert "wheel_kd_for(nm, a.wheel_kd, bool(a.v3))" in src
+    assert "v3_wheel_rows(" in src and "st_w[wi][\"velocity\"]" in src
+    assert "a.v3 and not a.interactive" in src and "a.v3 and (a.policy or a.teleop)" in src
+
+
+def test_v3_say_twice_catches_wrong_gains():
+    P = gen_v3.load_params(str(NPZ_V3))
+    want = {"kp": 250.0, "kp_abad": 60.0, "kd": 1.0, "wheel_kd": 0.1}
+    bad = m9.param_mismatches(m9.v3_gain_record(P), want)
+    assert [b[0] for b in bad] == ["kp"]
+    assert m9.param_mismatches(m9.v3_gain_record(P), {"kp": 120.0, "kp_abad": 60.0, "kd": 1.0, "wheel_kd": 0.1}) == []
+
+
+def test_all_write_frame_calls_still_have_five_args_after_v3():
+    import ast as _ast
+    tree = _ast.parse(Path(m9.__file__).read_text(encoding="utf-8"))
+    calls = [n for n in _ast.walk(tree) if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name) and n.func.id == "write_frame"]
+    assert len(calls) >= 4 and all(len(c.args) + len(c.keywords) == 5 for c in calls)
+
+
+def test_push_list_has_v3_files():
+    src = (ROOT / "realbot" / "push_to_dog.sh").read_text(encoding="utf-8")
+    for f in ("gen_v3.py", "rl_obs_v3.py", "cpg_rl_v3_6f_np.npz"):
+        assert f in src, f

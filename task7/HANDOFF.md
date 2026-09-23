@@ -25,8 +25,11 @@
 
 ```
 --v3 cpg_rl_v3_6f_np.npz --interactive --kp 120 --kp-abad 60 --kd 1.0 --wheel-kd 0.1 \
---vmax 18 --vcmd-max 16 --emax-abad 0.91 --emax 0.55 --tau-total 5
+--vmax 18 --vcmd-max 16 --emax-abad 0.91 --emax 0.55 --tau-total 5 --wheel-vmax 30
 ```
+
+`--wheel-vmax 30`（v3 專用）＝四輪實測 |velocity| 超過就中止：輪子走 effort 力矩欄沒有速度回授，
+單向失控 ChatterWatch 抓不到（那條只認正負翻轉）。effort 本身另外夾在 ±33 N·m（npz 從場景 forcerange 帶上來）。
 
 執行紀錄與護欄怎麼定的：spec `docs/superpowers/specs/2026-09-22-cpg-rl-v3.6f-on-dog-design.md` §6。
 
@@ -48,7 +51,7 @@
 - **驗收（模擬）** `inference/local_infer_v3.py`：`--preset {v33,v35,v36,v37,v37b,v37c,v37d}`、`--gains factory`、
   `--mirror`（原地轉鏡像）、`--mirror-lat`（平移也鏡像）、`--turn-weights`（|wz|>0.1 換權重）、`--tag`、`--push`（預設關）、`--video-*`。
   表的欄位：步/秒、每週期抬腳頂點、vx 漂、航向、ABAD 漂、摔。對標原廠：`outputs/ref_gait_dataset.md` 末段。
-- **匯出狗端 npz** `inference/export_policy_v3.py`：`--weights …_params.pkl --out task7/weights/…_np.npz`；
+- **匯出狗端 npz** `inference/export_policy_v3.py`：`--params …_params.pkl --out task7/weights/…_np.npz`（旗標是 `--params`，不是 `--weights`）；
   權重＋產生器快照＋週期表＋鏡像表打包成一個 npz（狗端不留任何常數；`--out` 會無聲覆寫，注意）。
 - **影子跟跑** `tests/test_policy_v3_closed_loop.py`：MuJoCo 內 jax 堆疊驅動、狗端 numpy 堆疊跟跑，
   五指令各 300 步比 obs(88)／動作(24)／q_des(12)／輪 τ(4)，並印護欄峰值。5 passed、約 40 s。
@@ -56,7 +59,8 @@
   `--cmd VX VY WZ`（整趟固定）、`--policy-gain 0|…|1`（0 ＝零動作名目＝退路）、`--mirror`／`--no-mirror`（預設開）、
   `--emax-abad`（ABAD）／`--emax`（髖膝）分關節護欄（只在 `--v3` 下分家）。
   輪子在步態三段走 `effort` 力矩欄（kp 0、kd 0.1、velocity=實測），其餘階段回純阻尼 kd 0.5。
-  log 每步：`obs`／`a`／`a_raw`／`q_des`／`tau`／`v_wheel`／`right`／原始 imu／ms／退回原因，整趟另記 `n_clamp`。
+  log 每步：`obs`／`a`／`a_raw`／`q_des`／`tau`／`v_wheel`／`right`／`cmd`／**`sat`（這一步被限位夾掉幾個關節）**／原始 imu／ms／退回原因，
+  整趟另記 `n_clamp`（IK 縮限）／**`n_sat`（至少一顆頂住限位的步數，平移趟本來就大）**／`fallback_total`／`open_loop`。
 
 ## 4. 未解／待決（依優先序）
 
@@ -65,7 +69,8 @@
 2. **平移 0.20 在現行護欄下不可部署**：名目最大命令速度 15.84 rad/s，M9 要求 `--vmax ≥ 1.2×` → 要開到 19，
    已是腿關節規格上限 19.9 rad/s 的 95%。所以段 ⑦ 的平移放大只到 **0.15**（名目 14.67）。
    要跑 0.20 得先另外決定護欄，不是現場臨時放寬。
-3. **平移名目騎在 ABAD 止點上**：平移指令下 `fl1/bl1_hip_roll`（鏡像＝`fr1/br1`）的命令有 35%／27% 的週期
+3. **平移名目騎在 ABAD 止點上**：平移指令下 `fl1/bl1_hip_roll`（鏡像＝`fr1/br1`）的命令有 35%／27% 的週期（除以**指令有效步**；
+   M9 乾跑印的分母含前 1 s 站姿全步數 → 31%／25%，整趟約 56%）
    釘在 −0.523 rad 機構止點，實際關節只到 ∓0.15–0.19 → 命令-實際誤差 0.70 rad（`--emax-abad 0.91` 就是這樣來的）。
    訓練時就這樣（ABAD 幅度＝原廠 ×1.6 補 kp120 撓度），v3 乾跑限位檢查已改成比產生器自己的 LO12/HI12。
    **實機沒驗過持續貼止點會不會發熱／飽和** → 段 ③ 盯這兩顆的力矩。
@@ -75,10 +80,12 @@
 6. **「夾抬高只在平移族生效」沒寫入**（使用者中止）。要做：`rl_env_v3.step` 的 `LIFT_NONNEG` 段乘 `_lat_weight(P["A"]) > 0.5`。
    背景：`--turn-weights` 用 v3.7f（平移）＋v3.6f（旋轉）跑過一次，旋轉只 +75／−77，因為全域夾抬高把 v3.6f 旋轉族的 lift 也夾了。
 7. **上機前要知道的四個小坑**（v3 線的 Minor，其餘 triage 清單在 `.superpowers/sdd/progress.md`）：
-   - `python3 M9_gait.py --help` **在狗上會爆**（`ValueError: incomplete format` —— `--vmax` 的 help 有裸 `%`），改動之前就壞了，沒修。現場不要打 `--help`。
-   - `realbot/rl_obs_v3.read_frame`（真 shm 讀取）**本機沒有測試**，段 ⓪ 是它第一次被真的跑到。
+   - `python3 M9_gait.py --help` **已修好**（`--vmax` 的 help 裸 `%` → `%%`，離開碼 0）；之前會 `ValueError: incomplete format`。
+   - `realbot/rl_obs_v3.read_frame`（真 shm 讀取）**本機沒有測試**，段 ①（`--confirm` 的第一趟）是它第一次被真的跑到 ——
+     所以段 ① 的過關條件多一條：收工 JSON `policy.fallback_total == 0`、`open_loop == false`。
    - `v3_wheel_rows` 的 `velocity` 欄在真路徑上幾乎是死的（`velocity=v_meas` 讓 kd 項 ≈ 0，力矩全靠 `effort`）——這是設計，但別靠它調速。
-   - `Gen.step` 回傳的 `c`、`gen.cmd_prev` 都是活物件（沒有 copy）；M9 現在沒踩到，外部要留用得自己 `np.array(...)`。
+     **寫側（`effort` 欄）的符號實機沒驗過**（讀側由影子跟跑釘住）：段 ② 要看四輪 `velocity` 與 `effort` 的符號，接反就是往後走。
+   - `Gen.step` 回傳的 `c` 是活物件（沒有 copy），外部要留用得自己 `np.array(...)`；`gen.cmd_prev` 已改成複本，不用擔心。
 8. 後續（RL 訓練線，不阻塞上機）：Colab 跑 `notebooks/cpg_rl_v3_7bf_colab.ipynb`（已 push，v3.7f ＋輪前饋＋鏡像增強）
    —— 原文與停損條件見 `docs/handoff_history/HANDOFF_2026-09-22_§1_v3.7b_Colab訓練.md`。
 9. 續訓：notebook 有 `RESUME`（`restore_params`），只做過原始碼比對，本機 jax 0.10 跑不動 `ppo.train`。

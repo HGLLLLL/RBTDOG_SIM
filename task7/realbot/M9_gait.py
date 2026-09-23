@@ -485,6 +485,16 @@ class PolicyGaitStream(GaitStream):
         self.i += 1
 
 
+class _GenNaN(Exception):
+    """產生器**沒有丟例外、卻吐出 NaN** 的那一步（見 `V3GaitStream._advance`）。
+
+    ★ 為什麼用例外傳：要走的是**同一條**降級路徑（沿用上一步 q_des、輪 τ 給 0、記一次退回）。
+      `Gen.step` 裡沒有任何 NaN 檢查 —— obs 帶進一個 NaN、或 IK 的 acos 吃到界外值，
+      算出來的 q_des 會安安靜靜地是 NaN，然後被寫進 SHM 的位置命令。
+      控制器收到 NaN 目標角的行為沒人驗過，而狗這時候是承重的。
+    """
+
+
 class V3GaitStream(GaitStream):
     """CPG-RL v3.6f 步態流（2026-09-23）：每個 50 Hz 推進點
     讀 shm（12 腿＋4 輪＋IMU）→ `rl_obs_v3.Obs.build` → （右向指令）鏡像 → `policy_np` → 鏡像回 → `gen_v3.Gen.step`
@@ -497,7 +507,10 @@ class V3GaitStream(GaitStream):
       該步沿用上一步的 q_des、輪 τ 給 0，下一步照常再試）。
       任何一種 → 該步動作 0 並記一次退回；**連續 FALLBACK_LIMIT（25）步 → 永久零動作**（`open_loop`，不再恢復）；
       鍵 `o` → 永久零動作＋cmd 0。gain 0 ＝ 乾跑：obs、推論照跑照記（policy 原始輸出記在 `a_raw`），送出的動作 0。
-    指令時序：進 GAIT_IN 後前 CMD_DELAY_STEPS（1 s）cmd=0（產生器輸出站姿，與 smoothstep 淡入相容），之後切到 --cmd；
+    指令時序（spec §1.4）：**GAIT_IN 全程 cmd=0**；`InteractivePlan` 進 GAIT 的那一刻呼叫 `arm_cmd()`，
+    再過 CMD_DELAY_STEPS（1 s，50 步）才切到 --cmd。為什麼不從 GAIT_IN 起算：淡入那 3 秒關節正被
+    線性拉向步態軌跡，此時疊上指令等於同時動兩件事，現場分不出抖是淡入還是指令造成的。
+    沒人呼叫過 `arm_cmd()`（純流測試、舊路徑）就永遠 cmd=0 —— 寧可不走，不要偷偷走。
     `set_open_loop`（Enter 停走進 GAIT_OUT 時 InteractivePlan 會呼叫）後 cmd=0，產生器自己在 trans_s 內收回站姿。
     **不加動作延遲、不加雜訊** —— 實機的是真的。
     """
@@ -505,6 +518,7 @@ class V3GaitStream(GaitStream):
     FALLBACK_LIMIT = 25
     CMD_DELAY_STEPS = 50
     INFER_BUDGET_MS = 10.0
+    STOP_MSG = "按停淡出：指令歸零、零動作名目"
 
     def __init__(self, gen, obs_builder, policy, reader, cmd3, gain: float, mirror: bool, log: list = None):
         import numpy as np
@@ -515,6 +529,7 @@ class V3GaitStream(GaitStream):
         self.last_a = np.zeros(24)
         self.wheel_tau_mjcf = np.zeros(4)
         self.i = 0
+        self._armed_at = None          # 進 GAIT 的步序（None = 還沒進 → cmd 恆 0），見 arm_cmd()
         self.n_fallback = self.n_fallback_total = 0
         self.open_loop, self.open_loop_why = False, ""
         self.last_tick = None
@@ -553,8 +568,16 @@ class V3GaitStream(GaitStream):
             self.open_loop, self.open_loop_why = True, why
             print(f"\n  ▸ policy 退回零動作名目、指令歸零（{why}）—— 產生器繼續\n")
 
+    def arm_cmd(self) -> None:
+        """進 GAIT 的那一刻由 `InteractivePlan._advance` 呼叫：從這一步起算 CMD_DELAY_STEPS 才放指令。
+
+        只認第一次（GAIT 只進得去一次；真要再進一次也不該把延遲重新算一遍）。"""
+        if self._armed_at is None:
+            self._armed_at = self.i
+
     def _cmd_now(self):
-        if self.open_loop or self.i < self.CMD_DELAY_STEPS:
+        """這一步要送進產生器的指令：沒 arm 過、還在 1 s 延遲內、或已永久退回 → 全 0。"""
+        if self.open_loop or self._armed_at is None or self.i < self._armed_at + self.CMD_DELAY_STEPS:
             return self._np.zeros(3)
         return self.cmd_target
 
@@ -602,12 +625,17 @@ class V3GaitStream(GaitStream):
                 if not np.all(np.isfinite(v_wheel)):
                     v_wheel = np.zeros(4)
             q12, tau, _ = self.gen.step(cmd, a_use, v_wheel)
+            # ★ 產生器不丟例外也可能吐 NaN（IK 的 acos 吃到界外、obs 帶進一個 NaN…），
+            #   而 NaN 目標角會被原封不動寫進 SHM。當成例外處理 → 走同一條降級路徑。
+            if not (np.all(np.isfinite(q12)) and np.all(np.isfinite(tau))):
+                raise _GenNaN
             # 這一步有幾個關節的目標被 LO12/HI12 夾掉（0 = 都在限位內）。例外那步維持 0：那一步根本沒算到。
             n_sat_step = int(np.count_nonzero(getattr(self.gen, "sat_mask", np.zeros(12, bool))))
         except Exception as e:            # noqa: BLE001 —— 同上，承重中不能讓例外炸掉主迴圈
             # ★ 標籤用疊的不用 `or`：已經是 stale 的那一步若產生器又炸了，`fb or ...` 會把產生器例外整個蓋掉，
             #   log 上只看得到 "stale"，事後查「那一步到底發生什麼」就少了一半。
-            fb = f"{fb}+exc_gen:{type(e).__name__}" if fb else f"exc_gen:{type(e).__name__}"
+            lab = "gen_nan" if isinstance(e, _GenNaN) else f"exc_gen:{type(e).__name__}"
+            fb = f"{fb}+{lab}" if fb else lab
             q12, tau, v_wheel = self._q12, np.zeros(4), np.zeros(4)
             a_use = np.zeros(24)          # 這一步的動作根本沒送進產生器 → log 與 obs 的 last_a 都要記 0
         # ★ 退回計數放在產生器之後：`exc_gen:*` 也要算進連續退回，否則產生器一直炸、永遠進不了永久零動作。
@@ -713,6 +741,12 @@ class InteractivePlan:
         self.t_seg = t if dur is None else self.t_seg + dur
         if self.segs[self.i][0] == "GAIT_IN":
             self.t_gait0 = t
+        if self.segs[self.i][0] == "GAIT":
+            # ★ spec §1.4：指令從**進 GAIT** 起算 1 s 才放（GAIT_IN 全程 cmd=0）。
+            #   純 CPG／v2.3 的流沒有這個方法，跳過 —— 同 `_stop_policy` 的寫法。
+            f = getattr(self.gs, "arm_cmd", None)
+            if f is not None:
+                f()
         if self.segs[self.i][0] == "GAIT_OUT":
             self._stop_policy()
 
@@ -725,7 +759,9 @@ class InteractivePlan:
         """
         f = getattr(self.gs, "set_open_loop", None)
         if f is not None:
-            f("按停淡出：淡出段走純 A")
+            # ★ 訊息要照流的退路講：v3 的退路是「零動作名目」（產生器繼續跑、指令歸零），
+            #   不是 A 步態。現場靠這一行判斷「狗現在到底在走什麼」，寫錯比沒寫更糟。
+            f(getattr(self.gs, "STOP_MSG", "按停淡出：淡出段走純 A"))
 
     def update(self, t: float, key: bool):
         """回傳 (階段名, 12 關節目標, kp, kd, 是否結束)。
@@ -1047,11 +1083,21 @@ def wheel_kd_for(nm: str, wheel_kd: float, v3_mode: bool) -> float:
 
 
 def v3_wheel_rows(tau_mjcf4, v_meas_motor4, wheel_kd: float, p) -> list:
-    """v3 輪子寫入（MJCF 序）：velocity=實測（kd 項≈0）、effort=死區後 τ 換到馬達方向、kp 0、kd 步態值。
-    等於模擬 wheel_ctrl_tau 的實機版（模擬把 τ 折進 velocity 是因為 MJX 只有速度致動器；SHM 本來就有 effort 欄）。"""
+    """v3 輪子寫入（MJCF 序）：velocity=實測（kd 項≈0）、effort=死區後 τ 換到馬達方向再夾 ±WHEEL_TAU_MAX、kp 0、kd 步態值。
+    等於模擬 wheel_ctrl_tau 的實機版（模擬把 τ 折進 velocity 是因為 MJX 只有速度致動器；SHM 本來就有 effort 欄）。
+
+    ★ 為什麼要自己夾（2026-09-23）：模擬裡這個夾子是 **MuJoCo 免費送的** ——
+      輪致動器的 `actuatorfrcrange` 是 ±33，policy 學到的一切都在那個上限之內發生。
+      狗上沒有人夾：`Gen.step` 的 τ 只過死區，直接寫進 SHM 的 effort 欄，馬達上限是 125.7 rad/s 的規格，
+      不是 33 N·m。所以產生器輸出一旦異常（obs 壞掉、policy 飽和），實機會送出模擬從來沒送過的力矩。
+      上限從 npz 讀（`export_policy_v3._wheel_tau_max` 直接讀場景的 forcerange），不寫字面值。
+    """
+    import numpy as np
+
     import gen_v3
     import rl_obs_v3
-    tau = gen_v3.wheel_dead(tau_mjcf4, p) * rl_obs_v3.WHEEL_SIGN4
+    tmax = float(p.K["WHEEL_TAU_MAX"])
+    tau = np.clip(gen_v3.wheel_dead(tau_mjcf4, p) * rl_obs_v3.WHEEL_SIGN4, -tmax, tmax)
     return [dict(velocity=float(v_meas_motor4[k]), effort=float(tau[k]), kp=0.0, kd=float(wheel_kd)) for k in range(4)]
 
 
@@ -1307,9 +1353,14 @@ def main() -> int:
     ap.add_argument("--vmax", type=float, default=16.0,
                     help="★ 量測關節速度 rad/s。**基準步態（ω=1.4）的命令峰值實測 "
                          "13.1 rad/s** —— M7/M8 的 4.0 會在第一個擺動相就誤中止。"
-                         "馬達規格 190 RPM = 19.9 rad/s，16 是它的 80%")
+                         "馬達規格 190 RPM = 19.9 rad/s，16 是它的 80%%")
     ap.add_argument("--vcmd-max", type=float, default=14.0, dest="vcmd_max",
                     help="★ 命令速度 rad/s（乾跑檢查）。基準步態要 13.1")
+    ap.add_argument("--wheel-vmax", type=float, default=30.0, dest="wheel_vmax",
+                    help="★ v3 專用，四輪實測 |velocity| 超過即中止 —— effort 路徑單向失控不會被 "
+                         "ChatterWatch 抓（那條看的是高頻正負翻轉；力矩把輪子往同一個方向愈推愈快時，"
+                         "速度單調上升、一次都不翻轉）。名目輪速 ≤ 6 rad/s，馬達上限 125.7 —— "
+                         "30 是「明顯不對」而不是「剛好擦到」的線")
     ap.add_argument("--tilt-max", type=float, default=20.0, dest="tilt_max")
     ap.add_argument("--temp-max", type=float, default=70.0, dest="temp_max")
     ap.add_argument("--tau-hits", type=int, default=3, dest="tau_hits")
@@ -1453,7 +1504,12 @@ def main() -> int:
         P3 = gen_v3.load_params(a.v3)
         policy = policy_np.load(a.v3)
         O3 = rl_obs_v3.Obs(a.v3)
-        assert policy.layout == "v3" and policy.obs_dim == 88 and policy.act_dim == 24, (policy.layout, policy.obs_dim)
+        # ★ 不用 assert：`python -O` 會把它整個拿掉，而這是「npz 拿錯了」的唯一一道擋 ——
+        #   拿 v2.3 的 npz 跑 --v3，obs 長度對不上會在承重之後才炸。
+        if not (policy.layout == "v3" and policy.obs_dim == 88 and policy.act_dim == 24):
+            print(f"❌ npz 不是 v3 版面：layout {policy.layout} obs {policy.obs_dim} act {policy.act_dim}"
+                  f"（要 v3 / 88 / 24）—— 用 export_policy_v3.py 重匯出。")
+            return 1
         # ★ 說兩次：npz 記的增益（訓練時的 factory 組）vs 命令列。不一致拒跑（同軌跡檔的邏輯）。
         bad = param_mismatches(v3_gain_record(P3), {"kp": a.kp, "kp_abad": a.kp_abad, "kd": a.kd, "wheel_kd": a.wheel_kd})
         if bad:
@@ -1999,6 +2055,13 @@ def main() -> int:
                 if not abort and chatter.feed(w, stt[wi]["velocity"]):
                     abort = (f"{w} 輪抖振（高頻正負翻轉、|v|>{ChatterWatch.V_MIN}）"
                              f"—— wheel_kd={wheel_kd_of(nm):g} 在此階段不穩定")
+                # ★ v3 的輪子走 effort（力矩）路徑，**沒有速度回授把它拉回來** ——
+                #   τ 一直同號就是一直加速，而 ChatterWatch 只認得正負翻轉的抖振，
+                #   單向失控它一次都不會叫。名目輪速 ≤ 6 rad/s，所以這條線純粹是
+                #   「已經明顯不對」的最後一道；舊路徑（--traj／--policy）走 velocity 欄，不適用。
+                v_w = float(stt[wi]["velocity"])
+                if a.v3 and not abort and abs(v_w) > a.wheel_vmax:
+                    abort = f"{w} 輪速 {v_w:+.1f} 超過 --wheel-vmax {a.wheel_vmax}（effort 路徑）"
             wrec = None if stale else {w: (round(stt[wi]["position"], 4),
                         round(stt[wi]["velocity"], 3),
                         round(stt[wi]["effort"], 2)) for w, wi in widx.items()}

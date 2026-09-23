@@ -1376,12 +1376,21 @@ def _fake_policy_v3(delta=0.0):
                           "baseline": {}, "infer": staticmethod(lambda o: np.full(24, delta))})()
 
 
-def _v3_stream(policy, gain, cmd=(0.0, 0.20, 0.0), reader=None, mirror=True):
+def _v3_stream(policy, gain, cmd=(0.0, 0.20, 0.0), reader=None, mirror=True, arm=True):
+    """只有流、沒有 `InteractivePlan` 的測試場景。
+
+    ★ `arm=True` 就地呼叫 `arm_cmd()`，模型化的是「GAIT 在 t=0 進入」—— 指令延遲因此從第 0 步起算，
+      下面那些「第 50 步 cmd 生效」的斷言才成立。真實流程裡呼叫的人是 `InteractivePlan._advance`
+      （GAIT_IN 全程 cmd=0，見 `test_v3_plan_cmd_zero_until_1s_after_gait`）。
+      `arm=False` 用來測「沒 arm 就永遠 cmd=0」。
+    """
     P = gen_v3.load_params(str(NPZ_V3))
     O = rl_obs_v3.Obs(str(NPZ_V3))
     gen = gen_v3.Gen(P)
     log = []
     gs = m9.V3GaitStream(gen, O, policy, reader or _ReaderV3(gen.stance_q12()), cmd, gain, mirror, log)
+    if arm:
+        gs.arm_cmd()
     return gs, log, P
 
 
@@ -1488,6 +1497,7 @@ def _v3_stream_with_gen(gen, cmd=(0.0, 0.20, 0.0)):
     log = []
     gs = m9.V3GaitStream(gen, rl_obs_v3.Obs(str(NPZ_V3)), _fake_policy_v3(0.3),
                          _ReaderV3(gen.stance_q12()), cmd, 1.0, True, log)
+    gs.arm_cmd()                    # 同 `_v3_stream`：模型化「GAIT 在 t=0 進入」
     return gs, log
 
 
@@ -1511,6 +1521,42 @@ def test_v3_stream_exception_in_generator_degrades_one_step_and_keeps_running():
     assert log2[77]["fb"].startswith("exc_gen:RuntimeError")
     assert log2[77]["q_des"] == log2[76]["q_des"] and log2[76]["q_des"] != log2[75]["q_des"]
     assert log2[78]["fb"] == "" and log2[78]["q_des"] != log2[77]["q_des"]
+
+
+def _nan_gen(P, at_call: int):
+    """第 `at_call` 次 `step()` 回傳 NaN（不丟例外）的產生器（at_call 從 1 起算 → log[at_call - 1]）。"""
+    class _GenNaNOut(gen_v3.Gen):
+        def __init__(self, p):
+            super().__init__(p)
+            self.n_called = 0
+
+        def step(self, cmd, act, v_wheel):
+            q, tau, c = super().step(cmd, act, v_wheel)
+            self.n_called += 1
+            if self.n_called == at_call:
+                q = q.copy()
+                q[3] = np.nan
+            return q, tau, c
+    return _GenNaNOut(P)
+
+
+def test_v3_stream_generator_nan_degrades_like_exception():
+    """★ 產生器**不丟例外、卻吐 NaN** 也要降級（2026-09-23 最終審查）。
+
+    `Gen.step` 裡沒有任何 NaN 檢查：IK 的 acos 吃到界外、obs 混進一個 NaN，算出來的 q_des
+    會安安靜靜是 NaN，然後被原封不動寫進 SHM 的位置命令 —— 控制器收到 NaN 目標角的行為沒人驗過，
+    而狗這時候承重站著。處理方式與 `exc_gen` 完全一樣，只有標籤不同（`gen_nan`，log 上分得出是哪一種）。
+    """
+    P = gen_v3.load_params(str(NPZ_V3))
+    gs, log = _v3_stream_with_gen(_nan_gen(P, at_call=6))     # 第 6 次呼叫 = log[5]
+    _run_v3(gs, secs=1.0)                                     # 50 步，全程不該丟例外
+    assert len(log) == 50 and gs.i == 50
+    assert log[5]["fb"] == "gen_nan"
+    assert log[5]["q_des"] == log[4]["q_des"]                 # 沿用上一步 → 200 Hz 內插停在原地
+    assert log[5]["tau"] == [0.0] * 4 and np.allclose(log[5]["a"], 0.0)
+    assert all(np.all(np.isfinite(e["q_des"])) for e in log)  # NaN 一步都沒有漏出去
+    assert log[4]["fb"] == "" and log[6]["fb"] == ""          # 下一步照常再試
+    assert gs.n_fallback_total == 1 and gs.n_fallback == 0 and not gs.open_loop
 
 
 def test_v3_stream_manual_open_loop_zeroes_cmd_and_action():
@@ -1543,6 +1589,77 @@ def test_v3_policy_block_carries_n_clamp():
     json.dumps(pb, ensure_ascii=False)                       # 收工 JSON 要序列化得出來
 
 
+def _v3_plan(cmd=(0.0, 0.20, 0.0), **kw):
+    """v3 流掛進 `InteractivePlan`（同 `_policy_plan` 的寫法）—— 指令時序只有在這裡才看得到真相：
+    `arm_cmd()` 的呼叫點在 plan 裡，純流測試是自己 arm 的。"""
+    gs, log, P = _v3_stream(_fake_policy_v3(0.0), gain=1.0, cmd=cmd, arm=False)
+    a = Args(kp=120.0, kd=1.0, kp_abad=60.0, ramp=3.0, kp_shift=1.5,
+             hold_max=kw.get("hold_max", 1.0), walk_max=kw.get("walk_max", 20.0))
+    q_stand = {j: coord.POSES["home"][j] for j in m9.LEGS12}
+    return m9.InteractivePlan(a, dict(Q_LIE), q_stand, gs), gs, log
+
+
+def test_v3_plan_cmd_zero_until_1s_after_gait():
+    """★ spec §1.4 的指令時序，量在 plan 這一層：
+
+      GAIT_IN 全程 cmd=0（淡入那 3 秒關節正被拉向步態軌跡，此時疊指令＝同時動兩件事，
+      現場分不出抖是誰造成的）→ 進 GAIT 的那一刻 `arm_cmd()` → 再 50 步（1 s）才切到 --cmd
+      → Enter 停走進 GAIT_OUT → 指令歸零。
+    """
+    plan, gs, log = _v3_plan(cmd=(0.0, 0.20, 0.0))
+    t, dt = 0.0, 1.0 / 200
+    while plan.name != "GAIT_IN":
+        plan.update(t, False)
+        t += dt
+    while plan.name == "GAIT_IN":
+        plan.update(t, False)
+        t += dt
+    assert plan.name == "GAIT"
+    n_in = len(log)
+    assert n_in > 100, "GAIT_IN 3 秒至少該推進 150 步"
+    assert all(e["cmd"] == [0.0, 0.0, 0.0] for e in log[:n_in]), "GAIT_IN 期間指令不該生效"
+    armed = gs._armed_at
+    assert armed == n_in - 1, (armed, n_in)     # 進 GAIT 的 update 裡 arm，同一次 update 再推進一步
+
+    for _ in range(int(2.0 / dt)):                                  # 再走 2 秒
+        plan.update(t, False)
+        t += dt
+    # 第 armed+49 步仍是 0、第 armed+50 步才是 --cmd（50 步 = 1 s @ 50 Hz）
+    assert log[armed + 49]["cmd"] == [0.0, 0.0, 0.0]
+    assert log[armed + 50]["cmd"] == [0.0, 0.20, 0.0]
+    assert next(i for i, e in enumerate(log) if e["cmd"] != [0.0, 0.0, 0.0]) == armed + 50
+    assert log[-1]["cmd"] == [0.0, 0.20, 0.0]
+
+    nm, *_ = plan.update(t, True)                                   # ★ Enter 停走
+    assert nm == "GAIT_OUT" and gs.open_loop
+    assert gs.STOP_MSG in gs.open_loop_why and "純 A" not in gs.open_loop_why
+    n1 = len(log)
+    for _ in range(int(1.0 / dt)):
+        plan.update(t, False)
+        t += dt
+    assert len(log) > n1 and all(e["cmd"] == [0.0, 0.0, 0.0] for e in log[n1:]), "淡出段指令沒歸零"
+
+
+def test_v3_stream_without_arm_never_issues_cmd():
+    """沒人呼叫 `arm_cmd()`（純 CPG 路徑、單元測試）→ 指令永遠 0。寧可不走，不要偷偷走。"""
+    gs, log, _ = _v3_stream(_fake_policy_v3(0.0), gain=1.0, arm=False)
+    _run_v3(gs, secs=4.0)
+    assert len(log) == 200 and all(e["cmd"] == [0.0, 0.0, 0.0] for e in log)
+
+
+def test_stop_policy_message_matches_stream_fallback():
+    """★ 現場靠這一行判斷「狗現在在走什麼」：v2.3 的退路是純 A 步態、v3 的是零動作名目。"""
+    _, gs_a, _ = _policy_plan(_fake_policy(delta=0.5))
+    plan_a = m9.InteractivePlan(Args(kp=250.0, kd=2.0, kp_abad=60.0, ramp=3.0, kp_shift=1.5,
+                                     hold_max=1.0, walk_max=20.0), dict(Q_LIE),
+                                {j: coord.POSES["home"][j] for j in m9.LEGS12}, gs_a)
+    plan_a._stop_policy()
+    assert "純 A" in gs_a.open_loop_why
+    plan_v3, gs_v3, _ = _v3_plan()
+    plan_v3._stop_policy()
+    assert gs_v3.open_loop_why == m9.V3GaitStream.STOP_MSG == "按停淡出：指令歸零、零動作名目"
+
+
 def test_v3_wheel_rows_use_effort_and_measured_velocity():
     P = gen_v3.load_params(str(NPZ_V3))
     rows = m9.v3_wheel_rows(np.array([0.05, -0.5, 2.0, 0.0]), np.array([1.0, 2.0, 3.0, 4.0]), 0.1, P)
@@ -1551,6 +1668,14 @@ def test_v3_wheel_rows_use_effort_and_measured_velocity():
     ff = P.K["TAU_FF"]
     # 死區後乘 WHEEL_SIGN4（MJCF → 馬達）：0.05 → 0；−0.5 → −(0.5+ff)·(−1)；2.0 → (2+ff)·(+1)；0 → 0
     assert rows[0]["effort"] == 0.0 and abs(rows[1]["effort"] - (0.5 + ff)) < 1e-12 and abs(rows[2]["effort"] - (2.0 + ff)) < 1e-12 and rows[3]["effort"] == 0.0
+    # ★ 夾在 ±WHEEL_TAU_MAX（npz 從場景 forcerange 讀來的 33）：模擬裡 MuJoCo 免費送這個夾子，
+    #   狗上沒有人夾 —— τ 直接寫進 SHM 的 effort 欄。產生器一旦吐出離譜的值就會真的送出去。
+    tmax = P.K["WHEEL_TAU_MAX"]
+    assert tmax == 33.0
+    big = m9.v3_wheel_rows(np.array([50.0, -50.0, 50.0, -50.0]), np.zeros(4), 0.1, P)
+    sgn = rl_obs_v3.WHEEL_SIGN4
+    assert [r["effort"] for r in big] == [tmax * sgn[0], -tmax * sgn[1], tmax * sgn[2], -tmax * sgn[3]]
+    assert all(abs(r["effort"]) == tmax for r in big)         # 只換符號，大小一律 33
 
 
 def test_v3_wheel_kd_schedule_is_safe_outside_gait():
@@ -1577,6 +1702,13 @@ def test_v3_args_and_guards_source_markers():
     assert "bad_table, bad_traj, n_at_stop = v3_limit_checks(gait_q, P3)" in src
     assert "coord.check_limit(j, row[k], 0.03)" in src
     assert "lim_margin" not in src
+    # ★ 輪速中止只給 v3：舊路徑走 velocity 欄（有速度回授），v3 走 effort ——
+    #   力矩一直同號就一直加速，ChatterWatch 只認正負翻轉的抖振，單向失控它一次都不會叫。
+    assert '"--wheel-vmax"' in src and 'dest="wheel_vmax"' in src
+    assert "if a.v3 and not abort and abs(v_w) > a.wheel_vmax:" in src
+    assert "超過 --wheel-vmax" in src
+    # ★ npz 版面檢查不能用 assert（`python -O` 會整個拿掉）
+    assert "assert policy.layout" not in src and "❌ npz 不是 v3 版面" in src
 
 
 def _v3_lateral_rows(P, n=350, cmd_delay=50, vy=0.12):

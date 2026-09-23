@@ -20,6 +20,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import max_model as mm  # noqa: E402
 import rl_env_v3 as v3  # noqa: E402
 
 HIDDEN = ("hidden_0", "hidden_1", "hidden_2", "hidden_3")
@@ -45,6 +46,22 @@ def _gains(env) -> dict:
             "kd3": [float(x) for x in np.asarray(G["kd3"]).ravel()],
             "wheel_kd": float(env.kv_wheel),
             "wheel_kd_safe": float(WHEEL_KD_SAFE)}
+
+
+def _wheel_tau_max(env) -> float:
+    """輪力矩上限：從 **env 真的載入的那個場景** 讀輪致動器的 forcerange（±33），不抄字面值。
+
+    ★ 為什麼不直接寫 `mm.TAU_MAX_WHEEL`（數字也是 33）：狗端要夾的那條線，必須和
+      **模擬裡實際生效**的同一條。policy 是在「τ 被 MuJoCo 夾在 ±33」的世界裡學的；
+      哪天場景的 actuatorfrcrange 改了，重訓出來的 policy 會跟著變，而字面值不會 ——
+      上機就會送出模擬從來沒送過的力矩，而且沒有任何地方會紅。
+      場景沒限力矩（forcelimited=0）才退回規格書的 `mm.TAU_MAX_WHEEL`（MJCF 寫 40、規格書 33，取保守的）。
+    """
+    m = env._mj
+    i = int(mm.WHEEL_ACT_IDX[0])
+    if not bool(m.actuator_forcelimited[i]):
+        return float(mm.TAU_MAX_WHEEL)
+    return float(abs(m.actuator_forcerange[i][1]))
 
 
 def _jsonable(v):
@@ -76,13 +93,15 @@ def export(pkl: str, out: str) -> dict:
              AMP_SCALE=v3.AMP_SCALE, LIFT_SCALE=v3.LIFT_SCALE, SWAY_MAX=v3.SWAY_MAX, SWAY_SLEW=v3.SWAY_SLEW,
              WHEEL_RES=v3.WHEEL_RES, STEP_GAIN_S=v3.STEP_GAIN_S, PH_SLEW=v3.PH_SLEW, FOOT_OFF_MAX=v3.FOOT_OFF_MAX,
              TAU_FF=v3.TAU_FF, RAMP_STEPS=v3.W36["RAMP_STEPS"], CTRL_DT=float(v3.CTRL_DT), CYC_N=int(v3.CYC_N),
-             gains=_gains(env), weights_preset="v36", cyc_turn_sym=True, obs_dim=88)
+             gains=_gains(env), weights_preset="v36", cyc_turn_sym=True, obs_dim=88,
+             WHEEL_TAU_MAX=_wheel_tau_max(env))
     z = dict(mean=mean, std=std, obs_dim=np.int64(88), act_dim=np.int64(v3.ACT_DIM),
              preset=np.str_("v36"), layout=np.str_("v3"),
              ref_json=np.str_(json.dumps(_jsonable(env.ref), sort_keys=True)),
              gen_json=np.str_(json.dumps(K, sort_keys=True)),
              src_sha256=np.str_(hashlib.sha256(Path(pkl).read_bytes()).hexdigest()),
-             LO12=np.asarray(env._lo, dtype=np.float64), HI12=np.asarray(env._hi, dtype=np.float64))
+             LO12=np.asarray(env._lo, dtype=np.float64), HI12=np.asarray(env._hi, dtype=np.float64),
+             WHEEL_TAU_MAX=np.float64(_wheel_tau_max(env)))
     for i in range(4):
         z[f"W{i}"], z[f"b{i}"] = Ws[i], bs[i]
     for name, key in TABLE_KEYS.items():

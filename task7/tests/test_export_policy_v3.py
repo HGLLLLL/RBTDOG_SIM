@@ -79,6 +79,22 @@ def test_constants_and_tables_equal_module(z, env):
     np.testing.assert_array_equal(z["HI12"], np.asarray(env._hi))
 
 
+def test_wheel_tau_max_pinned_to_model(z, env):
+    """★ 狗端 `v3_wheel_rows` 夾的那條線 = **模擬裡 MuJoCo 真的在夾的那條**（輪致動器 forcerange）。
+
+    policy 是在「τ 被夾在 ±33」的世界學的；抄一份字面值的話，場景改了不會有任何地方紅，
+    而上機會送出模擬沒送過的力矩。npz 標量與 gen_json 兩邊都釘（狗端讀的是 gen_json 那份）。
+    """
+    import max_model as mm
+    i = int(mm.WHEEL_ACT_IDX[0])
+    assert bool(env._mj.actuator_forcelimited[i]), "場景沒限輪力矩 → _wheel_tau_max 會退回規格書值，這個測試要改"
+    want = float(abs(env._mj.actuator_forcerange[i][1]))
+    assert want == 33.0 == float(mm.TAU_MAX_WHEEL)      # 上機合約：操作卡與護欄都照 33 寫
+    assert z["WHEEL_TAU_MAX"].dtype == np.float64 and float(z["WHEEL_TAU_MAX"]) == want
+    assert json.loads(str(z["gen_json"]))["WHEEL_TAU_MAX"] == want
+    assert ex._wheel_tau_max(env) == want
+
+
 def test_committed_npz_is_current():
     """weights/cpg_rl_v3_6f_np.npz 必須是當下的 pkl 匯出的（env 當下值由上面的 committed 參數化把關）。"""
     import hashlib

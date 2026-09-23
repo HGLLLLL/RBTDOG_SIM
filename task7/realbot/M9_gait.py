@@ -1510,6 +1510,13 @@ def main() -> int:
             print(f"❌ npz 不是 v3 版面：layout {policy.layout} obs {policy.obs_dim} act {policy.act_dim}"
                   f"（要 v3 / 88 / 24）—— 用 export_policy_v3.py 重匯出。")
             return 1
+        # ★ npz 太舊（2026-09-23 最終審查）：`WHEEL_TAU_MAX` 是後來才加進 npz 的，`v3_wheel_rows` 在 200 Hz 迴圈裡直接
+        #   `p.K["WHEEL_TAU_MAX"]`，缺鍵會在**承重中的第一個 GAIT_IN tick** KeyError 把主迴圈炸掉；而 sha 印的是 pkl 的指紋，
+        #   分不出新舊 npz。所以開跑前先擋。
+        for k in ("WHEEL_TAU_MAX", "gains", "CTRL_DT", "TAU_FF"):
+            if k not in P3.K:
+                print(f"❌ npz 太舊：gen_json 缺 {k!r}（要 export_policy_v3.py 重匯出並重推 push_to_dog.sh）。")
+                return 1
         # ★ 說兩次：npz 記的增益（訓練時的 factory 組）vs 命令列。不一致拒跑（同軌跡檔的邏輯）。
         bad = param_mismatches(v3_gain_record(P3), {"kp": a.kp, "kp_abad": a.kp_abad, "kd": a.kd, "wheel_kd": a.wheel_kd})
         if bad:

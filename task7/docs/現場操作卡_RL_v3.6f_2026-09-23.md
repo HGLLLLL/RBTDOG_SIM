@@ -174,22 +174,57 @@ sudo bash ~/estop_max.sh
 C="--v3 cpg_rl_v3_6f_np.npz --interactive --kp 120 --kp-abad 60 --kd 1.0 --wheel-kd 0.1 --vmax 18 --vcmd-max 16 --emax-abad 0.91 --emax 0.55 --tau-total 5 --wheel-vmax 30"
 ```
 
-| 段 | 乾跑（不寫入、不需 sudo） | 實跑 |
-|---|---|---|
-| ⓪ 乾跑 | `python3 M9_gait.py $C --policy-gain 0 --cmd 0 0 0` | —（段 ⓪ 沒有實跑） |
-| ① 軟增益站立 | 同上 | `sudo python3 M9_gait.py $C --policy-gain 0 --cmd 0 0 0 --walk-max 5 --confirm` |
-| ② 零動作直走 | `python3 M9_gait.py $C --policy-gain 0 --cmd 0.3 0 0` | `sudo python3 M9_gait.py $C --policy-gain 0 --cmd 0.3 0 0 --walk-max 5 --confirm` |
-| ③a 零動作左平移 | `python3 M9_gait.py $C --policy-gain 0 --cmd 0 0.12 0` | `sudo python3 M9_gait.py $C --policy-gain 0 --cmd 0 0.12 0 --walk-max 5 --confirm` |
-| ③b 零動作左轉 | `python3 M9_gait.py $C --policy-gain 0 --cmd 0 0 0.8` | `sudo python3 M9_gait.py $C --policy-gain 0 --cmd 0 0 0.8 --walk-max 5 --confirm` |
-| ④ policy 直走 | `python3 M9_gait.py $C --policy-gain 1 --cmd 0.3 0 0` | `sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0.3 0 0 --walk-max 5 --confirm` |
-| ⑤a policy 左平移 | `python3 M9_gait.py $C --policy-gain 1 --cmd 0 0.12 0` | `sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 0.12 0 --walk-max 5 --confirm`（穩了再 `--walk-max 10`） |
-| ⑤b policy 左轉 | `python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 0.8` | `sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 0.8 --walk-max 5 --confirm` |
-| ⑥a 鏡像右轉 | `python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 -0.8` | `sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 -0.8 --walk-max 5 --confirm` |
-| ⑥b 鏡像右平移 | `python3 M9_gait.py $C --policy-gain 1 --cmd 0 -0.12 0` | `sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 -0.12 0 --walk-max 5 --confirm` |
-| ⑦ 放大 | `python3 M9_gait.py $C --policy-gain 1 --cmd 0 0.15 0`（另 `0 -0.15 0`、`0 0 1.3`、`0 0 -1.3`） | 同左加 `--walk-max 10 --confirm` |
+每段先乾跑再實跑；乾跑的 `--cmd` 要和實跑一樣。逐行複製：
 
-- 乾跑的 `--cmd` 一定要和實跑一樣（限位／命令速度檢查吃的就是它）。
-- 互動鍵：**空行 Enter** ＝ 推進（起走／停走／趴下）；**`o` 再 Enter** ＝ 永久零動作名目（policy 不再混入，走路不中止）。
+```bash
+# ⓪ 乾跑（不寫入、不需 sudo；段 ⓪ 沒有實跑）
+python3 M9_gait.py $C --policy-gain 0 --cmd 0 0 0
+
+# ① 軟增益站立（吊帶）
+sudo python3 M9_gait.py $C --policy-gain 0 --cmd 0 0 0 --walk-max 5 --confirm
+
+# ② 零動作直走（吊帶）—— 第一次走輪子 effort 路徑，看四輪速度同號、無抖振
+python3 M9_gait.py $C --policy-gain 0 --cmd 0.3 0 0
+sudo python3 M9_gait.py $C --policy-gain 0 --cmd 0.3 0 0 --walk-max 5 --confirm
+
+# ③ 零動作踏步（吊帶）—— 硬門：倒了／中止／一直退回就停在這裡，policy 不上
+python3 M9_gait.py $C --policy-gain 0 --cmd 0 0.12 0
+sudo python3 M9_gait.py $C --policy-gain 0 --cmd 0 0.12 0 --walk-max 5 --confirm
+python3 M9_gait.py $C --policy-gain 0 --cmd 0 0 0.8
+sudo python3 M9_gait.py $C --policy-gain 0 --cmd 0 0 0.8 --walk-max 5 --confirm
+
+# ④ policy 直走（對 ② 只應是小修正）
+python3 M9_gait.py $C --policy-gain 1 --cmd 0.3 0 0
+sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0.3 0 0 --walk-max 5 --confirm
+
+# ⑤ policy 左平移、左轉（log right=False；穩了再把 --walk-max 改 10）
+python3 M9_gait.py $C --policy-gain 1 --cmd 0 0.12 0
+sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 0.12 0 --walk-max 5 --confirm
+python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 0.8
+sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 0.8 --walk-max 5 --confirm
+
+# ⑥ 鏡像右轉、右平移（log 要看到 right=True，與 ⑤ 左右對稱）
+python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 -0.8
+sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 -0.8 --walk-max 5 --confirm
+python3 M9_gait.py $C --policy-gain 1 --cmd 0 -0.12 0
+sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 -0.12 0 --walk-max 5 --confirm
+
+# ⑦ 放大（平移 0.15、原地轉 1.3；0.20 這趟不跑）
+python3 M9_gait.py $C --policy-gain 1 --cmd 0 0.15 0
+sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 0.15 0 --walk-max 10 --confirm
+sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 -0.15 0 --walk-max 10 --confirm
+python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 1.3
+sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 1.3 --walk-max 10 --confirm
+sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 -1.3 --walk-max 10 --confirm
+```
+
+**每一趟的鍵盤流程（T1）**：站起來後畫面停在 `READY` → **Enter ＝ 起走**（先 3 s 淡入、再 1 s 才照 `--cmd` 動）
+→ 走的時候**隨時 Enter ＝ 停走**（指令歸零＋ 3 s 淡出回站姿，淡入中按也有效）→ 停在 `STOPPED` → **Enter ＝ 坐回趴姿**。
+Enter 是「優雅停」不是急停：要 3 秒才站定；狗要倒、腿卡住、程式沒回應一律走 §8 的 estop。
+沒按 Enter 也會自己走：`--walk-max` 到了自動淡出、`--hold-max`（25 s）到了自動往下走，人不要離開鍵盤。
+`o` 再 Enter ＝ 永久零動作名目（policy 不再混入，走路不中止）；只有**空行 Enter** 才推進階段。
+T1 必須是真的終端機（不能 nohup／背景），不然 Enter 讀不到。
+
 - 每段結束程式會印 `sudo kill -CONT <PID>`，**照打**。忘了，下一段 `mc_ctrl` 狀態會不對。
 - 逾時：`--walk-max` 到了自動淡出，不是中止；`--hold-max`（預設 25 s）到了自動往下走，人不要離開。
 

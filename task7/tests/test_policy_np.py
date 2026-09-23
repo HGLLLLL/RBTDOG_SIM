@@ -38,7 +38,8 @@ def test_constants_pinned():
     assert pn.A_MU_X == gb.BASELINE_A["mu_x"]
     assert pn.A_MU_Y == gb.BASELINE_A["mu_y"]
     assert pn.A_OMEGA == gb.BASELINE_A["omega"]
-    assert pn.LAYOUT_DIMS == li.LAYOUT_DIMS
+    # v2.3 的 layout 仍要與 local_infer_max 同值；v3（24）只在 policy_np 這邊多一條
+    assert {k: pn.LAYOUT_DIMS[k] for k in li.LAYOUT_DIMS} == li.LAYOUT_DIMS
     assert pn.RAMP_STEPS == li.PRESET_RAMP["v2.3"] == 50
 
 
@@ -94,3 +95,24 @@ def test_committed_npz_is_current_export(npz):
     for k in ("mean", "std", "W0", "b3"):
         np.testing.assert_array_equal(a[k], b[k])
     assert json.loads(str(b["baseline_json"]))["mu_x"] == gb.BASELINE_A["mu_x"]
+
+
+NPZ_V3 = ROOT / "weights" / "cpg_rl_v3_6f_np.npz"
+PKL_V3 = ROOT / "weights" / "cpg_rl_v3_6f_params.pkl"
+
+
+def test_v3_layout_pinned():
+    assert pn.LAYOUT_DIMS["v3"] == 24
+
+
+def test_v3_npz_matches_brax_forward():
+    import local_infer_v3 as li3
+    p = pn.load(str(NPZ_V3))
+    assert (p.obs_dim, p.act_dim, p.layout, p.preset) == (88, 24, "v3", "v36") and p.baseline == {}
+    infer = li3.load_policy(str(PKL_V3), 88)
+    rng = np.random.default_rng(0)
+    worst = 0.0
+    for _ in range(1000):
+        o = (rng.normal(size=88) * 3).astype(np.float32)
+        worst = max(worst, float(np.max(np.abs(np.asarray(infer(o)) - p.infer(o)))))
+    assert worst < 1e-5, worst

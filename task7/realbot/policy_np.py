@@ -23,7 +23,7 @@ MU_MIN, MU_MAX = 1.0, 2.0
 OMEGA_MIN, OMEGA_MAX = 0.0, 2.0
 SWAY_MAX, SWAY_SLEW = 0.060, 0.004
 A_MU_X, A_MU_Y, A_OMEGA = 1.80, 1.50, 1.4          # BASELINE_A
-LAYOUT_DIMS = {"full": 14, "nomux": 10}
+LAYOUT_DIMS = {"full": 14, "nomux": 10, "v3": 24}          # v3：act_split 的 24 維（2026-09-23）
 RAMP_STEPS = 50                                    # v2.3 起步淡入（= rl_env_max RAMP_STEPS）
 INFER_BUDGET_MS = 10.0                             # 超過就退回基準動作（50 Hz 預算 20 ms）
 
@@ -76,7 +76,7 @@ class Policy:
         self.act_dim = int(z["act_dim"])
         self.preset = str(z["preset"])
         self.layout = str(z["layout"])
-        self.baseline = json.loads(str(z["baseline_json"]))
+        self.baseline = json.loads(str(z["baseline_json"])) if "baseline_json" in z else {}
         self.src_sha256 = str(z["src_sha256"])
         self.mean = np.asarray(z["mean"], dtype=np.float32)
         self.std = np.asarray(z["std"], dtype=np.float32)

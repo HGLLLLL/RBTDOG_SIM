@@ -25,7 +25,7 @@
 
 ```
 --v3 cpg_rl_v3_6f_np.npz --interactive --kp 120 --kp-abad 60 --kd 1.0 --wheel-kd 0.1 \
---vmax 18 --vcmd-max 16 --emax-abad 0.91 --emax 0.55 --tau-total 5 --wheel-vmax 30
+--vmax 18 --vcmd-max 16 --emax-abad 0.91 --emax 0.55 --tau-total 5 --wheel-vmax 30 --hold-max 15
 ```
 
 `--wheel-vmax 30`（v3 專用）＝四輪實測 |velocity| 超過就中止：輪子走 effort 力矩欄沒有速度回授，
@@ -61,6 +61,8 @@
   輪子在步態三段走 `effort` 力矩欄（kp 0、kd 0.1、velocity=實測），其餘階段回純阻尼 kd 0.5。
   log 每步：`obs`／`a`／`a_raw`／`q_des`／`tau`／`v_wheel`／`right`／`cmd`／**`sat`（這一步被限位夾掉幾個關節）**／原始 imu／ms／退回原因，
   整趟另記 `n_clamp`（IK 縮限）／**`n_sat`（至少一顆頂住限位的步數，平移趟本來就大）**／`fallback_total`／`open_loop`。
+
+- **給外部環境重訓的模型包**：2026-09-23 打包交付後已刪（本地不留）。訓練用的是 `scene_flat_mjx_v3f.xml`，不是 `max.urdf`；要再打一包照 `docs/results/P_模型打包給外部重訓_2026-09-23.md` §3。
 
 ## 4. 未解／待決（依優先序）
 

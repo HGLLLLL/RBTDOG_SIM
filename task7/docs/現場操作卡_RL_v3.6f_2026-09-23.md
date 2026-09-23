@@ -171,8 +171,11 @@ sudo bash ~/estop_max.sh
 
 共同旗標存成變數，之後每段只換 gain 與 cmd：
 ```bash
-C="--v3 cpg_rl_v3_6f_np.npz --interactive --kp 120 --kp-abad 60 --kd 1.0 --wheel-kd 0.1 --vmax 18 --vcmd-max 16 --emax-abad 0.91 --emax 0.55 --tau-total 5 --wheel-vmax 30"
+C="--v3 cpg_rl_v3_6f_np.npz --interactive --kp 120 --kp-abad 60 --kd 1.0 --wheel-kd 0.1 --vmax 18 --vcmd-max 16 --emax-abad 0.91 --emax 0.55 --tau-total 5 --wheel-vmax 30 --hold-max 15"
 ```
+
+- `--hold-max 15`（2026-09-23 現場加）：互動模式的承重預算把兩個「等 Enter」各算 `--hold-max` 秒，預設 25 會讓最壞情況 77 s 超過 `--max-secs 60` 被拒跑。15 → 57 s。
+  **意思是 READY 站著 15 s 沒按 Enter 就自己起走、STOPPED 15 s 沒按就自己趴下**，手要放在 Enter 上。`--walk-max 10` 的趟要再改 `--hold-max 12`（56 s）。
 
 每段先乾跑再實跑；乾跑的 `--cmd` 要和實跑一樣。逐行複製：
 
@@ -211,11 +214,11 @@ sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 -0.12 0 --walk-max 5 --confir
 
 # ⑦ 放大（平移 0.15、原地轉 1.3；0.20 這趟不跑）
 python3 M9_gait.py $C --policy-gain 1 --cmd 0 0.15 0
-sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 0.15 0 --walk-max 10 --confirm
-sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 -0.15 0 --walk-max 10 --confirm
+sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 0.15 0 --walk-max 10 --hold-max 12 --confirm
+sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 -0.15 0 --walk-max 10 --hold-max 12 --confirm
 python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 1.3
-sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 1.3 --walk-max 10 --confirm
-sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 -1.3 --walk-max 10 --confirm
+sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 1.3 --walk-max 10 --hold-max 12 --confirm
+sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 -1.3 --walk-max 10 --hold-max 12 --confirm
 ```
 
 **每一趟的鍵盤流程（T1）**：站起來後畫面停在 `READY` → **Enter ＝ 起走**（先 3 s 淡入、再 1 s 才照 `--cmd` 動）

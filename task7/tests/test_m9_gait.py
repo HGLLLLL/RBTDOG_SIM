@@ -1696,6 +1696,7 @@ def test_v3_args_and_guards_source_markers():
     assert "wheel_kd_for(nm, a.wheel_kd, bool(a.v3))" in src
     assert "v3_wheel_rows(" in src and "st_w[wi][\"velocity\"]" in src
     assert "a.v3 and not a.interactive" in src and "a.v3 and (a.policy or a.teleop)" in src
+    assert "npz 太舊：gen_json 缺" in src and '"WHEEL_TAU_MAX", "gains"' in src   # 舊 npz 開跑前擋（缺鍵會在承重中的 RT 迴圈炸）
     # ★ --policy-gain 的範圍檢查原本只在 `if a.policy:` 裡面，v3 走不到 → 前置擋要自己有一份
     assert "a.v3 and not 0.0 <= a.policy_gain <= 1.0" in src
     # ★ 乾跑限位：v3 比產生器自己的 LO12/HI12（float32 匯出值），舊模式原封不動走 coord ＋ 0.03 餘裕

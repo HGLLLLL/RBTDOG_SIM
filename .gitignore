@@ -22,3 +22,6 @@ __pycache__/
 
 # LibreOffice 鎖檔
 .~lock.*#
+
+# D1 Max 模型打包（給另一個環境重訓用的衍生物，含 54 MB 網格副本與 tarball）；說明在 task7/docs/results/P_*
+task7/outputs/d1max_model_pack_*

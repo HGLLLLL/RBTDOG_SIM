@@ -1418,6 +1418,10 @@ def test_v3_stream_gain0_equals_gen_zero_action():
         worst = max(worst, float(np.max(np.abs(np.array(e["q_des"]) - np.array(q)))))
     assert worst < 1e-9
     assert all(np.allclose(e["a"], 0.0) for e in log)
+    # ★ 乾跑要能看到「policy 那時候想做什麼」：送出的 a 全 0，但 a_raw 是推論的原始輸出（delta 0.7）。
+    #   只記 a 的話，--policy-gain 0 這一趟的紀錄會是一整排 0，等於什麼都沒量到。
+    assert np.allclose(log[-1]["a_raw"], 0.7) and len(log[-1]["a_raw"]) == 24
+    assert all(e["a_raw"] is not None for e in log)
 
 
 def test_v3_stream_first_second_holds_stance_then_cmd_kicks_in():
@@ -1425,7 +1429,7 @@ def test_v3_stream_first_second_holds_stance_then_cmd_kicks_in():
     _run_v3(gs, secs=2.0)
     st = gen_v3.Gen(P).stance_q12()
     # ⚠️ 容差 1e-6 不是 1e-9：npz 的 STANCE_Q12 是 float32（0.52 存成 0.51999998），
-    #    產生器走一遍 IK 再回來必然差 ~5e-8。真正要分辨的是「站姿」vs「已經在走」（下一行 1e-3）。
+    #    產生器走一遍 IK 再回來必然差 ~1.1e-7。真正要分辨的是「站姿」vs「已經在走」（下一行 1e-3）。
     assert np.max(np.abs(np.array(log[49]["q_des"]) - st)) < 1e-6
     assert np.max(np.abs(np.array(log[99]["q_des"]) - st)) > 1e-3
     # sample(t) 的 t 必須單調不減 → 回頭問 t=0 要用新的流（剛建好、還沒推進）
@@ -1438,6 +1442,9 @@ def test_v3_stream_mirror_flag_and_right_detection():
     gs, log, _ = _v3_stream(_fake_policy_v3(0.2), gain=1.0, cmd=(0.0, 0.0, -0.8))
     _run_v3(gs, secs=2.0)
     assert log[10]["right"] is False and log[99]["right"] is True          # 前 1 s cmd=0 → 不鏡像
+    # ★ 判斷用的是 **obs 裡的指令**（gen.cmd_prev），不是這一步要送的 cmd → 切換那一步（第 50 步）
+    #   obs 還帶著 0，所以不鏡像；第 51 步的 obs 才帶新指令。jax 的 mirror_policy 也是這樣（讀 obs[34:37]）。
+    assert log[50]["right"] is False and log[51]["right"] is True
     gs2, log2, _ = _v3_stream(_fake_policy_v3(0.2), gain=1.0, cmd=(0.0, 0.0, -0.8), mirror=False)
     _run_v3(gs2, secs=2.0)
     assert log2[99]["right"] is False
@@ -1462,6 +1469,50 @@ def test_v3_stream_exception_in_policy_does_not_raise():
     assert all(e["fb"].startswith("exc:ZeroDivisionError") for e in log)
 
 
+def _boom_gen(P, at_call: int):
+    """第 `at_call` 次 `step()` 炸掉的產生器（at_call 從 1 起算 → log[at_call - 1]）。"""
+    class _GenBoom(gen_v3.Gen):
+        def __init__(self, p):
+            super().__init__(p)
+            self.n_called = 0
+
+        def step(self, cmd, act, v_wheel):
+            self.n_called += 1
+            if self.n_called == at_call:
+                raise RuntimeError("boom")
+            return super().step(cmd, act, v_wheel)
+    return _GenBoom(P)
+
+
+def _v3_stream_with_gen(gen, cmd=(0.0, 0.20, 0.0)):
+    log = []
+    gs = m9.V3GaitStream(gen, rl_obs_v3.Obs(str(NPZ_V3)), _fake_policy_v3(0.3),
+                         _ReaderV3(gen.stance_q12()), cmd, 1.0, True, log)
+    return gs, log
+
+
+def test_v3_stream_exception_in_generator_degrades_one_step_and_keeps_running():
+    """★ 產生器（`Gen.step`／`Obs.wheel_v`）炸掉也不能炸穿 `sample()` —— 狗這時候站著承重，
+    200 Hz 主迴圈停掉比動作退回零糟得多。該步：記 `exc_gen:*`、沿用上一步的 q_des、輪 τ 給 0、
+    算一次退回；**下一步照常再試**（不是永久退回，那是連續 25 步才發生的事）。"""
+    P = gen_v3.load_params(str(NPZ_V3))
+    gs, log = _v3_stream_with_gen(_boom_gen(P, at_call=8))       # 第 8 次呼叫 = log[7]
+    _run_v3(gs, secs=1.0)                                        # 50 步，全程不該丟例外
+    assert len(log) == 50 and gs.i == 50
+    assert log[7]["fb"].startswith("exc_gen:RuntimeError")
+    assert log[7]["q_des"] == log[6]["q_des"]                     # 沿用上一步 → 200 Hz 內插停在原地，不是跳步
+    assert log[7]["tau"] == [0.0] * 4 and np.allclose(log[7]["a"], 0.0)
+    assert log[6]["fb"] == "" and log[8]["fb"] == ""              # 前後都正常
+    assert gs.n_fallback_total == 1 and gs.n_fallback == 0 and not gs.open_loop
+
+    # 同一件事發生在**已經在走**的時候才有分辨力（站姿段 q_des 本來就每步一樣）
+    gs2, log2 = _v3_stream_with_gen(_boom_gen(P, at_call=78))     # log[77]，cmd 已經生效
+    _run_v3(gs2, secs=2.0)
+    assert log2[77]["fb"].startswith("exc_gen:RuntimeError")
+    assert log2[77]["q_des"] == log2[76]["q_des"] and log2[76]["q_des"] != log2[75]["q_des"]
+    assert log2[78]["fb"] == "" and log2[78]["q_des"] != log2[77]["q_des"]
+
+
 def test_v3_stream_manual_open_loop_zeroes_cmd_and_action():
     gs, log, P = _v3_stream(_fake_policy_v3(0.4), gain=1.0)
     _run_v3(gs, secs=2.0)
@@ -1469,6 +1520,24 @@ def test_v3_stream_manual_open_loop_zeroes_cmd_and_action():
     _run_v3(gs, secs=4.0)                       # 再 2 s
     assert gs.open_loop and np.allclose(log[-1]["a"], 0.0)
     assert np.max(np.abs(np.array(log[-1]["q_des"]) - gen_v3.Gen(P).stance_q12())) < 1e-6   # cmd=0 → 產生器回站姿
+
+
+def test_v3_policy_block_carries_n_clamp():
+    """★ IK 縮限是靜默的（步態突然變鈍、沒有任何中止）→ 收工 JSON 一定要有一筆。
+    以前 `V3GaitStream.n_clamp` 是個永遠 0 的欄位，真的縮限了也看不出來。"""
+    gs, log, _ = _v3_stream(_fake_policy_v3(0.3), gain=1.0)
+    _run_v3(gs, secs=2.0)
+    assert gs.n_clamp == 0                                   # 正常跟跑一路 0
+    gs.gen.n_clamp = 3                                       # 產生器真的縮限 → 要跟著變，不是卡在 0
+    assert gs.n_clamp == 3
+    a = Args(policy="", v3="w.npz", vx=0.0, wz=0.0, policy_gain=1.0, cmd=[0.0, 0.20, 0.0], mirror=True)
+    plan = type("_Plan", (), {"gs": gs, "streams": None})()      # policy_block 只用到 .gs／.streams
+    pb = m9.policy_block(a, _fake_policy_v3(0.3), plan, log)
+    assert pb["segments"] == 1 and pb["steps"] == gs.i == len(pb["log"]) == 100
+    assert pb["n_clamp"] == 3
+    assert pb["path"] == "w.npz" and pb["cmd"] == [0.0, 0.20, 0.0] and pb["mirror"] is True
+    assert pb["log"][-1]["a_raw"] is not None and len(pb["log"][-1]["a_raw"]) == 24
+    json.dumps(pb, ensure_ascii=False)                       # 收工 JSON 要序列化得出來
 
 
 def test_v3_wheel_rows_use_effort_and_measured_velocity():
@@ -1493,11 +1562,17 @@ def test_v3_args_and_guards_source_markers():
     """主迴圈裡的東西本機跑不到（要 /dev/shm），釘原始碼標記。"""
     src = Path(m9.__file__).read_text(encoding="utf-8")
     assert 'src.add_argument("--v3"' in src and '"--cmd"' in src and '"--emax-abad"' in src and '"--mirror"' in src
-    assert "emax_j = a.emax_abad if j.endswith(\"1_hip_roll\") else a.emax" in src
+    # ★ ABAD 的寬護欄只給 v3：舊的 --traj／--policy（trip17／trip19 驗過的那條）維持 --emax 0.60
+    assert "emax_j = a.emax_abad if (a.v3 and j.endswith(\"1_hip_roll\")) else a.emax" in src
     assert "if abs(err) > emax_j:" in src
     assert "wheel_kd_for(nm, a.wheel_kd, bool(a.v3))" in src
     assert "v3_wheel_rows(" in src and "st_w[wi][\"velocity\"]" in src
     assert "a.v3 and not a.interactive" in src and "a.v3 and (a.policy or a.teleop)" in src
+    # ★ --policy-gain 的範圍檢查原本只在 `if a.policy:` 裡面，v3 走不到 → 前置擋要自己有一份
+    assert "a.v3 and not 0.0 <= a.policy_gain <= 1.0" in src
+    # ★ 乾跑限位餘裕：v3 的產生器已經把 q_des 夾進 MJCF 範圍（和訓練同一條），再往內縮 0.03 會誤殺平移
+    assert "lim_margin = 0.0 if a.v3 else 0.03" in src
+    assert "coord.check_limit(j, row[k], lim_margin)" in src
 
 
 def test_v3_say_twice_catches_wrong_gains():

@@ -491,8 +491,12 @@ class V3GaitStream(GaitStream):
     → 12 關節目標（線性內插到 200 Hz）＋ 4 輪 τ（零階保持，主迴圈寫 effort）。
     與本機 jax 堆疊的對應由 `tests/test_policy_v3_closed_loop.py` 影子跟跑釘住。
 
-    ★ 退路是**零動作名目**（不是 A 步態）：當步異常（obs NaN／幀沒前進／推論超時／例外）→ 該步動作 0；
-      連續 FALLBACK_LIMIT 步 → 永久零動作；鍵 `o` → 永久零動作＋cmd 0。gain 0 ＝ 乾跑（obs、推論照跑照記，動作 0）。
+    ★ 退路是**零動作名目**（不是 A 步態）。會降級（不會中斷主迴圈）的失敗**就是這些，全部**：
+      讀 shm（reader 例外）、建 obs（`Obs.build` 例外／obs 有 NaN）、推論（`infer` 例外／超時／動作有 NaN）、
+      幀沒前進（tick 不動 → `stale`），以及**產生器那一步**（`Obs.wheel_v`／`Gen.step` 例外 → `exc_gen:*`，
+      該步沿用上一步的 q_des、輪 τ 給 0，下一步照常再試）。
+      任何一種 → 該步動作 0 並記一次退回；**連續 FALLBACK_LIMIT（25）步 → 永久零動作**（`open_loop`，不再恢復）；
+      鍵 `o` → 永久零動作＋cmd 0。gain 0 ＝ 乾跑：obs、推論照跑照記（policy 原始輸出記在 `a_raw`），送出的動作 0。
     指令時序：進 GAIT_IN 後前 CMD_DELAY_STEPS（1 s）cmd=0（產生器輸出站姿，與 smoothstep 淡入相容），之後切到 --cmd；
     `set_open_loop`（Enter 停走進 GAIT_OUT 時 InteractivePlan 會呼叫）後 cmd=0，產生器自己在 trans_s 內收回站姿。
     **不加動作延遲、不加雜訊** —— 實機的是真的。
@@ -517,10 +521,16 @@ class V3GaitStream(GaitStream):
         self.log = log if log is not None else []
         self.worst_ms = 0.0
         self.seg = 1
-        self.n_clamp = 0
         self.t_next = 0.0
         self._q12 = gen.stance_q12()
         self.q_prev = self.q_next = self._compute()
+
+    @property
+    def n_clamp(self) -> int:
+        """IK 被縮限的累計腿次 —— 直接讀產生器的計數器（這條流自己不夾，夾的是 `gen_v3.joint_targets_n`）。
+        以前這裡放一個永遠 0 的欄位，收工 JSON 就會誠實地寫「沒縮限過」，但真的縮限了也是 0。
+        縮限是靜默的（步態會突然變鈍、卻沒有任何中止），所以一定要往上報。"""
+        return int(getattr(self.gen, "n_clamp", 0))
 
     def _compute(self) -> dict:
         import rl_obs
@@ -553,7 +563,11 @@ class V3GaitStream(GaitStream):
             obs = self.O.build(fr, self.gen.c, self.gen.cmd_prev, self.last_a, self.gen.head_err, self.gen.s4, self.gen.s_arc)
             if not np.all(np.isfinite(obs)):
                 fb = fb or "obs_nan"
-            right = self.mirror and rl_obs_v3.is_right(cmd)
+            # ★ 鏡像判斷用 **obs 裡的那個指令**（`gen.cmd_prev`），不是這一步要送出去的 `cmd`：
+            #   `rl_env_v3.mirror_policy` 是從 obs[34:37] 讀指令的，而 obs 帶的是 cmd_prev。
+            #   差別只有 0→cmd 切換的那一步（第 50 步的 obs 還帶著 0），但那一步不對齊就與 jax 對不起來，
+            #   影子跟跑會出現一步的分歧，之後誰對誰錯就說不清楚了。
+            right = self.mirror and rl_obs_v3.is_right(self.gen.cmd_prev)
             a = self.O.mirror_act(self.policy.infer(self.O.mirror_obs(obs))) if right else self.policy.infer(obs)
             if not np.all(np.isfinite(a)):
                 fb = fb or "act_nan"
@@ -562,6 +576,24 @@ class V3GaitStream(GaitStream):
         ms = (time.perf_counter() - t0) * 1000.0
         if not fb and ms > self.INFER_BUDGET_MS:
             fb = f"slow:{ms:.1f}ms"
+        a_use = np.zeros(24) if (fb or a is None or self.open_loop or self.gain == 0.0) else self.gain * np.asarray(a, float)
+        # ★ 產生器這一步也包在 try 裡（2026-09-23）：`Obs.wheel_v`／`Gen.step` 裡任何一個例外
+        #   （輪名缺一個、npz 形狀對不上、除零…）本來會直接炸穿 `sample()`、炸掉 200 Hz 主迴圈 ——
+        #   而狗這時候是**站著承重**的，主迴圈停掉比動作退回零糟得多。
+        #   降級的內容：這一步沿用上一步的 q_des（`self._q12` 不動 → 200 Hz 內插停在原地，不是跳步）、
+        #   輪 τ 給 0（不確定狀態就不要推輪子），並記一次退回；下一步照常重試，連續 25 步才永久零動作。
+        v_wheel = np.zeros(4)
+        try:
+            if fr is not None:
+                v_wheel = np.asarray(self.O.wheel_v(fr), float)
+                if not np.all(np.isfinite(v_wheel)):
+                    v_wheel = np.zeros(4)
+            q12, tau, _ = self.gen.step(cmd, a_use, v_wheel)
+        except Exception as e:            # noqa: BLE001 —— 同上，承重中不能讓例外炸掉主迴圈
+            fb = fb or f"exc_gen:{type(e).__name__}"
+            q12, tau, v_wheel = self._q12, np.zeros(4), np.zeros(4)
+            a_use = np.zeros(24)          # 這一步的動作根本沒送進產生器 → log 與 obs 的 last_a 都要記 0
+        # ★ 退回計數放在產生器之後：`exc_gen:*` 也要算進連續退回，否則產生器一直炸、永遠進不了永久零動作。
         if fb:
             self.n_fallback += 1
             self.n_fallback_total += 1
@@ -569,11 +601,6 @@ class V3GaitStream(GaitStream):
                 self.set_open_loop(f"連續 {self.n_fallback} 步退回（最後：{fb}）")
         else:
             self.n_fallback = 0
-        a_use = np.zeros(24) if (fb or a is None or self.open_loop or self.gain == 0.0) else self.gain * np.asarray(a, float)
-        v_wheel = self.O.wheel_v(fr) if fr is not None else np.zeros(4)
-        if fr is not None and not np.all(np.isfinite(v_wheel)):
-            v_wheel = np.zeros(4)
-        q12, tau, _ = self.gen.step(cmd, a_use, v_wheel)
         ms = (time.perf_counter() - t0) * 1000.0
         self.worst_ms = max(self.worst_ms, ms)
         self._q12 = q12
@@ -583,6 +610,11 @@ class V3GaitStream(GaitStream):
                          "cmd": [float(x) for x in cmd], "right": bool(right),
                          "obs": None if obs is None else [round(float(x), 5) for x in obs],
                          "a": [round(float(x), 5) for x in a_use],
+                         # ★ policy 的**原始輸出**（沒乘 gain、沒被退路歸零；已鏡像回機身座標）。
+                         #   沒有它，--policy-gain 0 的乾跑只會記滿一整排 0，事後根本不知道
+                         #   「policy 那時候想做什麼」—— 而乾跑的全部意義就是在不動手之前先看這個。
+                         #   None 代表這一步連推論都沒跑到（例外／obs 沒建起來）。
+                         "a_raw": None if a is None else [round(float(x), 5) for x in a],
                          "q_des": [round(float(x), 5) for x in q12], "tau": [round(float(x), 4) for x in tau],
                          "v_wheel": [round(float(x), 3) for x in v_wheel], "head": round(float(self.gen.head_err), 5),
                          "imu": imu, "ms": round(ms, 3), "fb": fb, "ol": self.open_loop})
@@ -933,7 +965,7 @@ def policy_block(a, policy, plan, policy_log: list):
     if not streams:
         return {"path": a.policy or getattr(a, "v3", ""), "sha256": policy.src_sha256, "preset": policy.preset,
                 "vx": a.vx, "wz": a.wz, "cmd": list(getattr(a, "cmd", [])), "mirror": bool(getattr(a, "mirror", False)),
-                "gain": a.policy_gain, "segments": 0, "steps": 0,
+                "gain": a.policy_gain, "segments": 0, "steps": 0, "n_clamp": 0,
                 "fallback_total": 0, "open_loop": False, "open_loop_why": "", "worst_ms": 0.0,
                 "log": [], "log_truncated": False}
     log = policy_log if policy_log else [e for x in streams for e in x.log]
@@ -943,6 +975,9 @@ def policy_block(a, policy, plan, policy_log: list):
             "segments": len(streams),
             "steps": sum(x.i for x in streams),
             "fallback_total": sum(x.n_fallback_total for x in streams),
+            # ★ IK 縮限累計：靜默的縮限會讓步態突然變鈍卻不中止，收工 JSON 一定要留一筆。
+            #   PolicyGaitStream 自己算、V3GaitStream 轉讀 gen.n_clamp；沒這個欄位的流當 0。
+            "n_clamp": sum(int(getattr(x, "n_clamp", 0)) for x in streams),
             "open_loop": any(x.open_loop for x in streams),
             "open_loop_why": "; ".join(x.open_loop_why for x in streams if x.open_loop),
             "worst_ms": round(max(x.worst_ms for x in streams), 3),
@@ -1223,6 +1258,11 @@ def main() -> int:
     if a.v3 and (a.policy or a.teleop):
         print("❌ --v3 不能搭 --policy／--teleop（v3 自帶 policy；遙控版還沒做）。")
         return 1
+    # ★ --policy-gain 的範圍檢查原本只寫在 `if a.policy:` 裡面，v3 走不到那段 →
+    #   打錯成 --policy-gain 10 會變成「動作放大 10 倍」直接送進產生器，承重後才看得出來。
+    if a.v3 and not 0.0 <= a.policy_gain <= 1.0:
+        print(f"❌ --policy-gain {a.policy_gain} 要在 0–1。")
+        return 1
 
     if a.march:
         a.d_step = 0.0
@@ -1233,7 +1273,8 @@ def main() -> int:
         a.z_sag = 0.036 * 250.0 / a.kp
 
     logp = shm_io.start_log("M9")
-    mode = f"播放 {os.path.basename(a.traj)}" if a.traj else "狗上即時 CPG"
+    mode = (f"播放 {os.path.basename(a.traj)}" if a.traj
+            else "CPG-RL v3.6f" if a.v3 else "狗上即時 CPG")
     print(f"M9 —— 步態（★★★ 承重、連續、動態觸地）　模式：{mode}\n")
     print("⚠️⚠️ 確認：狗趴在地上、16 顆洩力、**吊帶掛在 292 mm 以下且鬆弛**、")
     print("      **地面淨空且留出走動空間**、第二個終端機備著 estop。\n")
@@ -1538,8 +1579,15 @@ def main() -> int:
         print(f"❌ --vmax {a.vmax} 太接近命令速度 {vmax_seen:.2f} —— 會誤中止。")
         return 1
 
+    # ★ 乾跑限位餘裕（2026-09-23，使用者定）：v3 用 0，舊模式維持 0.03。
+    #   v3 的產生器最後一步就是 `np.clip(q_des, LO12, HI12)`，限位就是 MJCF 的關節範圍、
+    #   和訓練時完全同一條 —— 碰到止點是「訓練出來的名目長相」，不是快要撞到。
+    #   0.03 那個往內縮的餘裕是為**沒有夾限**的 CPG 設計的（它真的會衝出去），
+    #   套到 v3 會把每一個平移／turn-1.3 指令都擋掉：原廠振幅的平移名目裡
+    #   fl1／bl1_hip_roll 有約 62% 的週期就釘在 −0.523（下限）上。
+    lim_margin = 0.0 if a.v3 else 0.03
     bad = [f"{j}" for row in G for k, j in enumerate(LEGS12)
-           if coord.check_limit(j, row[k], 0.03)]
+           if coord.check_limit(j, row[k], lim_margin)]
     if bad:
         print(f"\n❌ {len(set(bad))} 個關節在步態中超出機構限位：{sorted(set(bad))}")
         return 1
@@ -1822,7 +1870,9 @@ def main() -> int:
                              f"（峰值 {peak[j]:+.1f}）—— 衝擊尖峰型超載")
                 # ★ 分關節護欄（2026-09-23）：v3 的平移把 ABAD 推得很遠（原廠實測命令差 1.02 rad），
                 #   用髖膝那條 0.6 會在第一個平移週期誤殺。髖膝維持 --emax。
-                emax_j = a.emax_abad if j.endswith("1_hip_roll") else a.emax
+                #   ★★ 只在 --v3 放寬：舊的 --traj／--policy（trip17／trip19 就是這樣跑完的）
+                #      ABAD 一路守 0.60，那條線是實機驗過的，不能被一個只為 v3 加的預設值順手放大。
+                emax_j = a.emax_abad if (a.v3 and j.endswith("1_hip_roll")) else a.emax
                 if abs(err) > emax_j:
                     abort = f"{j} 追蹤誤差 {err:+.3f} 超過 {emax_j}"
                 if abs(v) > a.vmax:

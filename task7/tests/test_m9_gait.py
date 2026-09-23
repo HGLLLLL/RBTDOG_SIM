@@ -1810,3 +1810,12 @@ def test_v3_kd1_source_markers():
     assert 'choices=("tau", "kd1")' in src and 'v3_wheel_rows_kd1(gs.wheel_tau_mjcf, gs.wheel_v_nom, gs.wheel_v_used, P3)' in src
     assert 'vel_w = r["velocity"] if r.get("hold_velocity") else st_w[wi]["velocity"]' in src
     assert "v3_gain_record(P3, a.wheel_mode)" in src
+
+
+def test_v3_slow_tau_path_counts_gait_phases_only_marker():
+    """trip22：fl1 站立段的孤立效力尖峰三趟連續把 --tau-total 5 累計滿；v3 只算步態三段，舊路徑不變。"""
+    src = Path(m9.__file__).read_text(encoding="utf-8")
+    assert 'if a.v3 and nm not in ("GAIT_IN", "GAIT", "GAIT_OUT"):' in src
+    assert "over_base[j] = over[j]" in src and "over_eff = over[j] - over_base[j] if a.v3 else over[j]" in src
+    assert "if a.tau_total and over_eff >= a.tau_total:" in src
+    assert src.index("over_base = {j: 0 for j in LEGS12}") < src.index("over_eff = over[j]")

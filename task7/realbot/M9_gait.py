@@ -1814,6 +1814,7 @@ def main() -> int:
     spikes = {j: 0 for j in LEGS12}
     over = {j: 0 for j in LEGS12}       # 濾掉跳點後仍超標的筆數 → --tau-total
     over_raw = {j: 0 for j in LEGS12}   # 未濾的，只用於回報（好和 over 對照）
+    over_base = {j: 0 for j in LEGS12}  # v3：慢速路徑只算步態三段 —— 站立段的基準每拍跟著 over 走，等於不計（見下）
     samples: list = []
     recent: list = []
     kp_now, kd_now = 0.0, STANDUP_KD
@@ -2057,8 +2058,16 @@ def main() -> int:
                 #    ⚠️ 這條用**濾掉跳點後**的計數（`over`，由 commit_peak 累計）。
                 #      過濾器要等下一筆，但這條本來就是累積好幾秒才觸發的，
                 #      慢一拍無所謂 —— 和快速路徑的取捨不同，不要混為一談。
-                if a.tau_total and over[j] >= a.tau_total:
-                    abort = (f"{j} 整趟累計 {over[j]} 筆超過 {lim}"
+                # ★ v3（2026-09-23 trip22）：慢速累計只算步態三段。fl1_hip_roll 的 effort 讀值在 kp 250 的站立段
+                #   每趟有 4–5 筆孤立單筆尖峰（−50…−121，前後樣本 −8…−26，同號所以 commit_peak 的反號濾波不剔），
+                #   三趟連續在 STOPPED／SIT 被累計到第 5 筆中止，而 GAIT 段一筆都沒超過。這條護欄防的是
+                #   trip13 那種「觸地衝擊尖峰散在整段步態」，站立段本來就有快速路徑（連續 3 筆）與硬上限 120。
+                #   舊路徑（--traj/--policy）不動。
+                if a.v3 and nm not in ("GAIT_IN", "GAIT", "GAIT_OUT"):
+                    over_base[j] = over[j]
+                over_eff = over[j] - over_base[j] if a.v3 else over[j]
+                if a.tau_total and over_eff >= a.tau_total:
+                    abort = (f"{j} {'步態段' if a.v3 else '整趟'}累計 {over_eff} 筆超過 {lim}"
                              f"（峰值 {peak[j]:+.1f}）—— 衝擊尖峰型超載")
                 # ★ 分關節護欄（2026-09-23）：v3 的平移把 ABAD 推得很遠（原廠實測命令差 1.02 rad），
                 #   用髖膝那條 0.6 會在第一個平移週期誤殺。髖膝維持 --emax。

@@ -33,7 +33,10 @@ set -uo pipefail        # ⚠️ 不用 -e：這支的每一步都要跑完並�
 #      task6 就是漏加 L7，按下 estop 只解凍不殺程式。
 #      下面的 §maps 交叉檢查就是為了讓「漏加」會被抓到而不是靜靜失效。
 WRITERS=("M5_leg_pose.py" "M7_standup.py" "M1_zero_write.py"
-         "M2_wheel_spin.py" "M3_wheel_tour.py")
+         "M2_wheel_spin.py" "M3_wheel_tour.py"
+         "M8_swing.py" "M9_gait.py" "M10_wheel_kd_chatter.py" "M11_wheel_sysid.py")
+# ★ 2026-09-23 補：M8–M11 之前都漏列（跟 task6 漏 L7 一模一樣），按 estop 只會走到 §maps 交叉檢查
+#   印「⚠️ 還有非原廠行程映射」然後**拒絕解凍**，現場得再手動 kill 一次 —— 承重中多一步。
 # ⚠️ M6_load_probe.py **不在**這個清單裡 —— 它是唯讀的，不寫 joint_cmd。
 #    清單只列會寫入的，殺錯無辜的唯讀工具沒有幫助。
 

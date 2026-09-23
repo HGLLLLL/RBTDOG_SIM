@@ -153,6 +153,76 @@ bash task7/realbot/pull_from_dog.sh <trip>       # 例：pull_from_dog.sh trip22
 先看三件事：**退回次數與原因**（`stale`／`obs_nan`／`act_nan`／`slow`／`exc:*`／`exc_gen:*`／**`gen_nan`**）、**`right` 旗標對不對**（⑥ 應該 True）、
 **中止那一刻的關節**（ABAD 還是膝？誤差還是力矩還是速度？）。`n_clamp > 0` ＝ 產生器被縮限，那是另一類問題，回報。
 
+## 7. 每段的完整指令（狗上 T1，`cd ~`；每段兩行：先乾跑、再 `sudo … --confirm`）
+
+前置（本機一次、狗上一次）：
+```bash
+# 本機
+cd ~/rbtdog_sim && bash task7/realbot/push_to_dog.sh                       # 要看到「✅ 全部一致」
+# 狗上 T1
+ssh robot@192.168.234.1
+cd ~ && python3 -c "import numpy, gen_v3, rl_obs_v3, policy_np; p=policy_np.load('cpg_rl_v3_6f_np.npz'); print(numpy.__version__, p.layout, p.obs_dim, p.act_dim, p.src_sha256[:12])"
+#   → 1.21.5 v3 88 24 cac8679831c3
+nohup python3 M_faultwatch.py --hz 10 --secs 3600 > /dev/null 2>&1 &        # 背景記錄到 ~/m_logs/Mfault_*，整天開著
+# 狗上 T2（急停備著，打好不按 Enter）
+ssh robot@192.168.234.1
+sudo bash ~/estop_max.sh
+```
+
+共同旗標存成變數，之後每段只換 gain 與 cmd：
+```bash
+C="--v3 cpg_rl_v3_6f_np.npz --interactive --kp 120 --kp-abad 60 --kd 1.0 --wheel-kd 0.1 --vmax 18 --vcmd-max 16 --emax-abad 0.91 --emax 0.55 --tau-total 5 --wheel-vmax 30"
+```
+
+| 段 | 乾跑（不寫入、不需 sudo） | 實跑 |
+|---|---|---|
+| ⓪ 乾跑 | `python3 M9_gait.py $C --policy-gain 0 --cmd 0 0 0` | —（段 ⓪ 沒有實跑） |
+| ① 軟增益站立 | 同上 | `sudo python3 M9_gait.py $C --policy-gain 0 --cmd 0 0 0 --walk-max 5 --confirm` |
+| ② 零動作直走 | `python3 M9_gait.py $C --policy-gain 0 --cmd 0.3 0 0` | `sudo python3 M9_gait.py $C --policy-gain 0 --cmd 0.3 0 0 --walk-max 5 --confirm` |
+| ③a 零動作左平移 | `python3 M9_gait.py $C --policy-gain 0 --cmd 0 0.12 0` | `sudo python3 M9_gait.py $C --policy-gain 0 --cmd 0 0.12 0 --walk-max 5 --confirm` |
+| ③b 零動作左轉 | `python3 M9_gait.py $C --policy-gain 0 --cmd 0 0 0.8` | `sudo python3 M9_gait.py $C --policy-gain 0 --cmd 0 0 0.8 --walk-max 5 --confirm` |
+| ④ policy 直走 | `python3 M9_gait.py $C --policy-gain 1 --cmd 0.3 0 0` | `sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0.3 0 0 --walk-max 5 --confirm` |
+| ⑤a policy 左平移 | `python3 M9_gait.py $C --policy-gain 1 --cmd 0 0.12 0` | `sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 0.12 0 --walk-max 5 --confirm`（穩了再 `--walk-max 10`） |
+| ⑤b policy 左轉 | `python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 0.8` | `sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 0.8 --walk-max 5 --confirm` |
+| ⑥a 鏡像右轉 | `python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 -0.8` | `sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 -0.8 --walk-max 5 --confirm` |
+| ⑥b 鏡像右平移 | `python3 M9_gait.py $C --policy-gain 1 --cmd 0 -0.12 0` | `sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 -0.12 0 --walk-max 5 --confirm` |
+| ⑦ 放大 | `python3 M9_gait.py $C --policy-gain 1 --cmd 0 0.15 0`（另 `0 -0.15 0`、`0 0 1.3`、`0 0 -1.3`） | 同左加 `--walk-max 10 --confirm` |
+
+- 乾跑的 `--cmd` 一定要和實跑一樣（限位／命令速度檢查吃的就是它）。
+- 互動鍵：**空行 Enter** ＝ 推進（起走／停走／趴下）；**`o` 再 Enter** ＝ 永久零動作名目（policy 不再混入，走路不中止）。
+- 每段結束程式會印 `sudo kill -CONT <PID>`，**照打**。忘了，下一段 `mc_ctrl` 狀態會不對。
+- 逾時：`--walk-max` 到了自動淡出，不是中止；`--hold-max`（預設 25 s）到了自動往下走，人不要離開。
+
+## 8. 出事了：急停 → 解凍 → 把資料搬回來
+
+**先分兩種情況**（看 T1 畫面）：
+
+**A. M9 自己中止了**（畫面有 `⛔ 中止：…` ＋「狗還撐著，沒有放手」＋ `[Enter] 依原路徑坐回趴姿`）
+1. 看狗：腿在承重、目標角已凍結。**先看，再決定**。
+2. 正常情況：T1 按 **Enter** → 依原路徑坐回趴姿、降到零增益 → 程式印 `sudo kill -CONT <PID>` → 照打。JSON 與 log 都會寫好。
+3. 若狗姿勢已經不能安全坐下（腿懸空卡住、要倒）：轉去情況 B。
+
+**B. 要立刻放手**（狗要倒、腿卡住、程式沒回應、任何你覺得不對的）
+1. **T2 按 Enter**（那行已經打好的 `sudo bash ~/estop_max.sh`）。它會：殺 M9 → 確認死透（含 `/proc/*/maps` 交叉檢查）→ 解凍 `mc_ctrl` → 印 16 顆是否全零增益。
+2. **腿約 0.5 s 後失力下垂**（controller 500 ms 逾時清零），**不是**阻尼停止 —— 腿下方不能有人、吊帶要能承接。
+3. 看 estop 的三行：
+   - `[2/3] ✗✗ 連 SIGKILL 都殺不掉` → **切電源**，不要解凍。
+   - `[2/3] ⚠️ 還有非原廠行程映射著 joint_cmd` → 照它印的 pid 手動 `sudo kill -9 <pid>`，再跑一次 estop。
+   - `[3/3] ✅ 原廠控制已接手` → 原廠遙控可以用了。
+4. 若 T2 也沒反應／SSH 斷線：**切機器人電源**。吊帶是最後一道。
+
+**C. 之後把資料搬回本機**（兩種情況都一樣）
+```bash
+# 本機
+cd ~/rbtdog_sim && bash task7/realbot/pull_from_dog.sh trip22        # 收到 task7/logs/m_logs_trip22/（換成這趟編號）
+# scp 權限失敗時（M9 用 sudo 跑、chown 沒成功）：
+ssh robot@192.168.234.1 'sudo chown -R robot:robot ~/m_logs' && bash task7/realbot/pull_from_dog.sh trip22
+```
+會拿到：`M9_<時間>.log`（畫面輸出）、`M9_<時間>.json`（**只有 M9 自己走完中止／收工路徑才有**，含每步 `obs/a/a_raw/q_des/tau/v_wheel/right/sat`、`n_clamp/n_sat/fallback_total`）、`Mfault_*.log/.csv`（背景 10 Hz 故障監看）。
+⚠️ **被 estop 殺掉的那趟沒有 JSON**（每步紀錄在記憶體，SIGKILL 來不及寫），只剩 `.log` 與 `Mfault_*`。所以能用 A 就不要用 B。
+
+拉回來先看：`.log` 最後 12 筆（中止前的關節 q/des/τ/v）、JSON 的 `policy.fallback_total` 與各步 `fb` 原因、`right` 旗標、`n_sat`。
+
 ---
 
 **段 ⓪–⑦ 的實機結果寫回**

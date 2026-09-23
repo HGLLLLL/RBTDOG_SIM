@@ -177,46 +177,46 @@ C="--v3 cpg_rl_v3_6f_np.npz --interactive --kp 120 --kp-abad 60 --kd 1.0 --wheel
 - `--hold-max 15`（2026-09-23 現場加）：互動模式的承重預算把兩個「等 Enter」各算 `--hold-max` 秒，預設 25 會讓最壞情況 77 s 超過 `--max-secs 60` 被拒跑。15 → 57 s。
   **意思是 READY 站著 15 s 沒按 Enter 就自己起走、STOPPED 15 s 沒按就自己趴下**，手要放在 Enter 上。`--walk-max 10` 的趟要再改 `--hold-max 12`（56 s）。
 
-每段先乾跑再實跑；乾跑的 `--cmd` 要和實跑一樣。逐行複製：
+每段先乾跑再實跑；乾跑的 `--cmd`、`--walk-max` 要和實跑一樣（承重預算是用 `--walk-max` 算的，預設 20 會超 60 被拒）。逐行複製：
 
 ```bash
 # ⓪ 乾跑（不寫入、不需 sudo；段 ⓪ 沒有實跑）
-python3 M9_gait.py $C --policy-gain 0 --cmd 0 0 0
+python3 M9_gait.py $C --policy-gain 0 --cmd 0 0 0 --walk-max 5
 
 # ① 軟增益站立（吊帶）
 sudo python3 M9_gait.py $C --policy-gain 0 --cmd 0 0 0 --walk-max 5 --confirm
 
 # ② 零動作直走（吊帶）—— 第一次走輪子 effort 路徑，看四輪速度同號、無抖振
-python3 M9_gait.py $C --policy-gain 0 --cmd 0.3 0 0
+python3 M9_gait.py $C --policy-gain 0 --cmd 0.3 0 0 --walk-max 5
 sudo python3 M9_gait.py $C --policy-gain 0 --cmd 0.3 0 0 --walk-max 5 --confirm
 
 # ③ 零動作踏步（吊帶）—— 硬門：倒了／中止／一直退回就停在這裡，policy 不上
-python3 M9_gait.py $C --policy-gain 0 --cmd 0 0.12 0
+python3 M9_gait.py $C --policy-gain 0 --cmd 0 0.12 0 --walk-max 5
 sudo python3 M9_gait.py $C --policy-gain 0 --cmd 0 0.12 0 --walk-max 5 --confirm
-python3 M9_gait.py $C --policy-gain 0 --cmd 0 0 0.8
+python3 M9_gait.py $C --policy-gain 0 --cmd 0 0 0.8 --walk-max 5
 sudo python3 M9_gait.py $C --policy-gain 0 --cmd 0 0 0.8 --walk-max 5 --confirm
 
 # ④ policy 直走（對 ② 只應是小修正）
-python3 M9_gait.py $C --policy-gain 1 --cmd 0.3 0 0
+python3 M9_gait.py $C --policy-gain 1 --cmd 0.3 0 0 --walk-max 5
 sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0.3 0 0 --walk-max 5 --confirm
 
 # ⑤ policy 左平移、左轉（log right=False；穩了再把 --walk-max 改 10）
-python3 M9_gait.py $C --policy-gain 1 --cmd 0 0.12 0
+python3 M9_gait.py $C --policy-gain 1 --cmd 0 0.12 0 --walk-max 5
 sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 0.12 0 --walk-max 5 --confirm
-python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 0.8
+python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 0.8 --walk-max 5
 sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 0.8 --walk-max 5 --confirm
 
 # ⑥ 鏡像右轉、右平移（log 要看到 right=True，與 ⑤ 左右對稱）
-python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 -0.8
+python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 -0.8 --walk-max 5
 sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 -0.8 --walk-max 5 --confirm
-python3 M9_gait.py $C --policy-gain 1 --cmd 0 -0.12 0
+python3 M9_gait.py $C --policy-gain 1 --cmd 0 -0.12 0 --walk-max 5
 sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 -0.12 0 --walk-max 5 --confirm
 
 # ⑦ 放大（平移 0.15、原地轉 1.3；0.20 這趟不跑）
-python3 M9_gait.py $C --policy-gain 1 --cmd 0 0.15 0
+python3 M9_gait.py $C --policy-gain 1 --cmd 0 0.15 0 --walk-max 10 --hold-max 12
 sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 0.15 0 --walk-max 10 --hold-max 12 --confirm
 sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 -0.15 0 --walk-max 10 --hold-max 12 --confirm
-python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 1.3
+python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 1.3 --walk-max 10 --hold-max 12
 sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 1.3 --walk-max 10 --hold-max 12 --confirm
 sudo python3 M9_gait.py $C --policy-gain 1 --cmd 0 0 -1.3 --walk-max 10 --hold-max 12 --confirm
 ```

@@ -33,7 +33,18 @@ TABLE_KEYS = {
     "OBS_MIRROR_IDX": "OBS_MIRROR_IDX", "OBS_MIRROR_SGN": "OBS_MIRROR_SGN",
     "ACT_MIRROR_IDX": "ACT_MIRROR_IDX", "ACT_MIRROR_SGN": "ACT_MIRROR_SGN",
 }
-GAINS = {"kp3": [60.0, 120.0, 120.0], "kd3": [1.0, 1.0, 1.0], "wheel_kd": 0.1, "wheel_kd_safe": 0.5}
+# 起身／坐下時夾住輪 kd 的上機安全值（＝ M9_gait.WHEEL_KD_SAFE，trip16 實機驗證）。
+# 這是「狗上的選擇」不是 env 的值，所以只有這一項是字面值；其餘增益一律從 rl_env_v3 讀。
+WHEEL_KD_SAFE = 0.5
+
+
+def _gains(env) -> dict:
+    """增益快照：kp3／kd3 取 GAIN_SETS["factory"]，wheel_kd 取 env 從場景 actuator_biasprm 讀到的值。"""
+    G = v3.GAIN_SETS["factory"]
+    return {"kp3": [float(x) for x in np.asarray(G["kp3"]).ravel()],
+            "kd3": [float(x) for x in np.asarray(G["kd3"]).ravel()],
+            "wheel_kd": float(env.kv_wheel),
+            "wheel_kd_safe": float(WHEEL_KD_SAFE)}
 
 
 def _jsonable(v):
@@ -65,7 +76,7 @@ def export(pkl: str, out: str) -> dict:
              AMP_SCALE=v3.AMP_SCALE, LIFT_SCALE=v3.LIFT_SCALE, SWAY_MAX=v3.SWAY_MAX, SWAY_SLEW=v3.SWAY_SLEW,
              WHEEL_RES=v3.WHEEL_RES, STEP_GAIN_S=v3.STEP_GAIN_S, PH_SLEW=v3.PH_SLEW, FOOT_OFF_MAX=v3.FOOT_OFF_MAX,
              TAU_FF=v3.TAU_FF, RAMP_STEPS=v3.W36["RAMP_STEPS"], CTRL_DT=float(v3.CTRL_DT), CYC_N=int(v3.CYC_N),
-             gains=GAINS, weights_preset="v36", cyc_turn_sym=True, obs_dim=88)
+             gains=_gains(env), weights_preset="v36", cyc_turn_sym=True, obs_dim=88)
     z = dict(mean=mean, std=std, obs_dim=np.int64(88), act_dim=np.int64(v3.ACT_DIM),
              preset=np.str_("v36"), layout=np.str_("v3"),
              ref_json=np.str_(json.dumps(_jsonable(env.ref), sort_keys=True)),

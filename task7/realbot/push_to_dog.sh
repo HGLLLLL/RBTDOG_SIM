@@ -78,6 +78,8 @@ fi
 #   而漏檔的症狀是「ImportError」或更糟的「跑到舊版」—— 正是本腳本要防的事。
 #   有些檔**故意不傳**（本機端工具、需要 numpy 的、已完成的階段），列在下面。
 NOT_PUSHED=(push_to_dog.sh pull_from_dog.sh clean_dog_logs.sh shm_decode.py recon_d1max.sh
+            recon3_report.py recon3_sample.py recon4_rate_check.py recon5_graph.py   # 09-22 報告偵察線，跟 RL 上機無關
+            recon3_sensors_d1max.sh recon4_d1max.sh recon5_nav_ai.sh
             recon2_d1max.sh M1_zero_write.py M3_wheel_tour.py M4_pose_capture.py)
 missing=()
 for f in "$HERE"/*.py "$HERE"/*.sh; do

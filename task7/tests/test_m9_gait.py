@@ -1570,9 +1570,47 @@ def test_v3_args_and_guards_source_markers():
     assert "a.v3 and not a.interactive" in src and "a.v3 and (a.policy or a.teleop)" in src
     # ★ --policy-gain 的範圍檢查原本只在 `if a.policy:` 裡面，v3 走不到 → 前置擋要自己有一份
     assert "a.v3 and not 0.0 <= a.policy_gain <= 1.0" in src
-    # ★ 乾跑限位餘裕：v3 的產生器已經把 q_des 夾進 MJCF 範圍（和訓練同一條），再往內縮 0.03 會誤殺平移
-    assert "lim_margin = 0.0 if a.v3 else 0.03" in src
-    assert "coord.check_limit(j, row[k], lim_margin)" in src
+    # ★ 乾跑限位：v3 比產生器自己的 LO12/HI12（float32 匯出值），舊模式原封不動走 coord ＋ 0.03 餘裕
+    assert "bad_table, bad_traj, n_at_stop = v3_limit_checks(gait_q, P3)" in src
+    assert "coord.check_limit(j, row[k], 0.03)" in src
+    assert "lim_margin" not in src
+
+
+def _v3_lateral_rows(P, n=350, cmd_delay=50, vy=0.12):
+    """零動作的平移名目：前 50 步 cmd 0（站姿），之後 (0, vy, 0）。MJCF 序，與 LO12/HI12 同序。"""
+    gen = gen_v3.Gen(P)
+    rows = []
+    for i in range(n):
+        c = np.zeros(3) if i < cmd_delay else np.array([0.0, vy, 0.0])
+        q, _, _ = gen.step(c, np.zeros(24), np.zeros(4))
+        rows.append([float(x) for x in q])
+    return rows
+
+
+def test_v3_limit_checks_pass_on_real_npz_and_catch_corruption():
+    """★ 這是 2026-09-23 那個誤擋的釘子：平移名目的 ABAD 一大段釘在 LO12 上，
+    拿 coord 的 float64 限位去比 float32 匯出的 LO12 差 1.9e-9 rad → 每個平移指令都被擋。
+    改成「限位表在機構範圍內」＋「軌跡在限位表內」，真名目要過，壞掉的 npz／軌跡要抓得到。"""
+    P = gen_v3.load_params(str(NPZ_V3))
+    rows = _v3_lateral_rows(P)
+    bad_table, bad_traj, n_at_stop = m9.v3_limit_checks(rows, P)
+    assert bad_table == [] and bad_traj == []
+    assert n_at_stop > 0            # 就是它讓舊檢查誤擋 —— 貼止點是名目長相，不是超限
+
+    # 1) 限位表被改壞（npz 的夾限跑到機構外）→ bad_table 要抓到那一個關節
+    T_bad = {k: (v.copy() if hasattr(v, "copy") else v) for k, v in P.T.items()}
+    T_bad["LO12"] = np.array(P.T["LO12"], dtype=float)
+    T_bad["LO12"][0] = -0.9
+    P_bad = gen_v3.Params(P.ref, P.K, T_bad)
+    bt, tj, _ = m9.v3_limit_checks(rows, P_bad)
+    assert [b[0] for b in bt] == [rl_obs_v3.LEG_NAMES[0]] and bt[0][1] == -0.9
+    assert tj == []                 # 限位放寬 → 軌跡當然還在裡面
+
+    # 2) 軌跡有一格衝出 HI12（產生器有夾，跳到這裡就是 npz 壞了或程式 bug）
+    rows_bad = [list(r) for r in rows]
+    rows_bad[123][5] = float(P.T["HI12"][5]) + 1e-3
+    bt2, tj2, _ = m9.v3_limit_checks(rows_bad, P)
+    assert bt2 == [] and [(t[0], t[1]) for t in tj2] == [(123, rl_obs_v3.LEG_NAMES[5])]
 
 
 def test_v3_say_twice_catches_wrong_gains():

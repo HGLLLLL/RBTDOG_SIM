@@ -1040,6 +1040,51 @@ def v3_gain_record(p) -> dict:
     return {"kp": G["kp3"][1], "kp_abad": G["kp3"][0], "kd": G["kd3"][1], "wheel_kd": G["wheel_kd"]}
 
 
+def v3_limit_checks(G_rows_mjcf_order, p) -> tuple[list, list, int]:
+    """v3 乾跑的限位檢查，回 `(bad_table, bad_traj, n_at_stop)`。
+
+    ★ 為什麼不用 `coord.check_limit`（2026-09-23）：限位有**兩份來源、精度不同**。
+      npz 的 LO12/HI12 是 jax float32 匯出的（−0.523 存成 −0.52300000190734863），
+      `coord.limits_of()` 是 float64 讀 MJCF（−0.523），差 1.9e-9 rad。產生器最後一步
+      就是 `np.clip(q_des, LO12, HI12)`，夾到自己的下限之後拿去跟 coord 比就被判「低於下限」——
+      平移名目有 35~62% 的週期釘在 ABAD 止點上 → 每一個平移指令都會被誤擋。
+
+      所以拆成兩道各自講得清楚的檢查（都失敗就拒跑）：
+        1. **限位表**：npz 的 LO12/HI12 要落在 coord（MJCF 機構範圍）之內，容差 1e-6。
+           這才是真正的安全問題 —— 證明「產生器夾的那條線」本身在機構裡面。
+        2. **軌跡**：每一步的每個關節都在 [LO12 − 1e-6, HI12 + 1e-6] 內。
+           產生器已經夾過了，這道只會在 npz 壞掉或程式有 bug 時跳。
+
+      `n_at_stop` 是「至少一個關節貼在止點（|q − LO| < 1e-6 或 |q − HI| < 1e-6）」的步數，
+      純診斷印給現場看 —— 平移名目本來就會有一大段貼著，看到不用緊張。
+
+    `G_rows_mjcf_order` 是產生器直接吐的 q_des（**MJCF 序**，和 LO12/HI12 同序），
+    不是轉成 `LEGS12` 之後的 G。
+    """
+    import rl_obs_v3
+    names = list(rl_obs_v3.LEG_NAMES)
+    lo12 = [float(x) for x in p.T["LO12"]]
+    hi12 = [float(x) for x in p.T["HI12"]]
+    tol = 1e-6
+    bad_table = []
+    for k, nm in enumerate(names):
+        lo_c, hi_c = coord.limits_of(nm)
+        if not (lo12[k] >= lo_c - tol and hi12[k] <= hi_c + tol):
+            bad_table.append((nm, lo12[k], hi12[k], lo_c, hi_c))
+    bad_traj, n_at_stop = [], 0
+    for i, row in enumerate(G_rows_mjcf_order):
+        at_stop = False
+        for k, nm in enumerate(names):
+            q = float(row[k])
+            if q < lo12[k] - tol or q > hi12[k] + tol:
+                bad_traj.append((i, nm, q, lo12[k], hi12[k]))
+            elif abs(q - lo12[k]) < tol or abs(q - hi12[k]) < tol:
+                at_stop = True
+        if at_stop:
+            n_at_stop += 1
+    return bad_table, bad_traj, n_at_stop
+
+
 def gain_mismatches(D: dict, kp: float, kd: float, wheel_kd: float) -> list:
     """（相容用）只比三個增益。新程式請用 `param_mismatches`。"""
     return param_mismatches(D, {"kp": kp, "kd": kd, "wheel_kd": wheel_kd})
@@ -1579,19 +1624,35 @@ def main() -> int:
         print(f"❌ --vmax {a.vmax} 太接近命令速度 {vmax_seen:.2f} —— 會誤中止。")
         return 1
 
-    # ★ 乾跑限位餘裕（2026-09-23，使用者定）：v3 用 0，舊模式維持 0.03。
-    #   v3 的產生器最後一步就是 `np.clip(q_des, LO12, HI12)`，限位就是 MJCF 的關節範圍、
-    #   和訓練時完全同一條 —— 碰到止點是「訓練出來的名目長相」，不是快要撞到。
-    #   0.03 那個往內縮的餘裕是為**沒有夾限**的 CPG 設計的（它真的會衝出去），
-    #   套到 v3 會把每一個平移／turn-1.3 指令都擋掉：原廠振幅的平移名目裡
-    #   fl1／bl1_hip_roll 有約 62% 的週期就釘在 −0.523（下限）上。
-    lim_margin = 0.0 if a.v3 else 0.03
-    bad = [f"{j}" for row in G for k, j in enumerate(LEGS12)
-           if coord.check_limit(j, row[k], lim_margin)]
-    if bad:
-        print(f"\n❌ {len(set(bad))} 個關節在步態中超出機構限位：{sorted(set(bad))}")
-        return 1
-    print("✅ 步態全程在機構限位內")
+    # ★ 乾跑限位檢查（2026-09-23 改）：v3 走 `v3_limit_checks`（比產生器自己的 LO12/HI12），
+    #   舊模式（--traj／--live／--policy）原封不動維持 `coord.check_limit` ＋ 0.03 餘裕。
+    #   為什麼分家：v3 的 q_des 最後一步就是 `np.clip(q_des, LO12, HI12)`，拿 coord 的
+    #   float64 限位去比 float32 匯出的 LO12 會差 1.9e-9 rad → 每個平移指令都誤擋。
+    #   換成「限位表在機構範圍內」＋「軌跡在限位表內」兩道，安全性沒有放掉，細節見 v3_limit_checks。
+    if a.v3:
+        bad_table, bad_traj, n_at_stop = v3_limit_checks(gait_q, P3)
+        if bad_table:
+            print(f"\n❌ npz 的限位表有 {len(bad_table)} 個關節超出機構範圍（產生器會夾到機構外）：")
+            for nm, lo_n, hi_n, lo_c, hi_c in bad_table:
+                print(f"   {nm:14s} npz [{lo_n:+.4f}, {hi_n:+.4f}]　機構 [{lo_c:+.4f}, {hi_c:+.4f}]")
+            return 1
+        if bad_traj:
+            js = sorted({b[1] for b in bad_traj})
+            i0, nm0, q0, lo0, hi0 = bad_traj[0]
+            print(f"\n❌ {len(js)} 個關節在步態中超出產生器限位 {js}（共 {len(bad_traj)} 處；"
+                  f"第一處：第 {i0} 步 {nm0} {q0:+.6f} 不在 [{lo0:+.6f}, {hi0:+.6f}]）")
+            print("   → 產生器最後一步就會夾，跳到這裡表示 npz 壞了或程式有 bug，不要上機。")
+            return 1
+        print(f"✅ 限位表 12 個關節都落在機構範圍內　＋　步態全程在產生器限位 LO12/HI12 內")
+        print(f"   （{n_at_stop}/{len(gait_q)} 步至少有一個關節貼在止點上 —— "
+              f"平移名目的 ABAD 本來就騎在止點上，是訓練出來的長相，不是快撞到）")
+    else:
+        bad = [f"{j}" for row in G for k, j in enumerate(LEGS12)
+               if coord.check_limit(j, row[k], 0.03)]
+        if bad:
+            print(f"\n❌ {len(set(bad))} 個關節在步態中超出機構限位：{sorted(set(bad))}")
+            return 1
+        print("✅ 步態全程在機構限位內")
 
     print(f"\n增益：步態 ABAD {a.kp_abad:g} / HIP·KNEE {a.kp:g}　kd {a.kd}"
           f"（站立段一律 {STANDUP_KP:g}）　"

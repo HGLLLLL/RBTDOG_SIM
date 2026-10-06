@@ -302,6 +302,44 @@ def test_spike_must_be_larger_than_both_neighbours():
     assert n == 0
 
 
+def test_isolated_same_sign_spike_is_rejected():
+    """★★ 迴歸（trip23，2026-09-29）：effort 讀值的**同號**孤立尖峰。
+
+    真實資料（`M9_20260929_113225`）：`fl1_hip_roll` −30.9 → **−104.8** → −31.7（KP_UP）、
+    `br1_hip_roll` 8.1 → **+102.2** → 6.5（READY）。同一趟七顆關節都有，74–120 N·m、前後樣本正常，
+    全在非步態段。舊的反號濾波不剔（同號），所以它們一直進 `peak` 表與 `over` 累計。
+    判準：上、下兩側**都**跳 ≥ SPIKE_JUMP（30 N·m）。實測真衝擊尖峰的單側差最多 16.5，尖峰最少 36。
+    """
+    peak, n = _feed([(-30.9, 40.0), (-104.8, 40.0), (-31.7, 40.0), (-30.0, 40.0)])
+    assert n == 1
+    assert peak == pytest.approx(-31.7)
+    peak, n = _feed([(8.1, 20.0), (102.2, 20.0), (6.5, 20.0), (7.0, 20.0)])
+    assert n == 1
+    assert peak == pytest.approx(6.5)      # 8.1 沒當過中間點（第一筆），6.5 是第一個被提交的
+
+
+def test_real_impact_peak_with_gradual_decay_is_kept():
+    """★ 反例（trip13 `bl3_knee_pitch` t=11.705）：−30.1 → −78.7 → −74.8 → −56.5。
+    上側跳 48.6 但下側只差 3.9 —— 真衝擊是一串接近的樣本，不是孤立一筆，**不能**被同號規則剔掉。"""
+    peak, n = _feed([(-30.1, 104.0), (-78.7, 80.0), (-74.8, 76.0), (-56.5, 77.7), (-40.0, 60.0)])
+    assert n == 0
+    assert peak == pytest.approx(-78.7)
+
+
+def test_two_sample_plateau_is_not_a_spike():
+    """★ 反例（trip22 `fl1_hip_roll` READY t=7.618）：−9.0 → −121.3 → −110.5 → −14.4。
+    兩筆連著的 −110～−120 不是「孤立」，同號規則看的是三點視窗的中間點對兩側 —— 這兩筆都保留。"""
+    peak, n = _feed([(-9.0, 20.0), (-121.3, 20.0), (-110.5, 20.0), (-14.4, 20.0), (-10.0, 20.0)])
+    assert n == 0
+
+
+def test_same_sign_spike_needs_both_sides_to_jump():
+    """★ 反例：只有上側跳（台階，之後留在高處）不是尖峰 —— 例如承重瞬間力矩從 5 跳到 60 就留在 60。"""
+    peak, n = _feed([(5.0, 10.0), (60.0, 70.0), (58.0, 70.0), (59.0, 70.0)])
+    assert n == 0
+    assert peak == pytest.approx(60.0)
+
+
 def test_fast_abort_path_uses_raw_tau_never_the_filtered_count():
     """★★ 兩條中止路徑對「過濾」的取捨相反，這個測試釘住那條界線。
 
@@ -1560,6 +1598,62 @@ def test_v3_stream_generator_nan_degrades_like_exception():
     assert gs.n_fallback_total == 1 and gs.n_fallback == 0 and not gs.open_loop
 
 
+def _slow_gen(P, at_call: int, sleep_s: float):
+    """第 `at_call` 次 `step()` 睡 `sleep_s` 秒（模擬產生器那一步變慢）的產生器。"""
+    import time
+
+    class _GenSlow(gen_v3.Gen):
+        def __init__(self, p):
+            super().__init__(p)
+            self.n_called = 0
+
+        def step(self, cmd, act, v_wheel):
+            self.n_called += 1
+            if self.n_called == at_call:
+                time.sleep(sleep_s)
+            return super().step(cmd, act, v_wheel)
+    return _GenSlow(P)
+
+
+def test_v3_slow_fallback_measures_the_whole_step_not_just_the_mlp():
+    """★★ 迴歸（trip23，2026-09-29）：`slow` 門檻原本只量 MLP 推論（0.2 ms），產生器之後才重算總時間寫 log。
+    trip23 三趟各有 2 步總時間 11.0–11.6 ms，log 的 `ms` 看得到、卻一次都沒退回。
+
+    改法：門檻檢查移到產生器之後量**總時間**，預算 `STEP_BUDGET_MS` = 20 ms（一個 50 Hz 週期）。
+    這一步的動作已經送進產生器，**不追溯歸零**（動作沒錯，只是晚）—— 只記 `slow:` 與一次退回；
+    連續 25 步都慢才永久零動作，跟其他退回一樣。"""
+    P = gen_v3.load_params(str(NPZ_V3))
+    assert m9.V3GaitStream.STEP_BUDGET_MS == 20.0
+    gs, log = _v3_stream_with_gen(_slow_gen(P, at_call=78, sleep_s=0.025))     # log[77]，cmd 已生效
+    _run_v3(gs, secs=2.0)
+    assert log[77]["fb"].startswith("slow:") and log[77]["ms"] > 20.0
+    assert log[77]["q_des"] != log[76]["q_des"]                # 動作照樣送出（不追溯歸零）
+    assert not np.allclose(log[77]["a"], 0.0)
+    assert log[76]["fb"] == "" and log[78]["fb"] == ""
+    assert gs.n_fallback_total == 1 and gs.n_fallback == 0 and not gs.open_loop
+    assert gs.worst_ms > 20.0
+
+
+def test_v3_step_between_10_and_20_ms_is_not_a_fallback():
+    """★ trip23 的 11 ms 那種步：超過舊的 10 ms 推論預算、但在 20 ms 週期內 → **不是**退回。
+    乾跑前的 `INFER_BUDGET_MS`（10 ms）仍是開跑前的警告門檻，跟迴圈內的 20 ms 是兩回事。"""
+    P = gen_v3.load_params(str(NPZ_V3))
+    assert m9.V3GaitStream.INFER_BUDGET_MS == 10.0
+    gs, log = _v3_stream_with_gen(_slow_gen(P, at_call=78, sleep_s=0.012))
+    _run_v3(gs, secs=2.0)
+    assert log[77]["ms"] > 10.0 and log[77]["fb"] == ""
+    assert gs.n_fallback_total == 0
+
+
+def test_v3_slow_check_is_after_the_generator_in_source():
+    """釘住位置：`slow:` 的判斷只能出現一次、而且在 `self.gen.step(` 之後（V3GaitStream._advance 內）。"""
+    src = Path(m9.__file__).read_text(encoding="utf-8")
+    body = src.split("class V3GaitStream", 1)[1].split("class ", 1)[0]
+    assert body.count('fb = f"slow:') == 1
+    assert body.index("self.gen.step(") < body.index('fb = f"slow:')
+    assert "STEP_BUDGET_MS" in body.split('fb = f"slow:')[0].rsplit("\n", 2)[-2]
+
+
 def test_v3_stream_manual_open_loop_zeroes_cmd_and_action():
     gs, log, P = _v3_stream(_fake_policy_v3(0.4), gain=1.0)
     _run_v3(gs, secs=2.0)
@@ -1710,7 +1804,11 @@ def test_v3_args_and_guards_source_markers():
     assert "if a.v3 and not abort and abs(v_w) > a.wheel_vmax:" in src
     assert "超過 --wheel-vmax" in src
     # ★ npz 版面檢查不能用 assert（`python -O` 會整個拿掉）
-    assert "assert policy.layout" not in src and "❌ npz 不是 v3 版面" in src
+    assert "assert policy.layout" not in src and "❌ npz 版面不認得" in src
+    # 2026-09-29：兩種版面走同一條流 —— v3（gen_v3／rl_obs_v3）與 rl16（同事純 RL：gen_direct／rl_obs_rl），rl16 強制不鏡像
+    assert 'policy.layout == "rl16" and policy.obs_dim == 53 and policy.act_dim == 16' in src
+    assert "import gen_direct as genmod" in src and "import rl_obs_rl as obsmod" in src
+    assert "V3GaitStream(genmod.Gen(P3), O3, policy," in src and "a.mirror = False" in src
 
 
 def _v3_lateral_rows(P, n=350, cmd_delay=50, vy=0.12):

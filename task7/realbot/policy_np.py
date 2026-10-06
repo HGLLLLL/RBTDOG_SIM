@@ -23,7 +23,7 @@ MU_MIN, MU_MAX = 1.0, 2.0
 OMEGA_MIN, OMEGA_MAX = 0.0, 2.0
 SWAY_MAX, SWAY_SLEW = 0.060, 0.004
 A_MU_X, A_MU_Y, A_OMEGA = 1.80, 1.50, 1.4          # BASELINE_A
-LAYOUT_DIMS = {"full": 14, "nomux": 10, "v3": 24}          # v3：act_split 的 24 維（2026-09-23）
+LAYOUT_DIMS = {"full": 14, "nomux": 10, "v3": 24, "rl16": 16}   # v3：act_split 的 24 維（2026-09-23）；rl16：同事純 RL（12 PD 目標＋4 輪速，2026-09-29）
 RAMP_STEPS = 50                                    # v2.3 起步淡入（= rl_env_max RAMP_STEPS）
 INFER_BUDGET_MS = 10.0                             # 超過就退回基準動作（50 Hz 預算 20 ms）
 
@@ -70,7 +70,20 @@ def _swish(x):
     return x * (0.5 * (1.0 + np.tanh(0.5 * x)))
 
 
+def _elu(x):
+    # ELU(α=1)：x>0 → x；x≤0 → exp(x)−1（torch.nn.ELU 預設；ONNX Elu alpha=1）。np.expm1 在 x 很負時不溢位。
+    return np.where(x > 0, x, np.expm1(np.minimum(x, 0.0)))
+
+
+_ACT = {"swish": _swish, "elu": _elu}
+
+
 class Policy:
+    """npz 兩種版面（`activation`／`output` 鍵缺就是 brax 舊版面，行為逐位元不變）：
+      brax（v2.3／v3）：(obs−mean)/std → [Linear→swish]×3 → Linear(2·act) 取前 act → tanh
+      rl16（同事 Isaac Lab／rsl_rl，`export_policy_rl.py`）：obs → [Linear→elu]×3 → Linear(act)，**無正規化、無 tanh**，
+        輸出直接是動作（mean/std 存的是 0/1，算式相同）。"""
+
     def __init__(self, z):
         self.obs_dim = int(z["obs_dim"])
         self.act_dim = int(z["act_dim"])
@@ -78,21 +91,30 @@ class Policy:
         self.layout = str(z["layout"])
         self.baseline = json.loads(str(z["baseline_json"])) if "baseline_json" in z else {}
         self.src_sha256 = str(z["src_sha256"])
+        self.activation = str(z["activation"]) if "activation" in z else "swish"
+        self.output = str(z["output"]) if "output" in z else "tanh_loc"
         self.mean = np.asarray(z["mean"], dtype=np.float32)
         self.std = np.asarray(z["std"], dtype=np.float32)
         self.W = [np.asarray(z[f"W{i}"], dtype=np.float32) for i in range(4)]
         self.b = [np.asarray(z[f"b{i}"], dtype=np.float32) for i in range(4)]
         assert self.mean.shape == (self.obs_dim,) and self.W[0].shape[0] == self.obs_dim
-        assert self.W[3].shape[1] == 2 * self.act_dim
+        if self.output == "tanh_loc":
+            assert self.W[3].shape[1] == 2 * self.act_dim
+        else:
+            assert self.output == "linear" and self.W[3].shape[1] == self.act_dim, (self.output, self.W[3].shape)
+        assert self.activation in _ACT, self.activation
         assert LAYOUT_DIMS[self.layout] == self.act_dim
+        self._act = _ACT[self.activation]
 
     def infer(self, obs) -> np.ndarray:
         obs = np.asarray(obs, dtype=np.float32).reshape(-1)
         assert obs.size == self.obs_dim, f"obs 應為 {self.obs_dim} 維，實得 {obs.size}"
         x = (obs - self.mean) / self.std
         for i in range(3):
-            x = _swish(x @ self.W[i] + self.b[i])
+            x = self._act(x @ self.W[i] + self.b[i])
         loc = (x @ self.W[3] + self.b[3])[: self.act_dim]
+        if self.output == "linear":
+            return loc.astype(float)
         return np.tanh(loc).astype(float)
 
 

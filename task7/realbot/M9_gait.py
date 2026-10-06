@@ -123,6 +123,12 @@ STANDUP_KP, STANDUP_KD = 250.0, 5.0
 # 反號沒有意義，也不可能是峰值。
 SPIKE_FLOOR = 5.0
 
+# ★ 同號孤立尖峰（2026-09-30，trip23）：中間那筆對**兩側**鄰居都跳超過這個量（N·m）就當跳點。
+#   實測：真衝擊尖峰（trip13 步態段膝，−32 → −80 → −70）的單側差最多 16.5；
+#   effort 讀值的孤立尖峰（trip19／22／23 七顆關節，74–120 N·m、前後樣本正常）兩側差最少 36。
+#   要**兩側都**跳：只有上側跳的是台階（承重瞬間），不是尖峰。
+SPIKE_JUMP = 30.0
+
 
 def commit_peak(win: list, peak: dict, spikes: dict, j: str,
                 over: dict | None = None) -> None:
@@ -174,6 +180,13 @@ def commit_peak(win: list, peak: dict, spikes: dict, j: str,
     (t0, _), (t1, cap1), (t2, _) = win[-3:]
     if (abs(t1) > SPIKE_FLOOR and t1 * t0 < 0 and t1 * t2 < 0
             and abs(t1) > max(abs(t0), abs(t2))):
+        spikes[j] += 1
+        return
+    # ★ 同號孤立尖峰（2026-09-30）：trip22／23 的 effort 讀值有一種反號濾波抓不到的跳點 ——
+    #   −31 → −105 → −32 這種同號、單筆、前後正常的尖峰，七顆關節都出現過（74–120 N·m，全在非步態段）。
+    #   判準是**兩側都**跳 ≥ SPIKE_JUMP；真衝擊是一串接近的樣本（見 test_real_impact_peak_with_gradual_decay_is_kept）。
+    if (abs(t1) > SPIKE_FLOOR and abs(t1) > max(abs(t0), abs(t2))
+            and abs(t1) - abs(t0) >= SPIKE_JUMP and abs(t1) - abs(t2) >= SPIKE_JUMP):
         spikes[j] += 1
         return
     if over is not None and abs(t1) > TMAX[j[2:]]:
@@ -502,9 +515,11 @@ class V3GaitStream(GaitStream):
     與本機 jax 堆疊的對應由 `tests/test_policy_v3_closed_loop.py` 影子跟跑釘住。
 
     ★ 退路是**零動作名目**（不是 A 步態）。會降級（不會中斷主迴圈）的失敗**就是這些，全部**：
-      讀 shm（reader 例外）、建 obs（`Obs.build` 例外／obs 有 NaN）、推論（`infer` 例外／超時／動作有 NaN）、
-      幀沒前進（tick 不動 → `stale`），以及**產生器那一步**（`Obs.wheel_v`／`Gen.step` 例外 → `exc_gen:*`，
-      該步沿用上一步的 q_des、輪 τ 給 0，下一步照常再試）。
+      讀 shm（reader 例外）、建 obs（`Obs.build` 例外／obs 有 NaN）、推論（`infer` 例外／動作有 NaN）、
+      幀沒前進（tick 不動 → `stale`），**產生器那一步**（`Obs.wheel_v`／`Gen.step` 例外 → `exc_gen:*`，
+      該步沿用上一步的 q_des、輪 τ 給 0，下一步照常再試），以及**整步超時**（讀 shm → obs → 推論 → 產生器
+      合計 > STEP_BUDGET_MS（20 ms，一個 50 Hz 週期）→ `slow:`；這一步的動作已送進產生器，不追溯歸零，只計退回）。
+      ★ 2026-09-30 前 `slow` 只量 MLP 推論（0.2 ms），trip23 三趟各 2 步總時間 11–11.6 ms 都沒退回，所以改量總時間。
       任何一種 → 該步動作 0 並記一次退回；**連續 FALLBACK_LIMIT（25）步 → 永久零動作**（`open_loop`，不再恢復）；
       鍵 `o` → 永久零動作＋cmd 0。gain 0 ＝ 乾跑：obs、推論照跑照記（policy 原始輸出記在 `a_raw`），送出的動作 0。
     指令時序（spec §1.4）：**GAIT_IN 全程 cmd=0**；`InteractivePlan` 進 GAIT 的那一刻呼叫 `arm_cmd()`，
@@ -517,7 +532,8 @@ class V3GaitStream(GaitStream):
 
     FALLBACK_LIMIT = 25
     CMD_DELAY_STEPS = 50
-    INFER_BUDGET_MS = 10.0
+    INFER_BUDGET_MS = 10.0     # 開跑前乾跑量「推論＋產生器」的警告門檻（main() 印 ✅／⚠️ 用）
+    STEP_BUDGET_MS = 20.0      # 迴圈內整步（讀 shm → obs → 推論 → 產生器）的退回門檻＝一個 50 Hz 週期
     STOP_MSG = "按停淡出：指令歸零、零動作名目"
 
     def __init__(self, gen, obs_builder, policy, reader, cmd3, gain: float, mirror: bool, log: list = None):
@@ -526,7 +542,8 @@ class V3GaitStream(GaitStream):
         self.gen, self.O, self.policy, self.reader = gen, obs_builder, policy, reader
         self.cmd_target = np.asarray(cmd3, dtype=float).reshape(3)
         self.gain, self.mirror = float(gain), bool(mirror)
-        self.last_a = np.zeros(24)
+        self.act_dim = int(getattr(policy, "act_dim", 24))
+        self.last_a = np.zeros(self.act_dim)
         self.wheel_tau_mjcf = np.zeros(4)
         self.wheel_v_nom = np.zeros(4)          # kd1 模式：這一步的名目輪速（MJCF 序）
         self.wheel_v_used = np.zeros(4)         # kd1 模式：這一步外環用到的實測輪速
@@ -610,10 +627,7 @@ class V3GaitStream(GaitStream):
                 fb = fb or "act_nan"
         except Exception as e:            # noqa: BLE001 —— 承重中不能讓例外炸掉主迴圈
             fb = fb or f"exc:{type(e).__name__}"
-        ms = (time.perf_counter() - t0) * 1000.0
-        if not fb and ms > self.INFER_BUDGET_MS:
-            fb = f"slow:{ms:.1f}ms"
-        a_use = np.zeros(24) if (fb or a is None or self.open_loop or self.gain == 0.0) else self.gain * np.asarray(a, float)
+        a_use = np.zeros(self.act_dim) if (fb or a is None or self.open_loop or self.gain == 0.0) else self.gain * np.asarray(a, float)
         # ★ 產生器這一步也包在 try 裡（2026-09-23）：`Obs.wheel_v`／`Gen.step` 裡任何一個例外
         #   （輪名缺一個、npz 形狀對不上、除零…）本來會直接炸穿 `sample()`、炸掉 200 Hz 主迴圈 ——
         #   而狗這時候是**站著承重**的，主迴圈停掉比動作退回零糟得多。
@@ -639,11 +653,18 @@ class V3GaitStream(GaitStream):
             lab = "gen_nan" if isinstance(e, _GenNaN) else f"exc_gen:{type(e).__name__}"
             fb = f"{fb}+{lab}" if fb else lab
             q12, tau, v_wheel = self._q12, np.zeros(4), np.zeros(4)
-            a_use = np.zeros(24)          # 這一步的動作根本沒送進產生器 → log 與 obs 的 last_a 都要記 0
+            a_use = np.zeros(self.act_dim)   # 這一步的動作根本沒送進產生器 → log 與 obs 的 last_a 都要記 0
             gen_ok = False
         else:
             gen_ok = True
-        # ★ 退回計數放在產生器之後：`exc_gen:*` 也要算進連續退回，否則產生器一直炸、永遠進不了永久零動作。
+        # ★ 超時看**整步**（2026-09-30）：讀 shm → obs → 推論 → 產生器的總時間對一個 50 Hz 週期（STEP_BUDGET_MS）。
+        #   以前只量到推論為止（0.2 ms），產生器的 10 ms 量了卻沒判 —— trip23 三趟各 2 步 11–11.6 ms 都沒退回。
+        #   這一步的動作已經送進產生器了，不追溯歸零（動作沒錯，只是晚）；只記標籤、算一次退回，
+        #   連續 FALLBACK_LIMIT 步都慢才永久零動作 —— 一直慢就該退，偶爾慢一步不該。
+        ms = (time.perf_counter() - t0) * 1000.0
+        if not fb and ms > self.STEP_BUDGET_MS:
+            fb = f"slow:{ms:.1f}ms"
+        # ★ 退回計數放在產生器之後：`exc_gen:*`／`slow` 也要算進連續退回，否則產生器一直炸、永遠進不了永久零動作。
         if fb:
             self.n_fallback += 1
             self.n_fallback_total += 1
@@ -651,7 +672,6 @@ class V3GaitStream(GaitStream):
                 self.set_open_loop(f"連續 {self.n_fallback} 步退回（最後：{fb}）")
         else:
             self.n_fallback = 0
-        ms = (time.perf_counter() - t0) * 1000.0
         self.worst_ms = max(self.worst_ms, ms)
         self._q12 = q12
         self.wheel_tau_mjcf = tau
@@ -1542,15 +1562,30 @@ def main() -> int:
         except ImportError as e:
             print(f"❌ 狗上少了 v3 需要的模組：{e}（numpy / gen_v3.py / rl_obs_v3.py / policy_np.py 有推嗎？）")
             return 1
-        P3 = gen_v3.load_params(a.v3)
         policy = policy_np.load(a.v3)
-        O3 = rl_obs_v3.Obs(a.v3)
+        # ★ 兩種版面走同一條流（2026-09-29）：v3（CPG-RL，gen_v3／rl_obs_v3）與 rl16（同事純 RL，gen_direct／rl_obs_rl）。
+        #   產生器與 obs 物件介面同名，V3GaitStream 不分家；差別只在這裡載哪個模組、以及鏡像（rl16 左右都訓過，不鏡像）。
         # ★ 不用 assert：`python -O` 會把它整個拿掉，而這是「npz 拿錯了」的唯一一道擋 ——
         #   拿 v2.3 的 npz 跑 --v3，obs 長度對不上會在承重之後才炸。
-        if not (policy.layout == "v3" and policy.obs_dim == 88 and policy.act_dim == 24):
-            print(f"❌ npz 不是 v3 版面：layout {policy.layout} obs {policy.obs_dim} act {policy.act_dim}"
-                  f"（要 v3 / 88 / 24）—— 用 export_policy_v3.py 重匯出。")
+        if policy.layout == "v3" and policy.obs_dim == 88 and policy.act_dim == 24:
+            genmod, obsmod, v3_label = gen_v3, rl_obs_v3, "CPG-RL v3.6f"
+        elif policy.layout == "rl16" and policy.obs_dim == 53 and policy.act_dim == 16:
+            try:
+                import gen_direct as genmod
+                import rl_obs_rl as obsmod
+            except ImportError as e:
+                print(f"❌ 狗上少了 rl16 需要的模組：{e}（gen_direct.py / rl_obs_rl.py 有推嗎？）")
+                return 1
+            v3_label = "純 RL（rl16）"
+            if a.mirror:
+                print("ℹ️ rl16 版面左右都訓過，不用鏡像 → 這趟 --mirror 視為關。")
+                a.mirror = False
+        else:
+            print(f"❌ npz 版面不認得：layout {policy.layout} obs {policy.obs_dim} act {policy.act_dim}"
+                  f"（要 v3/88/24 或 rl16/53/16）—— 用 export_policy_v3.py／export_policy_rl.py 重匯出。")
             return 1
+        P3 = genmod.load_params(a.v3)
+        O3 = obsmod.Obs(a.v3)
         # ★ npz 太舊（2026-09-23 最終審查）：`WHEEL_TAU_MAX` 是後來才加進 npz 的，`v3_wheel_rows` 在 200 Hz 迴圈裡直接
         #   `p.K["WHEEL_TAU_MAX"]`，缺鍵會在**承重中的第一個 GAIT_IN tick** KeyError 把主迴圈炸掉；而 sha 印的是 pkl 的指紋，
         #   分不出新舊 npz。所以開跑前先擋。
@@ -1565,17 +1600,17 @@ def main() -> int:
                 print(f"❌ npz 的 {k} = {got:g}，與 --{k.replace('_', '-')}（{want:g}）不一致。")
             print("   → v3.6f 要這樣跑：--kp 120 --kp-abad 60 --kd 1.0 ＋ --wheel-mode tau 配 --wheel-kd 0.1／--wheel-mode kd1 配 --wheel-kd 1.0")
             return 1
-        print(f"\nCPG-RL v3.6f：{os.path.basename(a.v3)}　sha {policy.src_sha256[:12]}　obs 88 act 24　"
+        print(f"\n{v3_label}：{os.path.basename(a.v3)}　sha {policy.src_sha256[:12]}　obs {policy.obs_dim} act {policy.act_dim}　"
               f"指令 vx {a.cmd[0]:g} vy {a.cmd[1]:g} wz {a.cmd[2]:g}　鏡像 {'開' if a.mirror else '關'}"
               f"（這趟{'走鏡像' if a.mirror and rl_obs_v3.is_right(a.cmd) else '不鏡像'}）　混合比例 {a.policy_gain:g}"
               f"{'（乾跑：零動作名目）' if a.policy_gain == 0 else ''}")
         _t0 = time.perf_counter()
         for _ in range(20):
-            policy.infer(_np.zeros(88, dtype=_np.float32))
+            policy.infer(_np.zeros(policy.obs_dim, dtype=_np.float32))
         _ms = (time.perf_counter() - _t0) / 20 * 1000
-        _g = gen_v3.Gen(P3); _t0 = time.perf_counter()
+        _g = genmod.Gen(P3); _t0 = time.perf_counter()
         for _ in range(20):
-            _g.step(_np.array(a.cmd), _np.zeros(24), _np.zeros(4))
+            _g.step(_np.array(a.cmd), _np.zeros(policy.act_dim), _np.zeros(4))
         _ms_g = (time.perf_counter() - _t0) / 20 * 1000
         print(f"✅ 推論 {_ms:.2f} ms ＋ 產生器 {_ms_g:.2f} ms（預算 {V3GaitStream.INFER_BUDGET_MS:g} ms）")
         if _ms + _ms_g > V3GaitStream.INFER_BUDGET_MS:
@@ -1584,12 +1619,12 @@ def main() -> int:
         # 乾跑檢查用的名目軌跡：cmd 0 一秒 → --cmd 共 --secs 秒（零動作），跑既有的限位／命令速度檢查
         gait_dt = P3.K["CTRL_DT"]
         gait_names = list(rl_obs_v3.LEG_NAMES)
-        _g = gen_v3.Gen(P3)
+        _g = genmod.Gen(P3)
         n_gait = int(round((1.0 + a.secs) / gait_dt))
         gait_q = []
         for i in range(n_gait):
             c_ = _np.zeros(3) if i < V3GaitStream.CMD_DELAY_STEPS else _np.array(a.cmd)
-            q_, _, _ = _g.step(c_, _np.zeros(24), _np.zeros(4))
+            q_, _, _ = _g.step(c_, _np.zeros(policy.act_dim), _np.zeros(4))
             gait_q.append([float(x) for x in q_])
         print(f"✅ 零動作名目 {n_gait} 步（站姿 hip {gait_q[0][1]:+.2f} / knee {gait_q[0][2]:+.2f}，高 {P3.ref['nominal_height']:.2f} m）")
     else:
@@ -1900,7 +1935,7 @@ def main() -> int:
             idx16 = dict(idx, **{w: shm_io.idx_of(w) for w in rl_obs_v3.WHEEL_NAMES})
 
             def gs_factory():
-                return V3GaitStream(gen_v3.Gen(P3), O3, policy,
+                return V3GaitStream(genmod.Gen(P3), O3, policy,
                                     lambda: rl_obs_v3.read_frame(state_ro, imu_shm, idx16, shm_io.STATE_STRIDE),
                                     a.cmd, a.policy_gain, a.mirror, policy_log)
         elif a.policy:
@@ -2059,7 +2094,8 @@ def main() -> int:
                 #      過濾器要等下一筆，但這條本來就是累積好幾秒才觸發的，
                 #      慢一拍無所謂 —— 和快速路徑的取捨不同，不要混為一談。
                 # ★ v3（2026-09-23 trip22）：慢速累計只算步態三段。fl1_hip_roll 的 effort 讀值在 kp 250 的站立段
-                #   每趟有 4–5 筆孤立單筆尖峰（−50…−121，前後樣本 −8…−26，同號所以 commit_peak 的反號濾波不剔），
+                #   每趟有 4–5 筆孤立單筆尖峰（−50…−121，前後樣本 −8…−26，同號所以 commit_peak 的反號濾波不剔；
+                #   2026-09-30 起 commit_peak 也剔同號孤立尖峰（SPIKE_JUMP），但「只算步態段」照舊留著），
                 #   三趟連續在 STOPPED／SIT 被累計到第 5 筆中止，而 GAIT 段一筆都沒超過。這條護欄防的是
                 #   trip13 那種「觸地衝擊尖峰散在整段步態」，站立段本來就有快速路徑（連續 3 筆）與硬上限 120。
                 #   舊路徑（--traj/--policy）不動。

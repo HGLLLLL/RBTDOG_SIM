@@ -1,0 +1,286 @@
+M9 —— 步態（★★★ 承重、連續、動態觸地）　模式：CPG-RL v3.6f
+
+⚠️⚠️ 確認：狗趴在地上、16 顆洩力、**吊帶掛在 292 mm 以下且鬆弛**、
+      **地面淨空且留出走動空間**、第二個終端機備著 estop。
+
+✅ 結構檢查通過
+✅ 16 顆全部洩力中
+✅ mc_ctrl PID=2419 狀態=T
+✅ 機身姿態 roll -4.3° pitch -1.8°
+✅ 前後膝反號（後腿往前彎，原廠預設）
+
+純 RL（rl16）：rl_only_2026-09-24_np.npz　sha 45327a7285e4　obs 53 act 16　指令 vx 0 vy -0.5 wz 0　鏡像 關（這趟不鏡像）　混合比例 1
+✅ 推論 0.25 ms ＋ 產生器 0.07 ms（預算 10 ms）
+✅ 零動作名目 550 步（站姿 hip +0.80 / knee -1.50，高 0.48 m）
+
+互動模式　最壞情況 57.0 秒：
+  站起來 6.5 ＋ 等①15 ＋ 降增益 1.5 ＋ 淡入 3.0 ＋ 走 5 ＋ 淡出 3.0 ＋ 升增益 1.5 ＋ 等③15 ＋ 趴下 6.5
+  （等②就是「走」那段；三個等待逾時都是自動往下走，不是中止）
+✅ 在承重上限 60 秒之內
+
+步態最大命令速度 0.00 rad/s（）　上限 16.0
+✅ 在上限內（⚠️ 保護門檻 --vmax 18.0 必須高於這個，否則會誤中止）
+✅ 限位表 12 個關節都落在機構範圍內　＋　步態全程在產生器限位 LO12/HI12 內
+   （0/550 步至少有一個關節貼在止點上 —— 平移名目的 ABAD 本來就騎在止點上，是訓練出來的長相，不是快撞到）
+
+增益：步態 ABAD 60 / HIP·KNEE 120　kd 1.0（站立段一律 250）　輪 kp 0 / 步態段 kd1：kd 1.0＋effort 前饋（外環交驅動器 1 kHz）、起身坐下 kd 0.5
+保護：力矩 ABAD 50 / HIP 50 / KNEE 70、硬上限 120
+      誤差 髖膝 0.46 / ABAD 0.77 rad（v3：ABAD 分關節）、速度 18.0 rad/s、傾角 ±20°、迴圈間隔 250 ms
+
+✅ 已凍結 mc_ctrl（T）
+
+     t           階段     kp     最大|誤差|    最大|τ|               關節   roll  pitch      輪速
+  0.00      RAMP_UP      0     0.0000     0.11     fr1_hip_roll   -4.3   -1.8    0.00
+  0.25      RAMP_UP     31     0.0000     0.06     br1_hip_roll   -4.3   -1.8    0.00
+  0.50      RAMP_UP     63     0.0004     0.20     fr1_hip_roll   -4.3   -1.9    0.01
+  0.76      RAMP_UP     94     0.0008     0.06     br1_hip_roll   -4.4   -1.8    0.00
+  1.01      RAMP_UP    126     0.0008     0.10   br3_knee_pitch   -4.4   -1.8    0.00
+  1.27      RAMP_UP    158     0.0008     0.14     fr1_hip_roll   -4.4   -1.8    0.00
+  1.52      RAMP_UP    189     0.0008     0.13     fr1_hip_roll   -4.4   -1.8    0.00
+  1.77      RAMP_UP    221     0.0011     0.27     fl1_hip_roll   -4.4   -1.9    0.09
+
+  ▸ RAMP_UP 結束（時間到），進入 GO_crouch
+
+  2.02    GO_crouch    250     0.0014     0.39   fr3_knee_pitch   -4.4   -1.8    0.00
+  2.28    GO_crouch    250     0.0348     7.63     bl1_hip_roll   -4.3   -1.8    0.09
+  2.53    GO_crouch    250     0.0983    23.62   fr3_knee_pitch   -3.3   -1.8    0.67
+  2.78    GO_crouch    250     0.1056    21.63   fr3_knee_pitch   -1.8   -1.7    1.30
+  3.04    GO_crouch    250     0.1064    24.55   fr3_knee_pitch   -0.6   -1.5    1.37
+  3.29    GO_crouch    250     0.0997    24.29     fr1_hip_roll   +0.3   -1.4    1.11
+
+  ▸ GO_crouch 結束（時間到），進入 HOLD_crouch
+
+  3.54  HOLD_crouch    250     0.0940    23.61     fr1_hip_roll   +0.4   -1.4    0.37
+  3.79  HOLD_crouch    250     0.0940    23.59     fr1_hip_roll   +0.5   -1.3    0.07
+  4.05  HOLD_crouch    250     0.0937    23.43     fr1_hip_roll   +0.6   -1.3    0.06
+  4.30  HOLD_crouch    250     0.0937    23.52     fr1_hip_roll   +0.6   -1.3    0.00
+  4.55  HOLD_crouch    250     0.0937    23.45     fr1_hip_roll   +0.6   -1.2    0.10
+  4.80  HOLD_crouch    250     0.0937    23.48     fr1_hip_roll   +0.6   -1.2    0.03
+
+  ▸ HOLD_crouch 結束（時間到），進入 GO_stand
+
+  5.05     GO_stand    250     0.0937    23.48     fr1_hip_roll   +0.6   -1.2    0.04
+  5.30     GO_stand    250     0.1111    24.61   br3_knee_pitch   +0.6   -1.2    0.42
+  5.55     GO_stand    250     0.1186    24.26   fl3_knee_pitch   +0.6   -1.2    0.27
+  5.80     GO_stand    250     0.1134    21.90   br3_knee_pitch   +0.7   -1.3    0.30
+  6.06     GO_stand    250     0.0980    19.96   br3_knee_pitch   +0.7   -1.3    0.18
+  6.31     GO_stand    250     0.0794    17.37   fl3_knee_pitch   +0.6   -1.3    0.12
+
+  ▸ GO_stand 結束（時間到），進入 READY
+
+  6.56        READY    250     0.0661    16.42   br3_knee_pitch   +0.7   -1.3    0.04
+  6.82        READY    250     0.0661    16.35   br3_knee_pitch   +0.7   -1.2    0.00
+  7.07        READY    250     0.0661    16.42   br3_knee_pitch   +0.7   -1.2    0.00
+  7.32        READY    250     0.0661    16.46   br3_knee_pitch   +0.7   -1.2    0.00
+  7.57        READY    250     0.0661    16.43   br3_knee_pitch   +0.7   -1.2    0.00
+  7.83        READY    250     0.0661    16.37   br3_knee_pitch   +0.7   -1.2    0.00
+  8.08        READY    250     0.0661    16.40   br3_knee_pitch   +0.7   -1.2    0.00
+  8.33        READY    250     0.0661    16.40   br3_knee_pitch   +0.7   -1.2    0.00
+  8.58        READY    250     0.0661    16.44   br3_knee_pitch   +0.7   -1.2    0.00
+  8.83        READY    250     0.0661    16.39   br3_knee_pitch   +0.7   -1.2    0.00
+  9.08        READY    250     0.0661    16.37   br3_knee_pitch   +0.7   -1.2    0.00
+  9.33        READY    250     0.0661    16.38   br3_knee_pitch   +0.7   -1.2    0.00
+  9.59        READY    250     0.0661    16.42   br3_knee_pitch   +0.7   -1.2    0.00
+  9.84        READY    250     0.0661    16.40   br3_knee_pitch   +0.7   -1.2    0.00
+ 10.10        READY    250     0.0661    16.39   br3_knee_pitch   +0.7   -1.2    0.00
+ 10.35        READY    250     0.0661    16.45   br3_knee_pitch   +0.7   -1.2    0.00
+ 10.60        READY    250     0.0661    16.35   br3_knee_pitch   +0.7   -1.2    0.00
+ 10.86        READY    250     0.0661    16.39   br3_knee_pitch   +0.7   -1.2    0.00
+ 11.11        READY    250     0.0661    16.39   br3_knee_pitch   +0.7   -1.2    0.03
+ 11.36        READY    250     0.0661    16.40   br3_knee_pitch   +0.7   -1.2    0.00
+ 11.62        READY    250     0.0661    16.43   br3_knee_pitch   +0.7   -1.2    0.04
+ 11.87        READY    250     0.0661    16.43   br3_knee_pitch   +0.7   -1.2    0.00
+
+  ▸ READY 結束（按下 Enter），進入 KP_DOWN
+
+ 12.12      KP_DOWN    239     0.0661    15.76   br3_knee_pitch   +0.7   -1.2    0.00
+ 12.37      KP_DOWN    218     0.0661    14.30   br3_knee_pitch   +0.7   -1.2    0.00
+ 12.62      KP_DOWN    196     0.0664    13.14   br3_knee_pitch   +0.7   -1.2    0.05
+ 12.88      KP_DOWN    174     0.0680    11.78   fl3_knee_pitch   +0.7   -1.2    0.09
+ 13.13      KP_DOWN    152     0.0817    12.60   bl3_knee_pitch   +0.6   -1.4    0.27
+ 13.39      KP_DOWN    130     0.0901    11.80   bl3_knee_pitch   +0.5   -1.3    0.04
+
+  ▸ KP_DOWN 結束（時間到），進入 GAIT_IN
+
+ 13.64      GAIT_IN    120     0.1012    12.19   bl3_knee_pitch   +0.6   -1.3    0.03
+ 13.89      GAIT_IN    120     0.1018    12.36   bl3_knee_pitch   +0.6   -1.4    0.47
+ 14.14      GAIT_IN    120     0.1031    12.47   bl3_knee_pitch   +0.5   -1.4    0.88
+ 14.40      GAIT_IN    120     0.0972    11.36   fl3_knee_pitch   +0.6   -1.2    0.81
+ 14.65      GAIT_IN    120     0.0883    10.43   br3_knee_pitch   +0.7   -1.3    0.17
+ 14.90      GAIT_IN    120     0.0944    11.27   br3_knee_pitch   +0.6   -1.3    0.13
+ 15.16      GAIT_IN    120     0.0945    11.22   fl3_knee_pitch   +0.5   -1.3    0.05
+ 15.41      GAIT_IN    120     0.1050    12.49   fl3_knee_pitch   +0.5   -1.3    0.04
+ 15.66      GAIT_IN    120     0.1031    12.05   fl3_knee_pitch   +0.5   -1.2    0.18
+ 15.92      GAIT_IN    120     0.0971    11.54   fl3_knee_pitch   +0.5   -1.3    0.26
+ 16.17      GAIT_IN    120     0.0998    11.94   br3_knee_pitch   +0.5   -1.4    0.00
+ 16.42      GAIT_IN    120     0.1018    12.09   br3_knee_pitch   +0.5   -1.4    0.00
+
+  ▸ GAIT_IN 結束（時間到），進入 GAIT
+
+ 16.68         GAIT    120     0.1015    12.20   br3_knee_pitch   +0.5   -1.4    0.00
+ 16.93         GAIT    120     0.1016    12.19   br3_knee_pitch   +0.5   -1.4    0.00
+ 17.19         GAIT    120     0.1016    12.20   br3_knee_pitch   +0.5   -1.4    0.00
+ 17.44         GAIT    120     0.1016    12.17   br3_knee_pitch   +0.5   -1.4    0.00
+ 17.70         GAIT    120     0.4072    23.40     br1_hip_roll   +2.1   -1.4    3.89
+ 17.95         GAIT    120     0.3601    20.17   fr3_knee_pitch   +3.1   -1.1    2.01
+ 18.20         GAIT    120     0.2081    18.16   br3_knee_pitch   +1.1   -2.8    1.59
+ 18.46         GAIT    120     0.1809    18.68   br3_knee_pitch   +0.8   -0.1    0.64
+ 18.71         GAIT    120     0.2885    18.79    bl2_hip_pitch   -0.8   -1.6    1.17
+ 18.96         GAIT    120     0.2735    15.77     br1_hip_roll   +1.2   -2.5    2.57
+ 19.21         GAIT    120     0.2333    18.64    fl2_hip_pitch   +0.3   -0.4    1.57
+ 19.47         GAIT    120     0.3036    18.07    bl2_hip_pitch   -0.4   -1.3    2.22
+ 19.72         GAIT    120     0.2803    16.52    fl2_hip_pitch   +0.5   -2.6    2.79
+ 19.97         GAIT    120     0.3233    20.93    fl2_hip_pitch   +0.9   -0.9    1.62
+ 20.23         GAIT    120     0.3067    20.16    bl2_hip_pitch   +1.1   -1.6    2.56
+ 20.48         GAIT    120     0.2706    14.66    fl2_hip_pitch   +0.8   -3.1    1.94
+ 20.73         GAIT    120     0.2899    19.75    fl2_hip_pitch   +1.2   -0.6    1.36
+ 20.99         GAIT    120     0.2777    19.22    bl2_hip_pitch   +0.3   -1.6    1.56
+ 21.24         GAIT    120     0.2730    15.76    fl2_hip_pitch   +1.3   -2.5    2.44
+ 21.49         GAIT    120     0.1194    16.63   br3_knee_pitch   +0.8   +0.4    1.02
+
+  ▸ GAIT 結束（逾時 5 s（自動繼續）），進入 GAIT_OUT
+
+
+  ▸ policy 退回零動作名目、指令歸零（按停淡出：指令歸零、零動作名目）—— 產生器繼續
+
+ 21.75     GAIT_OUT    120     0.2863    18.30   fr3_knee_pitch   +3.3   -0.4    1.64
+ 22.00     GAIT_OUT    120     0.2314    13.27     br1_hip_roll   +0.5   +0.0    0.70
+ 22.25     GAIT_OUT    120     0.1928    13.99   fl3_knee_pitch   -0.4   +0.0    0.29
+ 22.51     GAIT_OUT    120     0.1917    13.93   fl3_knee_pitch   -0.3   -0.0    0.18
+ 22.76     GAIT_OUT    120     0.1913    13.93   fl3_knee_pitch   -0.3   +0.0    0.04
+ 23.01     GAIT_OUT    120     0.1913    13.91   fl3_knee_pitch   -0.3   -0.0    0.13
+ 23.26     GAIT_OUT    120     0.1913    13.90   fl3_knee_pitch   -0.2   +0.0    0.04
+ 23.52     GAIT_OUT    120     0.1913    13.93   fl3_knee_pitch   -0.2   +0.0    0.00
+ 23.77     GAIT_OUT    120     0.1913    13.86   fl3_knee_pitch   -0.2   +0.0    0.00
+ 24.02     GAIT_OUT    120     0.1913    13.85   fl3_knee_pitch   -0.2   +0.0    0.00
+ 24.28     GAIT_OUT    120     0.1913    13.86   fl3_knee_pitch   -0.2   +0.0    0.00
+
+  ▸ GAIT_OUT 結束（時間到），進入 KP_UP
+
+ 24.53        KP_UP    123     0.1894    14.25   fl3_knee_pitch   -0.2   +0.0    0.00
+ 24.79        KP_UP    145     0.1871    17.81     bl1_hip_roll   -0.2   +0.0    0.00
+ 25.04        KP_UP    167     0.1772    22.56     bl1_hip_roll   -0.3   -0.0    0.14
+ 25.30        KP_UP    189     0.1023    19.24   fl3_knee_pitch   -1.0   -0.9    0.71
+ 25.55        KP_UP    212     0.0775    16.18   br3_knee_pitch   +0.4   -1.1    0.18
+ 25.81        KP_UP    234     0.0737    17.02   br3_knee_pitch   +0.3   -1.1    0.01
+
+  ▸ KP_UP 結束（時間到），進入 STOPPED
+
+ 26.06      STOPPED    250     0.0726    17.95   br3_knee_pitch   +0.3   -1.1    0.04
+ 26.32      STOPPED    250     0.0718    17.91   br3_knee_pitch   +0.3   -1.1    0.01
+ 26.57      STOPPED    250     0.0718    17.83   fr3_knee_pitch   +0.3   -1.1    0.00
+ 26.82      STOPPED    250     0.0710    17.92   fr3_knee_pitch   +0.3   -1.1    0.03
+ 27.08      STOPPED    250     0.0706    17.84   fr3_knee_pitch   +0.3   -1.0    0.10
+ 27.33      STOPPED    250     0.0703    17.59   fr3_knee_pitch   +0.3   -1.0    0.03
+ 27.58      STOPPED    250     0.0699    17.66   fr3_knee_pitch   +0.3   -1.0    0.00
+ 27.84      STOPPED    250     0.0699    17.58   fr3_knee_pitch   +0.3   -1.0    0.00
+ 28.09      STOPPED    250     0.0684    16.92   fl3_knee_pitch   +0.2   -1.1    0.04
+ 28.34      STOPPED    250     0.0668    16.57   fl3_knee_pitch   +0.2   -1.1    0.00
+ 28.59      STOPPED    250     0.0664    16.53   fl3_knee_pitch   +0.2   -1.1    0.00
+ 28.85      STOPPED    250     0.0664    16.49   fl3_knee_pitch   +0.2   -1.1    0.04
+ 29.10      STOPPED    250     0.0664    16.54   fl3_knee_pitch   +0.2   -1.1    0.00
+ 29.35      STOPPED    250     0.0664    16.51   fl3_knee_pitch   +0.2   -1.1    0.00
+ 29.60      STOPPED    250     0.0664    16.55   fl3_knee_pitch   +0.2   -1.1    0.00
+ 29.85      STOPPED    250     0.0664    16.51   fl3_knee_pitch   +0.2   -1.1    0.00
+ 30.11      STOPPED    250     0.0664    16.54   fl3_knee_pitch   +0.2   -1.1    0.00
+ 30.36      STOPPED    250     0.0729    17.39   fl3_knee_pitch   +0.2   -1.1    0.26
+ 30.61      STOPPED    250     0.0657    16.35   fl3_knee_pitch   +0.2   -1.2    0.00
+ 30.87      STOPPED    250     0.0657    16.29   fl3_knee_pitch   +0.2   -1.1    0.00
+ 31.12      STOPPED    250     0.0657    16.33   fl3_knee_pitch   +0.2   -1.1    0.00
+ 31.37      STOPPED    250     0.0657    16.28   fl3_knee_pitch   +0.2   -1.2    0.00
+ 31.62      STOPPED    250     0.0653    16.32   fl3_knee_pitch   +0.2   -1.2    0.00
+ 31.88      STOPPED    250     0.0653    16.29   fl3_knee_pitch   +0.2   -1.2    0.00
+ 32.13      STOPPED    250     0.0653    16.29   fl3_knee_pitch   +0.2   -1.2    0.01
+ 32.38      STOPPED    250     0.0653    16.25   fl3_knee_pitch   +0.2   -1.2    0.00
+ 32.64      STOPPED    250     0.0653    16.26   fl3_knee_pitch   +0.2   -1.2    0.00
+ 32.89      STOPPED    250     0.0653    16.25   fl3_knee_pitch   +0.2   -1.2    0.00
+ 33.14      STOPPED    250     0.0653    16.22   fl3_knee_pitch   +0.2   -1.2    0.00
+ 33.39      STOPPED    250     0.0653    16.20   fl3_knee_pitch   +0.2   -1.2    0.00
+ 33.64      STOPPED    250     0.0653    16.26   fl3_knee_pitch   +0.2   -1.2    0.00
+ 33.89      STOPPED    250     0.0653    16.24   fl3_knee_pitch   +0.2   -1.2    0.00
+
+  ▸ STOPPED 結束（按下 Enter），進入 SIT_crouch
+
+ 34.15   SIT_crouch    250     0.0448    12.77   fl3_knee_pitch   +0.2   -1.2    0.07
+ 34.40   SIT_crouch    250     0.0460    13.66   fl3_knee_pitch   +0.2   -1.1    0.03
+ 34.65   SIT_crouch    250     0.0477    14.72   fl3_knee_pitch   +0.1   -1.1    0.04
+ 34.90   SIT_crouch    250     0.0390    14.35   fl3_knee_pitch   +0.2   -1.2    0.28
+ 35.15   SIT_crouch    250     0.0450    14.54   fl3_knee_pitch   +0.1   -1.4    0.49
+ 35.40   SIT_crouch    250     0.0606    15.40   fl3_knee_pitch   +0.2   -1.4    0.17
+
+  ▸ SIT_crouch 結束（時間到），進入 SIT_hold
+
+ 35.65     SIT_hold    250     0.0633    15.66   fl3_knee_pitch   +0.2   -1.4    0.01
+ 35.91     SIT_hold    250     0.0633    15.66   fl3_knee_pitch   +0.2   -1.5    0.01
+ 36.16     SIT_hold    250     0.0633    15.60   fl3_knee_pitch   +0.2   -1.5    0.00
+ 36.42     SIT_hold    250     0.0633    15.62   fl3_knee_pitch   +0.2   -1.5    0.00
+ 36.67     SIT_hold    250     0.0633    15.64   fl3_knee_pitch   +0.2   -1.5    0.00
+
+  ▸ SIT_hold 結束（時間到），進入 SIT_LIE
+
+ 36.92      SIT_LIE    250     0.0631    15.65   fl3_knee_pitch   +0.2   -1.5    0.00
+ 37.17      SIT_LIE    250     0.0478    13.03   fl3_knee_pitch   -0.3   -1.6    0.57
+ 37.43      SIT_LIE    250     0.0516    15.11   br3_knee_pitch   -0.9   -1.8    1.32
+ 37.68      SIT_LIE    250     0.0586    17.61   br3_knee_pitch   -1.7   -1.7    1.27
+ 37.94      SIT_LIE    250     0.0695    19.46   fl3_knee_pitch   -3.2   -1.9    0.82
+ 38.19      SIT_LIE    250     0.0529    13.46   br3_knee_pitch   -3.6   -2.4    0.06
+
+  ▸ SIT_LIE 結束（時間到），進入 RAMP_DOWN
+
+ 38.44    RAMP_DOWN    245     0.0309     7.52   br3_knee_pitch   -4.0   -2.4    0.00
+ 38.69    RAMP_DOWN    214     0.0309     6.58   br3_knee_pitch   -4.0   -2.4    0.00
+ 38.95    RAMP_DOWN    182     0.0309     5.73   br3_knee_pitch   -4.0   -2.4    0.00
+ 39.20    RAMP_DOWN    150     0.0313     4.72   br3_knee_pitch   -4.0   -2.4    0.00
+ 39.45    RAMP_DOWN    119     0.0317     3.82   br3_knee_pitch   -4.0   -2.4    0.00
+ 39.70    RAMP_DOWN     87     0.0320     2.79   br3_knee_pitch   -4.0   -2.5    0.01
+ 39.96    RAMP_DOWN     56     0.0332     1.90   br3_knee_pitch   -4.0   -2.5    0.00
+ 40.21    RAMP_DOWN     24     0.0370     0.81   br3_knee_pitch   -4.0   -2.5    0.00
+
+✅ 互動流程走完（40.4 s）
+
+============================================================================
+✅ 序列完整跑完
+
+關節                     峰值τ      門檻      用掉      ★超標筆數    (未濾)      剔除跳點
+fl1_hip_roll        -23.93      50     48%          0       0         0
+fl2_hip_pitch       -21.29      50     43%          0       0         0
+fl3_knee_pitch      -26.96      70     39%          0       0         2
+fr1_hip_roll        +24.73      50     49%          0       0         0
+fr2_hip_pitch       -18.50      50     37%          0       1         1
+fr3_knee_pitch      +25.46      70     36%          0       0         0
+bl1_hip_roll        -22.93      50     46%          0       0         0
+bl2_hip_pitch       +20.51      50     41%          0       1         1
+bl3_knee_pitch      -24.89      70     36%          0       0         0
+br1_hip_roll        +24.89      50     50%          0       0         0
+br2_hip_pitch       +11.22      50     22%          0       2         2
+br3_knee_pitch      -25.50      70     36%          0       0         0
+  ★ 共剔除 6 筆孤立反號跳點（單筆、與前後兩筆都反號且更大）。
+    正常量級是每趟 0~3 筆；**上到十位數就不是感測雜訊，要查 SHM 解碼**。
+    原始值都還在 JSON 的 `samples` 裡，沒有被改掉。
+
+舊幀跳過 3 次（停頓後的追趕 tick，保護與紀錄未受污染）
+
+迴圈：8081 次 / 40.40s = 200 Hz（目標 200）　最長單次間隔 17 ms @ t=26.92s
+
+輪               淨轉動 rad     ≈ 滾動 mm
+fl4_foot         0.6123          59
+fr4_foot         1.2427         119
+bl4_foot        -1.7071        -164
+br4_foot        -2.1701        -209
+  ⚠️ 這是總量，**包含懸空空轉** —— 模擬顯示空轉可佔八成。
+     要判讀必須拆成觸地/懸空，事後用 `w` 欄的 position 做。
+
+============================================================================
+★ 現在腿還在承重。[Enter] 依原路徑坐回趴姿；[Ctrl-C] 立刻放手（會塌）
+
+   > 
+   （Ctrl-C：放手）
+
+policy：550 步（1 段）　退回 0 步　最慢 6.50 ms　★ 已退回開迴路：按停淡出：指令歸零、零動作名目
+
+📊 /home/robot/m_logs/M9_20260930_111201.json
+
+⏸ mc_ctrl 仍在凍結中（PID 2419）。確認狗安全後：
+      sudo kill -CONT 2419
+
+📄 /home/robot/m_logs/M9_20260930_111201.log

@@ -32,14 +32,15 @@
 
 ```
 --v3 cpg_rl_v3_6f_np.npz --interactive \
---kp 120 --kp-abad 60 --kd 1.0 --wheel-kd 0.1 \
---vmax 18 --vcmd-max 16 --emax-abad 0.91 --emax 0.55 --tau-total 5 --wheel-vmax 30
+--kp 120 --kp-abad 60 --kd 1.0 --wheel-mode kd1 --wheel-kd 1.0 \
+--vmax 18 --vcmd-max 16 --emax-abad 0.91 --emax 0.55 --tau-total 5 --wheel-vmax 30 --hold-max 15
 ```
+（2026-09-29 更正：原本寫 `--wheel-kd 0.1` 是 trip22 ⑤a 前的 tau 模式；現行是 kd1 模式，以 §7 的 `C` 為準。）
 
 - 增益**說兩次**：npz 記的是訓練時的 factory 組，和上面四個不一致就拒跑。不要自己改 `--kp`。
 - `--mirror` 預設**開**（原地右轉、右平移走鏡像推論）；只有要做 A/B 對照才加 `--no-mirror`。
 - `--policy-gain` 只吃 **0–1**（0 ＝零動作名目、1 ＝ policy；M9 會擋範圍外的值）。
-- `--wheel-kd 0.1` 只在步態三段（GAIT_IN／GAIT／GAIT_OUT）生效；起身、坐下、凍結一律回 `WHEEL_KD_SAFE` 0.5 純阻尼。
+- `--wheel-mode kd1 --wheel-kd 1.0` 只在步態三段（GAIT_IN／GAIT／GAIT_OUT）生效；起身、坐下、凍結一律回 `WHEEL_KD_SAFE` 0.5 純阻尼。**M9 預設仍是 `tau`，一定要帶。**
 - `--wheel-vmax 30`（v3 專用）＝四輪實測 |velocity| 超過就中止。輪子走力矩欄**沒有速度回授拉它回來**，
   τ 一直同號就一直加速，而 ChatterWatch 只認得正負翻轉的抖振，單向失控它一次都不會叫。名目輪速 ≤ 6 rad/s，
   30 是「已經明顯不對」的線，不是「剛好擦到」。另外 `v3_wheel_rows` 寫出去的 effort 本身已夾在 **±33 N·m**

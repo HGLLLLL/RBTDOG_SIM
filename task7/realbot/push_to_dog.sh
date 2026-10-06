@@ -42,6 +42,11 @@ FILES=(
   "$HERE/gen_v3.py"         # ★★★ v3 產生器 numpy 版（M9 --v3 要用，2026-09-23）
   "$HERE/rl_obs_v3.py"      # ★★★ v3 88 維 obs ＋ 鏡像
   "$HERE/../weights/cpg_rl_v3_6f_np.npz"      # ★★★ v3.6f 權重＋產生器快照（export_policy_v3 產）
+  "$HERE/gen_direct.py"     # ★★★ 同事純 RL 的直接 PD 目標產生器（M9 --v3 讀 rl16 版面時用，2026-09-29）
+  "$HERE/rl_obs_rl.py"      # ★★★ 同事純 RL 的 53 維 obs（PhysX 關節序）
+  "$HERE/../weights/rl_only_2026-09-24_np.npz"   # ★★★ 同事純 RL 權重（export_policy_rl 產，ONNX → npz，ELU）
+  "$HERE/../weights/rl_only_2026-10-01_5k_np.npz"   # ★★★ 同事純 RL 第二版（崎嶇地形訓練 5000 iter，2026-10-06 匯出）
+  "$HERE/../weights/rl_only_2026-10-01_10k_np.npz"  # ★★★ 同事純 RL 第二版（同上續訓到 10000 iter）
 )
 
 # ★ 軌跡檔（`M9_gait.py --traj` 要用）。2026-09-03 加：清單原本只有 .py/.sh，

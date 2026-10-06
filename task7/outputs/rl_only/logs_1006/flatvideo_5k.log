@@ -1,0 +1,13 @@
+libdecor-gtk-WARNING: Failed to initialize GTK
+Failed to load plugin 'libdecor-gtk.so': failed to init
+vx +0.5 vy +0.0 wz +0.0: vx +0.62 vy +0.00 yaw +0°/s roll std 0.01/pk 1.1 z 0.503 lift [0.0, 0.0, 0.0, 0.0] steps/s [0.0, 0.0, 0.0, 0.0] τ abad/hip/knee/wheel 12/8/9/1.5 |a| 0.67 max 1.61 >1 25% wheel_v 6.7 jv 0.0 err abad/hk 0.19/0.07 vcmd 0.0 sat 0% fell None  (0.2s)
+vx +0.0 vy +0.5 wz +0.0: vx +0.01 vy +0.31 yaw -1°/s roll std 0.77/pk 2.3 z 0.509 lift [9.8, 26.9, 14.7, 20.8] steps/s [1.14, 2.43, 1.14, 1.14] τ abad/hip/knee/wheel 20/22/23/3.2 |a| 0.43 max 2.02 >1 8% wheel_v 3.2 jv 2.5 err abad/hk 0.33/0.19 vcmd 8.8 sat 0% fell None  (0.1s)
+vx +0.0 vy -0.5 wz +0.0: vx -0.00 vy -0.31 yaw -1°/s roll std 0.36/pk 1.4 z 0.509 lift [20.9, 13.1, 29.5, 11.0] steps/s [1.43, 1.43, 1.29, 1.29] τ abad/hip/knee/wheel 21/20/21/3.3 |a| 0.44 max 1.94 >1 6% wheel_v 3.1 jv 2.5 err abad/hk 0.36/0.17 vcmd 10.3 sat 0% fell None  (0.1s)
+vx +0.0 vy +0.0 wz +1.0: vx -0.00 vy -0.08 yaw +58°/s roll std 0.84/pk 4.2 z 0.511 lift [0.0, 49.4, 61.2, 9.0] steps/s [0.0, 0.14, 0.14, 0.14] τ abad/hip/knee/wheel 30/24/28/3.9 |a| 0.57 max 2.15 >1 17% wheel_v 6.3 jv 9.5 err abad/hk 0.49/0.23 vcmd 12.5 sat 1% fell None  (0.1s)
+vx +0.0 vy +0.0 wz -1.0: vx -0.01 vy +0.05 yaw -59°/s roll std 1.06/pk 5.5 z 0.520 lift [33.9, 8.7, 10.8, 35.3] steps/s [0.14, 0.14, 0.29, 0.29] τ abad/hip/knee/wheel 24/24/30/2.7 |a| 0.57 max 2.57 >1 19% wheel_v 6.5 jv 3.7 err abad/hk 0.40/0.25 vcmd 7.4 sat 14% fell None  (0.1s)
+vx +0.5 vy +0.5 wz +0.0: vx +0.53 vy +0.34 yaw -0°/s roll std 0.52/pk 1.8 z 0.511 lift [11.7, 27.4, 14.6, 17.9] steps/s [1.43, 1.43, 1.29, 1.29] τ abad/hip/knee/wheel 18/20/23/3.5 |a| 0.60 max 2.17 >1 20% wheel_v 9.5 jv 2.5 err abad/hk 0.30/0.19 vcmd 8.4 sat 0% fell None  (0.1s)
+vx +0.5 vy -0.5 wz +0.0: vx +0.53 vy -0.34 yaw -1°/s roll std 0.46/pk 1.9 z 0.508 lift [24.8, 16.7, 22.1, 11.4] steps/s [1.57, 1.43, 2.43, 1.43] τ abad/hip/knee/wheel 22/19/24/3.5 |a| 0.62 max 2.25 >1 19% wheel_v 9.9 jv 3.2 err abad/hk 0.37/0.20 vcmd 12.0 sat 0% fell None  (0.1s)
+vx +0.5 vy +0.0 wz +0.5: vx +0.61 vy -0.01 yaw +22°/s roll std 1.05/pk 3.8 z 0.513 lift [14.3, 24.4, 25.1, 0.0] steps/s [0.14, 0.57, 0.57, 0.0] τ abad/hip/knee/wheel 20/25/24/3.5 |a| 0.70 max 2.08 >1 32% wheel_v 9.6 jv 4.0 err abad/hk 0.34/0.21 vcmd 6.2 sat 0% fell None  (0.1s)
+vx +0.5 vy +0.0 wz -0.5: vx +0.56 vy +0.01 yaw -24°/s roll std 0.50/pk 2.8 z 0.518 lift [24.4, 0.0, 14.7, 25.6] steps/s [0.14, 0.0, 0.14, 0.14] τ abad/hip/knee/wheel 22/19/27/3.0 |a| 0.70 max 2.47 >1 31% wheel_v 11.8 jv 5.0 err abad/hk 0.36/0.22 vcmd 6.8 sat 1% fell None  (0.1s)
+→ /home/huang/rbtdog_sim/task7/outputs/rl_only/eval_rl_only_real_5k_flatvideo.md
+→ task7/outputs/rl_only/flat_5k_mesh_5s.mp4

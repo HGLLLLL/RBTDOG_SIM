@@ -1,0 +1,16 @@
+=== shadow 5k
+直走 0.5: Δobs 0.00e+00 Δact 1.55e-06 Δq_des 2.38e-07 Δv_nom 7.75e-06 | err_pk 0.216 jv_pk 1.0 vcmd_pk 9.2 τ abad/hip/knee 13/17/15 sat 0/300 fell False
+左平移 0.5: Δobs 0.00e+00 Δact 1.42e-06 Δq_des 3.54e-07 Δv_nom 5.07e-06 | err_pk 0.438 jv_pk 2.5 vcmd_pk 9.7 τ abad/hip/knee 26/22/22 sat 0/300 fell False
+原地左轉 1.0: Δobs 0.00e+00 Δact 1.86e-05 Δq_des 4.65e-06 Δv_nom 4.34e-05 | err_pk 0.495 jv_pk 8.5 vcmd_pk 14.5 τ abad/hip/knee 30/23/28 sat 1/300 fell False
+右平移 0.5: Δobs 0.00e+00 Δact 1.31e-06 Δq_des 3.28e-07 Δv_nom 6.11e-06 | err_pk 0.435 jv_pk 3.0 vcmd_pk 12.4 τ abad/hip/knee 26/20/23 sat 0/300 fell False
+弧線 0.5+0.5: Δobs 0.00e+00 Δact 1.57e-04 Δq_des 2.53e-05 Δv_nom 7.87e-04 | err_pk 0.345 jv_pk 4.0 vcmd_pk 12.2 τ abad/hip/knee 21/25/24 sat 0/300 fell False
+7 passed in 2.14s
+=== shadow 10k
+直走 0.5: Δobs 0.00e+00 Δact 1.67e-06 Δq_des 1.64e-07 Δv_nom 8.34e-06 | err_pk 0.249 jv_pk 0.9 vcmd_pk 8.8 τ abad/hip/knee 15/12/16 sat 0/300 fell False
+左平移 0.5: Δobs 0.00e+00 Δact 1.61e-06 Δq_des 3.20e-07 Δv_nom 8.05e-06 | err_pk 0.457 jv_pk 2.9 vcmd_pk 7.9 τ abad/hip/knee 27/21/25 sat 0/300 fell False
+原地左轉 1.0: Δobs 0.00e+00 Δact 2.40e-04 Δq_des 6.00e-05 Δv_nom 1.02e-03 | err_pk 0.452 jv_pk 4.9 vcmd_pk 15.4 τ abad/hip/knee 26/26/29 sat 4/300 fell False
+右平移 0.5: Δobs 0.00e+00 Δact 1.13e-06 Δq_des 2.68e-07 Δv_nom 5.66e-06 | err_pk 0.358 jv_pk 2.6 vcmd_pk 6.4 τ abad/hip/knee 21/21/24 sat 0/300 fell False
+弧線 0.5+0.5: Δobs 0.00e+00 Δact 2.05e-05 Δq_des 3.64e-06 Δv_nom 1.03e-04 | err_pk 0.355 jv_pk 3.6 vcmd_pk 15.6 τ abad/hip/knee 21/21/28 sat 0/300 fell False
+7 passed in 2.41s
+=== shadow default
+7 passed in 1.94s

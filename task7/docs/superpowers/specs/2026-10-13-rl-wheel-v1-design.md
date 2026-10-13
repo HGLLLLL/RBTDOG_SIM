@@ -151,3 +151,13 @@
 | 改 | `task7/inference/rl_only_infer.py`、`diag/rl_only_rough_terrain.py` | `--npz`、`--self-collision`、stairs、改 import terrain_grid |
 | 新 | `task7/tests/test_rl_env_wheel.py`、`test_terrain_grid.py`、`test_export_policy_wheel.py`、`test_policy_np_act_gain.py` | §8 |
 | 新 | `task7/outputs/reward_audit_wheel_v1.md`、`outputs/rl_wheel/eval_*.md`、`docs/results/W_*.md` | §6、§7 |
+
+## 11. 實作註記（2026-10-13 執行時發現，plan 已照此做）
+
+1. **MJX 3.10 無 hfield–cylinder 碰撞**（實測 `NotImplementedError`）：訓練模型 `zgws_mjx_wheel.xml` 的輪子改凸網格圓盤（半徑 0.096、半寬 0.005、16 邊），hfield–mesh、mesh–mesh 都支援；CPU 驗收工具仍用圓柱模型。零訓練對齊（§6）就是在驗這個差異。
+2. **Brax `AutoResetWrapper` 只還原第一次 reset 的狀態、不重呼叫 reset**：回合結束（摔或 t ≥ episode_len）的重生、課程升降、指令重抽全在 `WheelEnv.step` 內用 `jnp.where` 做；訓練用 `rl_env_wheel.wrap_env`（Vmap／DR → Episode → `RespawnWrapper`）傳 `ppo.train(wrap_env_fn=…)`。`WheelEnv` 只回 `done=fell`，time-out 交給 EpisodeWrapper 設 truncation。
+3. **地形基準高 `BASE_H = 1.0`、`ZMAX = 2.0`**：反向樓梯（中央是坑）要往下挖，hfield 資料必須 ≥ 0。CPU 崎嶇地工具的 ZMAX 也由 0.30 改 1.0（stairs 0.08 的平台 0.8 m 超出舊量程會穿地；rough／boxes 幾何不變）。
+4. **輪輪接觸懲罰的法向力**：場景是金字塔摩擦錐（`opt.cone=0`）、condim 3，每個接觸 4 列 efc，法向力＝4 列和（同 `mj_contactForce`），不是第 0 列；`ww = Σ(fn/100 N)²`。MJX 與 CPU MuJoCo 同一姿勢同一步的輪輪法向力差約 15%（2755 vs 3245 N），`ww_force` 不要當絕對牛頓數讀。
+5. 場景檔補 `<option timestep="0.005"/>`（原本沒有，載入後是預設 0.002）。
+6. 狗端 `gen_direct` 只收 `ref.family == "rl_only"`（那是 rl16 介面族的名字）：`rl_wheel` npz 的 `ref.family` 維持 `"rl_only"`，用 `preset="rl_wheel"` 與 `gen_json.source.family` 區分；狗端不改。
+7. 續訓：brax `restore_params` 不還原 `env_steps`，notebook 用 `STEP_OFFSET`（從 RESUME 檔名 `step<N>` 解析）讓 checkpoint 檔名與進度列是累計步數；optimizer 與 ADAPTIVE_KL 學習率在續訓時重置。

@@ -47,6 +47,34 @@ def _mj_limits(names_mjcf_order):
     return np.array(lo), np.array(hi), tmax
 
 
+def gen_tables(io: dict, source: dict) -> dict:
+    """gen_json／ref_json／限位表（兩個匯出器共用；rl_only 的輸出必須逐字不變，test_policy_rl_np 守）。"""
+    # PhysX 序（按種類分組、腿序 FAR FBL RAR RBL）→ MJCF 序（每腿 abad hip knee、腿序 FR FL RR RL）
+    physx = io["joints"]["names"]
+    mjcf12 = [f"{mm.PREFIX[l]}_{k}_JOINT" for l in mm.LEGS for k in ("ABAD", "HIP", "KNEE")]
+    physx_to_mjcf = [physx.index(n) for n in mjcf12]          # mjcf[k] = physx[physx_to_mjcf[k]]
+    wheels_physx = physx[12:16]; wheels_mjcf = [f"{mm.PREFIX[l]}_FOOT_JOINT" for l in mm.LEGS]
+    assert wheels_physx == wheels_mjcf, (wheels_physx, wheels_mjcf)
+    default = np.array(io["joints"]["default_pos"], float)
+    scale = np.array(io["action"]["scale"], float); offset = np.array(io["action"]["offset"], float)
+    assert np.allclose(offset[:12], default[:12]) and np.allclose(offset[12:], 0.0)
+    import rl_obs
+    lo12, hi12, tmax = _mj_limits(mjcf12)
+    assert len(rl_obs.LEG_NAMES) == 12
+    obs_dim, act_dim = int(io["observation"]["policy"]["dim"]), int(io["action"]["dim"])
+    K = dict(obs_dim=obs_dim, act_dim=act_dim, CTRL_DT=float(io["control"]["policy_dt"]),
+             DEFAULT_POS_PHYSX=default.tolist(), ACT_SCALE_PHYSX=scale.tolist(), PHYSX_TO_MJCF=physx_to_mjcf,
+             JOINT_NAMES_PHYSX=physx, Q_SLEW=Q_SLEW, A_CLIP=A_CLIP, RAMP_STEPS=RAMP_STEPS,
+             TAU_FF=TAU_FF, WHEEL_TAU_MAX=tmax,
+             gains=dict(kp3=[60.0, 120.0, 120.0], kd3=[1.0, 1.0, 1.0], wheel_kd=WHEEL_OUTER_GAIN, wheel_kd_safe=0.5),
+             obs_slices=io["observation"]["policy"]["slices"], noise=io["observation"]["policy"]["noise"],
+             source=source)
+    # 他的致動器設定（env.yaml）與 K.gains 必須一致；這裡只記錄，M9 拿 gains 與命令列「說兩次」。
+    ref = dict(wheel_outer_gain=WHEEL_OUTER_GAIN, wheel_space="tau", nominal_height=0.485,
+               cmd_range=dict(vx=[-1.0, 1.0], vy=[-1.0, 1.0], wz=[-1.0, 1.0]), family=source.get("family", "rl_only"))
+    return dict(K=K, ref=ref, lo12=lo12, hi12=hi12, tmax=tmax, physx_to_mjcf=physx_to_mjcf, default=default)
+
+
 def export(onnx_path: str, io_path: str, out: str) -> dict:
     import onnx
     from onnx import numpy_helper
@@ -68,35 +96,14 @@ def export(onnx_path: str, io_path: str, out: str) -> dict:
     obs_dim, act_dim = int(io["observation"]["policy"]["dim"]), int(io["action"]["dim"])
     assert Ws[0].shape == (obs_dim, 512) and Ws[3].shape == (128, act_dim), (Ws[0].shape, Ws[3].shape)
     assert io["joints"]["names"][:12] == io["action"]["labels"][:12]
-    # PhysX 序（按種類分組、腿序 FAR FBL RAR RBL）→ MJCF 序（每腿 abad hip knee、腿序 FR FL RR RL）
-    physx = io["joints"]["names"]
-    mjcf12 = [f"{mm.PREFIX[l]}_{k}_JOINT" for l in mm.LEGS for k in ("ABAD", "HIP", "KNEE")]
-    physx_to_mjcf = [physx.index(n) for n in mjcf12]          # mjcf[k] = physx[physx_to_mjcf[k]]
-    wheels_physx = physx[12:16]; wheels_mjcf = [f"{mm.PREFIX[l]}_FOOT_JOINT" for l in mm.LEGS]
-    assert wheels_physx == wheels_mjcf, (wheels_physx, wheels_mjcf)
-    default = np.array(io["joints"]["default_pos"], float)
-    scale = np.array(io["action"]["scale"], float); offset = np.array(io["action"]["offset"], float)
-    assert np.allclose(offset[:12], default[:12]) and np.allclose(offset[12:], 0.0)
-    import rl_obs
-    lo12, hi12, tmax = _mj_limits([f"{mm.PREFIX[l]}_{k}_JOINT" for l in mm.LEGS for k in ("ABAD", "HIP", "KNEE")])
-    assert len(rl_obs.LEG_NAMES) == 12
-    K = dict(obs_dim=obs_dim, act_dim=act_dim, CTRL_DT=float(io["control"]["policy_dt"]),
-             DEFAULT_POS_PHYSX=default.tolist(), ACT_SCALE_PHYSX=scale.tolist(), PHYSX_TO_MJCF=physx_to_mjcf,
-             JOINT_NAMES_PHYSX=physx, Q_SLEW=Q_SLEW, A_CLIP=A_CLIP, RAMP_STEPS=RAMP_STEPS,
-             TAU_FF=TAU_FF, WHEEL_TAU_MAX=tmax,
-             gains=dict(kp3=[60.0, 120.0, 120.0], kd3=[1.0, 1.0, 1.0], wheel_kd=WHEEL_OUTER_GAIN, wheel_kd_safe=0.5),
-             obs_slices=io["observation"]["policy"]["slices"], noise=io["observation"]["policy"]["noise"],
-             source=dict(task=io.get("task"), env_cfg=io.get("env_cfg"), onnx=Path(onnx_path).name))
-    # 他的致動器設定（env.yaml）與 K.gains 必須一致；這裡只記錄，M9 拿 gains 與命令列「說兩次」。
-    ref = dict(wheel_outer_gain=WHEEL_OUTER_GAIN, wheel_space="tau", nominal_height=0.485,
-               cmd_range=dict(vx=[-1.0, 1.0], vy=[-1.0, 1.0], wz=[-1.0, 1.0]), family="rl_only")
+    T = gen_tables(io, source=dict(task=io.get("task"), env_cfg=io.get("env_cfg"), onnx=Path(onnx_path).name))
     z = dict(mean=np.zeros(obs_dim, np.float32), std=np.ones(obs_dim, np.float32),
              obs_dim=np.int64(obs_dim), act_dim=np.int64(act_dim),
              preset=np.str_("rl_only"), layout=np.str_("rl16"), activation=np.str_("elu"), output=np.str_("linear"),
-             ref_json=np.str_(json.dumps(ref, sort_keys=True)), gen_json=np.str_(json.dumps(K, sort_keys=True)),
+             ref_json=np.str_(json.dumps(T["ref"], sort_keys=True)), gen_json=np.str_(json.dumps(T["K"], sort_keys=True)),
              src_sha256=np.str_(hashlib.sha256(Path(onnx_path).read_bytes()).hexdigest()),
-             LO12=lo12.astype(np.float64), HI12=hi12.astype(np.float64), WHEEL_TAU_MAX=np.float64(tmax),
-             STANCE_Q12=np.array([default[physx_to_mjcf[k]] for k in range(12)], np.float64))
+             LO12=T["lo12"].astype(np.float64), HI12=T["hi12"].astype(np.float64), WHEEL_TAU_MAX=np.float64(T["tmax"]),
+             STANCE_Q12=np.array([T["default"][T["physx_to_mjcf"][k]] for k in range(12)], np.float64))
     for i in range(4):
         z[f"W{i}"], z[f"b{i}"] = Ws[i], bs[i]
     np.savez(out, **z)

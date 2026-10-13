@@ -82,7 +82,8 @@ class Policy:
     """npz 兩種版面（`activation`／`output` 鍵缺就是 brax 舊版面，行為逐位元不變）：
       brax（v2.3／v3）：(obs−mean)/std → [Linear→swish]×3 → Linear(2·act) 取前 act → tanh
       rl16（同事 Isaac Lab／rsl_rl，`export_policy_rl.py`）：obs → [Linear→elu]×3 → Linear(act)，**無正規化、無 tanh**，
-        輸出直接是動作（mean/std 存的是 0/1，算式相同）。"""
+        輸出直接是動作（mean/std 存的是 0/1，算式相同）。
+      rl_wheel（我們自訓，`export_policy_wheel.py`）：brax 版面 ＋ `act_gain`（4.0），layout 仍 rl16。"""
 
     def __init__(self, z):
         self.obs_dim = int(z["obs_dim"])
@@ -93,6 +94,7 @@ class Policy:
         self.src_sha256 = str(z["src_sha256"])
         self.activation = str(z["activation"]) if "activation" in z else "swish"
         self.output = str(z["output"]) if "output" in z else "tanh_loc"
+        self.act_gain = float(z["act_gain"]) if "act_gain" in z else 1.0     # rl_wheel（2026-10-13）：tanh 輸出 × 4 ＝ 他的尺度；缺鍵＝1.0，舊 npz 不變
         self.mean = np.asarray(z["mean"], dtype=np.float32)
         self.std = np.asarray(z["std"], dtype=np.float32)
         self.W = [np.asarray(z[f"W{i}"], dtype=np.float32) for i in range(4)]
@@ -115,7 +117,7 @@ class Policy:
         loc = (x @ self.W[3] + self.b[3])[: self.act_dim]
         if self.output == "linear":
             return loc.astype(float)
-        return np.tanh(loc).astype(float)
+        return (self.act_gain * np.tanh(loc)).astype(float)
 
 
 def load(path: str) -> Policy:

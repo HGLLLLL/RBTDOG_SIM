@@ -40,7 +40,7 @@ def test_export_matches_brax_inference(pkl, tmp_path):
     for k in ("DEFAULT_POS_PHYSX", "ACT_SCALE_PHYSX", "PHYSX_TO_MJCF", "Q_SLEW", "A_CLIP", "RAMP_STEPS", "TAU_FF", "WHEEL_TAU_MAX", "gains", "obs_slices", "noise", "CTRL_DT"):
         assert k in K, k
     assert K["A_CLIP"] == 4.0 and K["source"]["family"] == "rl_wheel"
-    ref_json = json.loads(str(z["ref_json"])); assert ref_json["family"] == "rl_wheel" and ref_json["nominal_height"] == 0.485
+    ref_json = json.loads(str(z["ref_json"])); assert ref_json["family"] == "rl_only" and ref_json["nominal_height"] == 0.485
 
 
 def test_rl_only_gen_tables_unchanged():
@@ -54,3 +54,20 @@ def test_rl_only_gen_tables_unchanged():
     T = er.gen_tables(io, source=json.loads(str(z["gen_json"]))["source"])
     assert json.dumps(T["K"], sort_keys=True) == str(z["gen_json"])
     assert np.array_equal(T["lo12"], z["LO12"]) and np.array_equal(T["hi12"], z["HI12"])
+
+
+def test_exported_npz_loads_in_gen_direct(pkl, tmp_path):
+    """狗端整合：匯出的 npz 要能被 gen_direct（不改）載入並跑一步。"""
+    import gen_direct
+    out = tmp_path / "rl_wheel_test_np.npz"
+    ew.export(str(pkl), str(out))
+    p = gen_direct.load_params(str(out))
+    g = gen_direct.Gen(p)
+    q, tau, _ = g.step((0.3, 0.0, 0.0), np.zeros(16), np.zeros(4))
+    assert q.shape == (12,) and np.all(np.isfinite(q))
+    assert tau.shape == (4,) and np.all(np.isfinite(tau))
+
+
+def test_act_gain_matches_env():
+    rw = pytest.importorskip("rl_env_wheel")
+    assert ew.ACT_GAIN == rw.ACT_GAIN

@@ -71,7 +71,7 @@ def gen_tables(io: dict, source: dict) -> dict:
              source=source)
     # 他的致動器設定（env.yaml）與 K.gains 必須一致；這裡只記錄，M9 拿 gains 與命令列「說兩次」。
     ref = dict(wheel_outer_gain=WHEEL_OUTER_GAIN, wheel_space="tau", nominal_height=0.485,
-               cmd_range=dict(vx=[-1.0, 1.0], vy=[-1.0, 1.0], wz=[-1.0, 1.0]), family=source.get("family", "rl_only"))
+               cmd_range=dict(vx=[-1.0, 1.0], vy=[-1.0, 1.0], wz=[-1.0, 1.0]), family="rl_only")  # rl16 介面族名，gen_direct 驗這個；來源差異記在 K.source
     return dict(K=K, ref=ref, lo12=lo12, hi12=hi12, tmax=tmax, physx_to_mjcf=physx_to_mjcf, default=default)
 
 

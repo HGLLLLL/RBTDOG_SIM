@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "realbot"))
@@ -35,5 +36,5 @@ def test_gain_scales_tanh_output():
 def test_committed_rl_only_npz_unchanged():
     npz = ROOT / "weights" / "rl_only_2026-10-01_10k_np.npz"
     if not npz.exists():
-        return
+        pytest.skip("rl_only npz 不在")
     P = pn.load(str(npz)); assert P.act_gain == 1.0 and P.output == "linear"

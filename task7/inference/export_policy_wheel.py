@@ -5,6 +5,8 @@
   → task7/weights/rl_wheel_v1_np.npz
 npz：brax 版面（mean/std、W0..3/b0..3、swish、tanh_loc）＋ **act_gain=4.0**（狗端 policy_np 乘上去＝他的尺度，gen_direct 再 0.25·a／5·a）
 ＋ gen_json／ref_json／LO12/HI12/STANCE_Q12（與 export_policy_rl 同欄位，gen_tables 共用）。
+區分記號：npz 的 preset="rl_wheel"、gen_json.source.family="rl_wheel"。ref_json.family **維持 "rl_only"**——
+它是 rl16 介面族名，狗端 gen_direct.Params 只認 "rl_only"（狗端堆疊不改）。
 """
 from __future__ import annotations
 
@@ -38,9 +40,9 @@ def make_params_for_test(key):
     import jax
     from brax.training.acme import running_statistics, specs
     nets = _networks()
-    k1, k2, k3 = jax.random.split(key, 3)
+    k1, k2, k3, k4 = jax.random.split(key, 4)
     norm = running_statistics.init_state(specs.Array((OBS_DIM,), np.float32))
-    norm = norm.replace(mean=jax.random.normal(k3, (OBS_DIM,)), std=jax.random.uniform(k3, (OBS_DIM,), minval=0.5, maxval=2.0))
+    norm = norm.replace(mean=jax.random.normal(k3, (OBS_DIM,)), std=jax.random.uniform(k4, (OBS_DIM,), minval=0.5, maxval=2.0))
     return (norm, nets.policy_network.init(k1), nets.value_network.init(k2))
 
 

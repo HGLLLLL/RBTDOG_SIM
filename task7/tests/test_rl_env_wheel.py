@@ -130,3 +130,10 @@ def test_privileged_obs_and_policy_noise():
         assert np.abs(pol - clean).max() > 1e-3, i                                       # policy 分支帶雜訊
         assert np.abs(pol[0:3] - clean[0:3]).max() <= rw.NOISE["ang"] + 1e-6 and np.allclose(pol[37:], clean[37:])
         s = step(s, jnp.full(16, 0.05))
+
+
+def test_wheel_hfield_rbound_override(env):
+    """hfield 子網格用的包圍半徑：輪子覆寫成真實外半徑＋2 mm（AABB 半對角 0.136 會多測一圈稜柱）。"""
+    rb = np.asarray(env.sys._impl.geom_rbound_hfield)
+    assert np.allclose(rb[np.asarray(env.WHEEL_GIDS)], wt.WHEEL_R + 0.002)
+    assert np.all(rb[np.asarray(env.WHEEL_GIDS)] < 0.1) and rb.max() > 0.1   # 其他 geom 不動

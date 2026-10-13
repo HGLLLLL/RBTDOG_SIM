@@ -1,0 +1,397 @@
+{
+  "task": "Wheel-Rough-v0",
+  "env_cfg": "WheelRoughEnvCfg",
+  "generated": "2026-09-29",
+  "control": {
+    "sim_dt": 0.005,
+    "decimation": 4,
+    "policy_dt": 0.02,
+    "policy_hz": 50.0
+  },
+  "joints": {
+    "count": 16,
+    "names": [
+      "FAR_ABAD_JOINT",
+      "FBL_ABAD_JOINT",
+      "RAR_ABAD_JOINT",
+      "RBL_ABAD_JOINT",
+      "FAR_HIP_JOINT",
+      "FBL_HIP_JOINT",
+      "RAR_HIP_JOINT",
+      "RBL_HIP_JOINT",
+      "FAR_KNEE_JOINT",
+      "FBL_KNEE_JOINT",
+      "RAR_KNEE_JOINT",
+      "RBL_KNEE_JOINT",
+      "FAR_FOOT_JOINT",
+      "FBL_FOOT_JOINT",
+      "RAR_FOOT_JOINT",
+      "RBL_FOOT_JOINT"
+    ],
+    "id": {
+      "FAR_ABAD_JOINT": 0,
+      "FBL_ABAD_JOINT": 1,
+      "RAR_ABAD_JOINT": 2,
+      "RBL_ABAD_JOINT": 3,
+      "FAR_HIP_JOINT": 4,
+      "FBL_HIP_JOINT": 5,
+      "RAR_HIP_JOINT": 6,
+      "RBL_HIP_JOINT": 7,
+      "FAR_KNEE_JOINT": 8,
+      "FBL_KNEE_JOINT": 9,
+      "RAR_KNEE_JOINT": 10,
+      "RBL_KNEE_JOINT": 11,
+      "FAR_FOOT_JOINT": 12,
+      "FBL_FOOT_JOINT": 13,
+      "RAR_FOOT_JOINT": 14,
+      "RBL_FOOT_JOINT": 15
+    },
+    "default_pos": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.8,
+      0.8,
+      -0.8,
+      -0.8,
+      -1.5,
+      -1.5,
+      1.5,
+      1.5,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "note": "PhysX order. This is the order of the joint_pos / joint_vel tensors and of asset_cfg.joint_ids."
+  },
+  "action": {
+    "dim": 16,
+    "terms": {
+      "joint_pos": {
+        "type": "JointPositionAction",
+        "slice": [
+          0,
+          12
+        ],
+        "joints": [
+          "FAR_ABAD_JOINT",
+          "FBL_ABAD_JOINT",
+          "RAR_ABAD_JOINT",
+          "RBL_ABAD_JOINT",
+          "FAR_HIP_JOINT",
+          "FBL_HIP_JOINT",
+          "RAR_HIP_JOINT",
+          "RBL_HIP_JOINT",
+          "FAR_KNEE_JOINT",
+          "FBL_KNEE_JOINT",
+          "RAR_KNEE_JOINT",
+          "RBL_KNEE_JOINT"
+        ]
+      },
+      "wheel_vel": {
+        "type": "JointVelocityAction",
+        "slice": [
+          12,
+          16
+        ],
+        "joints": [
+          "FAR_FOOT_JOINT",
+          "FBL_FOOT_JOINT",
+          "RAR_FOOT_JOINT",
+          "RBL_FOOT_JOINT"
+        ]
+      }
+    },
+    "labels": [
+      "FAR_ABAD_JOINT",
+      "FBL_ABAD_JOINT",
+      "RAR_ABAD_JOINT",
+      "RBL_ABAD_JOINT",
+      "FAR_HIP_JOINT",
+      "FBL_HIP_JOINT",
+      "RAR_HIP_JOINT",
+      "RBL_HIP_JOINT",
+      "FAR_KNEE_JOINT",
+      "FBL_KNEE_JOINT",
+      "RAR_KNEE_JOINT",
+      "RBL_KNEE_JOINT",
+      "FAR_FOOT_JOINT",
+      "FBL_FOOT_JOINT",
+      "RAR_FOOT_JOINT",
+      "RBL_FOOT_JOINT"
+    ],
+    "joint_id": {
+      "FAR_ABAD_JOINT": 0,
+      "FBL_ABAD_JOINT": 1,
+      "RAR_ABAD_JOINT": 2,
+      "RBL_ABAD_JOINT": 3,
+      "FAR_HIP_JOINT": 4,
+      "FBL_HIP_JOINT": 5,
+      "RAR_HIP_JOINT": 6,
+      "RBL_HIP_JOINT": 7,
+      "FAR_KNEE_JOINT": 8,
+      "FBL_KNEE_JOINT": 9,
+      "RAR_KNEE_JOINT": 10,
+      "RBL_KNEE_JOINT": 11,
+      "FAR_FOOT_JOINT": 12,
+      "FBL_FOOT_JOINT": 13,
+      "RAR_FOOT_JOINT": 14,
+      "RBL_FOOT_JOINT": 15
+    },
+    "scale": [
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      5.0,
+      5.0,
+      5.0,
+      5.0
+    ],
+    "offset": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.8,
+      0.8,
+      -0.8,
+      -0.8,
+      -1.5,
+      -1.5,
+      1.5,
+      1.5,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "formula": "joint target = action * scale + offset"
+  },
+  "observation": {
+    "policy": {
+      "dim": 53,
+      "corruption": true,
+      "slices": {
+        "base_ang_vel": [
+          0,
+          3
+        ],
+        "projected_gravity": [
+          3,
+          6
+        ],
+        "velocity_commands": [
+          6,
+          9
+        ],
+        "joint_pos": [
+          9,
+          21
+        ],
+        "joint_vel": [
+          21,
+          37
+        ],
+        "actions": [
+          37,
+          53
+        ]
+      },
+      "labels": [
+        "ang_vel_x",
+        "ang_vel_y",
+        "ang_vel_z",
+        "grav_x",
+        "grav_y",
+        "grav_z",
+        "velocity_commands:lin_vel_x",
+        "velocity_commands:lin_vel_y",
+        "velocity_commands:ang_vel_z",
+        "joint_pos:FAR_ABAD_JOINT",
+        "joint_pos:FBL_ABAD_JOINT",
+        "joint_pos:RAR_ABAD_JOINT",
+        "joint_pos:RBL_ABAD_JOINT",
+        "joint_pos:FAR_HIP_JOINT",
+        "joint_pos:FBL_HIP_JOINT",
+        "joint_pos:RAR_HIP_JOINT",
+        "joint_pos:RBL_HIP_JOINT",
+        "joint_pos:FAR_KNEE_JOINT",
+        "joint_pos:FBL_KNEE_JOINT",
+        "joint_pos:RAR_KNEE_JOINT",
+        "joint_pos:RBL_KNEE_JOINT",
+        "joint_vel:FAR_ABAD_JOINT",
+        "joint_vel:FBL_ABAD_JOINT",
+        "joint_vel:RAR_ABAD_JOINT",
+        "joint_vel:RBL_ABAD_JOINT",
+        "joint_vel:FAR_HIP_JOINT",
+        "joint_vel:FBL_HIP_JOINT",
+        "joint_vel:RAR_HIP_JOINT",
+        "joint_vel:RBL_HIP_JOINT",
+        "joint_vel:FAR_KNEE_JOINT",
+        "joint_vel:FBL_KNEE_JOINT",
+        "joint_vel:RAR_KNEE_JOINT",
+        "joint_vel:RBL_KNEE_JOINT",
+        "joint_vel:FAR_FOOT_JOINT",
+        "joint_vel:FBL_FOOT_JOINT",
+        "joint_vel:RAR_FOOT_JOINT",
+        "joint_vel:RBL_FOOT_JOINT",
+        "actions:FAR_ABAD_JOINT",
+        "actions:FBL_ABAD_JOINT",
+        "actions:RAR_ABAD_JOINT",
+        "actions:RBL_ABAD_JOINT",
+        "actions:FAR_HIP_JOINT",
+        "actions:FBL_HIP_JOINT",
+        "actions:RAR_HIP_JOINT",
+        "actions:RBL_HIP_JOINT",
+        "actions:FAR_KNEE_JOINT",
+        "actions:FBL_KNEE_JOINT",
+        "actions:RAR_KNEE_JOINT",
+        "actions:RBL_KNEE_JOINT",
+        "actions:FAR_FOOT_JOINT",
+        "actions:FBL_FOOT_JOINT",
+        "actions:RAR_FOOT_JOINT",
+        "actions:RBL_FOOT_JOINT"
+      ],
+      "noise": {
+        "base_ang_vel": {
+          "type": "UniformNoiseCfg",
+          "operation": "add",
+          "n_min": -0.2,
+          "n_max": 0.2
+        },
+        "projected_gravity": {
+          "type": "UniformNoiseCfg",
+          "operation": "add",
+          "n_min": -0.05,
+          "n_max": 0.05
+        },
+        "velocity_commands": null,
+        "joint_pos": {
+          "type": "UniformNoiseCfg",
+          "operation": "add",
+          "n_min": -0.01,
+          "n_max": 0.01
+        },
+        "joint_vel": {
+          "type": "UniformNoiseCfg",
+          "operation": "add",
+          "n_min": -1.5,
+          "n_max": 1.5
+        },
+        "actions": null
+      }
+    },
+    "critic": {
+      "dim": 56,
+      "corruption": false,
+      "slices": {
+        "base_ang_vel": [
+          0,
+          3
+        ],
+        "projected_gravity": [
+          3,
+          6
+        ],
+        "velocity_commands": [
+          6,
+          9
+        ],
+        "joint_pos": [
+          9,
+          21
+        ],
+        "joint_vel": [
+          21,
+          37
+        ],
+        "actions": [
+          37,
+          53
+        ],
+        "base_lin_vel": [
+          53,
+          56
+        ]
+      },
+      "labels": [
+        "ang_vel_x",
+        "ang_vel_y",
+        "ang_vel_z",
+        "grav_x",
+        "grav_y",
+        "grav_z",
+        "velocity_commands:lin_vel_x",
+        "velocity_commands:lin_vel_y",
+        "velocity_commands:ang_vel_z",
+        "joint_pos:FAR_ABAD_JOINT",
+        "joint_pos:FBL_ABAD_JOINT",
+        "joint_pos:RAR_ABAD_JOINT",
+        "joint_pos:RBL_ABAD_JOINT",
+        "joint_pos:FAR_HIP_JOINT",
+        "joint_pos:FBL_HIP_JOINT",
+        "joint_pos:RAR_HIP_JOINT",
+        "joint_pos:RBL_HIP_JOINT",
+        "joint_pos:FAR_KNEE_JOINT",
+        "joint_pos:FBL_KNEE_JOINT",
+        "joint_pos:RAR_KNEE_JOINT",
+        "joint_pos:RBL_KNEE_JOINT",
+        "joint_vel:FAR_ABAD_JOINT",
+        "joint_vel:FBL_ABAD_JOINT",
+        "joint_vel:RAR_ABAD_JOINT",
+        "joint_vel:RBL_ABAD_JOINT",
+        "joint_vel:FAR_HIP_JOINT",
+        "joint_vel:FBL_HIP_JOINT",
+        "joint_vel:RAR_HIP_JOINT",
+        "joint_vel:RBL_HIP_JOINT",
+        "joint_vel:FAR_KNEE_JOINT",
+        "joint_vel:FBL_KNEE_JOINT",
+        "joint_vel:RAR_KNEE_JOINT",
+        "joint_vel:RBL_KNEE_JOINT",
+        "joint_vel:FAR_FOOT_JOINT",
+        "joint_vel:FBL_FOOT_JOINT",
+        "joint_vel:RAR_FOOT_JOINT",
+        "joint_vel:RBL_FOOT_JOINT",
+        "actions:FAR_ABAD_JOINT",
+        "actions:FBL_ABAD_JOINT",
+        "actions:RAR_ABAD_JOINT",
+        "actions:RBL_ABAD_JOINT",
+        "actions:FAR_HIP_JOINT",
+        "actions:FBL_HIP_JOINT",
+        "actions:RAR_HIP_JOINT",
+        "actions:RBL_HIP_JOINT",
+        "actions:FAR_KNEE_JOINT",
+        "actions:FBL_KNEE_JOINT",
+        "actions:RAR_KNEE_JOINT",
+        "actions:RBL_KNEE_JOINT",
+        "actions:FAR_FOOT_JOINT",
+        "actions:FBL_FOOT_JOINT",
+        "actions:RAR_FOOT_JOINT",
+        "actions:RBL_FOOT_JOINT",
+        "lin_vel_x",
+        "lin_vel_y",
+        "lin_vel_z"
+      ],
+      "noise": {
+        "base_ang_vel": null,
+        "projected_gravity": null,
+        "velocity_commands": null,
+        "joint_pos": null,
+        "joint_vel": null,
+        "actions": null,
+        "base_lin_vel": null
+      }
+    }
+  }
+}

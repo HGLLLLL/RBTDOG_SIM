@@ -79,6 +79,30 @@ def test_wheel_wheel_contact_fires_when_squeezed(env):
     T1, aux1 = env._reward_terms(near, _info(env, near), jnp.zeros(16), jnp.zeros(3))
     assert float(aux1["ww_force"]) > 10.0 and float(T1["ww"]) < 0.0
     assert aux1["touch"].shape == (4,)
+    # 釘公式：ww ＝ −w_ww · Σ(fn/100)²，只算兩端都是輪的接觸
+    C = aux1["C"]
+    fn, g0, g1 = (np.asarray(C[k]) for k in ("fn", "g0", "g1"))
+    wg = np.asarray(env.WHEEL_GIDS)
+    mask = np.isin(g0, wg) & np.isin(g1, wg)
+    assert float(aux1["ww_force"]) == pytest.approx(float(np.sum(fn * mask)), rel=1e-5)
+    assert float(T1["ww"]) == pytest.approx(-1.0 * float(np.sum((fn * mask / 100.0) ** 2)), rel=1e-5)
+    e2 = rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, w_ww=2.0, scene=env.scene)
+    T2, _ = e2._reward_terms(near, _info(env, near), jnp.zeros(16), jnp.zeros(3))
+    assert float(T2["ww"]) == pytest.approx(2.0 * float(T1["ww"]), rel=1e-6)
+    # 對照 CPU MuJoCo：同 qpos、mj_forward 後走一步，mj_contactForce 的法向分量加總（輪–輪接觸）
+    mujoco = pytest.importorskip("mujoco")
+    m = mujoco.MjModel.from_xml_path(env.scene); wt.load_hfield(m, env.H_np)
+    d = mujoco.MjData(m)
+    d.qpos[:] = np.asarray(_standing_data(env, abad=0.5).qpos)
+    mujoco.mj_forward(m, d); mujoco.mj_step(m, d)
+    f6 = np.zeros(6); cpu = 0.0
+    for i in range(d.ncon):
+        c = d.contact[i]
+        if c.geom1 in wg and c.geom2 in wg:
+            mujoco.mj_contactForce(m, d, i, f6); cpu += f6[0]
+    print(f"ww_force MJX={float(aux1['ww_force']):.3f} N  CPU={cpu:.3f} N")
+    assert cpu > 10.0
+    assert float(aux1["ww_force"]) == pytest.approx(cpu, rel=0.25)
 
 
 def test_touch_and_slip(env):
@@ -104,6 +128,7 @@ def test_base_contact_terminates(env):
     s = s.replace(pipeline_state=low)
     s2 = jax.jit(env.step)(s, jnp.zeros(16))
     assert float(s2.done) == 1.0 and int(s2.info["t"]) == 0          # 摔 → done ＋ 重生
+    assert float(s2.metrics["fell"]) == 1.0
     s3 = jax.jit(env.step)(jax.jit(env.reset)(jax.random.PRNGKey(1)), jnp.zeros(16))
     assert float(s3.done) == 0.0
 

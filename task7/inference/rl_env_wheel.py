@@ -73,6 +73,10 @@ class WheelEnv(Env):
         assert m.opt.timestep == SIM_DT, m.opt.timestep     # 場景 <option timestep="0.005">（wheel_terrain.make_scene_xml）
         self.H_np = wt.build_map(map_seed, flat=flat)
         wt.load_hfield(m, self.H_np)
+        # _contacts 假設金字塔摩擦錐（cone 0）＋ condim 3：每個接觸 4 列 efc、法向力＝4 列和。
+        # 換 elliptic 錐或改 condim（含 <pair>）時，_contacts 的法向力解碼就要跟著改，否則讀值錯。
+        assert m.opt.cone == 0 and int(m.geom_condim.max()) == 3 and int(m.pair_dim.max() if m.npair else 3) == 3, \
+            (m.opt.cone, m.geom_condim.max(), m.pair_dim)
         self._mj = m
         self.sys = mjx.put_model(m)
         self.H = jnp.array(self.H_np, dtype=jnp.float32)
@@ -222,8 +226,10 @@ class WheelEnv(Env):
     def _contacts(self, data):
         """MJX 接觸表（固定長度、padding）：active、兩端 geom、法向力（走過 mjx.step 才有值）。"""
         c = data._impl.contact
-        active = c.dist < 0
-        fn = jnp.maximum(data._impl.efc_force[c.efc_address], 0.0) * active
+        active = c.dist < 0                          # 忽略 margin（目前所有 geom／pair 的 margin 都是 0）；有 margin 要改成 dist < margin
+        nefc = data._impl.efc_force.shape[0]
+        rows = jnp.clip(c.efc_address[:, None] + jnp.arange(4)[None, :], 0, nefc - 1)   # 金字塔錐 condim 3：每個接觸 4 列，法向力＝4 列和（mj_contactForce 同式）；padding 由 active 遮掉
+        fn = jnp.sum(jnp.maximum(data._impl.efc_force[rows], 0.0), axis=1) * active
         return dict(active=active, g0=c.geom[:, 0], g1=c.geom[:, 1], fn=fn)
 
     def _base_contact(self, C):

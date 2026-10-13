@@ -20,7 +20,7 @@ md0 = """# 純 RL 自訓 **v1**：智元 D1 Max · 同事 Wheel-Rough 環境的 
 - 改動一 自碰撞：輪輪 pair ＋ 實體間隙 hinge（`wgap`）＋ 接觸力（`ww`，只擋腿交叉）。改動二 小指令：追蹤 std 0.5 → 0.25、30% 回合小指令。改動三 輪摩擦：real 關節摩擦 DR。
 - 開訓前關卡已過：`outputs/rl_wheel/align_10k.md`（他的 10k 在這個環境零訓練重現）、`outputs/reward_audit_wheel_v1.md`。
 
-**流程**：第一格 throughput 測試選 `NUM_ENVS` → 訓練（每次 eval 存 pkl 到 Drive）→ 一個 session 跑 3.3 億步 → 下個 session `RESUME` 指到 Drive 上**檔名步數最大**的 `rl_wheel_v1_step*.pkl` 再跑（累計步數由檔名自動解析）→ 合計 10 億步。
+**流程**：第一格 throughput 測試選 `NUM_ENVS` → 訓練（每次 eval 存 pkl 到 `/content/rl_wheel_v1/`，**不用雲端硬碟**；runtime 斷線檔案就沒了，所以每個 session 跑完立刻從左側檔案面板下載 `rl_wheel_v1_params.pkl` 與最新的 `rl_wheel_v1_step*.pkl`）→ 一個 session 跑 3.3 億步 → 下個 session 把上一輪的 `rl_wheel_v1_step*.pkl` 上傳回 `/content/rl_wheel_v1/`，`RESUME` 指到它（累計步數由檔名自動解析）→ 合計 10 億步。
 **續訓注意**：只還原網路與 normalizer，Adam 動量與 ADAPTIVE_KL 學習率會重置，每個 session 開頭 reward 可能短暫抖動，不是退步。
 **記憶體**：throughput 格的 10 億步 ETA 是下限（純 step 速率）；訓練格 OOM 就手動把 `NUM_ENVS` 降一檔。
 **停損**：累計 2 億步時 `len < 600`（一直摔）、或 `lin < 0.5`（站著不動）、或 `wgap` 沒比 step 0 好（往 0 走）／`gap` 中位 < 40 mm（改動一沒被學到；`ww` 平地恆 0 不能看）→ 停，不硬跑完。
@@ -86,11 +86,9 @@ train_src = f'''import functools, time
 from brax.training.agents.ppo import train as ppo
 from brax.training.agents.ppo import networks as ppo_networks
 from brax.io import model
-from google.colab import drive
-drive.mount("/content/drive")
-DRIVE = "/content/drive/MyDrive/rl_wheel_v1"; import os; os.makedirs(DRIVE, exist_ok=True)
+DRIVE = "/content/rl_wheel_v1"; import os; os.makedirs(DRIVE, exist_ok=True)   # 本機暫存（使用者決定不用雲端硬碟）；session 結束前自己下載
 
-# 續訓：RESUME 指到 Drive 上「檔名步數最大」的 rl_wheel_v1_step*.pkl（每次 eval 存一個；(normalizer, policy, value) 三元組）。
+# 續訓：把上一輪下載的 rl_wheel_v1_step*.pkl 上傳到 /content/rl_wheel_v1/，RESUME 指到「檔名步數最大」的那個（每次 eval 存一個；(normalizer, policy, value) 三元組）。
 # 不要指 rl_wheel_v1_params.pkl：它檔名沒有步數。None ＝ 從頭。
 # brax 的 restore_params 不還原步數，STEP_OFFSET 從 RESUME 檔名解析累計步數，存檔名與進度列印都用累計步數；停損線「2 億步」是累計步數。
 # TIMESTEPS 是「這一輪再跑幾步」；一個 session 3.3 億，三個 session 合計 10 億。
@@ -144,7 +142,7 @@ plt.plot([s for s, _ in rewards], [r for _, r in rewards], marker="o"); plt.xlab
 
 save_src = f'''model.save_params("{WEIGHTS}", params)
 import shutil; shutil.copy("{WEIGHTS}", f"{{DRIVE}}/{WEIGHTS}")
-print("已存 {WEIGHTS}（本機與 Drive）→ 下載放 task7/weights/；本機：export_policy_wheel.py → rl_only_infer.py --npz … --self-collision")
+print("已存 {WEIGHTS}（/content 與 /content/rl_wheel_v1/）→ ⚠️ 立刻從檔案面板下載，runtime 斷線就沒了 → 放 task7/weights/；本機：export_policy_wheel.py → rl_only_infer.py --npz … --self-collision")
 '''
 
 

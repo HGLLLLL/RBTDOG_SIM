@@ -2,8 +2,9 @@
 
 大圖：三列（rough／boxes／stairs）× 十欄（難度 0–9）的 8 m × 8 m 方塊，格距 0.1 m，外圍 20 m 平地（他的 border_width 200；2 m 時離邊只 6 m、開出圖外會自由落體）；
 全圖基準高 BASE_H（反向樓梯往下挖，hfield 資料仍 ≥ 0）。
-場景：`scene_flat_mjx_v3f.xml` 去平面、加 hfield、輪子換凸網格圓盤（**MJX 3.10 不支援 hfield–cylinder**）、輪速伺服 kv 1.0（他的 IdealPD）、
-四個輪輪 `<pair>`。CPU 驗收工具用 `make_flat_pairs_scene_xml()`（圓柱輪子＋pair）。
+場景：`scene_flat_mjx_v3f.xml` 去平面、加 hfield、**全部碰撞幾何改膠囊**（輪子／機身／腿；MJX 3.10 不支援 hfield–cylinder，
+hfield 對凸體要對 subgrid 每個稜柱跑 GJK、對膠囊是閉式解；A100 實測網格輪＋方塊機身 1024 envs 只 5.4k steps/s 且不隨環境數增加）、
+輪速伺服 kv 1.0（他的 IdealPD）、四個輪輪 `<pair>`。CPU 驗收工具用 `make_flat_pairs_scene_xml()`（圓柱輪子＋pair）。
 """
 from __future__ import annotations
 
@@ -30,9 +31,14 @@ BASE_H = 1.0                               # 全圖基準高 m
 ZMAX = 2.0                                 # hfield 高度量程 m（資料 0..1 ↔ 0..ZMAX）
 TILE_BORDER = 0.25                         # 每方塊邊緣壓平寬 m（他的 border_width）
 STAIR_TREAD, STAIR_STEPS = 0.3, 10         # 踏面 m、階數（中央平台 ±1 m 到邊 4 m ＝ 3 m / 0.3）
-WHEEL_R, WHEEL_HW, WHEEL_NSIDES = 0.096, 0.005, 16
+WHEEL_R, WHEEL_HW = 0.096, 0.005
 PAIRS = (("FAR", "FBL"), ("RAR", "RBL"), ("FAR", "RAR"), ("FBL", "RBL"))
 CYL = 'type="cylinder" size="0.095999 0.005000" quat="0.7071068 0.7071068 0 0"'
+WHEEL_CAP = f'type="capsule" size="{WHEEL_R} {WHEEL_HW}" quat="0.7071068 0.7071068 0 0"'     # 軸向 y 同圓柱
+BASE_BOX = 'type="box" size="0.416641 0.115123 0.104083"'
+BASE_CAP = 'type="capsule" size="0.105 0.31" quat="0.7071068 0 0.7071068 0"'               # 軸 z→x；半徑 ≈ 方塊 y/z 半寬，0.31+0.105 ≈ x 半長
+UPPER_RE = re.compile(r'(<geom size=")0\.03 0\.0075 0\.11(" pos="[^"]*" quat="[^"]*") type="box"')        # 大腿方塊長軸 z ＝ 膠囊軸
+LOWER_RE = re.compile(r'(<geom size=")0\.015 0\.015 0\.11(" pos="0\.005 0 -0\.09" quat="0\.99995 0 -0\.00999983 0") type="box"')
 ROBOT_SRC, ROBOT_OUT = MODEL_DIR / "zgws_mjx_v3f.xml", MODEL_DIR / "zgws_mjx_wheel.xml"
 SCENE_SRC, SCENE_OUT = MODEL_DIR / "scene_flat_mjx_v3f.xml", MODEL_DIR / "scene_wheel_mjx.xml"
 FLAT_PAIRS_OUT = MODEL_DIR / "scene_flat_pairs_v3f.xml"
@@ -107,15 +113,6 @@ def load_hfield(m, H: np.ndarray) -> None:
     m.hfield_data[:] = (H / ZMAX).ravel()
 
 
-def wheel_mesh_xml() -> str:
-    verts = []
-    for k in range(WHEEL_NSIDES):
-        th = 2 * np.pi * k / WHEEL_NSIDES
-        for s in (-1.0, 1.0):
-            verts += [WHEEL_R * np.cos(th), s * WHEEL_HW, WHEEL_R * np.sin(th)]
-    return f'    <mesh name="wheel_disc" vertex="{" ".join(f"{v:.5f}" for v in verts)}"/>\n'
-
-
 def pairs_xml() -> str:
     return "  <contact>\n" + "".join(f'    <pair geom1="{a}_FOOT_LINK_COLL" geom2="{b}_FOOT_LINK_COLL"/>\n' for a, b in PAIRS) + "  </contact>\n"
 
@@ -132,21 +129,27 @@ def _write(path: Path, text: str) -> str:
 
 
 def make_robot_xml() -> str:
-    """zgws_mjx_v3f.xml → 輪子改網格圓盤、輪速伺服 kv 0.1 → 1.0。"""
+    """zgws_mjx_v3f.xml → 全部碰撞幾何改膠囊（輪／機身／大腿／小腿）、輪速伺服 kv 0.1 → 1.0。"""
     src = ROBOT_SRC.read_text(encoding="utf-8")
     assert src.count(CYL) == 4 and src.count('kv="0.1"') == 4, (src.count(CYL), src.count('kv="0.1"'))
-    out = src.replace(CYL, 'type="mesh" mesh="wheel_disc"').replace('kv="0.1"', 'kv="1.0"')
-    out = "<!-- ⚠️ 產生檔，不要手改。產生器：inference/wheel_terrain.py（zgws_mjx_v3f.xml 的網格輪子版：MJX 3.10 無 hfield–cylinder；輪 kv 1.0＝他的 IdealPD） -->\n" + out
+    assert src.count(BASE_BOX) == 1, src.count(BASE_BOX)
+    out = src.replace(CYL, WHEEL_CAP).replace('kv="0.1"', 'kv="1.0"').replace(BASE_BOX, BASE_CAP)
+    out, n_up = UPPER_RE.subn(r'\g<1>0.03 0.11\g<2> type="capsule"', out)
+    out, n_lo = LOWER_RE.subn(r'\g<1>0.015 0.11\g<2> type="capsule"', out)
+    assert n_up == 4 and n_lo == 4, (n_up, n_lo)
+    assert 'type="box"' not in out and 'type="cylinder"' not in out
+    out = ("<!-- ⚠️ 產生檔，不要手改。產生器：inference/wheel_terrain.py（zgws_mjx_v3f.xml 的膠囊版：全部碰撞幾何改膠囊——"
+           "MJX hfield 對膠囊是閉式解，對凸體要跑 GJK；A100 實測 1024 envs 只有 5.4k steps/s 且不隨環境數增加；輪 kv 1.0＝他的 IdealPD） -->\n" + out)
     return _write(ROBOT_OUT, out)
 
 
 def make_scene_xml() -> str:
-    """訓練場景：hfield 大圖 ＋ 網格輪子機器人 ＋ 輪輪 pair。hfield 資料在載入後用 load_hfield 填。"""
+    """訓練場景：hfield 大圖 ＋ 膠囊碰撞機器人 ＋ 輪輪 pair。hfield 資料在載入後用 load_hfield 填。"""
     make_robot_xml()
     src = SCENE_SRC.read_text(encoding="utf-8")
     hf = f'    <hfield name="terrain" nrow="{NROW}" ncol="{NCOL}" size="{(NCOL - 1) * DX / 2} {(NROW - 1) * DX / 2} {ZMAX} 0.5"/>\n'
     assert "<asset>\n" in src and 'name="floor"' in src and '<include file="zgws_mjx_v3f.xml"/>' in src
-    src = src.replace("<asset>\n", "<asset>\n" + hf + wheel_mesh_xml(), 1)
+    src = src.replace("<asset>\n", "<asset>\n" + hf, 1)
     assert src.count("<statistic ") == 1 and "timestep" not in src
     src = src.replace("<statistic ", '<option timestep="0.005"/>\n  <statistic ', 1)    # 控制 0.02 s ＝ 4 × 0.005（MJCF 的 <option> 可重複、屬性合併）
     src = re.sub(r'<geom name="floor"[^>]*/>', '<geom name="floor" type="hfield" hfield="terrain" pos="0 0 0" material="groundplane"/>', src)

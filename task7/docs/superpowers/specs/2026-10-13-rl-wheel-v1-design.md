@@ -90,8 +90,10 @@
 - **課程**（他的 `terrain_levels_vel` 規則）：回合結束時，水平位移 > 4 m（方塊一半）→ level +1；位移 < 0.5 · ‖v_xy_cmd‖ · 20 s → level −1；
   夾 0–9；到 9 再升時隨機重抽 0–9。站立回合不升降。等級不進 obs（盲走，同他）。
 - **場景檔** `task7/model/zgws/scene_wheel_mjx.xml`：由 `rl_env_wheel.py` 的 `make_scene_xml()` 產生（不手改）＝ `scene_flat_mjx_v3f.xml` 去掉平面、
-  加 hfield（nrow／ncol 依大圖、zmax 依最大高度）、加四個輪輪 `<pair>`（FAR–FBL、RAR–RBL、FAR–RAR、FBL–RBL）。
-  其他幾何 contype／conaffinity 不動（腿、機身仍不互碰，只開輪輪）。MJX 3.10 支援 cylinder–cylinder 與 hfield 碰撞（已查）。
+  加 hfield（nrow／ncol 依大圖、zmax 依最大高度）、加四個輪輪 `<pair>`（FAR–FBL、RAR–RBL、FAR–RAR、FBL–RBL）；機器人用
+  `zgws_mjx_wheel.xml`（`make_robot_xml()` 產生）＝ v3f 把**全部碰撞幾何改膠囊**：輪（半徑 0.096、半長 0.005、軸 y）、機身（半徑 0.105、半長 0.31、軸 x）、
+  大腿（0.03／0.11）、小腿（0.015／0.11），pos／quat 不動（見 §11 註記 1）。contype／conaffinity 不動（腿、機身仍不互碰，只開輪輪）。
+  MJX 3.10 沒有 hfield–cylinder（實測 NotImplementedError），hfield–capsule 是閉式解。
 - **風險**：MJX hfield 碰撞吞吐量沒量過（U 文件在 CPU MuJoCo），§5 throughput 測試一起量。
 
 ## 5. 訓練與存檔（`notebooks/build_nb_wheel.py` → `rl_wheel_v1_colab.ipynb`）
@@ -156,7 +158,11 @@
 
 ## 11. 實作註記（2026-10-13 執行時發現，plan 已照此做）
 
-1. **MJX 3.10 無 hfield–cylinder 碰撞**（實測 `NotImplementedError`）：訓練模型 `zgws_mjx_wheel.xml` 的輪子改凸網格圓盤（半徑 0.096、半寬 0.005、16 邊），hfield–mesh、mesh–mesh 都支援；CPU 驗收工具仍用圓柱模型。零訓練對齊（§6）就是在驗這個差異。
+1. **MJX 3.10 無 hfield–cylinder 碰撞**（實測 `NotImplementedError`）；**訓練模型 `zgws_mjx_wheel.xml` 全部碰撞幾何改膠囊**（2026-10-13 晚，取代原本的 16 邊凸網格輪）：
+   輪＝膠囊（半徑 0.096、半長 0.005、軸 y），機身方塊 0.417×0.115×0.104 半寬 → 膠囊半徑 0.105、半長 0.31（軸 x，總半長 0.415），大腿方塊 → 膠囊 0.03／0.11、小腿 → 0.015／0.11（pos／quat 不動）。
+   理由＝吞吐量：網格輪＋方塊機身在 Colab A100 上 1024／2048／4096 envs 只有 5.4k／6.2k／6.3k steps/s（不隨環境數增加，10 億步 ≈ 52 h；v3 線平地 32k）。
+   MJX 的 `hfield_convex` 對 geom 的 subgrid 每個稜柱跑 GJK（機身 rbound 0.44 → 約 9×9 格 × 2 稜柱），`hfield_capsule` 是閉式解。
+   CPU 16 envs 每子步：原場景 623 ms；機身不碰 510；機身＋腿不碰 401；輪改膠囊且只剩輪碰 277；平面地板參考 354。CPU 驗收工具仍用圓柱模型，零訓練對齊（§6）就是在驗這個差異。
 2. **Brax `AutoResetWrapper` 只還原第一次 reset 的狀態、不重呼叫 reset**：回合結束（摔或 t ≥ episode_len）的重生、課程升降、指令重抽全在 `WheelEnv.step` 內用 `jnp.where` 做；訓練用 `rl_env_wheel.wrap_env`（Vmap／DR → Episode → `RespawnWrapper`）傳 `ppo.train(wrap_env_fn=…)`。`WheelEnv` 只回 `done=fell`，time-out 交給 EpisodeWrapper 設 truncation。
 3. **地形基準高 `BASE_H = 1.0`、`ZMAX = 2.0`**：反向樓梯（中央是坑）要往下挖，hfield 資料必須 ≥ 0。CPU 崎嶇地工具的 ZMAX 也由 0.30 改 1.0（stairs 0.08 的平台 0.8 m 超出舊量程會穿地；rough／boxes 幾何不變）。
 4. **輪輪接觸懲罰的法向力**：場景是金字塔摩擦錐（`opt.cone=0`）、condim 3，每個接觸 4 列 efc，法向力＝4 列和（同 `mj_contactForce`），不是第 0 列；`ww = Σ min(fn/100 N, 3)²`（上限見註記 10）。MJX 與 CPU MuJoCo 同一姿勢同一步的輪輪法向力差約 15%（2755 vs 3245 N），`ww_force` 不要當絕對牛頓數讀。

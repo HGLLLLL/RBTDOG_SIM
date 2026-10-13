@@ -153,10 +153,10 @@ def test_base_contact_terminates(env):
 
 @pytest.mark.parametrize("field", ["x", "z"])
 def test_out_of_map_terminates(env, field):
-    """出界／掉落：base 碰不到 floor 時 fell 靠 oob 觸發（x 超過 X_LIM，或 z 低於 BASE_H − 0.5）。"""
+    """出界／掉落：base 碰不到 floor 時 fell 靠 oob 觸發（x 超過 X_LIM，或 z 低於 0＝hfield 基準面）。"""
     s = jax.jit(env.reset)(jax.random.PRNGKey(0))
     q = s.pipeline_state.qpos
-    q = q.at[0].set(rw.X_LIM + 0.5) if field == "x" else q.at[2].set(wt.BASE_H - 0.6)
+    q = q.at[0].set(rw.X_LIM + 0.5) if field == "x" else q.at[2].set(-0.3)
     s = s.replace(pipeline_state=s.pipeline_state.replace(qpos=q))
     s2 = jax.jit(env.step)(s, jnp.zeros(16))
     assert float(s2.done) == 1.0 and float(s2.metrics["oob"]) == 1.0 and float(s2.metrics["fell"]) == 1.0

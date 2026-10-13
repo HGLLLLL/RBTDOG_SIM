@@ -91,4 +91,4 @@ def test_wrap_env_runs_two_episodes():
     dones = np.stack(dones)
     assert np.all(dones[29] == 1.0) and np.all(dones[59] == 1.0) and np.all(dones[30] == 0.0)   # EpisodeWrapper 截斷
     assert np.all(np.asarray(s.info["steps"]) == 5) and np.all(np.asarray(s.info["t"]) == 5)      # 兩邊計數同步
-    assert "truncation" in s.info and s.obs.shape == (4, 53)
+    assert "truncation" in s.info and s.obs["state"].shape == (4, 53) and s.obs["privileged_state"].shape == (4, 56)

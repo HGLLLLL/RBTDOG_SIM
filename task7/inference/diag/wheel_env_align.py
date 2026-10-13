@@ -38,8 +38,8 @@ def run_env(onnx, cmds, secs, settle, std):
     for i in range(n_settle + n_run):
         c = Z if i < n_settle else C
         s = s.replace(info={**s.info, "cmd_fix": c, "cmd": c})        # 指令固定；reward 也對這個 cmd 算
-        s = s.replace(obs=obs_f(s.pipeline_state, c, s.info["last_a"]))   # state 裡的 obs 是用上一步 cmd 算的，重算
-        a = np.stack([sess.run(None, {in_name: np.asarray(o, np.float32)[None]})[0][0] for o in np.asarray(s.obs)]).astype(np.float32)
+        obs = obs_f(s.pipeline_state, c, s.info["last_a"])   # state.obs（字典）是用上一步 cmd 算的 → 以本步 cmd 重算乾淨 53 維直接餵 ONNX，不寫回 state
+        a = np.stack([sess.run(None, {in_name: np.asarray(o, np.float32)[None]})[0][0] for o in np.asarray(obs)]).astype(np.float32)
         s = step(s, jnp.array(a) / rw.ACT_GAIN)
         d = s.pipeline_state
         foot = np.asarray(d.xpos[:, env.FOOT_BIDS])                                   # (n,4,3)

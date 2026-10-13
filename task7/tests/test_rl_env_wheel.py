@@ -97,7 +97,8 @@ def test_spawn_height_on_each_kind():
 
 def test_step_runs_and_shapes(flat_env):
     s = jax.jit(flat_env.reset)(jax.random.PRNGKey(0))
-    assert s.obs.shape == (53,) and flat_env.observation_size == 53 and flat_env.action_size == 16 and flat_env.backend == "mjx"
+    assert s.obs["state"].shape == (53,) and s.obs["privileged_state"].shape == (56,)
+    assert flat_env.observation_size == {"state": (53,), "privileged_state": (56,)} and flat_env.action_size == 16 and flat_env.backend == "mjx"
     step = jax.jit(flat_env.step)
     for _ in range(5):
         s = step(s, jnp.zeros(16))
@@ -113,3 +114,19 @@ def test_respawn_at_episode_end(flat_env):
     s = jax.jit(flat_env.step)(s, jnp.zeros(16))
     assert int(s.info["t"]) == 0                             # 重生：t 歸零、位置回出生點附近
     assert float(jnp.linalg.norm(s.pipeline_state.qpos[:2] - s.info["xy0"])) < 1e-5
+
+
+def test_privileged_obs_and_policy_noise():
+    """critic 特權 obs：前 53 ＝ 無雜訊 _obs、後 3 ＝ 機身系線速度；policy 的 "state" 帶雜訊（reset 的第一個 obs 也是）。"""
+    e = rw.WheelEnv(flat=True, noise=True, push=False, fixed_cmd=True)
+    s = jax.jit(e.reset)(jax.random.PRNGKey(0))
+    step = jax.jit(e.step)
+    for i in range(4):
+        d = s.pipeline_state
+        clean = np.asarray(e._obs(d, s.info["cmd"], s.info["last_a"]))
+        vb = np.asarray(rw.quat_rot_inv(d.qpos[3:7], d.qvel[0:3]))
+        priv, pol = np.asarray(s.obs["privileged_state"]), np.asarray(s.obs["state"])
+        assert np.allclose(priv[:53], clean, atol=1e-6) and np.allclose(priv[53:], vb, atol=1e-6), i
+        assert np.abs(pol - clean).max() > 1e-3, i                                       # policy 分支帶雜訊
+        assert np.abs(pol[0:3] - clean[0:3]).max() <= rw.NOISE["ang"] + 1e-6 and np.allclose(pol[37:], clean[37:])
+        s = step(s, jnp.full(16, 0.05))

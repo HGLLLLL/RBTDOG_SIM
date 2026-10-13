@@ -2,6 +2,7 @@
 
 照同事 Isaac Lab `Wheel-Rough-v0`（RL_only/*_env.yaml、policy_io.json）重做成 Brax Env（MJX 後端）：
 obs 53 ＝ ang_vel(3) | projected_gravity(3) | cmd(3) | joint_pos−default(12) | joint_vel(16) | last_action(16)，關節序 PhysX 分組序；
+obs 是字典（同他的 env.yaml 非對稱 actor-critic）："state" 53 給 policy（帶雜訊）、"privileged_state" 56 給 critic（同樣 53 無雜訊 ＋ 機身系線速度 3）；
 動作 16：Brax 輸出 tanh ∈ [−1,1]，環境乘 ACT_GAIN=4 → 他的尺度 a，再 q_des = default + 0.25·a[:12]、v_des = 5·a[12:]。
 三項改動：輪輪 pair ＋ 接觸懲罰（改動一）、追蹤 std 0.25 ＋ 30% 小指令回合（改動二）、real 關節摩擦 DR（改動三）；地形含低階樓梯。
 Brax 的 AutoResetWrapper 只還原第一次 reset 的狀態，所以回合結束的重生（出生點、課程、指令）在 step 內自己做，訓練用 `wrap_env`。
@@ -29,6 +30,7 @@ CTRL_DT = SIM_DT * N_FRAMES
 EPISODE_LEN = 1000                      # 20 s
 ACT_GAIN = 4.0                          # tanh 輸出 → 他的尺度（|a| ≤ 4；實測他最大 3.5）
 OBS_DIM, ACT_DIM = 53, 16
+PRIV_DIM = OBS_DIM + 3                  # critic 特權 obs：乾淨 53 ＋ base_lin_vel（機身系，3）
 JOINT_NAMES = IO["joints"]["names"]
 DEFAULT = jnp.array(IO["joints"]["default_pos"], dtype=jnp.float32)
 ACT_SCALE = jnp.array(IO["action"]["scale"], dtype=jnp.float32)
@@ -43,9 +45,9 @@ FEET = ("FAR", "FBL", "RAR", "RBL")
 WHEEL_INNER_W = 0.034                   # 2 × 0.017：兩輪內側面到各自 link 原點的距離和
 GAP_MIN = 0.08                          # 實體間隙 < 80 mm 開始罰（他的 10k 在 vy 0.5 ~33 mm）。0.05 時 40 mm 驗收邊界只罰 (1−0.8)² = 4%，太弱；
                                         # 0.08 配 w_gap 2.0：40 mm 時每對 (1−0.5)²×2 = 0.5，接觸（gap 0）時 2.0
-LAT_PAIRS = ((0, 1), (2, 3))
+LAT_PAIRS = ((0, 1), (2, 3))            # FEET 索引：前 FAR–FBL、後 RAR–RBL
 X_LIM, Y_LIM = -wt.X0 - 1.0, -wt.Y0 - 1.0  # 出界終止：hfield 邊緣往內 1 m（離開地圖 base 碰不到 floor，fell 不會觸發而自由落體）
-WW_CAP = 3.0                            # ww 每個接觸 fn/100 的上限：腿交叉時 fn 可達 2755 N，單步 −760 會拉壞 critic            # FEET 索引：前 FAR–FBL、後 RAR–RBL
+WW_CAP = 3.0                            # ww 每個接觸 fn/100 的上限：腿交叉時 fn 可達 2755 N，單步 −760 會拉壞 critic
 TERM_KEYS = ("lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap")
 METRIC_KEYS = TERM_KEYS + ("reward", "lin_small", "level", "fell", "oob", "dist", "ww_force", "gap_min", "vx_err", "vy_err", "wz_err", "touch_n", "small", "standing")
 
@@ -140,6 +142,13 @@ class WheelEnv(Env):
         jvel = data.qvel[self.VADR]
         return jnp.concatenate([ang, grav, cmd, jpos, jvel, last_a]).astype(jnp.float32)
 
+    def _obs_dict(self, data, cmd, last_a, rng_noise):
+        """非對稱 actor-critic（同他的 env.yaml）：policy 看帶雜訊的 53（狗上拿得到的量）；
+        critic 看無雜訊的同樣 53 ＋ 機身系線速度 3（實機量不到，只在訓練時給 value 估計用；匯出只取 policy 分支）。"""
+        clean = self._obs(data, cmd, last_a)
+        vb = quat_rot_inv(data.qpos[3:7], data.qvel[0:3])
+        return {"state": self._noisy(clean, rng_noise), "privileged_state": jnp.concatenate([clean, vb]).astype(jnp.float32)}
+
     def _ctrl(self, a):
         """a：他的尺度（已乘 ACT_GAIN）→ 致動器 ctrl（腿 PD 目標 rad、輪速 rad/s）。"""
         return jnp.zeros(self.sys.nu).at[self.AID].set(a * ACT_SCALE + ACT_OFFSET)
@@ -181,7 +190,7 @@ class WheelEnv(Env):
                     qvel_prev=data.qvel[self.VADR], foot_prev=data.xpos[self.FOOT_BIDS],
                     push_t=jnp.int32(self.episode_len // 2) + jax.random.randint(k[5], (), 0, self.episode_len // 4))   # 10–15 s 後第一次推
         info["cmd"] = self._cmd_now(data, info)
-        obs = self._obs(data, info["cmd"], info["last_a"])
+        obs = self._obs_dict(data, info["cmd"], info["last_a"], jax.random.fold_in(rng, 6))   # 第一個 obs 也帶雜訊；fold_in 不動 split(6) 的出生／指令抽樣
         z0 = jnp.zeros(())
         return State(data, obs, z0, z0, {k_: z0 for k_ in METRIC_KEYS}, info)
 
@@ -245,16 +254,16 @@ class WheelEnv(Env):
         # 續走路徑
         info_c = dict(info, rng=rng, t=t1, last_a=a, qvel_prev=data.qvel[self.VADR], foot_prev=data.xpos[self.FOOT_BIDS])
         info_c["cmd"] = self._cmd_now(data, info_c)
-        obs_c = self._obs(data, info_c["cmd"], a)
+        obs_c = self._obs_dict(data, info_c["cmd"], a, k_noise)
         # 重生路徑（回合結束才用；每步都算，jit 下成本固定）
         kind_n, level_n = self._next_tile(k_tile, data, info)
         new = self._spawn_state(k_spawn, kind_n, level_n)
         new_info = dict(new.info, cmd_fix=info["cmd_fix"]); new_info["cmd"] = self._cmd_now(new.pipeline_state, new_info)
         sel = lambda x, y: jnp.where(done_env, x, y)   # noqa: E731
         data_o = jax.tree_util.tree_map(sel, new.pipeline_state, data)
-        obs_o = sel(self._obs(new.pipeline_state, new_info["cmd"], new_info["last_a"]), obs_c)
+        obs_n = self._obs_dict(new.pipeline_state, new_info["cmd"], new_info["last_a"], k_noise)
+        obs_o = jax.tree_util.tree_map(sel, obs_n, obs_c)
         info_o = {k_: (sel(new_info[k_], info_c[k_]) if k_ in new_info else info_c[k_]) for k_ in info_c}
-        obs_o = self._noisy(obs_o, k_noise)
         return state.replace(pipeline_state=data_o, obs=obs_o, reward=reward, done=fell.astype(jnp.float32), metrics=metrics, info=info_o)
 
     # ---------------------------------------------------------------- 接觸
@@ -308,7 +317,9 @@ class WheelEnv(Env):
         T, aux = self._reward_terms(data, info, a, cmd)
         reward = sum(T.values())
         x, y, z = data.qpos[0], data.qpos[1], data.qpos[2]
-        oob = (jnp.abs(x) > X_LIM) | (jnp.abs(y) > Y_LIM) | (z < wt.BASE_H - 0.5)    # 出界／掉落（base 碰不到 floor 時的保險）
+        # 出界／掉落（base 碰不到 floor 時的保險）。z 門檻取 0（整張 hfield 的基準面）：反向樓梯第 9 級坑底在 BASE_H − 0.8 = 0.2 m，
+        # 站在坑底機身約 0.67 m，舊門檻 BASE_H − 0.5 只差 0.17 m 就誤判摔；低於 0 才一定是掉出地圖
+        oob = (jnp.abs(x) > X_LIM) | (jnp.abs(y) > Y_LIM) | (z < 0.0)
         fell = self._base_contact(aux["C"]) | oob
         metrics = dict(T, reward=reward, lin_small=T["lin"] * info["small"], level=info["level"].astype(jnp.float32),
                        fell=fell.astype(jnp.float32), oob=oob.astype(jnp.float32), dist=jnp.linalg.norm(data.qpos[0:2] - info["xy0"]), ww_force=aux["ww_force"], gap_min=jnp.min(aux["gaps"]),
@@ -318,7 +329,7 @@ class WheelEnv(Env):
 
     @property
     def observation_size(self):
-        return OBS_DIM
+        return {"state": (OBS_DIM,), "privileged_state": (PRIV_DIM,)}
 
     @property
     def action_size(self):

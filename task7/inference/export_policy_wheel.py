@@ -25,29 +25,33 @@ import export_policy_rl as er  # noqa: E402
 HIDDEN = ("hidden_0", "hidden_1", "hidden_2", "hidden_3")
 POLICY_LAYERS, VALUE_LAYERS = (512, 256, 128), (512, 256, 128)
 OBS_DIM, ACT_DIM, ACT_GAIN = 53, 16, 4.0
+PRIV_DIM = OBS_DIM + 3              # critic 特權 obs（rl_env_wheel.PRIV_DIM）；匯出只用 policy 分支，狗端不變
+OBS_SIZE = {"state": (OBS_DIM,), "privileged_state": (PRIV_DIM,)}
 IO = json.loads((HERE / "rl_wheel_io.json").read_text(encoding="utf-8"))
 
 
 def _networks():
     from brax.training.agents.ppo import networks as ppo_networks
     from brax.training.acme import running_statistics
-    return ppo_networks.make_ppo_networks(OBS_DIM, ACT_DIM, preprocess_observations_fn=running_statistics.normalize,
-                                          policy_hidden_layer_sizes=POLICY_LAYERS, value_hidden_layer_sizes=VALUE_LAYERS)
+    return ppo_networks.make_ppo_networks(OBS_SIZE, ACT_DIM, preprocess_observations_fn=running_statistics.normalize,
+                                          policy_hidden_layer_sizes=POLICY_LAYERS, value_hidden_layer_sizes=VALUE_LAYERS,
+                                          policy_obs_key="state", value_obs_key="privileged_state")
 
 
 def make_params_for_test(key):
-    """隨機初始化的 (normalizer, policy, value)，normalizer 帶非平凡 mean/std（測試用）。"""
+    """隨機初始化的 (normalizer, policy, value)，normalizer 是字典 obs 版（同 ppo.train），"state" 分支帶非平凡 mean/std（測試用）。"""
     import jax
     from brax.training.acme import running_statistics, specs
     nets = _networks()
     k1, k2, k3, k4 = jax.random.split(key, 4)
-    norm = running_statistics.init_state(specs.Array((OBS_DIM,), np.float32))
-    norm = norm.replace(mean=jax.random.normal(k3, (OBS_DIM,)), std=jax.random.uniform(k4, (OBS_DIM,), minval=0.5, maxval=2.0))
+    norm = running_statistics.init_state({"state": specs.Array((OBS_DIM,), np.float32), "privileged_state": specs.Array((PRIV_DIM,), np.float32)})
+    norm = norm.replace(mean=dict(norm.mean, state=jax.random.normal(k3, (OBS_DIM,))),
+                        std=dict(norm.std, state=jax.random.uniform(k4, (OBS_DIM,), minval=0.5, maxval=2.0)))
     return (norm, nets.policy_network.init(k1), nets.value_network.init(k2))
 
 
 def brax_inference_fn(pkl: str):
-    """deterministic policy：obs(batch,53) → tanh(loc)(batch,16)。"""
+    """deterministic policy：obs(batch,53) → tanh(loc)(batch,16)。包成字典 obs 餵 policy（policy 只讀 "state"；privileged_state 填 0）。"""
     from brax.io import model
     from brax.training.agents.ppo import networks as ppo_networks
     import jax
@@ -55,14 +59,15 @@ def brax_inference_fn(pkl: str):
     nets = _networks()
     make_policy = ppo_networks.make_inference_fn(nets)
     pol = make_policy((params[0], params[1]), deterministic=True)
-    return lambda obs: pol(obs, jax.random.PRNGKey(0))[0]
+    import jax.numpy as jnp
+    return lambda obs: pol({"state": obs, "privileged_state": jnp.zeros((obs.shape[0], PRIV_DIM), obs.dtype)}, jax.random.PRNGKey(0))[0]
 
 
 def export(pkl: str, out: str) -> dict:
     from brax.io import model
     params = model.load_params(pkl)
     norm, pol = params[0], params[1]["params"]
-    mean, std = np.asarray(norm.mean, dtype=np.float32), np.asarray(norm.std, dtype=np.float32)
+    mean, std = np.asarray(norm.mean["state"], dtype=np.float32), np.asarray(norm.std["state"], dtype=np.float32)   # 只取 policy 分支
     assert mean.shape == (OBS_DIM,) and tuple(pol.keys()) == HIDDEN, (mean.shape, tuple(pol.keys()))
     Ws = [np.asarray(pol[h]["kernel"], dtype=np.float32) for h in HIDDEN]
     bs = [np.asarray(pol[h]["bias"], dtype=np.float32) for h in HIDDEN]

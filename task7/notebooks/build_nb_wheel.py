@@ -16,6 +16,7 @@ md0 = """# 純 RL 自訓 **v1**：智元 D1 Max · 同事 Wheel-Rough 環境的 
 
 在同事的純 RL 第二版（Isaac Lab，10k，trip25 上機 11 趟 0 摔）之上，用我們的 MJX + Brax PPO 線重訓（spec `docs/superpowers/specs/2026-10-13-rl-wheel-v1-design.md`）：
 - obs 53／動作 16／reward 十項照他的 env.yaml；地形 rough／boxes／**stairs**（階高 3–8 cm）三列 × 十級課程。
+- critic 用特權 obs：無雜訊的同樣 53 ＋ 機身線速度 3（同他的 critic 56 維；policy 仍看帶雜訊的 53，匯出只取 policy）；discount 0.99（他的設定）。
 - 改動一 自碰撞：輪輪 pair ＋ 實體間隙 hinge（`wgap`）＋ 接觸力（`ww`，只擋腿交叉）。改動二 小指令：追蹤 std 0.5 → 0.25、30% 回合小指令。改動三 輪摩擦：real 關節摩擦 DR。
 - 開訓前關卡已過：`outputs/rl_wheel/align_10k.md`（他的 10k 在這個環境零訓練重現）、`outputs/reward_audit_wheel_v1.md`。
 
@@ -42,12 +43,13 @@ import_src = '''import jax, jax.numpy as jnp, numpy as np, mujoco, time
 import rl_env_wheel as rw
 env = rw.WheelEnv()
 print("obs", env.observation_size, "act", env.action_size, "Z_STAND", round(env.Z_STAND, 3), "scene", env.scene)
-assert (env.observation_size, env.action_size) == (53, 16)
+assert env.observation_size == {"state": (53,), "privileged_state": (56,)} and env.action_size == 16
 # 煙霧：4 個環境零動作 20 步，不該摔
 w = rw.wrap_env(env, episode_length=rw.EPISODE_LEN)
 s = jax.jit(w.reset)(jax.random.split(jax.random.PRNGKey(0), 4)); step = jax.jit(w.step)
 for _ in range(20):
     s = step(s, jnp.zeros((4, 16)))
+assert s.obs["state"].shape == (4, 53) and s.obs["privileged_state"].shape == (4, 56)
 assert float(np.asarray(s.metrics["fell"]).max()) == 0.0, "零動作就摔：出生高或地形有問題"
 print("煙霧 OK；平均 reward", float(np.asarray(s.reward).mean()))
 '''
@@ -60,11 +62,11 @@ for NUM_ENVS in (1024, 2048, 4096):
         w = rw.wrap_env(env, episode_length=rw.EPISODE_LEN)
         s = jax.jit(w.reset)(jax.random.split(jax.random.PRNGKey(0), NUM_ENVS)); step = jax.jit(w.step)
         a = jnp.zeros((NUM_ENVS, 16))
-        s = step(s, a); s.obs.block_until_ready()                                  # 編譯
+        s = step(s, a); s.obs["state"].block_until_ready()                                  # 編譯
         t0 = time.time()
         for _ in range(200):
             s = step(s, a)
-        s.obs.block_until_ready(); dt = time.time() - t0
+        s.obs["state"].block_until_ready(); dt = time.time() - t0
         bench[NUM_ENVS] = NUM_ENVS * 200 / dt
         mem = subprocess.run(["nvidia-smi", "--query-gpu=memory.used,memory.total", "--format=csv,noheader"], capture_output=True, text=True).stdout.strip()
         print(f"{NUM_ENVS} envs: {bench[NUM_ENVS]:,.0f} steps/s  GPU {mem}")
@@ -107,7 +109,8 @@ TIMESTEPS = 330_000_000
 env = rw.WheelEnv()
 eval_env = rw.WheelEnv(noise=False, push=False)
 network_factory = functools.partial(ppo_networks.make_ppo_networks,
-                                    policy_hidden_layer_sizes=(512, 256, 128), value_hidden_layer_sizes=(512, 256, 128))
+                                    policy_hidden_layer_sizes=(512, 256, 128), value_hidden_layer_sizes=(512, 256, 128),
+                                    policy_obs_key="state", value_obs_key="privileged_state")   # critic 特權 obs 56
 _t0 = time.time(); rewards = []
 
 def _save_ckpt(step, make_policy, params):
@@ -127,7 +130,7 @@ train_fn = functools.partial(
     ppo.train, num_timesteps=TIMESTEPS, num_evals=20, episode_length=rw.EPISODE_LEN,
     num_envs=NUM_ENVS, batch_size=256 * NUM_ENVS // 2048, num_minibatches=32, unroll_length=20,
     num_updates_per_batch=4, learning_rate=3e-4, entropy_cost=1e-2,
-    discounting=0.97, normalize_observations=True,
+    discounting=0.99, normalize_observations=True,
     learning_rate_schedule="ADAPTIVE_KL", desired_kl=0.01, learning_rate_schedule_min_lr=1e-5, learning_rate_schedule_max_lr=1e-3,
     network_factory=network_factory, randomization_fn=rw.make_domain_randomize(env), wrap_env_fn=rw.wrap_env,
     seed=0, eval_env=eval_env, policy_params_fn=_save_ckpt, restore_params=_restore)

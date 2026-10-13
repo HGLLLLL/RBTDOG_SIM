@@ -40,6 +40,7 @@
 - **obs 53** 照 `RL_only/policy_io.json`：`ang_vel(3) | projected_gravity(3) | cmd(3) | joint_pos − default(12) | joint_vel(16) | last_action(16)`。
   關節按名稱映射到他的 PhysX 分組序（ABAD×4, HIP×4, KNEE×4, FOOT×4；腿序 FAR, FBL, RAR, RBL）。雜訊照他的均勻範圍：ang ±0.2、grav ±0.05、jpos ±0.01、jvel ±1.5。
   Brax 的 obs 滾動正規化保留（`normalize_observations=True`）。
+  **critic 特權 obs 56**（同他的 env.yaml 非對稱 actor-critic）：obs 是字典，`"state"` 53（帶雜訊）給 policy、`"privileged_state"` ＝ 同樣 53 無雜訊 ＋ 機身系線速度 3 給 critic（`policy_obs_key="state"`、`value_obs_key="privileged_state"`）；匯出只取 policy 分支，狗端不變。
 - **動作 16**：Brax 輸出 tanh 有界 `a_env ∈ [−1, 1]`；環境內 `a = ACT_GAIN · a_env`，`ACT_GAIN = 4.0`，再照他的公式
   `q_des = default + 0.25·a[:12]`（腿 PD 目標，rad）、`v_des = 5.0·a[12:16]`（輪速，rad/s）。物理範圍與他的 |a| ≤ 4 一致（實測他最大 3.5）。
   `last_action` 在 obs 裡放的是 `a`（增益後、他的尺度），對齊驗證時他的輸出直接可比。
@@ -65,7 +66,7 @@
 | ★ wheel_gap（2026-10-13 加） | 前後兩對側向輪實體間隙 gap ＝ 中心距 − 0.034 的 hinge：Σ max(0, 1 − gap/0.08)² | **−2.0**（改動一；40 mm 驗收邊界每對罰 0.5、接觸 2.0；pair 圓盤碰不到實機那種內面接觸，見 §11.9） |
 
   三個判斷值（std 0.25、−1.0、30%）在 §6 攤帳後若量級不對會調，調了寫進結果文件。
-- **終止**：base_link 接觸力 > 1 N，或 20 s（time-out 不算失敗）。
+- **終止**：base_link 接觸力 > 1 N，或出界／z < 0（§11.10），或 20 s（time-out 不算失敗）。
 - **domain randomization**（reset 時 vmap，寫法同 `rl_env_v3.make_domain_randomize`）：
   他的：地面摩擦 靜 0.8／動 0.6（我們用 geom_friction 0.6–1.0 均勻）、基座質量 −1～+3 kg、質心 x ±0.05 m、每 10–15 s 推 ±0.5 m/s（x, y）。
   **改動三**：腿關節 frictionloss 用實機辨識值（ABAD／髖膝 1.85／1.5）× 0.5–1.5；輪 frictionloss 0.10–0.18、damping 0.005–0.03（v3 線已有範圍）。
@@ -99,7 +100,7 @@
 - **Colab 第一格 throughput 測試**：num_envs 1024／2048／4096 各跑 200 步（JIT 後計時），印每秒步數與 GPU 記憶體。
   選法：取最大且比前一檔至少快 1.6 倍者；4096 記憶體爆就退一檔。
 - **PPO**（從 v3 線起步）：`unroll_length 20、num_minibatches 32、num_updates_per_batch 4、learning_rate 3e-4（ADAPTIVE_KL，desired_kl 0.01，1e-5–1e-3）、
-  entropy_cost 1e-2、discounting 0.97、normalize_observations True、episode_length 1000`。
+  entropy_cost 1e-2、discounting 0.99（他的設定，§11.11）、normalize_observations True、episode_length 1000`。
   改：`policy_hidden_layer_sizes=(512,256,128)`、`value_hidden_layer_sizes=(512,256,128)`；`batch_size` ＝ 256 × (num_envs / 2048)。
 - **總步數**：目標 10 億步（他的 10k ≈ 10k × 4096 × 24 ≈ 9.8 億）。一個 session 跑 3.3 億，`save_checkpoint_path` 指到 Google Drive，
   下一 session `restore_checkpoint_path` 接。Brax 每次 eval（num_evals 20 → 每 5%）存 checkpoint，斷線最多丟 5%。
@@ -164,4 +165,5 @@
 7. 續訓：brax `restore_params` 不還原 `env_steps`，notebook 用 `STEP_OFFSET`（從 RESUME 檔名 `step<N>` 解析）讓 checkpoint 檔名與進度列是累計步數；optimizer 與 ADAPTIVE_KL 學習率在續訓時重置。
 8. **對齊關卡改絕對差**：16 邊網格輪子對 CPU 圓柱平面的追蹤差 vx 列 ≤ 0.022 m/s、wz 列 ≤ 2.0 °/s、0 摔；vy 0.3 在他的死區（0.04–0.14 m/s）百分比無意義。同幾何（cpu′）vx 列與 wz 1.0 ≤ 1.6 pp，wz 0.5 為 4.7 pp（約 1 °/s）。攤帳：他的 10k 在 vy 0.5 wgap 平均 −0.022（15% 步 < 80 mm），vy 0.3 −0.001，其餘 0。32／48 邊實驗：vx 微好、偏航反而差（MJX 對細網格偏低），維持 16 邊。
 9. **pair 圓盤碰不到實機的那種碰撞**：v3f 碰撞圓盤在 link y=−0.047（輪胎外側平面、半寬 5 mm），官方網格 y∈[−0.070,+0.017]，實機後輪互碰是內面（+0.017）相碰；兩圓盤要腿交叉才會碰。所以改動一的主力是 `wgap`（實體間隙 hinge，閾值 80 mm、權重 2.0；他的 10k 在 vy 0.5 時 gap 最小 33 mm），`ww` 力項只擋交叉。驗收與工具的 gap 口徑統一為「中心距 − 34 mm」。
-10. **出界／掉落終止、BORDER 20 m、初始等級 0–5、ww 上限 3**（整支 review 後修正）：外框原為 2 m，方塊中心離圖邊只 6 m，我們的指令分佈約 22% 回合開出圖外；開出去後 base 碰不到 `floor`，`fell` 不觸發而自由落體（實測 6 s 掉到 z −98 m、`vz` 項每步約 −3900）。改為 `BORDER = 20.0`（同他的 border_width 200），並在終止加 `oob`：|x| > X_LIM、|y| > Y_LIM（hfield 邊往內 1 m）或 z < BASE_H − 0.5，`fell = base_contact | oob`，metric 多 `oob`。reset 初始等級改抽 0–5（他的 max_init_terrain_level 5），到頂重抽維持 0–9。`ww` 每個接觸 fn/100 截在 3（腿交叉時 fn 可達 2755 N，單步 −760 會拉壞 critic）；`ww_force` metric 仍是未截斷的和。`_contacts` 用 dist < 0，`WheelEnv` 啟動時 assert 所有 geom／pair margin 為 0。
+10. **出界／掉落終止、BORDER 20 m、初始等級 0–5、ww 上限 3**（整支 review 後修正）：外框原為 2 m，方塊中心離圖邊只 6 m，我們的指令分佈約 22% 回合開出圖外；開出去後 base 碰不到 `floor`，`fell` 不觸發而自由落體（實測 6 s 掉到 z −98 m、`vz` 項每步約 −3900）。改為 `BORDER = 20.0`（同他的 border_width 200），並在終止加 `oob`：|x| > X_LIM、|y| > Y_LIM（hfield 邊往內 1 m）或 z < 0（原寫 BASE_H − 0.5，太緊：反向樓梯第 9 級坑底 0.2 m、站在坑底機身約 0.67 m，再低 0.17 m 就誤判摔；改為低於 hfield 基準面才算掉出地圖），`fell = base_contact | oob`，metric 多 `oob`。reset 初始等級改抽 0–5（他的 max_init_terrain_level 5），到頂重抽維持 0–9。`ww` 每個接觸 fn/100 截在 3（腿交叉時 fn 可達 2755 N，單步 −760 會拉壞 critic）；`ww_force` metric 仍是未截斷的和。`_contacts` 用 dist < 0，`WheelEnv` 啟動時 assert 所有 geom／pair margin 為 0。
+11. **特權 critic、discount 0.99、探索幅度維持預設**（使用者 2026-10-13 決定）：critic 改看 56 維特權 obs（無雜訊 53 ＋ 機身系線速度 3，同他的 critic），policy 仍看帶雜訊的 53；discount 由 v3 線的 0.97 改他的 0.99（回合 20 s）；`init_noise_std` 維持 brax 預設 1.0 不改，先看第一次 eval 的 len 再說。brax 0.14.2 原生支援字典 obs（`make_ppo_networks(observation_size=dict, policy_obs_key, value_obs_key)`、normalizer 逐葉），匯出取 `norm.mean["state"]`。

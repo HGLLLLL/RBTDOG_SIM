@@ -17,7 +17,9 @@ def test_notebook_cells():
     assert NB.exists(), "先跑 python3 task7/notebooks/build_nb_wheel.py"
     code = _src("code"); md = _src("markdown")
     assert 'brax==0.14.2' in code and 'assert brax.__version__ == "0.14.2"' in code and 'assert mujoco.__version__ == "3.10.0"' in code
-    assert "import rl_env_wheel as rw" in code and "rw.WheelEnv()" in code and "(53, 16)" in code
+    assert "import rl_env_wheel as rw" in code and "rw.WheelEnv()" in code
+    assert 'env.observation_size == {"state": (53,), "privileged_state": (56,)}' in code and 's.obs["state"]' in code
+    assert 'policy_obs_key="state", value_obs_key="privileged_state"' in code and "discounting=0.99" in code   # 特權 critic、他的 discount
     assert "for NUM_ENVS in (1024, 2048, 4096):" in code and "steps/s" in code
     assert "wrap_env_fn=rw.wrap_env" in code and "randomization_fn=rw.make_domain_randomize(env)" in code
     assert "policy_hidden_layer_sizes=(512, 256, 128)" in code and "value_hidden_layer_sizes=(512, 256, 128)" in code
@@ -31,7 +33,7 @@ def test_notebook_cells():
     assert "else:\n        break" in code                                     # throughput 遇第一檔不合格就停
     for k in ("ps('lin')", "ps('ang')", "ps('ww')", "ps('wgap')", "ps('slip')", "ps('level')", "ps('lin_small')", "ps('fell')"):
         assert k in code, k
-    assert "停損" in md and "len < 600" in md and "lin < 0.5" in md and "2 億步" in md and "2026-10-13" in md
+    assert "停損" in md and "len < 600" in md and "lin < 0.5" in md and "2 億步" in md and "2026-10-13" in md and "特權" in md
     assert "`wgap` 沒比 step 0 好" in md and "`gap` 中位 < 40 mm" in md and "`ww` 沒比 step 0 低" not in md   # ww 平地恆 0，停損看 wgap
 
 

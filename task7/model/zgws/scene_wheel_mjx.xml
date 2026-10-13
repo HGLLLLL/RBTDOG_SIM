@@ -11,6 +11,7 @@
 <mujoco model="zgws flat scene (zgws_mjx_v3f)">
   <include file="zgws_mjx_wheel.xml"/>
 
+  <option timestep="0.005"/>
   <statistic center="0 0 0.3" extent="1.2"/>
 
   <visual>

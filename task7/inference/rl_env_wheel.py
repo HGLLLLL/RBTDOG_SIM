@@ -36,7 +36,8 @@ ACT_OFFSET = jnp.array(IO["action"]["offset"], dtype=jnp.float32)
 NOISE = dict(ang=0.2, grav=0.05, jpos=0.01, jvel=1.5)     # 他的 UniformNoiseCfg（±）
 SPAWN_XY, SPAWN_WINDOW = 0.5, 0.6         # 出生點在方塊中心 ±0.5 m（他的 pose_range）；出生高取 ±0.6 m 窗內地形最高
 FEET = ("FAR", "FBL", "RAR", "RBL")
-METRIC_KEYS = ("reward",)                 # Task 3 擴充
+TERM_KEYS = ("lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww")
+METRIC_KEYS = TERM_KEYS + ("reward", "lin_small", "level", "fell", "dist", "ww_force", "vx_err", "vy_err", "wz_err", "touch_n", "small", "standing")
 
 
 def quat_rot_inv(q, v):
@@ -69,7 +70,7 @@ class WheelEnv(Env):
         self.small_frac, self.std, self.w_ww = small_frac, std, w_ww
         self.scene = scene or wt.make_scene_xml()
         m = mujoco.MjModel.from_xml_path(self.scene)
-        m.opt.timestep = SIM_DT                 # 場景未指定 <option timestep>（MuJoCo 預設 0.002）；同 rl_only_infer.Sim 載入後設定
+        assert m.opt.timestep == SIM_DT, m.opt.timestep     # 場景 <option timestep="0.005">（wheel_terrain.make_scene_xml）
         self.H_np = wt.build_map(map_seed, flat=flat)
         wt.load_hfield(m, self.H_np)
         self._mj = m
@@ -217,9 +218,57 @@ class WheelEnv(Env):
         obs_o = self._noisy(obs_o, k_noise)
         return state.replace(pipeline_state=data_o, obs=obs_o, reward=reward, done=fell.astype(jnp.float32), metrics=metrics, info=info_o)
 
+    # ---------------------------------------------------------------- 接觸
+    def _contacts(self, data):
+        """MJX 接觸表（固定長度、padding）：active、兩端 geom、法向力（走過 mjx.step 才有值）。"""
+        c = data._impl.contact
+        active = c.dist < 0
+        fn = jnp.maximum(data._impl.efc_force[c.efc_address], 0.0) * active
+        return dict(active=active, g0=c.geom[:, 0], g1=c.geom[:, 1], fn=fn)
+
+    def _base_contact(self, C):
+        hit = C["active"] & ((jnp.isin(C["g0"], self.BASE_GIDS) & (C["g1"] == self.FLOOR)) | (jnp.isin(C["g1"], self.BASE_GIDS) & (C["g0"] == self.FLOOR)))
+        return jnp.any(hit)
+
+    # ---------------------------------------------------------------- reward（他的十項＋輪輪接觸；權重照 env.yaml）
+    def _reward_terms(self, data, info, a, cmd):
+        q = data.qpos[3:7]
+        vb = quat_rot_inv(q, data.qvel[0:3]); w = data.qvel[3:6]
+        err_lin = jnp.sum((cmd[0:2] - vb[0:2]) ** 2); err_ang = (cmd[2] - w[2]) ** 2
+        tau = data.actuator_force[self.AID]
+        qv = data.qvel[self.VADR]; qacc = (qv - info["qvel_prev"]) / CTRL_DT
+        C = self._contacts(data)
+        is_floor0, is_floor1 = C["g0"] == self.FLOOR, C["g1"] == self.FLOOR
+        other = jnp.where(is_floor0, C["g1"], C["g0"])
+        floor_hit = C["active"] & (is_floor0 | is_floor1)
+        touch = jnp.array([jnp.any(floor_hit & (other == self.WHEEL_GIDS[k])) for k in range(4)])
+        foot = data.xpos[self.FOOT_BIDS]; vfoot = (foot - info["foot_prev"]) / CTRL_DT
+        axis = data.xmat[self.FOOT_BIDS][:, :, 1]                                   # 輪軸（FOOT_LINK 的 y 軸）世界向量
+        slip = jnp.sum(touch * jnp.sum(vfoot * axis, axis=1) ** 2)                 # 他的 wheel_lateral_slip（spin_axis 1）
+        ww_mask = jnp.isin(C["g0"], self.WHEEL_GIDS) & jnp.isin(C["g1"], self.WHEEL_GIDS)
+        ww_force = jnp.sum(C["fn"] * ww_mask)
+        ww = jnp.sum((C["fn"] * ww_mask / 100.0) ** 2)                              # 法向力 / 100 N 的 L2（改動一；量級由攤帳校正）
+        standing_scale = jnp.where(jnp.linalg.norm(cmd) < 0.1, 10.0, 1.0)
+        dev = jnp.sum(jnp.abs(data.qpos[self.QADR[:12]] - DEFAULT[:12])) * standing_scale
+        s2 = self.std ** 2
+        T = dict(lin=2.5 * jnp.exp(-err_lin / s2), ang=1.25 * jnp.exp(-err_ang / s2),
+                 vz=-2.0 * vb[2] ** 2, angxy=-0.05 * jnp.sum(w[0:2] ** 2),
+                 tau_leg=-2e-4 * jnp.sum(tau[:12] ** 2), tau_wheel=-2e-4 * jnp.sum(tau[12:] ** 2),
+                 acc_leg=-2.5e-7 * jnp.sum(qacc[:12] ** 2), acc_wheel=-2.5e-7 * jnp.sum(qacc[12:] ** 2),
+                 rate=-0.01 * jnp.sum((a - info["last_a"]) ** 2),
+                 slip=-0.075 * slip, dev=-0.1 * dev, ww=-self.w_ww * ww)
+        aux = dict(vb=vb, w=w, touch=touch, ww_force=ww_force, err_lin=err_lin, err_ang=err_ang, C=C)
+        return T, aux
+
     def _after_physics(self, data, info, a, cmd):
-        """Task 3 換成 reward／終止／metrics；這裡 reward 0、不摔。"""
-        return jnp.zeros(()), jnp.zeros((), dtype=bool), {"reward": jnp.zeros(())}
+        T, aux = self._reward_terms(data, info, a, cmd)
+        reward = sum(T.values())
+        fell = self._base_contact(aux["C"])
+        metrics = dict(T, reward=reward, lin_small=T["lin"] * info["small"], level=info["level"].astype(jnp.float32),
+                       fell=fell.astype(jnp.float32), dist=jnp.linalg.norm(data.qpos[0:2] - info["xy0"]), ww_force=aux["ww_force"],
+                       vx_err=jnp.abs(aux["vb"][0] - cmd[0]), vy_err=jnp.abs(aux["vb"][1] - cmd[1]), wz_err=jnp.abs(aux["w"][2] - cmd[2]),
+                       touch_n=jnp.sum(aux["touch"]).astype(jnp.float32), small=info["small"].astype(jnp.float32), standing=info["standing"].astype(jnp.float32))
+        return reward, fell, metrics
 
     @property
     def observation_size(self):

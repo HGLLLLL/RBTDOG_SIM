@@ -147,6 +147,8 @@ def make_scene_xml() -> str:
     hf = f'    <hfield name="terrain" nrow="{NROW}" ncol="{NCOL}" size="{(NCOL - 1) * DX / 2} {(NROW - 1) * DX / 2} {ZMAX} 0.5"/>\n'
     assert "<asset>\n" in src and 'name="floor"' in src and '<include file="zgws_mjx_v3f.xml"/>' in src
     src = src.replace("<asset>\n", "<asset>\n" + hf + wheel_mesh_xml(), 1)
+    assert src.count("<statistic ") == 1 and "timestep" not in src
+    src = src.replace("<statistic ", '<option timestep="0.005"/>\n  <statistic ', 1)    # 控制 0.02 s ＝ 4 × 0.005（MJCF 的 <option> 可重複、屬性合併）
     src = re.sub(r'<geom name="floor"[^>]*/>', '<geom name="floor" type="hfield" hfield="terrain" pos="0 0 0" material="groundplane"/>', src)
     src = src.replace('<include file="zgws_mjx_v3f.xml"/>', '<include file="zgws_mjx_wheel.xml"/>')
     src = src.replace("<!-- ⚠️ 產生檔，不要手改。產生器：make_mjx_model.py -->",

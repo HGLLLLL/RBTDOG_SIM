@@ -74,6 +74,7 @@ def test_scene_files_load_and_match_mjx_requirements():
     mujoco = pytest.importorskip("mujoco")
     scene = wt.make_scene_xml()
     m = mujoco.MjModel.from_xml_path(scene)
+    assert m.opt.timestep == 0.005
     assert m.npair == 4 and m.nhfield == 1 and m.hfield_nrow[0] == wt.NROW and m.hfield_ncol[0] == wt.NCOL
     for p in ("FAR", "FBL", "RAR", "RBL"):
         g = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, f"{p}_FOOT_LINK_COLL")

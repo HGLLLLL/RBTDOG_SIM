@@ -71,7 +71,7 @@ def test_action_rate_and_signs(env):
 
 
 def test_gap_hinge(env):
-    """實體間隙 hinge：gap ＝ 左右輪心距 − 0.034（官方網格內側面 +0.017 ×2）；gap < 0.05 起罰 (1 − gap/0.05)²。"""
+    """實體間隙 hinge：gap ＝ 左右輪心距 − 0.034（官方網格內側面 +0.017 ×2）；gap < GAP_MIN 起罰 w_gap·(1 − gap/GAP_MIN)²。"""
     far = _standing_data(env)
     T0, aux0 = env._reward_terms(far, _info(env, far), jnp.zeros(16), jnp.zeros(3))
     g0 = np.asarray(aux0["gaps"])
@@ -80,12 +80,12 @@ def test_gap_hinge(env):
     near = _standing_data(env, abad=0.5)                                                # 內收：前後輪心距 ~62 mm → 間隙 ~28 mm
     T1, aux1 = env._reward_terms(near, _info(env, near), jnp.zeros(16), jnp.zeros(3))
     g1 = np.asarray(aux1["gaps"])
-    assert np.all((g1 > 0.0) & (g1 < 0.05)), g1
-    assert float(T1["wgap"]) == pytest.approx(-sum(max(0.0, 1.0 - g / 0.05) ** 2 for g in g1), rel=1e-5)
+    assert np.all((g1 > 0.0) & (g1 < rw.GAP_MIN)), g1
+    assert float(T1["wgap"]) == pytest.approx(-env.w_gap * sum(max(0.0, 1.0 - g / rw.GAP_MIN) ** 2 for g in g1), rel=1e-5)
     assert float(T1["wgap"]) < 0.0
-    e2 = rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, w_gap=2.0, scene=env.scene)
+    e2 = rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, w_gap=2 * env.w_gap, scene=env.scene)
     T2, _ = e2._reward_terms(near, _info(env, near), jnp.zeros(16), jnp.zeros(3))
-    assert float(T2["wgap"]) == pytest.approx(2.0 * float(T1["wgap"]), rel=1e-6)
+    assert env.w_gap == 2.0 and float(T2["wgap"]) == pytest.approx(2.0 * float(T1["wgap"]), rel=1e-6)
 
 
 def test_wheel_wheel_contact_fires_when_squeezed(env):

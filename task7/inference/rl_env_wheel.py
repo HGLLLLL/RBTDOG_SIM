@@ -41,7 +41,8 @@ FEET = ("FAR", "FBL", "RAR", "RBL")
 # 所以 <pair> 只有腿交叉才會碰（攤帳 ww 恆 0）。實機的碰撞（V 文件：link 中心距 67 mm → 實體間隙 25–26 mm）是內側面互碰，
 # pair 表示不了 → 另加間隙 hinge：gap ＝ 輪心距 − 2×0.017（與 V 文件同口徑；機身／輪傾斜時高估約 7 mm）。
 WHEEL_INNER_W = 0.034                   # 2 × 0.017：兩輪內側面到各自 link 原點的距離和
-GAP_MIN = 0.05                          # 實體間隙 < 50 mm 開始罰（他的 10k 在 vy 0.5 ~33 mm）
+GAP_MIN = 0.08                          # 實體間隙 < 80 mm 開始罰（他的 10k 在 vy 0.5 ~33 mm）。0.05 時 40 mm 驗收邊界只罰 (1−0.8)² = 4%，太弱；
+                                        # 0.08 配 w_gap 2.0：40 mm 時每對 (1−0.5)²×2 = 0.5，接觸（gap 0）時 2.0
 LAT_PAIRS = ((0, 1), (2, 3))            # FEET 索引：前 FAR–FBL、後 RAR–RBL
 TERM_KEYS = ("lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap")
 METRIC_KEYS = TERM_KEYS + ("reward", "lin_small", "level", "fell", "dist", "ww_force", "gap_min", "vx_err", "vy_err", "wz_err", "touch_n", "small", "standing")
@@ -70,7 +71,7 @@ def wrap_pi(a):
 class WheelEnv(Env):
     def __init__(self, scene: str | None = None, map_seed: int = 0, flat: bool = False, noise: bool = True, push: bool = True,
                  fixed_cmd: bool = False, fixed_tile: tuple[int, int] | None = None, small_frac: float = 0.3,
-                 std: float = 0.25, w_ww: float = 1.0, w_gap: float = 1.0, episode_len: int = EPISODE_LEN):
+                 std: float = 0.25, w_ww: float = 1.0, w_gap: float = 2.0, episode_len: int = EPISODE_LEN):
         """flat：全圖平地、出生在原點（對齊驗證）；fixed_cmd：指令讀 info["cmd_fix"]（不重抽、不站立、不小指令）；
         fixed_tile=(kind_idx, level)：固定出生方塊、不升降課程。std／w_ww／w_gap／small_frac 是三項改動的旋鈕（w_gap：輪輪實體間隙 hinge）。
         episode_len：回合步數（內部重生、10 s 指令重抽、推力排程都以它為準；訓練時須與 wrap_env 的 episode_length 相同）。"""

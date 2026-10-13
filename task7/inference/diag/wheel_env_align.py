@@ -134,7 +134,7 @@ def main():
         vals = {k: T[k][w, j].mean() for k in keys}; vals5 = {"lin": lin5[w, j].mean(), "ang": ang5[w, j].mean()}
         tot = sum(vals[k] for k in rw.TERM_KEYS)
         A.append(f"| vx {cmd[0]:+.1f} vy {cmd[1]:+.1f} wz {cmd[2]:+.1f} | " + " | ".join(f"{vals[k]:+.3f}" + (f" ({vals5[k]:+.3f})" if k in vals5 else "") for k in keys) + f" | {tot:+.3f} |")
-    A += ["", "讀法：`wgap` 在 vy ±0.5 要非零（他的 policy 實體間隙 ~33 mm < 50 mm；`ww` 是 pair 法向力，只有腿交叉才碰，平地恆 0 屬正常）；`lin` 在 vy 0.3／wz 0.5 這兩列 std 0.25 要明顯低於括號內的 0.5（改動二有梯度）；",
+    A += ["", "讀法：`wgap` 在 vy ±0.5 要非零（他的 policy 實體間隙 ~33 mm < 80 mm；`ww` 是 pair 法向力，只有腿交叉才碰，平地恆 0 屬正常）；`lin` 在 vy 0.3／wz 0.5 這兩列 std 0.25 要明顯低於括號內的 0.5（改動二有梯度）；",
           "其餘各項量級要和他的相稱（任一項絕對值 > 2 就是淹沒追蹤項，回 spec §3 調）。"]
     (ROOT / "outputs" / "reward_audit_wheel_v1.md").write_text("\n".join(A) + "\n", encoding="utf-8"); print("→ outputs/reward_audit_wheel_v1.md")
     np.savez_compressed(OUT / "align_10k_env_raw.npz", **{k: v for k, v in RE.items() if k != "T"}, **{"T_" + k: v for k, v in T.items()})

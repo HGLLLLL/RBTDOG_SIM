@@ -15,7 +15,7 @@
   自碰撞＝輪輪 pair ＋ 接觸力 `ww` ＋ **實體間隙 hinge `wgap`**（主力；pair 圓盤碰不到實機那種內面接觸）；小指令＝std 0.25 ＋ 30% 小指令回合；輪摩擦＝real 關節摩擦 DR。
   critic 看特權 obs（56：無雜訊＋機身線速度，同他的）；discount 0.99。spec `docs/superpowers/specs/2026-10-13-rl-wheel-v1-design.md`（§11 實作註記必讀）、plan `docs/superpowers/plans/2026-10-13-rl-wheel-v1.md`。
 - **開訓前關卡已過**：他的 10k 在新環境零訓練重現 `outputs/rl_wheel/align_10k.md`（vx 列差 ≤ 0.022 m/s、wz ≤ 2 °/s、0 摔；vy 0.3 是他的死區）；攤帳 `outputs/reward_audit_wheel_v1.md`（wgap 在 vy 0.5 有梯度、小指令 std 0.25 < 0.5、無單項淹沒）。
-- **Colab 流程**（notebook 內 md 有）：第一格 throughput 測 1024／2048／4096 選 NUM_ENVS → 訓練 3.3 億步／session，每次 eval 存 pkl 到 Drive `rl_wheel_v1/` → 下個 session `RESUME` 指到檔名步數最大的 `rl_wheel_v1_step*.pkl`（offset 自動解析）→ 合計 10 億步。
+- **Colab 流程**（notebook 內 md 有）：第一格 throughput 測 1024／2048／4096 選 NUM_ENVS → 訓練 3.3 億步／session，每次 eval 存 pkl 到 `/content/rl_wheel_v1/`（**使用者定不用雲端硬碟**：session 結束前手動下載 `rl_wheel_v1_params.pkl` 與最新 `step*.pkl`，斷線就沒了）→ 下個 session 把它上傳回去、`RESUME` 指到檔名步數最大的 `step*.pkl`（offset 自動解析）→ 合計 10 億步。
   **停損**：累計 2 億步 `len < 600`、或 `lin < 0.5`、或 `wgap` 沒往 0 走／`gap` 中位 < 40 mm → 停。第一次 eval 看 `len`：探索幅度比他大約 3 倍（tanh 前雜訊 ×4），一直摔就把 `init_noise_std` 降到 0.3–0.5。
 - **訓完**：`weights/rl_wheel_v1_params.pkl` → `export_policy_wheel.py` → `weights/rl_wheel_v1_np.npz`（rl16 版面、act_gain 4，狗端 `gen_direct` 不改）→ 驗收：
   `rl_only_infer.py --npz … --self-collision`（real／ideal／push）、`diag/rl_only_rough_terrain.py --npz … --self-collision`（含 stairs）、他的 10k 同旗標當對照 → spec §1 門檻（0 摔、直走 0.3 ≥ 97%、wz ±1 ≥ 95%、**後輪實體間隙 > 40 mm**、vy 0.3 要動、wz ±0.5 ≥ 90%、real 直走 ≥ 0.29）→ W 文件。plan Task 9 有逐步指令。

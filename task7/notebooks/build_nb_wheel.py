@@ -20,7 +20,7 @@ md0 = """# 純 RL 自訓 **v1**：智元 D1 Max · 同事 Wheel-Rough 環境的 
 - 改動一 自碰撞：輪輪 pair ＋ 實體間隙 hinge（`wgap`）＋ 接觸力（`ww`，只擋腿交叉）。改動二 小指令：追蹤 std 0.5 → 0.25、30% 回合小指令。改動三 輪摩擦：real 關節摩擦 DR。
 - 開訓前關卡已過：`outputs/rl_wheel/align_10k.md`（他的 10k 在這個環境零訓練重現）、`outputs/reward_audit_wheel_v1.md`。
 
-**流程**：第一格 throughput 測試選 `NUM_ENVS` → 訓練（每次 eval 存 pkl 到 `/content/rl_wheel_v1/`，**不用雲端硬碟**；runtime 斷線檔案就沒了，所以每個 session 跑完立刻從左側檔案面板下載 `rl_wheel_v1_params.pkl` 與最新的 `rl_wheel_v1_step*.pkl`）→ 一個 session 跑 3.3 億步 → 下個 session 把上一輪的 `rl_wheel_v1_step*.pkl` 上傳回 `/content/rl_wheel_v1/`，`RESUME` 指到它（累計步數由檔名自動解析）→ 合計 10 億步。
+**流程**：第一格 throughput 測試選 `NUM_ENVS` → 訓練（每次 eval 存 pkl 到 `/content/rl_wheel_v1/`，**不用雲端硬碟**；runtime 斷線檔案就沒了，所以每個 session 跑完立刻從左側檔案面板下載 `rl_wheel_v1_params.pkl` 與最新的 `rl_wheel_v1_step*.pkl`）→ 一個 session 跑 5 億步（G4、4096 環境約 50 分鐘）→ 下個 session 把上一輪的 `rl_wheel_v1_step*.pkl` 上傳回 `/content/rl_wheel_v1/`，`RESUME` 指到它（累計步數由檔名自動解析）。G4 GPU（A100 慢 2.6 倍、TPU 不能用）。
 **續訓注意**：只還原網路與 normalizer，Adam 動量與 ADAPTIVE_KL 學習率會重置，每個 session 開頭 reward 可能短暫抖動，不是退步。
 **記憶體**：throughput 格的 10 億步 ETA 是下限（純 step 速率）；訓練格 OOM 就手動把 `NUM_ENVS` 降一檔。
 **停損**：累計 2 億步時 `len < 600`（一直摔）、或 `lin < 0.5`（站著不動）、或 `wgap` 沒比 step 0 好（往 0 走）／`gap` 中位 < 40 mm（改動一沒被學到；`ww` 平地恆 0 不能看）→ 停，不硬跑完。
@@ -54,7 +54,7 @@ assert float(np.asarray(s.metrics["fell"]).max()) == 0.0, "零動作就摔：出
 print("煙霧 OK；平均 reward", float(np.asarray(s.reward).mean()))
 '''
 
-bench_src = '''# ---- throughput 測試（spec §5）：選最大且比前一檔至少快 1.6 倍的環境數；記憶體爆就退一檔
+bench_src = '''# ---- throughput 測試（spec §5）：選最大且比前一檔至少快 1.3 倍的環境數（G4 實測 1024 94k／2048 145k／4096 211k）；記憶體爆就退一檔
 import subprocess
 bench = {}
 for NUM_ENVS in (1024, 2048, 4096):
@@ -74,8 +74,8 @@ for NUM_ENVS in (1024, 2048, 4096):
         print(f"{NUM_ENVS} envs: 失敗 {type(e).__name__}: {str(e)[:120]}"); break
 s = w = step = a = None; del s, w, step, a                                    # 釋放 bench 的環境狀態，免得佔住 GPU 記憶體
 NUM_ENVS = 1024
-for n in (2048, 4096):                                                          # 遇到第一檔不合 1.6 倍就停，不跳級
-    if n in bench and bench[n] >= 1.6 * bench[n // 2]:
+for n in (2048, 4096):                                                          # 遇到第一檔不合 1.3 倍就停，不跳級
+    if n in bench and bench[n] >= 1.3 * bench[n // 2]:
         NUM_ENVS = n
     else:
         break
@@ -91,7 +91,8 @@ DRIVE = "/content/rl_wheel_v1"; import os; os.makedirs(DRIVE, exist_ok=True)   #
 # 續訓：把上一輪下載的 rl_wheel_v1_step*.pkl 上傳到 /content/rl_wheel_v1/，RESUME 指到「檔名步數最大」的那個（每次 eval 存一個；(normalizer, policy, value) 三元組）。
 # 不要指 rl_wheel_v1_params.pkl：它檔名沒有步數。None ＝ 從頭。
 # brax 的 restore_params 不還原步數，STEP_OFFSET 從 RESUME 檔名解析累計步數，存檔名與進度列印都用累計步數；停損線「2 億步」是累計步數。
-# TIMESTEPS 是「這一輪再跑幾步」；一個 session 3.3 億，三個 session 合計 10 億。
+# TIMESTEPS 是「這一輪再跑幾步」；一個 session 5 億（v1 用了 5 億；v1b 從 v1 的 step 檔續訓再 5 億）。
+# 例：RESUME = "/content/rl_wheel_v1/rl_wheel_v1_step000500000000.pkl"
 import re
 RESUME = None
 _restore = None if RESUME is None else model.load_params(RESUME)
@@ -102,7 +103,7 @@ def _step_offset(path):
         raise ValueError("RESUME 要指到 rl_wheel_v1_step<N>.pkl，不是 rl_wheel_v1_params.pkl")
     return int(m_.group(1))
 STEP_OFFSET = 0 if RESUME is None else _step_offset(RESUME)
-TIMESTEPS = 330_000_000
+TIMESTEPS = 500_000_000
 
 env = rw.WheelEnv()
 eval_env = rw.WheelEnv(noise=False, push=False)

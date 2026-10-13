@@ -61,10 +61,10 @@ def main():
     ap.add_argument("--video", default=str(rt.OUT / "rough_compare.mp4"))
     a = ap.parse_args()
     os.environ.setdefault("MUJOCO_GL", "egl")
-    import mujoco, imageio, onnxruntime as ort
+    import mujoco, imageio
     from PIL import Image, ImageDraw, ImageFont
     io = json.load(open(a.io))
-    sessL = ort.InferenceSession(a.left, providers=["CPUExecutionProvider"]); sessR = ort.InferenceSession(a.right, providers=["CPUExecutionProvider"])
+    polL = ri.load_policy(a.left, None); polR = ri.load_policy(a.right, None)
     sim = ri.Sim(io, dt=0.005, ideal=False, wheel_kv=1.0, scene=rt.make_scene_xml())
     n = sim.m.hfield_nrow[0]
     m_vis = mujoco.MjModel.from_xml_path(make_mesh_scene_xml()); d_vis = mujoco.MjData(m_vis)
@@ -79,8 +79,8 @@ def main():
         kind, amp, cmd_s = spec.split(":"); amp = float(amp); cmd = [float(x) for x in cmd_s.split(",")]
         ter = rt.Terrain(rt.terrain_grid(kind, amp, a.seed, n)); ter.apply(sim.m)
         runs = []
-        for sess in (sessL, sessR):
-            R = rt.run(sim, ter, sess, cmd, max(a.secs, 8.0), seed=a.seed); runs.append((R, rt.metrics(R, cmd)))
+        for pol in (polL, polR):
+            R = rt.run(sim, ter, pol, cmd, max(a.secs, 8.0), seed=a.seed); runs.append((R, rt.metrics(R, cmd)))
         m_vis.hfield_data[:] = (ter.h / rt.ZMAX).ravel()
         r = mujoco.Renderer(m_vis, H, W); mujoco.mjr_uploadHField(m_vis, r._mjr_context, 0)
         cam = mujoco.MjvCamera(); cam.type = mujoco.mjtCamera.mjCAMERA_FREE; cam.distance, cam.azimuth, cam.elevation = 2.8, 145.0, -18.0

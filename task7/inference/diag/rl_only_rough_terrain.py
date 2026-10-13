@@ -13,6 +13,7 @@
   conda run -n rbtdog --no-capture-output python task7/inference/diag/rl_only_rough_terrain.py \
       --onnx RL_only/2026-10-01_17-30-20/2026-10-01_17-30-20_10000.onnx --tag 10k \
       [--terrains "rough:0.02,rough:0.04,rough:0.06,boxes:0.025,boxes:0.05,boxes:0.10"] [--cmds "0.5,0,0;0,0.5,0;0,0,1.0"] [--seeds 3] [--video out.mp4]
+  自訓 policy：--npz policy_rl16.npz [--self-collision]（輸出 outputs/rl_wheel/eval_rl_wheel_rough_{mode}_{tag}.md）；stairs:a ＝ 金字塔樓梯（seed 偶下樓、奇上樓）
 """
 from __future__ import annotations
 import argparse, json, math, os, sys, time
@@ -22,6 +23,7 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent)); sys.path.insert(0, str(HERE.parent.parent))
 import rl_only_infer as ri  # noqa: E402
+import wheel_terrain as wt  # noqa: E402
 
 ROOT = HERE.parent.parent            # task7/
 MODEL_DIR = ROOT / "model" / "zgws"
@@ -29,11 +31,12 @@ OUT = ROOT / "outputs" / "rl_only"
 WHEEL_R = 0.0961
 HALF = 10.0                           # 地形半寬 m（20 m × 20 m）
 DX = 0.1                              # hfield 格距 m（＝訓練 horizontal_scale）
-ZMAX = 0.30                           # hfield 高度量程 m（資料 0..1 對應 0..ZMAX）
+ZMAX = 1.0                            # hfield 高度量程 m（資料 0..1 對應 0..ZMAX）；stairs 8 cm×10 階＝0.8 m，超過量程的部分 mj_ray 打得到但碰撞會穿（2026-10-13 實測 0.30 時掉穿 0.8 m 平台）
 
 
-def make_scene_xml() -> str:
-    """從 scene_flat_mjx_v3f.xml 產生 hfield 版場景（放同目錄，include 路徑才對）。資料在載入後用 hfield_data 填。"""
+def make_scene_xml(pairs: bool = False) -> str:
+    """從 scene_flat_mjx_v3f.xml 產生 hfield 版場景（放同目錄，include 路徑才對）。資料在載入後用 hfield_data 填。
+    pairs=True：再加輪輪 pair（`--self-collision`），輸出 scene_rough_pairs_mjx_v3f.xml。"""
     src = (MODEL_DIR / "scene_flat_mjx_v3f.xml").read_text(encoding="utf-8")
     n = int(round(2 * HALF / DX)) + 1
     hf = f'    <hfield name="terrain" nrow="{n}" ncol="{n}" size="{HALF} {HALF} {ZMAX} 0.5"/>\n'
@@ -43,7 +46,9 @@ def make_scene_xml() -> str:
     src = re.sub(r'<geom name="floor"[^>]*/>', '<geom name="floor" type="hfield" hfield="terrain" pos="0 0 0" material="groundplane"/>', src)
     src = src.replace("<!-- ⚠️ 產生檔，不要手改。產生器：make_mjx_model.py -->",
                       "<!-- ⚠️ 產生檔，不要手改。產生器：inference/diag/rl_only_rough_terrain.py（scene_flat_mjx_v3f.xml 的 hfield 版） -->", 1)
-    out = MODEL_DIR / "scene_rough_mjx_v3f.xml"
+    if pairs:
+        src = wt.add_wheel_pairs(src)
+    out = MODEL_DIR / ("scene_rough_pairs_mjx_v3f.xml" if pairs else "scene_rough_mjx_v3f.xml")
     if not out.exists() or out.read_text(encoding="utf-8") != src:
         out.write_text(src, encoding="utf-8")
     return str(out)
@@ -66,6 +71,12 @@ def terrain_grid(kind: str, amp: float, seed: int, n: int) -> np.ndarray:
         h = hc[cj, ci]
         h[(np.abs(X) < 1.0) & (np.abs(Y) < 1.0)] = 0.0
         h = h - h.min()
+    elif kind == "stairs":
+        # 金字塔樓梯（spec §4）：踏面 0.3 m、10 階、中央 ±1 m 平台；amp ＝ 階高；seed 奇數＝反向（中央是坑），整體平移到 ≥ 0
+        ring = np.ceil(np.maximum(np.maximum(np.abs(X), np.abs(Y)) - 1.0, 0.0) / 0.3 - 1e-9)
+        h = amp * np.clip(10 - ring, 0, 10)
+        if seed % 2 == 1:
+            h = -h; h = h - h.min()
     elif kind == "flat":
         h = np.zeros((n, n))
     else:
@@ -90,6 +101,7 @@ class Terrain:
     def apply(self, m):
         hid = 0
         assert m.nhfield == 1 and m.hfield_nrow[hid] == self.n and m.hfield_ncol[hid] == self.n
+        assert self.h.min() >= 0.0 and self.h.max() <= ZMAX, (self.h.min(), self.h.max(), ZMAX)
         m.hfield_data[:] = (self.h / ZMAX).ravel()
 
 
@@ -117,17 +129,16 @@ def place(sim, ter):
     sim.mj.mj_forward(sim.m, d)
 
 
-def run(sim, ter, sess, cmd, secs, settle=1.0, dt_pol=0.02, seed=0):
+def run(sim, ter, pol, cmd, secs, settle=1.0, dt_pol=0.02, seed=0):
     sim.reset(); place(sim, ter)
     n_settle, n = int(settle / dt_pol), int(secs / dt_pol)
-    in_name = sess.get_inputs()[0].name
-    rec = {k: [] for k in ("vb", "ang", "rp", "clr", "tau", "a", "q", "v", "sat", "tgt", "err", "pos", "touch")}
+    rec = {k: [] for k in ("vb", "ang", "rp", "clr", "tau", "a", "q", "v", "sat", "tgt", "err", "pos", "touch", "gap")}
     fell = None
     wheel_geom = [sim.mj.mj_name2id(sim.m, sim.mj.mjtObj.mjOBJ_GEOM, f"{p}_FOOT_LINK_COLL") for p in ("FAR", "FBL", "RAR", "RBL")]
     for i in range(n_settle + n):
         c = np.zeros(3) if i < n_settle else np.asarray(cmd, float)
         o, R = sim.obs(c)
-        a = sess.run(None, {in_name: o[None]})[0][0].astype(float)
+        a = np.asarray(pol(o), float)
         # 接觸判定（2026-10-06 加）：四個子步任一子步輪子碰到地板就算觸地。「淨空」在方格邊緣會把跨在邊上的輪子算成抬腳，接觸才是真離地。
         tgt = a * sim.scale + sim.offset; sim.d.ctrl[sim.aid] = tgt; sim.last_a = a.copy()
         touch = np.zeros(4, bool)
@@ -147,6 +158,7 @@ def run(sim, ter, sess, cmd, secs, settle=1.0, dt_pol=0.02, seed=0):
         rec["q"].append(d.qpos.copy()); rec["v"].append(d.qvel[sim.vadr].copy()); rec["pos"].append(d.qpos[0:3].copy())
         rec["sat"].append(int(np.sum((tgt[:12] < sim.lo12) | (tgt[:12] > sim.hi12))))
         rec["tgt"].append(tgt.copy()); rec["err"].append(np.abs(tgt[:12] - d.qpos[sim.qadr[:12]]))
+        rec["gap"].append(ri.rear_gap(sim))
         r, p = rec["rp"][-1]
         zb = d.qpos[2] - ter.height(d.qpos[0], d.qpos[1])
         if fell is None and (sim.base_contact() or abs(r) > 60 or abs(p) > 60 or zb < 0.15):
@@ -183,6 +195,7 @@ def metrics(R, cmd, dt_pol=0.02):
     g["fell"] = R["fell"]; g["sat"] = 100.0 * np.mean(R["sat"][w] > 0)
     err = R["err"][w]; g["err_abad"] = err[:, 0:4].max(); g["err_hk"] = err[:, 4:12].max()
     g["vcmd"] = (np.abs(np.diff(R["tgt"][w][:, :12], axis=0)) / dt_pol).max()
+    g["gap_rr"] = float(R["gap"][w].min() * 1000.0)
     return g
 
 
@@ -190,29 +203,33 @@ def fmt_row(label, cmd, g):
     name = f"vx {cmd[0]:+.1f} vy {cmd[1]:+.1f} wz {cmd[2]:+.1f}"
     fell = "—" if g["fell"] is None else f"**{g['fell']:.1f} s**"
     return (f"| {label} | {name} | {fell} | {g['vx']:+.2f} | {g['vy']:+.2f} | {g['yaw']:+.0f} | {g['dist']:.1f} | {g['roll_std']:.1f}/{g['roll_max']:.0f} | {g['pitch_std']:.1f}/{g['pitch_max']:.0f} | "
-            f"{g['lift']} | {g['steps_s']} | {g['air']} | {g['tsteps_s']} | {g['tair']} | {g['tau_abad']:.0f}/{g['tau_hip']:.0f}/{g['tau_knee']:.0f} | {g['err_abad']:.2f}/{g['err_hk']:.2f} | {g['vcmd']:.0f} | {g['jv_max']:.0f} | {g['sat']:.0f} |")
+            f"{g['lift']} | {g['steps_s']} | {g['air']} | {g['tsteps_s']} | {g['tair']} | {g['tau_abad']:.0f}/{g['tau_hip']:.0f}/{g['tau_knee']:.0f} | {g['err_abad']:.2f}/{g['err_hk']:.2f} | {g['vcmd']:.0f} | {g['jv_max']:.0f} | {g['sat']:.0f} | {g['gap_rr']:.0f} |")
 
 
-HDR = ("| 地形 | 指令 | 摔 | vx | vy | 偏航°/s | 位移 m | roll std/峰 | pitch std/峰 | 淨空中位 mm（FR,FL,RR,RL） | 淨空步/秒 | 淨空離地% | **真離地步/秒（接觸）** | **真離地%** | τ ABAD/髖/膝 | 誤差峰 ABAD/髖膝 | 命令速峰 | 關節速峰 | 飽和% |\n"
-       "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|")
+HDR = ("| 地形 | 指令 | 摔 | vx | vy | 偏航°/s | 位移 m | roll std/峰 | pitch std/峰 | 淨空中位 mm（FR,FL,RR,RL） | 淨空步/秒 | 淨空離地% | **真離地步/秒（接觸）** | **真離地%** | τ ABAD/髖/膝 | 誤差峰 ABAD/髖膝 | 命令速峰 | 關節速峰 | 飽和% | 後輪 gap mm |\n"
+       "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|")
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--onnx", default=str(ROOT.parent / "RL_only" / "2026-09-24_13-23-11.onnx"))
+    ap.add_argument("--npz", default="", help="自訓 policy 的狗端 npz（policy_np，含 act_gain）；給了就不用 --onnx，輸出到 outputs/rl_wheel/")
+    ap.add_argument("--self-collision", action="store_true", dest="self_collision", help="載入含輪輪 pair 的場景（後輪互碰才看得到）")
     ap.add_argument("--io", default=str(ROOT.parent / "RL_only" / "policy_io.json"))
-    ap.add_argument("--terrains", default="flat:0,rough:0.02,rough:0.04,rough:0.06,boxes:0.025,boxes:0.05,boxes:0.10")
+    ap.add_argument("--terrains", default="flat:0,rough:0.02,rough:0.04,rough:0.06,boxes:0.025,boxes:0.05,boxes:0.10,stairs:0.03,stairs:0.08")
     ap.add_argument("--cmds", default="0.3,0,0;0.5,0,0;1.0,0,0;0,0.5,0;0,0,1.0")
     ap.add_argument("--secs", type=float, default=8.0); ap.add_argument("--seeds", type=int, default=3)
     ap.add_argument("--ideal", action="store_true"); ap.add_argument("--tag", default="")
     ap.add_argument("--video", default=""); ap.add_argument("--video-secs", type=float, default=5.0, dest="video_secs")
     a = ap.parse_args()
-    import onnxruntime as ort
-    io = json.load(open(a.io)); sess = ort.InferenceSession(a.onnx, providers=["CPUExecutionProvider"])
-    scene = make_scene_xml()
+    io = json.load(open(a.io)); pol = ri.load_policy(a.onnx if not a.npz else None, a.npz)
+    if a.npz:
+        a.tag = a.tag or Path(a.npz).stem
+    scene = make_scene_xml(pairs=a.self_collision)
     sim = ri.Sim(io, dt=0.005, ideal=a.ideal, wheel_kv=1.0, scene=scene)
     n = sim.m.hfield_nrow[0]
-    OUT.mkdir(parents=True, exist_ok=True)
+    out_dir = OUT.parent / "rl_wheel" if a.npz else OUT
+    out_dir.mkdir(parents=True, exist_ok=True)
     rows, agg, trajs = [], {}, {}
     checked = False
     for tspec in a.terrains.split(","):
@@ -223,9 +240,11 @@ def main():
             if not checked and kind != "flat":
                 print(f"hfield 慣例檢查：ray vs lookup 最大差 {_check_hfield_convention(sim, ter)*1000:.1f} mm"); checked = True
             label = f"{kind} {amp*100:.1f} cm" if kind != "flat" else "flat"
+            if kind == "stairs":
+                label += "（下）" if seed % 2 == 0 else "（上）"     # seed 偶＝中央高台往外下樓、奇＝中央坑往外上樓
             for s in a.cmds.split(";"):
                 cmd = [float(x) for x in s.split(",")]
-                t0 = time.time(); R = run(sim, ter, sess, cmd, a.secs, seed=seed); g = metrics(R, cmd)
+                t0 = time.time(); R = run(sim, ter, pol, cmd, a.secs, seed=seed); g = metrics(R, cmd)
                 rows.append((label, seed, cmd, g)); agg.setdefault((label, tuple(cmd)), []).append(g)
                 if seed == 0:
                     trajs[(label, tuple(cmd))] = (R, ter.h.copy())
@@ -234,8 +253,8 @@ def main():
                 break
     mode = "ideal" if a.ideal else "real"
     L = [f"# RL_only 純 RL 步態在崎嶇地形（MuJoCo hfield，{mode}{'，' + a.tag if a.tag else ''}）", "",
-         f"ONNX `{Path(a.onnx).name}`；模型 `scene_rough_mjx_v3f.xml`（＝ v3f 平地模型換 hfield 地板，格距 {DX} m）；每指令先 1 s 零指令站定、再 {a.secs} s；統計取指令後 1 s 起；每地形 {a.seeds} 個 seed。",
-         "地形：`rough a` ＝ 每 0.1 m 格高度均勻 [0, a]（訓練 [0.01, 0.06]）；`boxes a` ＝ 0.45 m 方格高度 ±a、中央 2 m 平台（訓練 ±[0.025, 0.1] 課程）。",
+         f"{'npz' if a.npz else 'ONNX'} `{Path(a.npz or a.onnx).name}`；模型 `{Path(scene).name}`（輪輪 pair {'開' if a.self_collision else '關'}）（＝ v3f 平地模型換 hfield 地板，格距 {DX} m）；每指令先 1 s 零指令站定、再 {a.secs} s；統計取指令後 1 s 起；每地形 {a.seeds} 個 seed。",
+         "地形：`rough a` ＝ 每 0.1 m 格高度均勻 [0, a]（訓練 [0.01, 0.06]）；`boxes a` ＝ 0.45 m 方格高度 ±a、中央 2 m 平台（訓練 ±[0.025, 0.1] 課程）；`stairs a` ＝ 金字塔樓梯，階高 a、踏面 0.3 m、10 階、中央 ±1 m 平台，seed 偶＝中央高台（下樓）、奇＝中央坑（上樓）。",
          "淨空 ＝ 輪底 − 該點地形高（雙線性）；> 10 mm（遲滯 7）且 ≥ 60 ms 算一步；離地% ＝ 淨空 > 10 mm 的時間比例。**⚠️ 淨空在方格邊緣會把跨在邊上的輪子算成抬腳（2026-10-06 發現），以接觸判定的「真離地」欄為準**：四個子步都沒碰到地板才算離地、≥ 60 ms 算一步。", "",
          "## 每個 seed", "", HDR]
     for label, seed, cmd, g in rows:
@@ -248,7 +267,7 @@ def main():
         m = lambda k: np.mean([g[k] for g in gs]); mx = lambda k: np.max([g[k] for g in gs])
         L.append(f"| {label} | vx {cmd[0]:+.1f} vy {cmd[1]:+.1f} wz {cmd[2]:+.1f} | {nf}/{len(gs)} | {m('vx'):+.2f} | {m('vy'):+.2f} | {m('yaw'):+.0f} | {m('dist'):.1f} | {mx('roll_max'):.0f} | {mx('pitch_max'):.0f} | "
                  f"{np.mean([np.mean(g['lift']) for g in gs]):.0f} | {np.mean([np.mean(g['steps_s']) for g in gs]):.1f} | {np.mean([np.mean(g['air']) for g in gs]):.0f} | **{np.mean([np.mean(g['tsteps_s']) for g in gs]):.1f}** | **{np.mean([np.mean(g['tair']) for g in gs]):.0f}** | {mx('tau_knee'):.0f} | {mx('err_abad'):.2f}/{mx('err_hk'):.2f} | {mx('vcmd'):.0f} |")
-    out = OUT / f"eval_rl_only_rough_{mode}{('_' + a.tag) if a.tag else ''}.md"; out.write_text("\n".join(L) + "\n", encoding="utf-8"); print("→", out)
+    out = (out_dir / f"eval_rl_wheel_rough_{mode}_{a.tag}.md") if a.npz else (out_dir / f"eval_rl_only_rough_{mode}{('_' + a.tag) if a.tag else ''}.md"); out.write_text("\n".join(L) + "\n", encoding="utf-8"); print("→", out)
     if a.video:
         os.environ.setdefault("MUJOCO_GL", "egl")
         import mujoco, imageio
@@ -269,7 +288,7 @@ def main():
                 d.qpos[:] = Q[i]; mujoco.mj_forward(m, d); cam.lookat[:] = [d.xpos[base][0], d.xpos[base][1], d.xpos[base][2] - 0.15]
                 r.update_scene(d, camera=cam); im = Image.fromarray(r.render()); dr = ImageDraw.Draw(im, "RGBA")
                 dr.rectangle([0, 0, 960, 74], fill=(0, 0, 0, 150))
-                dr.text((14, 6), f"{k+1}/{len(trajs)}  {a.tag or Path(a.onnx).stem}  {label}  vx {cmd[0]:+.1f} vy {cmd[1]:+.1f} wz {cmd[2]:+.1f}", font=font, fill=(255, 255, 255))
+                dr.text((14, 6), f"{k+1}/{len(trajs)}  {a.tag or Path(a.npz or a.onnx).stem}  {label}  vx {cmd[0]:+.1f} vy {cmd[1]:+.1f} wz {cmd[2]:+.1f}", font=font, fill=(255, 255, 255))
                 lift_txt = f"{min(g['lift']):.0f}–{max(g['lift']):.0f} mm" if max(g["lift"]) > 0 else "0（純輪行）"
                 dr.text((14, 42), f"t {(i-i0)*0.02:4.1f} s   vx {g['vx']:+.2f}  vy {g['vy']:+.2f}  偏航 {g['yaw']:+.0f}°/s  pitch 峰 {g['pitch_max']:.0f}°  淨空中位 {lift_txt}  真離地步/秒 {np.mean(g['tsteps_s']):.1f}  摔 {'無' if g['fell'] is None else g['fell']}", font=font2, fill=(255, 235, 120))
                 wr.append_data(np.asarray(im))

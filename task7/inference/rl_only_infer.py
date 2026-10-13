@@ -9,6 +9,7 @@
   conda run -n rbtdog --no-capture-output python task7/inference/rl_only_infer.py            # 預設一組指令、實體模型（含關節摩擦）
   ... --ideal                     # 關節摩擦／慣量歸零 ＝ 他的 IdealPDActuator（訓練條件）
   ... --cmds "0.5,0,0;0,0.5,0;0,0,1" --secs 8 --video task7/outputs/rl_only/run.mp4
+  ... --npz policy_rl16.npz --self-collision   # 自訓 policy（狗端 npz，含 act_gain）＋輪輪 pair 場景；輸出到 outputs/rl_wheel/，多「後輪 gap」欄
 """
 from __future__ import annotations
 import argparse, json, math, os, sys, time
@@ -17,6 +18,7 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+import wheel_terrain as wt  # noqa: E402
 RL = HERE.parent.parent / "RL_only"
 OUT = HERE.parent / "outputs" / "rl_only"
 
@@ -120,14 +122,34 @@ class Sim:
 NOISE = dict(ang=0.2, grav=0.05, jpos=0.01, jvel=1.5)   # policy_io.json 的 UniformNoiseCfg（±）
 
 
-def run(sim, sess, cmd, secs, settle, dt_pol=0.02, push=0.0, delay=0, noise=False, seed=0):
+def load_policy(onnx: str | None, npz: str | None):
+    """同介面：obs(53,) → 他的尺度動作(16,)。npz 走狗端 policy_np（含 act_gain）；onnx 走 onnxruntime。"""
+    if npz:
+        sys.path.insert(0, str(HERE.parent / "realbot"))
+        import policy_np as pn
+        P = pn.load(npz)
+        assert P.layout == "rl16" and P.obs_dim == 53, (P.layout, P.obs_dim)
+        return lambda o: P.infer(o)
+    if onnx:
+        import onnxruntime as ort
+        sess = ort.InferenceSession(onnx, providers=["CPUExecutionProvider"]); name = sess.get_inputs()[0].name
+        return lambda o: sess.run(None, {name: np.asarray(o, np.float32)[None]})[0][0].astype(float)
+    raise ValueError("要給 --onnx 或 --npz")
+
+
+def rear_gap(sim):
+    """後輪（RAR、RBL）輪心距 − 兩個半輪寬 ＝ 輪面間距 m（中心距近似；輪面不平行時偏大）。"""
+    d = sim.d
+    return float(np.linalg.norm(d.xpos[sim.feet[2]] - d.xpos[sim.feet[3]]) - 2 * wt.WHEEL_HW)
+
+
+def run(sim, pol, cmd, secs, settle, dt_pol=0.02, push=0.0, delay=0, noise=False, seed=0):
     """delay：動作延遲步數（實機 des→q 30–35 ms ≈ 1–2 步）；noise：訓練時的 obs 均勻雜訊；push：每 3 s 給機身一次 ±push m/s 的水平速度。"""
     sim.reset()
     rng = np.random.default_rng(seed)
     n_settle, n = int(settle / dt_pol), int(secs / dt_pol)
-    rec = {k: [] for k in ("t", "vb", "ang", "rp", "clr", "tau", "a", "q", "v", "z", "sat", "tgt", "err")}
+    rec = {k: [] for k in ("t", "vb", "ang", "rp", "clr", "tau", "a", "q", "v", "z", "sat", "tgt", "err", "gap")}
     fell = None
-    in_name = sess.get_inputs()[0].name
     queue = [np.zeros(16) for _ in range(delay)]
     for i in range(n_settle + n):
         c = np.zeros(3) if i < n_settle else np.asarray(cmd, float)
@@ -136,7 +158,7 @@ def run(sim, sess, cmd, secs, settle, dt_pol=0.02, push=0.0, delay=0, noise=Fals
             o = o.copy()
             o[0:3] += rng.uniform(-NOISE["ang"], NOISE["ang"], 3); o[3:6] += rng.uniform(-NOISE["grav"], NOISE["grav"], 3)
             o[9:21] += rng.uniform(-NOISE["jpos"], NOISE["jpos"], 12); o[21:37] += rng.uniform(-NOISE["jvel"], NOISE["jvel"], 16)
-        a = sess.run(None, {in_name: o[None]})[0][0].astype(float)
+        a = np.asarray(pol(o), float)
         if delay:
             queue.append(a); a_use = queue.pop(0)
         else:
@@ -153,6 +175,7 @@ def run(sim, sess, cmd, secs, settle, dt_pol=0.02, push=0.0, delay=0, noise=Fals
         rec["q"].append(d.qpos.copy()); rec["v"].append(d.qvel[sim.vadr].copy()); rec["z"].append(d.qpos[2])
         rec["sat"].append(int(np.sum((tgt[:12] < sim.lo12) | (tgt[:12] > sim.hi12))))
         rec["tgt"].append(tgt.copy()); rec["err"].append(np.abs(tgt[:12] - d.qpos[sim.qadr[:12]]))
+        rec["gap"].append(rear_gap(sim))
         r, p = rec["rp"][-1]
         if fell is None and (sim.base_contact() or abs(r) > 60 or abs(p) > 60 or d.qpos[2] < 0.15):
             fell = i * dt_pol
@@ -180,12 +203,15 @@ def metrics(R, cmd, dt_pol=0.02):
     g["fell"] = R["fell"]; g["sat"] = 100.0 * np.mean(R["sat"][w] > 0)
     err = R["err"][w]; g["err_abad"] = err[:, 0:4].max(); g["err_hk"] = err[:, 4:12].max()
     dq = np.abs(np.diff(R["tgt"][w][:, :12], axis=0)) / dt_pol; g["vcmd"] = dq.max()
+    g["gap_rr"] = float(R["gap"][w].min() * 1000.0)
     return g
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--onnx", default=str(RL / "2026-09-24_13-23-11.onnx"))
+    ap.add_argument("--npz", default="", help="自訓 policy 的狗端 npz（policy_np，含 act_gain）；給了就不用 --onnx，輸出到 outputs/rl_wheel/")
+    ap.add_argument("--self-collision", action="store_true", dest="self_collision", help="載入含輪輪 pair 的場景（後輪互碰才看得到）")
     ap.add_argument("--io", default=str(RL / "policy_io.json"))
     ap.add_argument("--cmds", default="0,0,0;0.5,0,0;1.0,0,0;-0.5,0,0;0,0.5,0;0,-0.5,0;0,0,0.8;0,0,-0.8;0.5,0,0.5")
     ap.add_argument("--secs", type=float, default=8.0); ap.add_argument("--settle", type=float, default=1.0)
@@ -199,30 +225,32 @@ def main():
     ap.add_argument("--video-start", type=float, default=2.0, dest="video_start", help="影片每段從第幾秒開始（含 --settle 那 1 s）")
     ap.add_argument("--names", default="", help="影片各段顯示名稱，分號分隔，與 --cmds 一一對應（空＝印指令）")
     a = ap.parse_args()
-    import onnxruntime as ort
-    io = json.load(open(a.io)); sess = ort.InferenceSession(a.onnx, providers=["CPUExecutionProvider"])
-    sim = Sim(io, dt=a.dt, ideal=a.ideal, wheel_kv=a.wheel_kv)
-    OUT.mkdir(parents=True, exist_ok=True)
+    io = json.load(open(a.io)); pol = load_policy(a.onnx if not a.npz else None, a.npz)
+    if a.npz:
+        a.tag = a.tag or Path(a.npz).stem
+    out_dir = OUT.parent / "rl_wheel" if a.npz else OUT
+    sim = Sim(io, dt=a.dt, ideal=a.ideal, wheel_kv=a.wheel_kv, scene=(wt.make_flat_pairs_scene_xml() if a.self_collision else None))
+    out_dir.mkdir(parents=True, exist_ok=True)
     rows, trajs = [], {}
     for s in a.cmds.split(";"):
         cmd = [float(x) for x in s.split(",")]
-        t0 = time.time(); R = run(sim, sess, cmd, a.secs, a.settle, push=a.push, delay=a.delay, noise=a.noise); g = metrics(R, cmd)
+        t0 = time.time(); R = run(sim, pol, cmd, a.secs, a.settle, push=a.push, delay=a.delay, noise=a.noise); g = metrics(R, cmd)
         name = f"vx {cmd[0]:+.1f} vy {cmd[1]:+.1f} wz {cmd[2]:+.1f}"
         rows.append((name, cmd, g)); trajs[name] = R
         print(f"{name}: vx {g['vx']:+.2f} vy {g['vy']:+.2f} yaw {g['yaw']:+.0f}°/s roll std {g['roll_std']:.2f}/pk {g['roll_max']:.1f} z {g['z']:.3f} "
               f"lift {g['lift']} steps/s {g['steps_s']} τ abad/hip/knee/wheel {g['tau_abad']:.0f}/{g['tau_hip']:.0f}/{g['tau_knee']:.0f}/{g['tau_wheel']:.1f} "
               f"|a| {g['a_abs']:.2f} max {g['a_max']:.2f} >1 {g['a_gt1']:.0f}% wheel_v {g['wheel_v']:.1f} jv {g['jv_max']:.1f} "
-              f"err abad/hk {g['err_abad']:.2f}/{g['err_hk']:.2f} vcmd {g['vcmd']:.1f} sat {g['sat']:.0f}% fell {g['fell']}  ({time.time()-t0:.1f}s)")
+              f"err abad/hk {g['err_abad']:.2f}/{g['err_hk']:.2f} vcmd {g['vcmd']:.1f} sat {g['sat']:.0f}% gap {g['gap_rr']:.0f} fell {g['fell']}  ({time.time()-t0:.1f}s)")
     mode = "ideal" if a.ideal else "real"
     L = [f"# RL_only 純 RL 步態在 MuJoCo 重現（{mode}{'，' + a.tag if a.tag else ''}）", "",
          f"模型 `scene_flat_mjx_v3f.xml`（腿 kp 60/120/120 kd 1.0、輪 kv {a.wheel_kv}、forcerange 150/33）；子步 {a.dt} s × {sim.sub}；指令 {a.secs} s（先 {a.settle} s 零指令站定）；統計取指令後 1 s 起。",
-         f"{'關節摩擦／慣量歸零（IdealPD）' if a.ideal else '含實機辨識的關節摩擦 1.85/1.5、輪 0.13'}；動作延遲 {a.delay} 步、obs 雜訊 {'開' if a.noise else '關'}、推力 ±{a.push} m/s。", "",
-         "| 指令 | 摔 | vx | vy | 偏航 °/s（±std） | roll std/峰 ° | 機身高 | 抬腳 mm（FR,FL,RR,RL） | 步/秒 | τ ABAD/髖/膝/輪 | \\|a\\| 平均/最大/>1% | 輪速峰 | 關節速峰 | 誤差峰 ABAD/髖膝 | 命令速峰 | 飽和% |",
-         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+         f"{'關節摩擦／慣量歸零（IdealPD）' if a.ideal else '含實機辨識的關節摩擦 1.85/1.5、輪 0.13'}；動作延遲 {a.delay} 步、obs 雜訊 {'開' if a.noise else '關'}、推力 ±{a.push} m/s；輪輪 pair {'開' if a.self_collision else '關'}；policy `{Path(a.npz or a.onnx).name}`。", "",
+         "| 指令 | 摔 | vx | vy | 偏航 °/s（±std） | roll std/峰 ° | 機身高 | 抬腳 mm（FR,FL,RR,RL） | 步/秒 | τ ABAD/髖/膝/輪 | \\|a\\| 平均/最大/>1% | 輪速峰 | 關節速峰 | 誤差峰 ABAD/髖膝 | 命令速峰 | 飽和% | 後輪 gap mm |",
+         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for name, cmd, g in rows:
         L.append(f"| {name} | {'%.1f s' % g['fell'] if g['fell'] is not None else '—'} | {g['vx']:+.2f} | {g['vy']:+.2f} | {g['yaw']:+.0f}（±{g['yaw_std']:.0f}） | {g['roll_std']:.2f}/{g['roll_max']:.1f} | {g['z']:.3f} | {g['lift']} | {g['steps_s']} | "
-                 f"{g['tau_abad']:.0f}/{g['tau_hip']:.0f}/{g['tau_knee']:.0f}/{g['tau_wheel']:.1f} | {g['a_abs']:.2f}/{g['a_max']:.2f}/{g['a_gt1']:.0f} | {g['wheel_v']:.1f} | {g['jv_max']:.1f} | {g['err_abad']:.2f}/{g['err_hk']:.2f} | {g['vcmd']:.1f} | {g['sat']:.0f} |")
-    out = OUT / f"eval_rl_only_{mode}{('_' + a.tag) if a.tag else ''}.md"; out.write_text("\n".join(L) + "\n", encoding="utf-8"); print("→", out)
+                 f"{g['tau_abad']:.0f}/{g['tau_hip']:.0f}/{g['tau_knee']:.0f}/{g['tau_wheel']:.1f} | {g['a_abs']:.2f}/{g['a_max']:.2f}/{g['a_gt1']:.0f} | {g['wheel_v']:.1f} | {g['jv_max']:.1f} | {g['err_abad']:.2f}/{g['err_hk']:.2f} | {g['vcmd']:.1f} | {g['sat']:.0f} | {g['gap_rr']:.0f} |")
+    out = out_dir / f"eval_rl_only_{mode}{('_' + a.tag) if a.tag else ''}.md"; out.write_text("\n".join(L) + "\n", encoding="utf-8"); print("→", out)
     if a.video:
         os.environ.setdefault("MUJOCO_GL", "egl")
         import mujoco, imageio

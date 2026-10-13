@@ -67,7 +67,7 @@ def env_metrics(R, j, dt=0.02):
 
 
 def run_cpu(onnx, cmds, secs, settle, env_scene=False):
-    """env_scene=False：rl_only_infer 預設（v3f 圓柱輪、平面地板）。True：WheelEnv 同一份場景（16 邊形網格輪、平地 hfield），
+    """env_scene=False：rl_only_infer 預設（v3f 圓柱輪、平面地板）。True：WheelEnv 同一份場景（網格輪、膠囊機身腿、平地 hfield），
     CPU MuJoCo 跑——用來把「MJX vs CPU MuJoCo」和「場景（輪子幾何／hfield）」兩種差異拆開。"""
     import mujoco
     io = json.load(open(HERE.parent / "rl_wheel_io.json"))
@@ -101,8 +101,8 @@ def main():
     L = [f"# 零訓練對齊：他的 10k 在 WheelEnv（MJX，平地）vs CPU rl_only_infer（real）  —  {Path(a.onnx).name}", "",
          f"MJX {t_env:.0f} s（8 環境 vmap）、CPU {t_cpu:.0f} s；指令 {a.secs} s（先 {a.settle} s 零指令）；統計取指令後 1 s 起。"
          "後輪 gap ＝ 後輪實體間隙近似 ＝ 輪心距 − 0.034（官方網格內側面 +0.017 ×2，V 文件口徑；傾斜時高估 ~7 mm）（mm，取最小；env 與 cpu `gap_rr` 同式）。追蹤差 ＝ |env − cpu| / |指令|，只算有下指令的軸。",
-         "cpu 欄＝rl_only_infer 預設（v3f 圓柱輪、平面地板）；cpu′ ＝ 同一支 CPU 工具改載 WheelEnv 的場景（16 邊形網格輪、平地 hfield），"
-         "env vs cpu′ 只剩 MJX 與 CPU MuJoCo 的差，cpu′ vs cpu 是場景（輪子幾何）的差。", "",
+         "cpu 欄＝rl_only_infer 預設（v3f 圓柱輪、平面地板）；cpu′＝WheelEnv 場景（網格輪、膠囊機身腿、hfield）：同一支 CPU 工具改載，"
+         "env vs cpu′ 只剩 MJX 與 CPU MuJoCo 的差，cpu′ vs cpu 是場景（碰撞幾何）的差。", "",
          "| 指令 | 摔 env/cpu/cpu′ | vx env/cpu/cpu′ | vy env/cpu/cpu′ | 偏航 °/s env/cpu/cpu′ | 抬腳 mm env | 抬腳 mm cpu | 抬腳 mm cpu′ | 後輪 gap mm env/cpu/cpu′ | \\|a\\| max env/cpu | 追蹤差 env↔cpu | 追蹤差 env↔cpu′ |",
          "|---|---|---|---|---|---|---|---|---|---|---|---|"]
     worst, worst_s = 0.0, 0.0

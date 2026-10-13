@@ -1,4 +1,4 @@
-"""純 RL 自訓 v1 地形：方塊圖案（rough／boxes／stairs）、大圖拼接、hfield 慣例、場景檔（膠囊碰撞＋pair）。spec §4。"""
+"""純 RL 自訓 v1 地形：方塊圖案（rough／boxes／stairs）、大圖拼接、hfield 慣例、場景檔（網格輪、膠囊機身腿＋pair）。spec §4。"""
 import sys
 from pathlib import Path
 
@@ -80,15 +80,15 @@ def test_scene_files_load_and_match_mjx_requirements():
     assert m.npair == 4 and m.nhfield == 1 and m.hfield_nrow[0] == wt.NROW and m.hfield_ncol[0] == wt.NCOL
     for p in ("FAR", "FBL", "RAR", "RBL"):
         g = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, f"{p}_FOOT_LINK_COLL")
-        assert m.geom_type[g] == mujoco.mjtGeom.mjGEOM_CAPSULE and m.geom_size[g, 0] == pytest.approx(wt.WHEEL_R)
-        assert m.geom_size[g, 1] == pytest.approx(wt.WHEEL_HW)
+        assert m.geom_type[g] == mujoco.mjtGeom.mjGEOM_MESH
         a = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_ACTUATOR, f"{p}_FOOT_LINK")
         assert m.actuator_gainprm[a, 0] == pytest.approx(1.0) and m.actuator_biasprm[a, 2] == pytest.approx(-1.0)
-    # 全部碰撞幾何改膠囊（MJX hfield–膠囊閉式解）：14 ＝ hfield 地板 ＋ 機身 ＋ 8 段腿 ＋ 4 輪，除地板外全是膠囊
+    # 機身與腿改膠囊（MJX hfield–膠囊閉式解）、輪子網格：14 ＝ hfield 地板 ＋ 機身 ＋ 8 段腿 ＋ 4 輪
     assert m.ngeom == 14 and int(((m.geom_contype != 0) | (m.geom_conaffinity != 0)).sum()) == 14
     floor = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, "floor")
     assert m.geom_type[floor] == mujoco.mjtGeom.mjGEOM_HFIELD
-    assert all(m.geom_type[i] == mujoco.mjtGeom.mjGEOM_CAPSULE for i in range(m.ngeom) if i != floor)
+    wheels = {mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, f"{p}_FOOT_LINK_COLL") for p in ("FAR", "FBL", "RAR", "RBL")}
+    assert all(m.geom_type[i] == mujoco.mjtGeom.mjGEOM_CAPSULE for i in range(m.ngeom) if i != floor and i not in wheels)
     b = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, "BASE_LINK_COLL")
     assert np.allclose(m.geom_size[b], (0.105, 0.31, 0.0))
     legs = [i for i in range(m.ngeom) if mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, i) is None]

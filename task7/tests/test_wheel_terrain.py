@@ -80,10 +80,10 @@ def test_scene_files_load_and_match_mjx_requirements():
     assert m.npair == 4 and m.nhfield == 1 and m.hfield_nrow[0] == wt.NROW and m.hfield_ncol[0] == wt.NCOL
     for p in ("FAR", "FBL", "RAR", "RBL"):
         g = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, f"{p}_FOOT_LINK_COLL")
-        assert m.geom_type[g] == mujoco.mjtGeom.mjGEOM_MESH
+        assert m.geom_type[g] == mujoco.mjtGeom.mjGEOM_CAPSULE and m.geom_size[g][0] == pytest.approx(0.096)
         a = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_ACTUATOR, f"{p}_FOOT_LINK")
         assert m.actuator_gainprm[a, 0] == pytest.approx(1.0) and m.actuator_biasprm[a, 2] == pytest.approx(-1.0)
-    # 機身與腿改膠囊、輪子網格：14 ＝ hfield 地板 ＋ 機身 ＋ 8 段腿 ＋ 4 輪；只有地板＋4 輪參與碰撞（MJX hfield 稜柱數 498 → 128）
+    # 輪子／機身／腿全膠囊：14 ＝ hfield 地板 ＋ 機身 ＋ 8 段腿 ＋ 4 輪；只有地板＋4 輪參與碰撞（MJX hfield 稜柱數 498 → 128）
     assert m.ngeom == 14 and int(((m.geom_contype != 0) | (m.geom_conaffinity != 0)).sum()) == 5
     floor = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, "floor")
     assert m.geom_type[floor] == mujoco.mjtGeom.mjGEOM_HFIELD

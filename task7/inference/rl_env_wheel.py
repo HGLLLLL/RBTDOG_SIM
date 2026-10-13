@@ -111,8 +111,8 @@ class WheelEnv(Env):
         base = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, "base_link")
         self.BASE_BID = int(base)                       # DR（質量／質心）用；機身不碰撞，終止不靠接觸
         self.WHEEL_GIDS = jnp.array([mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, f"{p}_FOOT_LINK_COLL") for p in FEET])
-        # hfield 子網格用的包圍半徑：MuJoCo 對網格算 AABB 半對角（0.136），真實圓盤半徑 0.096 → 每輪稜柱 4×4×2=32 → 3×3×2=18。
-        # MJX 的 geom_rbound_hfield 就是給這個用的獨立欄位；_hfield_collision 的起點用 c.size（0.096），3 格仍完整覆蓋輪子。
+        # hfield 子網格用的包圍半徑：膠囊輪 rbound ＝ 半徑＋半長 0.101 → ceil(0.202/0.1)+1 ＝ 4 格；輪子真正碰地的是半徑 0.096 的圓周，
+        # 覆寫成 0.098 → 3 格，每輪稜柱 4×4×2=32 → 3×3×2=18。MJX 的 geom_rbound_hfield 是給這個用的獨立欄位，不影響其他碰撞。
         rb = np.array(self.sys._impl.geom_rbound_hfield)
         rb[np.asarray(self.WHEEL_GIDS)] = wt.WHEEL_R + 0.002
         self.sys = self.sys.replace(_impl=self.sys._impl.replace(geom_rbound_hfield=rb))

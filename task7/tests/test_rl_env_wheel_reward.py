@@ -120,7 +120,8 @@ def test_wheel_wheel_contact_fires_when_squeezed(env):
             mujoco.mj_contactForce(m, d, i, f6); cpu += f6[0]
     print(f"ww_force MJX={float(aux1['ww_force']):.3f} N  CPU={cpu:.3f} N")
     assert cpu > 10.0
-    assert float(aux1["ww_force"]) == pytest.approx(cpu, rel=0.25)
+    # 膠囊版 MJX 比 CPU 低 ~28%（網格版 15%）；此測試要抓的是「只讀第 0 列」那種 4 倍級錯誤
+    assert float(aux1["ww_force"]) == pytest.approx(cpu, rel=0.35)
 
 
 def test_touch_and_slip(env):

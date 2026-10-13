@@ -67,7 +67,7 @@ def env_metrics(R, j, dt=0.02):
 
 
 def run_cpu(onnx, cmds, secs, settle, env_scene=False):
-    """env_scene=False：rl_only_infer 預設（v3f 圓柱輪、平面地板）。True：WheelEnv 同一份場景（網格輪、膠囊機身腿、平地 hfield），
+    """env_scene=False：rl_only_infer 預設（v3f 圓柱輪、平面地板）。True：WheelEnv 同一份場景（膠囊輪／機身／腿、平地 hfield），
     CPU MuJoCo 跑——用來把「MJX vs CPU MuJoCo」和「場景（輪子幾何／hfield）」兩種差異拆開。"""
     import mujoco
     io = json.load(open(HERE.parent / "rl_wheel_io.json"))
@@ -101,7 +101,7 @@ def main():
     L = [f"# 零訓練對齊：他的 10k 在 WheelEnv（MJX，平地）vs CPU rl_only_infer（real）  —  {Path(a.onnx).name}", "",
          f"MJX {t_env:.0f} s（8 環境 vmap）、CPU {t_cpu:.0f} s；指令 {a.secs} s（先 {a.settle} s 零指令）；統計取指令後 1 s 起。"
          "後輪 gap ＝ 後輪實體間隙近似 ＝ 輪心距 − 0.034（官方網格內側面 +0.017 ×2，V 文件口徑；傾斜時高估 ~7 mm）（mm，取最小；env 與 cpu `gap_rr` 同式）。追蹤差 ＝ |env − cpu| / |指令|，只算有下指令的軸。",
-         "cpu 欄＝rl_only_infer 預設（v3f 圓柱輪、平面地板）；cpu′＝WheelEnv 場景（網格輪、膠囊機身腿、hfield）：同一支 CPU 工具改載，"
+         "cpu 欄＝rl_only_infer 預設（v3f 圓柱輪、平面地板）；cpu′＝WheelEnv 場景（膠囊輪／機身／腿、hfield）：同一支 CPU 工具改載，"
          "env vs cpu′ 只剩 MJX 與 CPU MuJoCo 的差，cpu′ vs cpu 是場景（碰撞幾何）的差。", "",
          "| 指令 | 摔 env/cpu/cpu′ | vx env/cpu/cpu′ | vy env/cpu/cpu′ | 偏航 °/s env/cpu/cpu′ | 抬腳 mm env | 抬腳 mm cpu | 抬腳 mm cpu′ | 後輪 gap mm env/cpu/cpu′ | \\|a\\| max env/cpu | 追蹤差 env↔cpu | 追蹤差 env↔cpu′ |",
          "|---|---|---|---|---|---|---|---|---|---|---|---|"]
@@ -117,7 +117,7 @@ def main():
         L.append(f"| vx {cmd[0]:+.1f} vy {cmd[1]:+.1f} wz {cmd[2]:+.1f} | {int(e['fell'])}/{int(c['fell'])}/{int(cs['fell'])} | {e['vx']:+.2f}/{c['vx']:+.2f}/{cs['vx']:+.2f} | "
                  f"{e['vy']:+.2f}/{c['vy']:+.2f}/{cs['vy']:+.2f} | {e['yaw']:+.0f}/{c['yaw']:+.0f}/{cs['yaw']:+.0f} | {e['lift']} | {c['lift']} | {cs['lift']} | "
                  f"{e['gap']:.0f}/{c['gap']:.0f}/{cs['gap']:.0f} | {e['a_max']:.2f}/{c['a_max']:.2f} | {dpct:.1f} 個百分點 | {dpct_s:.1f} 個百分點 |")
-    L += ["", f"**最大追蹤差 env↔cpu {worst:.1f} 個百分點、env↔cpu′ {worst_s:.1f} 個百分點（百分比僅供參考；關卡＝絕對差：vx 列 ≤ 0.03 m/s、wz 列 ≤ 3 °/s，vy 0.3 是他的死區不計，spec §11.8）；"
+    L += ["", f"**最大追蹤差 env↔cpu {worst:.1f} 個百分點、env↔cpu′ {worst_s:.1f} 個百分點（百分比僅供參考；關卡（膠囊輪子，2026-10-13 定）：vx 列 ≤ 0.03 m/s、wz 列 ≤ 5 °/s（膠囊對圓柱的原地轉偏保守，實機 wz 0.5 ≈ 20 °/s 介於兩者）、0 摔；絕對差 env↔cpu，vy 0.3 是他的死區不計，spec §11.8）；"
           f"摔 env {int(RE['fell'].any(0).sum())}／cpu {sum(c['fell'] for c in RC)}／cpu′ {sum(c['fell'] for c in RS)}（門檻 0）。**"]
     (OUT / "align_10k.md").write_text("\n".join(L) + "\n", encoding="utf-8"); print("→", OUT / "align_10k.md")
     # 攤帳

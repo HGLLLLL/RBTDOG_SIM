@@ -19,7 +19,7 @@ import wheel_terrain as wt  # noqa: E402
 ROOT = HERE.parent.parent
 OUT = ROOT / "outputs" / "rl_wheel"
 CMDS = [(0, 0, 0), (0.3, 0, 0), (0.5, 0, 0), (1.0, 0, 0), (0, 0.3, 0), (0, 0.5, 0), (0, 0, 0.5), (0, 0, 1.0)]
-EXTRA = ("vx_err", "vy_err", "wz_err", "lin_small", "ww_force", "touch_n")
+EXTRA = ("vx_err", "vy_err", "wz_err", "lin_small", "ww_force", "gap_min", "touch_n")
 
 
 def run_env(onnx, cmds, secs, settle, std):
@@ -43,7 +43,7 @@ def run_env(onnx, cmds, secs, settle, std):
         s = step(s, jnp.array(a) / rw.ACT_GAIN)
         d = s.pipeline_state
         foot = np.asarray(d.xpos[:, env.FOOT_BIDS])                                   # (n,4,3)
-        rec["gap"].append(np.linalg.norm(foot[:, 2] - foot[:, 3], axis=1) - 2 * wt.WHEEL_HW)   # 後輪中心距 − 輪寬（與 ri.rear_gap 同式）
+        rec["gap"].append(np.linalg.norm(foot[:, 2] - foot[:, 3], axis=1) - rw.WHEEL_INNER_W)   # 後輪實體間隙近似：中心距 − 0.034（與 ri.rear_gap 同式）
         rec["clr"].append(foot[:, :, 2] - foot[:, :, 2].min(1, keepdims=True))
         rec["fell"].append(np.asarray(s.metrics["fell"])); rec["a"].append(a)
         rec["T"].append({k: np.asarray(s.metrics[k]) for k in rw.TERM_KEYS + EXTRA})
@@ -100,7 +100,7 @@ def main():
     t0 = time.time(); RE = run_env(a.onnx, CMDS, a.secs, a.settle, std=0.25); t_env = time.time() - t0; print(f"env done {t_env:.0f}s", flush=True)
     L = [f"# 零訓練對齊：他的 10k 在 WheelEnv（MJX，平地）vs CPU rl_only_infer（real）  —  {Path(a.onnx).name}", "",
          f"MJX {t_env:.0f} s（8 環境 vmap）、CPU {t_cpu:.0f} s；指令 {a.secs} s（先 {a.settle} s 零指令）；統計取指令後 1 s 起。"
-         "後輪 gap ＝ 後輪中心距 − 輪寬（mm，取最小；env 與 cpu `gap_rr` 同式）。追蹤差 ＝ |env − cpu| / |指令|，只算有下指令的軸。",
+         "後輪 gap ＝ 後輪實體間隙近似 ＝ 輪心距 − 0.034（官方網格內側面 +0.017 ×2，V 文件口徑；傾斜時高估 ~7 mm）（mm，取最小；env 與 cpu `gap_rr` 同式）。追蹤差 ＝ |env − cpu| / |指令|，只算有下指令的軸。",
          "cpu 欄＝rl_only_infer 預設（v3f 圓柱輪、平面地板）；cpu′ ＝ 同一支 CPU 工具改載 WheelEnv 的場景（16 邊形網格輪、平地 hfield），"
          "env vs cpu′ 只剩 MJX 與 CPU MuJoCo 的差，cpu′ vs cpu 是場景（輪子幾何）的差。", "",
          "| 指令 | 摔 env/cpu/cpu′ | vx env/cpu/cpu′ | vy env/cpu/cpu′ | 偏航 °/s env/cpu/cpu′ | 抬腳 mm env | 抬腳 mm cpu | 抬腳 mm cpu′ | 後輪 gap mm env/cpu/cpu′ | \\|a\\| max env/cpu | 追蹤差 env↔cpu | 追蹤差 env↔cpu′ |",
@@ -121,19 +121,20 @@ def main():
           f"摔 env {int(RE['fell'].any(0).sum())}／cpu {sum(c['fell'] for c in RC)}／cpu′ {sum(c['fell'] for c in RS)}（門檻 0）。**"]
     (OUT / "align_10k.md").write_text("\n".join(L) + "\n", encoding="utf-8"); print("→", OUT / "align_10k.md")
     # 攤帳
+    import rl_env_wheel as rw
     w = slice(RE["n_settle"] + 50, None)
     T = RE["T"]
     lin5 = 2.5 * np.exp(-(T["vx_err"] ** 2 + T["vy_err"] ** 2) / 0.25); ang5 = 1.25 * np.exp(-T["wz_err"] ** 2 / 0.25)
     keys = list(T.keys())
     A = ["# reward 攤帳：他的 10k 在 WheelEnv 平地八指令（每步平均；std 0.25 為主，括號內 std 0.5）", "",
-         f"取指令後 1 s 起（{a.secs - 1:.0f} s × 50 步）；前 12 欄是 reward 項（已乘權重），合計＝十二項和；`lin_small`／`small` 在 fixed_cmd 下無意義（env 出生時仍隨機抽 small 旗標，但指令讀 cmd_fix），不要讀；`ww_force` 是輪輪法向力 N、`touch_n` 是觸地輪數（診斷量，不進 reward）。"
+         f"取指令後 1 s 起（{a.secs - 1:.0f} s × 50 步）；前 13 欄是 reward 項（已乘權重），合計＝十三項和；`lin_small` 在 fixed_cmd 下恆 0（small 旗標固定 False）；`ww_force` 是輪輪法向力 N、`gap_min` 是前後兩對左右輪實體間隙的較小者 m（輪心距 − 0.034）、`touch_n` 是觸地輪數（診斷量，不進 reward）。"
          "std 0.5 的 lin／ang 由同一條 rollout 的 vx/vy/wz 誤差解析算出（std 不影響動力學）。", "",
          "| 指令 | " + " | ".join(keys) + " | 合計 |", "|---|" + "---|" * (len(keys) + 1)]
     for j, cmd in enumerate(CMDS):
         vals = {k: T[k][w, j].mean() for k in keys}; vals5 = {"lin": lin5[w, j].mean(), "ang": ang5[w, j].mean()}
-        tot = sum(vals[k] for k in ("lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww"))
+        tot = sum(vals[k] for k in rw.TERM_KEYS)
         A.append(f"| vx {cmd[0]:+.1f} vy {cmd[1]:+.1f} wz {cmd[2]:+.1f} | " + " | ".join(f"{vals[k]:+.3f}" + (f" ({vals5[k]:+.3f})" if k in vals5 else "") for k in keys) + f" | {tot:+.3f} |")
-    A += ["", "讀法：`ww` 在 vy ±0.5 要非零（改動一有東西可咬）；`lin` 在 vy 0.3／wz 0.5 這兩列 std 0.25 要明顯低於括號內的 0.5（改動二有梯度）；",
+    A += ["", "讀法：`wgap` 在 vy ±0.5 要非零（他的 policy 實體間隙 ~33 mm < 50 mm；`ww` 是 pair 法向力，只有腿交叉才碰，平地恆 0 屬正常）；`lin` 在 vy 0.3／wz 0.5 這兩列 std 0.25 要明顯低於括號內的 0.5（改動二有梯度）；",
           "其餘各項量級要和他的相稱（任一項絕對值 > 2 就是淹沒追蹤項，回 spec §3 調）。"]
     (ROOT / "outputs" / "reward_audit_wheel_v1.md").write_text("\n".join(A) + "\n", encoding="utf-8"); print("→ outputs/reward_audit_wheel_v1.md")
     np.savez_compressed(OUT / "align_10k_env_raw.npz", **{k: v for k, v in RE.items() if k != "T"}, **{"T_" + k: v for k, v in T.items()})

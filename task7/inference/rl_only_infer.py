@@ -138,9 +138,10 @@ def load_policy(onnx: str | None, npz: str | None):
 
 
 def rear_gap(sim):
-    """後輪（RAR、RBL）輪心距 − 兩個半輪寬 ＝ 輪面間距 m（中心距近似；輪面不平行時偏大）。"""
+    """後輪（RAR、RBL）實體間隙近似（官方網格內面 +0.017 ×2；傾斜時高估 ~7 mm）＝ 輪心距 − 0.034 m。
+    與 V 文件口徑相同（link 中心距 67 mm → 實體間隙 ~33 mm）；不是 v3f 碰撞圓柱的間距（圓柱貼在外側面 y −0.047）。"""
     d = sim.d
-    return float(np.linalg.norm(d.xpos[sim.feet[2]] - d.xpos[sim.feet[3]]) - 2 * wt.WHEEL_HW)
+    return float(np.linalg.norm(d.xpos[sim.feet[2]] - d.xpos[sim.feet[3]]) - 0.034)
 
 
 def run(sim, pol, cmd, secs, settle, dt_pol=0.02, push=0.0, delay=0, noise=False, seed=0):

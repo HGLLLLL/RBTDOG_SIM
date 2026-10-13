@@ -28,7 +28,7 @@ def test_notebook_cells():
     assert "STEP_OFFSET" in code and 're.search(r"step(\\d+)", RESUME)' in code
     assert "rl_wheel_v1_step{STEP_OFFSET + step:012d}.pkl" in code and "total = STEP_OFFSET + step" in code
     assert "else:\n        break" in code                                     # throughput 遇第一檔不合格就停
-    for k in ("ps('lin')", "ps('ang')", "ps('ww')", "ps('slip')", "ps('level')", "ps('lin_small')", "ps('fell')"):
+    for k in ("ps('lin')", "ps('ang')", "ps('ww')", "ps('wgap')", "ps('slip')", "ps('level')", "ps('lin_small')", "ps('fell')"):
         assert k in code, k
     assert "停損" in md and "len < 600" in md and "lin < 0.5" in md and "2 億步" in md and "2026-10-13" in md
 

@@ -36,8 +36,15 @@ ACT_OFFSET = jnp.array(IO["action"]["offset"], dtype=jnp.float32)
 NOISE = dict(ang=0.2, grav=0.05, jpos=0.01, jvel=1.5)     # 他的 UniformNoiseCfg（±）
 SPAWN_XY, SPAWN_WINDOW = 0.5, 0.6         # 出生點在方塊中心 ±0.5 m（他的 pose_range）；出生高取 ±0.6 m 窗內地形最高
 FEET = ("FAR", "FBL", "RAR", "RBL")
-TERM_KEYS = ("lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww")
-METRIC_KEYS = TERM_KEYS + ("reward", "lin_small", "level", "fell", "dist", "ww_force", "vx_err", "vy_err", "wz_err", "touch_n", "small", "standing")
+# 輪輪實體間隙（改動一的補強）：v3f 碰撞圓柱貼在 FOOT_LINK y = −0.047（輪胎外側面，半寬 0.005），但官方輪網格
+# y ∈ [−0.070, +0.017]，**內側面在 +0.017**。兩個左右輪的碰撞圓盤比 link 原點還外側，間距比實體多 ~94 mm，
+# 所以 <pair> 只有腿交叉才會碰（攤帳 ww 恆 0）。實機的碰撞（V 文件：link 中心距 67 mm → 實體間隙 25–26 mm）是內側面互碰，
+# pair 表示不了 → 另加間隙 hinge：gap ＝ 輪心距 − 2×0.017（與 V 文件同口徑；機身／輪傾斜時高估約 7 mm）。
+WHEEL_INNER_W = 0.034                   # 2 × 0.017：兩輪內側面到各自 link 原點的距離和
+GAP_MIN = 0.05                          # 實體間隙 < 50 mm 開始罰（他的 10k 在 vy 0.5 ~33 mm）
+LAT_PAIRS = ((0, 1), (2, 3))            # FEET 索引：前 FAR–FBL、後 RAR–RBL
+TERM_KEYS = ("lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap")
+METRIC_KEYS = TERM_KEYS + ("reward", "lin_small", "level", "fell", "dist", "ww_force", "gap_min", "vx_err", "vy_err", "wz_err", "touch_n", "small", "standing")
 
 
 def quat_rot_inv(q, v):
@@ -63,12 +70,12 @@ def wrap_pi(a):
 class WheelEnv(Env):
     def __init__(self, scene: str | None = None, map_seed: int = 0, flat: bool = False, noise: bool = True, push: bool = True,
                  fixed_cmd: bool = False, fixed_tile: tuple[int, int] | None = None, small_frac: float = 0.3,
-                 std: float = 0.25, w_ww: float = 1.0, episode_len: int = EPISODE_LEN):
+                 std: float = 0.25, w_ww: float = 1.0, w_gap: float = 1.0, episode_len: int = EPISODE_LEN):
         """flat：全圖平地、出生在原點（對齊驗證）；fixed_cmd：指令讀 info["cmd_fix"]（不重抽、不站立、不小指令）；
-        fixed_tile=(kind_idx, level)：固定出生方塊、不升降課程。std／w_ww／small_frac 是三項改動的旋鈕。
+        fixed_tile=(kind_idx, level)：固定出生方塊、不升降課程。std／w_ww／w_gap／small_frac 是三項改動的旋鈕（w_gap：輪輪實體間隙 hinge）。
         episode_len：回合步數（內部重生、10 s 指令重抽、推力排程都以它為準；訓練時須與 wrap_env 的 episode_length 相同）。"""
         self.flat, self.noise, self.push, self.fixed_cmd, self.fixed_tile = flat, noise, push, fixed_cmd, fixed_tile
-        self.small_frac, self.std, self.w_ww = small_frac, std, w_ww
+        self.small_frac, self.std, self.w_ww, self.w_gap = small_frac, std, w_ww, w_gap
         self.episode_len = int(episode_len)
         self.scene = scene or wt.make_scene_xml()
         m = mujoco.MjModel.from_xml_path(self.scene)
@@ -136,6 +143,8 @@ class WheelEnv(Env):
         k = jax.random.split(rng, 4)
         small = jax.random.uniform(k[0]) < self.small_frac
         standing = jax.random.uniform(k[1]) < 0.1
+        if self.fixed_cmd:                       # 指令讀 cmd_fix：旗標固定 False，lin_small／small／standing metric 才不是隨機噪音
+            small, standing = jnp.bool_(False), jnp.bool_(False)
         v = jnp.where(small, jax.random.uniform(k[2], (2,), minval=-0.4, maxval=0.4), jax.random.uniform(k[2], (2,), minval=-1.0, maxval=1.0))
         head = jnp.where(small, yaw + jax.random.uniform(k[3], minval=-0.5, maxval=0.5), jax.random.uniform(k[3], minval=-jnp.pi, maxval=jnp.pi))
         return jnp.where(standing, 0.0, v), head, standing, small
@@ -274,6 +283,9 @@ class WheelEnv(Env):
         ww_mask = jnp.isin(C["g0"], self.WHEEL_GIDS) & jnp.isin(C["g1"], self.WHEEL_GIDS)
         ww_force = jnp.sum(C["fn"] * ww_mask)
         ww = jnp.sum((C["fn"] * ww_mask / 100.0) ** 2)                              # 法向力 / 100 N 的 L2（改動一；量級由攤帳校正）
+        # 實體間隙 hinge（pair 碰不到內側面，見 WHEEL_INNER_W 註解）：gap < GAP_MIN 起罰，(1 − gap/GAP_MIN)²，gap ≤ 0 繼續長
+        gaps = jnp.stack([jnp.linalg.norm(foot[i] - foot[j]) for i, j in LAT_PAIRS]) - WHEEL_INNER_W
+        wgap = jnp.sum(jnp.maximum(0.0, 1.0 - gaps / GAP_MIN) ** 2)
         standing_scale = jnp.where(jnp.linalg.norm(cmd) < 0.1, 10.0, 1.0)
         dev = jnp.sum(jnp.abs(data.qpos[self.QADR[:12]] - DEFAULT[:12])) * standing_scale
         s2 = self.std ** 2
@@ -282,8 +294,8 @@ class WheelEnv(Env):
                  tau_leg=-2e-4 * jnp.sum(tau[:12] ** 2), tau_wheel=-2e-4 * jnp.sum(tau[12:] ** 2),
                  acc_leg=-2.5e-7 * jnp.sum(qacc[:12] ** 2), acc_wheel=-2.5e-7 * jnp.sum(qacc[12:] ** 2),
                  rate=-0.01 * jnp.sum((a - info["last_a"]) ** 2),
-                 slip=-0.075 * slip, dev=-0.1 * dev, ww=-self.w_ww * ww)
-        aux = dict(vb=vb, w=w, touch=touch, ww_force=ww_force, err_lin=err_lin, err_ang=err_ang, C=C)
+                 slip=-0.075 * slip, dev=-0.1 * dev, ww=-self.w_ww * ww, wgap=-self.w_gap * wgap)
+        aux = dict(vb=vb, w=w, touch=touch, ww_force=ww_force, gaps=gaps, err_lin=err_lin, err_ang=err_ang, C=C)
         return T, aux
 
     def _after_physics(self, data, info, a, cmd):
@@ -291,7 +303,7 @@ class WheelEnv(Env):
         reward = sum(T.values())
         fell = self._base_contact(aux["C"])
         metrics = dict(T, reward=reward, lin_small=T["lin"] * info["small"], level=info["level"].astype(jnp.float32),
-                       fell=fell.astype(jnp.float32), dist=jnp.linalg.norm(data.qpos[0:2] - info["xy0"]), ww_force=aux["ww_force"],
+                       fell=fell.astype(jnp.float32), dist=jnp.linalg.norm(data.qpos[0:2] - info["xy0"]), ww_force=aux["ww_force"], gap_min=jnp.min(aux["gaps"]),
                        vx_err=jnp.abs(aux["vb"][0] - cmd[0]), vy_err=jnp.abs(aux["vb"][1] - cmd[1]), wz_err=jnp.abs(aux["w"][2] - cmd[2]),
                        touch_n=jnp.sum(aux["touch"]).astype(jnp.float32), small=info["small"].astype(jnp.float32), standing=info["standing"].astype(jnp.float32))
         return reward, fell, metrics

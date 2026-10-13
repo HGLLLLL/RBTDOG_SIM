@@ -113,7 +113,7 @@ def progress(step, metrics):
     ps = lambda k: float(metrics.get(f"eval/episode_{{k}}", 0.0)) / L
     el = time.time() - _t0; rate = step / max(el, 1e-9)                         # 本 session 速率（ETA 用）
     print(f"step {{total:>11,}} R {{r:7.2f}} | lin {{ps('lin'):.2f}}/2.5 ang {{ps('ang'):.2f}}/1.25 small {{ps('lin_small'):.2f}} | "
-          f"ww {{ps('ww'):+.3f}} slip {{ps('slip'):+.3f}} dev {{ps('dev'):+.3f}} rate {{ps('rate'):+.3f}} | "
+          f"ww {{ps('ww'):+.3f}} wgap {{ps('wgap'):+.3f}} gap {{ps('gap_min')*1000:.0f}}mm slip {{ps('slip'):+.3f}} dev {{ps('dev'):+.3f}} rate {{ps('rate'):+.3f}} | "
           f"vxerr {{ps('vx_err'):.2f}} vyerr {{ps('vy_err'):.2f}} wzerr {{ps('wz_err'):.2f}} | level {{ps('level'):.1f}} fell {{ps('fell') * L:.2f}} len {{L:.0f}} | "
           f"{{el:.0f}}s → {{TIMESTEPS / max(rate, 1) / 60:.0f}} 分")
 

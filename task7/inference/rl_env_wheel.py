@@ -46,10 +46,12 @@ WHEEL_INNER_W = 0.034                   # 2 × 0.017：兩輪內側面到各自 
 GAP_MIN = 0.08                          # 實體間隙 < 80 mm 開始罰（他的 10k 在 vy 0.5 ~33 mm）。0.05 時 40 mm 驗收邊界只罰 (1−0.8)² = 4%，太弱；
                                         # 0.08 配 w_gap 2.0：40 mm 時每對 (1−0.5)²×2 = 0.5，接觸（gap 0）時 2.0
 LAT_PAIRS = ((0, 1), (2, 3))            # FEET 索引：前 FAR–FBL、後 RAR–RBL
-X_LIM, Y_LIM = -wt.X0 - 1.0, -wt.Y0 - 1.0  # 出界終止：hfield 邊緣往內 1 m（離開地圖 base 碰不到 floor，fell 不會觸發而自由落體）
+X_LIM, Y_LIM = -wt.X0 - 1.0, -wt.Y0 - 1.0  # 出界終止：hfield 邊緣往內 1 m（離開地圖 _terrain_h 夾到邊緣格、輪子掉出 hfield 後自由落體）
+FALL_H = 0.20                           # 摔倒：機身離地 < 0.20 m（站立 0.494；輪半徑 0.096、機身箱底離地 ~0.37；低於 0.20 表示腿已折到機身快碰地）
+FALL_COS = -0.5                         # 摔倒：機身系重力 z 分量 > −0.5 ＝ 機身傾 > 60°
 WW_CAP = 3.0                            # ww 每個接觸 fn/100 的上限：腿交叉時 fn 可達 2755 N，單步 −760 會拉壞 critic
 TERM_KEYS = ("lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap")
-METRIC_KEYS = TERM_KEYS + ("reward", "lin_small", "level", "fell", "oob", "dist", "ww_force", "gap_min", "vx_err", "vy_err", "wz_err", "touch_n", "small", "standing")
+METRIC_KEYS = TERM_KEYS + ("reward", "lin_small", "level", "fell", "oob", "tilt", "dist", "ww_force", "gap_min", "vx_err", "vy_err", "wz_err", "touch_n", "small", "standing")
 
 
 def quat_rot_inv(q, v):
@@ -94,6 +96,9 @@ class WheelEnv(Env):
         # _contacts 用 dist < 0 判接觸（忽略 margin）；有人改 geom／pair margin 時讀值會靜默出錯，所以在這裡擋
         assert bool((m.geom_margin == 0).all()) and (m.npair == 0 or bool((m.pair_margin == 0).all())), \
             (np.unique(m.geom_margin), m.pair_margin)
+        # 只有四個輪子碰地形（wheel_terrain.make_robot_xml 把機身與 8 段腿設 contype 0）：MJX hfield 每個幾何測
+        # (ceil(2r/0.1)+1)²×2 個稜柱，機身＋腿 498 個、輪子 128 個；A100 實測 hfield 6.8k vs 平面 102k env-steps/s。
+        # 因此「機身碰地」不能再當摔倒訊號 → 終止改成幾何判定（_fallen：傾角 > 60° 或機身離地 < FALL_H），加上出界 oob。
         self._mj = m
         self.sys = mjx.put_model(m)
         self.H = jnp.array(self.H_np, dtype=jnp.float32)
@@ -104,8 +109,7 @@ class WheelEnv(Env):
         self.AID = jnp.array([trn[j] for j in jid])
         self.FLOOR = int(mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, "floor"))
         base = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, "base_link")
-        self.BASE_BID = int(base)
-        self.BASE_GIDS = jnp.array(np.where(m.geom_bodyid == base)[0])
+        self.BASE_BID = int(base)                       # DR（質量／質心）用；機身不碰撞，終止不靠接觸
         self.WHEEL_GIDS = jnp.array([mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, f"{p}_FOOT_LINK_COLL") for p in FEET])
         self.FOOT_BIDS = jnp.array([mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, f"{p}_FOOT_LINK") for p in FEET])
         self.Z_STAND = self._z_stand(m)
@@ -127,6 +131,14 @@ class WheelEnv(Env):
         j = jnp.clip(jnp.floor((x - SPAWN_WINDOW - wt.X0) / wt.DX), 0, wt.NCOL - n).astype(jnp.int32)
         i = jnp.clip(jnp.floor((y - SPAWN_WINDOW - wt.Y0) / wt.DX), 0, wt.NROW - n).astype(jnp.int32)
         return jnp.max(jax.lax.dynamic_slice(self.H, (i, j), (n, n)))
+
+    def _terrain_h(self, x, y):
+        """(x,y) 的地形高（雙線性，與 wheel_terrain.height_np 同式；索引夾在圖內，出圖時取邊緣格）。"""
+        fx = (x - wt.X0) / wt.DX; fy = (y - wt.Y0) / wt.DX
+        j = jnp.clip(jnp.floor(fx), 0, wt.NCOL - 2).astype(jnp.int32); i = jnp.clip(jnp.floor(fy), 0, wt.NROW - 2).astype(jnp.int32)
+        tx = jnp.clip(fx - j, 0.0, 1.0); ty = jnp.clip(fy - i, 0.0, 1.0)
+        H = self.H
+        return (1 - tx) * (1 - ty) * H[i, j] + tx * (1 - ty) * H[i, j + 1] + (1 - tx) * ty * H[i + 1, j] + tx * ty * H[i + 1, j + 1]
 
     def _tile_origin(self, kind, level):
         x = wt.X0 + (wt.NB + wt.NT / 2 + level * wt.NT) * wt.DX
@@ -276,9 +288,13 @@ class WheelEnv(Env):
         fn = jnp.sum(jnp.maximum(data._impl.efc_force[rows], 0.0), axis=1) * active
         return dict(active=active, g0=c.geom[:, 0], g1=c.geom[:, 1], fn=fn)
 
-    def _base_contact(self, C):
-        hit = C["active"] & ((jnp.isin(C["g0"], self.BASE_GIDS) & (C["g1"] == self.FLOOR)) | (jnp.isin(C["g1"], self.BASE_GIDS) & (C["g0"] == self.FLOOR)))
-        return jnp.any(hit)
+    def _fallen(self, data):
+        """摔倒（幾何判定；機身／腿不碰撞所以不能用機身接觸）：回傳 (tilt, low)。
+        tilt：機身系重力 z > −0.5（傾 > 60°）；low：機身 z − 正下方地形高 < FALL_H。"""
+        grav = quat_rot_inv(data.qpos[3:7], jnp.array([0.0, 0.0, -1.0]))
+        tilt = grav[2] > FALL_COS
+        low = (data.qpos[2] - self._terrain_h(data.qpos[0], data.qpos[1])) < FALL_H
+        return tilt, low
 
     # ---------------------------------------------------------------- reward（他的十項＋輪輪接觸；權重照 env.yaml）
     def _reward_terms(self, data, info, a, cmd):
@@ -317,12 +333,13 @@ class WheelEnv(Env):
         T, aux = self._reward_terms(data, info, a, cmd)
         reward = sum(T.values())
         x, y, z = data.qpos[0], data.qpos[1], data.qpos[2]
-        # 出界／掉落（base 碰不到 floor 時的保險）。z 門檻取 0（整張 hfield 的基準面）：反向樓梯第 9 級坑底在 BASE_H − 0.8 = 0.2 m，
+        # 摔倒＝傾角 > 60° 或離地 < FALL_H（_fallen）；出界／掉落另判。z 門檻取 0（整張 hfield 的基準面）：反向樓梯第 9 級坑底在 BASE_H − 0.8 = 0.2 m，
         # 站在坑底機身約 0.67 m，舊門檻 BASE_H − 0.5 只差 0.17 m 就誤判摔；低於 0 才一定是掉出地圖
         oob = (jnp.abs(x) > X_LIM) | (jnp.abs(y) > Y_LIM) | (z < 0.0)
-        fell = self._base_contact(aux["C"]) | oob
+        tilt, low = self._fallen(data)
+        fell = tilt | low | oob
         metrics = dict(T, reward=reward, lin_small=T["lin"] * info["small"], level=info["level"].astype(jnp.float32),
-                       fell=fell.astype(jnp.float32), oob=oob.astype(jnp.float32), dist=jnp.linalg.norm(data.qpos[0:2] - info["xy0"]), ww_force=aux["ww_force"], gap_min=jnp.min(aux["gaps"]),
+                       fell=fell.astype(jnp.float32), oob=oob.astype(jnp.float32), tilt=tilt.astype(jnp.float32), dist=jnp.linalg.norm(data.qpos[0:2] - info["xy0"]), ww_force=aux["ww_force"], gap_min=jnp.min(aux["gaps"]),
                        vx_err=jnp.abs(aux["vb"][0] - cmd[0]), vy_err=jnp.abs(aux["vb"][1] - cmd[1]), wz_err=jnp.abs(aux["w"][2] - cmd[2]),
                        touch_n=jnp.sum(aux["touch"]).astype(jnp.float32), small=info["small"].astype(jnp.float32), standing=info["standing"].astype(jnp.float32))
         return reward, fell, metrics

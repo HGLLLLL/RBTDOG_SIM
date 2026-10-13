@@ -38,6 +38,13 @@ BASE_BOX = 'type="box" size="0.416641 0.115123 0.104083"'
 BASE_CAP = 'type="capsule" size="0.105 0.31" quat="0.7071068 0 0.7071068 0"'               # 軸 z→x；半徑 ≈ 方塊 y/z 半寬，0.31+0.105 ≈ x 半長
 UPPER_RE = re.compile(r'(<geom size=")0\.03 0\.0075 0\.11(" pos="[^"]*" quat="[^"]*") type="box"')        # 大腿方塊長軸 z ＝ 膠囊軸
 LOWER_RE = re.compile(r'(<geom size=")0\.015 0\.015 0\.11(" pos="0\.005 0 -0\.09" quat="0\.99995 0 -0\.00999983 0") type="box"')
+# 只有輪子碰地形：MJX hfield 對每個幾何取 (ceil(2·rbound/0.1)+1)² 格 × 2 個稜柱逐一測，
+# 機身膠囊（rbound 0.415 → 242）＋ 8 段腿（各 32 → 256）＝ 498 個，4 輪只有 128 個。A100 實測 hfield 場景 6.8k vs 平面 102k env-steps/s。
+# 機身／腿改 contype 0：摔倒終止改用幾何判定（rl_env_wheel._fallen：傾角 > 60° 或機身離地 < 0.20 m）。
+NOCOLL = ' contype="0" conaffinity="0"'
+BASE_COLL_RE = re.compile(r'(<geom name="BASE_LINK_COLL" type="capsule"[^>]*?) contype="1" conaffinity="0"')
+UPPER_COLL_RE = re.compile(r'(<geom size="0\.03 0\.11"[^>]*? type="capsule"[^>]*?) contype="1" conaffinity="0"')
+LOWER_COLL_RE = re.compile(r'(<geom size="0\.015 0\.11"[^>]*? type="capsule"[^>]*?) contype="1" conaffinity="0"')
 ROBOT_SRC, ROBOT_OUT = MODEL_DIR / "zgws_mjx_v3f.xml", MODEL_DIR / "zgws_mjx_wheel.xml"
 SCENE_SRC, SCENE_OUT = MODEL_DIR / "scene_flat_mjx_v3f.xml", MODEL_DIR / "scene_wheel_mjx.xml"
 FLAT_PAIRS_OUT = MODEL_DIR / "scene_flat_pairs_v3f.xml"
@@ -137,7 +144,7 @@ def _write(path: Path, text: str) -> str:
 
 
 def make_robot_xml() -> str:
-    """zgws_mjx_v3f.xml → 輪子改 16 邊凸網格圓盤、機身／大腿／小腿改膠囊、輪速伺服 kv 0.1 → 1.0。"""
+    """zgws_mjx_v3f.xml → 輪子改 16 邊凸網格圓盤、機身／大腿／小腿改膠囊且不碰撞（contype 0）、輪速伺服 kv 0.1 → 1.0。"""
     src = ROBOT_SRC.read_text(encoding="utf-8")
     assert src.count(CYL) == 4 and src.count('kv="0.1"') == 4, (src.count(CYL), src.count('kv="0.1"'))
     assert src.count(BASE_BOX) == 1, src.count(BASE_BOX)
@@ -146,8 +153,14 @@ def make_robot_xml() -> str:
     out, n_lo = LOWER_RE.subn(r'\g<1>0.015 0.11\g<2> type="capsule"', out)
     assert n_up == 4 and n_lo == 4, (n_up, n_lo)
     assert 'type="box"' not in out and 'type="cylinder"' not in out
+    out, n_b = BASE_COLL_RE.subn(r'\g<1>' + NOCOLL, out)
+    out, n_uc = UPPER_COLL_RE.subn(r'\g<1>' + NOCOLL, out)
+    out, n_lc = LOWER_COLL_RE.subn(r'\g<1>' + NOCOLL, out)
+    assert (n_b, n_uc, n_lc) == (1, 4, 4), (n_b, n_uc, n_lc)
+    assert out.count('contype="1"') == 4 and out.count('mesh="wheel_disc"') == 4     # 只剩四輪會碰
     out = ("<!-- ⚠️ 產生檔，不要手改。產生器：inference/wheel_terrain.py（zgws_mjx_v3f.xml 的訓練版：輪子 16 邊凸網格（MJX 3.10 無 hfield–cylinder；膠囊輪 wz 對齊不過）；"
-           "機身／腿改膠囊——MJX hfield 對膠囊是閉式解，對凸體要跑 GJK；A100 實測 1024 envs 只有 5.4k steps/s 且不隨環境數增加；輪 kv 1.0＝他的 IdealPD） -->\n" + out)
+           "機身／腿改膠囊且 contype 0——只有輪子碰地形：MJX hfield 每個幾何測 (ceil(2r/0.1)+1)²×2 個稜柱，機身＋腿 498 個、輪子 128 個；"
+           "A100 實測 6.8k vs 平面 102k env-steps/s；摔倒改由 rl_env_wheel 用傾角＋離地高判；輪 kv 1.0＝他的 IdealPD） -->\n" + out)
     return _write(ROBOT_OUT, out)
 
 

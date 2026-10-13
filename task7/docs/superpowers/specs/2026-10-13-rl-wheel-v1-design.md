@@ -66,7 +66,7 @@
 | ★ wheel_gap（2026-10-13 加） | 前後兩對側向輪實體間隙 gap ＝ 中心距 − 0.034 的 hinge：Σ max(0, 1 − gap/0.08)² | **−2.0**（改動一；40 mm 驗收邊界每對罰 0.5、接觸 2.0；pair 圓盤碰不到實機那種內面接觸，見 §11.9） |
 
   三個判斷值（std 0.25、−1.0、30%）在 §6 攤帳後若量級不對會調，調了寫進結果文件。
-- **終止**：base_link 接觸力 > 1 N，或出界／z < 0（§11.10），或 20 s（time-out 不算失敗）。
+- **終止**：機身傾 > 60°（機身系重力 z > −0.5）或機身離地 < 0.20 m（z − 正下方地形雙線性高），或出界／z < 0（§11.10），或 20 s（time-out 不算失敗）。原為 base_link 接觸，機身／腿改不碰撞後換成幾何判定（§11.12）。
 - **domain randomization**（reset 時 vmap，寫法同 `rl_env_v3.make_domain_randomize`）：
   他的：地面摩擦 靜 0.8／動 0.6（我們用 geom_friction 0.6–1.0 均勻）、基座質量 −1～+3 kg、質心 x ±0.05 m、每 10–15 s 推 ±0.5 m/s（x, y）。
   **改動三**：腿關節 frictionloss 用實機辨識值（ABAD／髖膝 1.85／1.5）× 0.5–1.5；輪 frictionloss 0.10–0.18、damping 0.005–0.03（v3 線已有範圍）。
@@ -132,7 +132,7 @@
 
 - `tests/test_rl_env_wheel.py`：obs 與 `rl_only_infer.Sim.obs` 在同一 qpos/qvel 下逐維相等（1e-5）；動作縮放（a_env=±1 → q_des 偏 ±1.0 rad、輪 ±20 rad/s）；
   每項 reward 在構造狀態下的值與正負（追蹤完美＝權重、站立時 sim2default ×10、輪子分開時 ww＝0）；出生 z ＝ 地形高 + 0.485（三種類各一）；
-  兩顆後輪擺到重疊時 pair 接觸力 > 0；課程升／降／到頂重抽；base 觸地終止、time-out 不終止 done 旗標。
+  兩顆後輪擺到重疊時 pair 接觸力 > 0；課程升／降／到頂重抽；摔倒（傾角／離地高）終止、time-out 不終止 done 旗標。
 - `tests/test_terrain_grid.py`：stairs 的階高、踏面、中央平台、邊緣壓平。
 - `tests/test_export_policy_wheel.py`：npz 推論 == Brax 推論（隨機 obs，1e-5）；`tests/test_policy_np_act_gain.py`：缺鍵＝1.0、舊 `rl_only_*_np.npz` 輸出逐位元不變。
 - 本機 CPU 煙霧：4 envs × 50 步 jit 跑通（在 test 裡）。
@@ -176,3 +176,4 @@
 9. **pair 圓盤碰不到實機的那種碰撞**：v3f 碰撞圓盤在 link y=−0.047（輪胎外側平面、半寬 5 mm），官方網格 y∈[−0.070,+0.017]，實機後輪互碰是內面（+0.017）相碰；兩圓盤要腿交叉才會碰。所以改動一的主力是 `wgap`（實體間隙 hinge，閾值 80 mm、權重 2.0；他的 10k 在 vy 0.5 時 gap 最小 33 mm），`ww` 力項只擋交叉。驗收與工具的 gap 口徑統一為「中心距 − 34 mm」。
 10. **出界／掉落終止、BORDER 20 m、初始等級 0–5、ww 上限 3**（整支 review 後修正）：外框原為 2 m，方塊中心離圖邊只 6 m，我們的指令分佈約 22% 回合開出圖外；開出去後 base 碰不到 `floor`，`fell` 不觸發而自由落體（實測 6 s 掉到 z −98 m、`vz` 項每步約 −3900）。改為 `BORDER = 20.0`（同他的 border_width 200），並在終止加 `oob`：|x| > X_LIM、|y| > Y_LIM（hfield 邊往內 1 m）或 z < 0（原寫 BASE_H − 0.5，太緊：反向樓梯第 9 級坑底 0.2 m、站在坑底機身約 0.67 m，再低 0.17 m 就誤判摔；改為低於 hfield 基準面才算掉出地圖），`fell = base_contact | oob`，metric 多 `oob`。reset 初始等級改抽 0–5（他的 max_init_terrain_level 5），到頂重抽維持 0–9。`ww` 每個接觸 fn/100 截在 3（腿交叉時 fn 可達 2755 N，單步 −760 會拉壞 critic）；`ww_force` metric 仍是未截斷的和。`_contacts` 用 dist < 0，`WheelEnv` 啟動時 assert 所有 geom／pair margin 為 0。
 11. **特權 critic、discount 0.99、探索幅度維持預設**（使用者 2026-10-13 決定）：critic 改看 56 維特權 obs（無雜訊 53 ＋ 機身系線速度 3，同他的 critic），policy 仍看帶雜訊的 53；discount 由 v3 線的 0.97 改他的 0.99（回合 20 s）；`init_noise_std` 維持 brax 預設 1.0 不改，先看第一次 eval 的 len 再說。brax 0.14.2 原生支援字典 obs（`make_ppo_networks(observation_size=dict, policy_obs_key, value_obs_key)`、normalizer 逐葉），匯出取 `norm.mean["state"]`。
+12. **只有輪子碰地形；終止改傾角＋離地高**（修正波 5，吞吐量）：A100 實測 `vmap(mjx.step)` hfield 場景 6.8k env-steps/s、平面模型 102k。MJX `_hfield_collision` 對每個幾何取 subgrid 逐一測稜柱：`(ceil(2·rbound/0.1)+1)² × 2`。機身膠囊 rbound 0.415 → 11²×2 = 242；8 段腿（rbound 0.140／0.125 → 4²×2 = 32）＝ 256；4 輪（rbound 0.136 → 32）＝ 128；合計 ≈ 626 個／env／子步。機身＋8 段腿改 `contype="0" conaffinity="0"`，只剩輪子 128 個（約 5×）。機身碰不到地，`fell` 改成 `_fallen`：tilt＝機身系重力 z > −0.5（傾 > 60°），low＝z − `_terrain_h(x,y)` < `FALL_H` 0.20 m（站立 0.494；輪半徑 0.096、機身箱底離地 ~0.37；< 0.20 表示腿已折到機身快碰地）；`fell = tilt | low | oob`，metric 多 `tilt`。代價：機身／腿可穿地（低於 0.20 前終止，穿地只發生在終止前最後幾步）；機身與腿跨台階時不再被地形擋（原本機器人自身幾何間就不碰撞，contype 1／conaffinity 0，只有輪輪 pair）。

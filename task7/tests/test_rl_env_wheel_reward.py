@@ -139,21 +139,36 @@ def test_touch_and_slip(env):
     assert not np.any(np.asarray(aux2["touch"]))
 
 
-def test_base_contact_terminates(env):
+def _step_from_qpos(env, q):
     s = jax.jit(env.reset)(jax.random.PRNGKey(0))
-    low = _standing_data(env, z_extra=-(env.Z_STAND - 0.06))        # 機身壓到地
-    low = jax.jit(lambda d: mjx.step(env.sys, d))(low)
-    s = s.replace(pipeline_state=low)
-    s2 = jax.jit(env.step)(s, jnp.zeros(16))
-    assert float(s2.done) == 1.0 and int(s2.info["t"]) == 0          # 摔 → done ＋ 重生
-    assert float(s2.metrics["fell"]) == 1.0
+    d = jax.jit(mjx.forward)(env.sys, s.pipeline_state.replace(qpos=jnp.array(q), qvel=jnp.zeros(env.sys.nv)))
+    return jax.jit(env.step)(s.replace(pipeline_state=d), jnp.zeros(16))
+
+
+def test_fall_terminates(env):
+    """摔倒＝幾何判定（機身／腿不碰撞）：(a) 傾 80° → tilt；(b) 機身離地 < FALL_H；(c) 正常站立不終止。"""
+    base = np.asarray(_standing_data(env).qpos)
+    q = base.copy(); q[3:7] = [np.cos(np.radians(40)), np.sin(np.radians(40)), 0.0, 0.0]     # 繞 x 滾 80°、站立高度
+    s2 = _step_from_qpos(env, q)
+    assert float(s2.done) == 1.0 and float(s2.metrics["tilt"]) == 1.0 and float(s2.metrics["fell"]) == 1.0
+    assert float(s2.metrics["oob"]) == 0.0 and int(s2.info["t"]) == 0                       # 摔 → done ＋ 重生
+    q = base.copy(); q[2] = wt.BASE_H + 0.15                                                 # 離地 0.15 < 0.20（輪子插進地裡，一步而已）
+    s2 = _step_from_qpos(env, q)
+    assert float(s2.done) == 1.0 and float(s2.metrics["tilt"]) == 0.0 and float(s2.metrics["fell"]) == 1.0
+    assert int(s2.info["t"]) == 0
     s3 = jax.jit(env.step)(jax.jit(env.reset)(jax.random.PRNGKey(1)), jnp.zeros(16))
-    assert float(s3.done) == 0.0
+    assert float(s3.done) == 0.0 and float(s3.metrics["tilt"]) == 0.0
+
+
+def test_terrain_h_matches_height_np():
+    e = rw.WheelEnv(map_seed=0, noise=False, push=False, fixed_cmd=True)
+    for x, y in ((-35.7, -7.9), (12.34, 3.21), (36.05, 8.3), (-70.0, 40.0)):
+        assert float(e._terrain_h(jnp.float32(x), jnp.float32(y))) == pytest.approx(wt.height_np(e.H_np, x, y), abs=1e-4)
 
 
 @pytest.mark.parametrize("field", ["x", "z"])
 def test_out_of_map_terminates(env, field):
-    """出界／掉落：base 碰不到 floor 時 fell 靠 oob 觸發（x 超過 X_LIM，或 z 低於 0＝hfield 基準面）。"""
+    """出界／掉落：fell 也靠 oob 觸發（x 超過 X_LIM，或 z 低於 0＝hfield 基準面）。"""
     s = jax.jit(env.reset)(jax.random.PRNGKey(0))
     q = s.pipeline_state.qpos
     q = q.at[0].set(rw.X_LIM + 0.5) if field == "x" else q.at[2].set(-0.3)

@@ -63,11 +63,13 @@ def wrap_pi(a):
 class WheelEnv(Env):
     def __init__(self, scene: str | None = None, map_seed: int = 0, flat: bool = False, noise: bool = True, push: bool = True,
                  fixed_cmd: bool = False, fixed_tile: tuple[int, int] | None = None, small_frac: float = 0.3,
-                 std: float = 0.25, w_ww: float = 1.0):
+                 std: float = 0.25, w_ww: float = 1.0, episode_len: int = EPISODE_LEN):
         """flat：全圖平地、出生在原點（對齊驗證）；fixed_cmd：指令讀 info["cmd_fix"]（不重抽、不站立、不小指令）；
-        fixed_tile=(kind_idx, level)：固定出生方塊、不升降課程。std／w_ww／small_frac 是三項改動的旋鈕。"""
+        fixed_tile=(kind_idx, level)：固定出生方塊、不升降課程。std／w_ww／small_frac 是三項改動的旋鈕。
+        episode_len：回合步數（內部重生、10 s 指令重抽、推力排程都以它為準；訓練時須與 wrap_env 的 episode_length 相同）。"""
         self.flat, self.noise, self.push, self.fixed_cmd, self.fixed_tile = flat, noise, push, fixed_cmd, fixed_tile
         self.small_frac, self.std, self.w_ww = small_frac, std, w_ww
+        self.episode_len = int(episode_len)
         self.scene = scene or wt.make_scene_xml()
         m = mujoco.MjModel.from_xml_path(self.scene)
         assert m.opt.timestep == SIM_DT, m.opt.timestep     # 場景 <option timestep="0.005">（wheel_terrain.make_scene_xml）
@@ -75,8 +77,8 @@ class WheelEnv(Env):
         wt.load_hfield(m, self.H_np)
         # _contacts 假設金字塔摩擦錐（cone 0）＋ condim 3：每個接觸 4 列 efc、法向力＝4 列和。
         # 換 elliptic 錐或改 condim（含 <pair>）時，_contacts 的法向力解碼就要跟著改，否則讀值錯。
-        assert m.opt.cone == 0 and int(m.geom_condim.max()) == 3 and int(m.pair_dim.max() if m.npair else 3) == 3, \
-            (m.opt.cone, m.geom_condim.max(), m.pair_dim)
+        assert m.opt.cone == 0 and bool((m.geom_condim == 3).all()) and (m.npair == 0 or bool((m.pair_dim == 3).all())), \
+            (m.opt.cone, np.unique(m.geom_condim), m.pair_dim)
         self._mj = m
         self.sys = mjx.put_model(m)
         self.H = jnp.array(self.H_np, dtype=jnp.float32)
@@ -129,7 +131,7 @@ class WheelEnv(Env):
         """a：他的尺度（已乘 ACT_GAIN）→ 致動器 ctrl（腿 PD 目標 rad、輪速 rad/s）。"""
         return jnp.zeros(self.sys.nu).at[self.AID].set(a * ACT_SCALE + ACT_OFFSET)
 
-    # ---------------------------------------------------------------- 指令（Task 4 擴充；這裡只有 fixed／零）
+    # ---------------------------------------------------------------- 指令（站立 10%、小指令 small_frac、heading → wz、半回合重抽）
     def _sample_cmd(self, rng, yaw):
         k = jax.random.split(rng, 4)
         small = jax.random.uniform(k[0]) < self.small_frac
@@ -141,7 +143,7 @@ class WheelEnv(Env):
     def _cmd_now(self, data, info):
         if self.fixed_cmd:
             return info["cmd_fix"]
-        i = (info["t"] >= EPISODE_LEN // 2).astype(jnp.int32)          # 10 s 重抽
+        i = (info["t"] >= self.episode_len // 2).astype(jnp.int32)     # 半回合（預設 10 s）重抽
         v, head = info["cmd_ab"][i], info["head_ab"][i]
         wz = jnp.clip(wrap_pi(head - quat_yaw(data.qpos[3:7])), -1.0, 1.0)   # heading 模式：剛度 1.0、夾 ±1
         return jnp.where(info["standing"], 0.0, jnp.array([v[0], v[1], wz]))
@@ -162,18 +164,30 @@ class WheelEnv(Env):
                     cmd_ab=jnp.stack([cmd_a, cmd_b]), head_ab=jnp.stack([head_a, head_b]), standing=standing, small=small,
                     cmd_fix=jnp.zeros(3), cmd=jnp.zeros(3), last_a=jnp.zeros(ACT_DIM),
                     qvel_prev=data.qvel[self.VADR], foot_prev=data.xpos[self.FOOT_BIDS],
-                    push_t=jnp.int32(EPISODE_LEN // 2) + jax.random.randint(k[5], (), 0, EPISODE_LEN // 4))   # 10–15 s 後第一次推
+                    push_t=jnp.int32(self.episode_len // 2) + jax.random.randint(k[5], (), 0, self.episode_len // 4))   # 10–15 s 後第一次推
         info["cmd"] = self._cmd_now(data, info)
         obs = self._obs(data, info["cmd"], info["last_a"])
         z0 = jnp.zeros(())
         return State(data, obs, z0, z0, {k_: z0 for k_ in METRIC_KEYS}, info)
 
     def _next_tile(self, rng, data, info):
-        """Task 4 換成課程規則；這裡：固定方塊或隨機。"""
+        """他的 terrain_levels_vel：位移 > 方塊一半升級；位移 < 0.5 × 指令速度 × 回合時間降級；到頂隨機重抽；站立回合不動。
+        reset()（data=None）時隨機抽。"""
         if self.fixed_tile is not None:
             return jnp.int32(self.fixed_tile[0]), jnp.int32(self.fixed_tile[1])
-        k = jax.random.split(rng, 2)
-        return jax.random.randint(k[0], (), 0, len(wt.KINDS)), jax.random.randint(k[1], (), 0, wt.LEVELS)
+        k = jax.random.split(rng, 3)
+        kind = jax.random.randint(k[0], (), 0, len(wt.KINDS))
+        rnd = jax.random.randint(k[1], (), 0, wt.LEVELS)
+        if data is None:
+            return kind, rnd
+        dist = jnp.linalg.norm(data.qpos[0:2] - info["xy0"])
+        vref = 0.5 * (jnp.linalg.norm(info["cmd_ab"][0]) + jnp.linalg.norm(info["cmd_ab"][1]))
+        up = dist > wt.TILE / 2
+        down = dist < 0.5 * vref * (self.episode_len * CTRL_DT)
+        delta = jnp.where(info["standing"], 0, jnp.where(up, 1, jnp.where(down, -1, 0)))
+        lvl = info["level"] + delta
+        lvl = jnp.where(lvl >= wt.LEVELS, rnd, jnp.clip(lvl, 0, wt.LEVELS - 1))
+        return kind, lvl
 
     def reset(self, rng):
         k = jax.random.split(rng, 2)
@@ -201,12 +215,18 @@ class WheelEnv(Env):
         info = dict(state.info)
         data = state.pipeline_state
         a = ACT_GAIN * action
-        rng, k_noise, k_tile, k_spawn = jax.random.split(info["rng"], 4)
+        rng, k_noise, k_tile, k_spawn, k_push, k_next = jax.random.split(info["rng"], 6)
+        if self.push:                                   # 他的 push_by_setting_velocity：機身 x/y 速度「設成」U(−0.5, 0.5)
+            do_push = info["t"] == info["push_t"]
+            vxy = jax.random.uniform(k_push, (2,), minval=-0.5, maxval=0.5)
+            data = data.replace(qvel=data.qvel.at[0:2].set(jnp.where(do_push, vxy, data.qvel[0:2])))
+            nxt = jax.random.randint(k_next, (), self.episode_len // 2, self.episode_len * 3 // 4 + 1)   # 下一次在 10–15 s 後
+            info["push_t"] = jnp.where(do_push, info["push_t"] + nxt, info["push_t"])
         data = self._physics(data, a)
         cmd = info["cmd"]
         reward, fell, metrics = self._after_physics(data, info, a, cmd)
         t1 = info["t"] + 1
-        done_env = fell | (t1 >= EPISODE_LEN)
+        done_env = fell | (t1 >= self.episode_len)
         # 續走路徑
         info_c = dict(info, rng=rng, t=t1, last_a=a, qvel_prev=data.qvel[self.VADR], foot_prev=data.xpos[self.FOOT_BIDS])
         info_c["cmd"] = self._cmd_now(data, info_c)
@@ -287,3 +307,56 @@ class WheelEnv(Env):
     @property
     def backend(self):
         return "mjx"
+
+
+# ---------------------------------------------------------------- domain randomization（每個環境一組，訓練全程固定；與 v3 線相同做法）
+def make_domain_randomize(env: WheelEnv):
+    """他的：地面摩擦（這裡 0.6–1.0 均勻）、基座質量 −1～+3 kg、質心 x/y ±0.05、z ±0.01。
+    改動三：腿關節 frictionloss（實機辨識 1.85／1.5）× 0.5–1.5、輪 frictionloss 0.10–0.18、輪 damping 0.005–0.03。"""
+    base = env.BASE_BID
+    leg_dof, wheel_dof = env.VADR[:12], env.VADR[12:]
+
+    def domain_randomize(sys, rng):
+        @jax.vmap
+        def per_env(rng):
+            k = jax.random.split(rng, 7)
+            gf = sys.geom_friction.at[:, 0].set(jax.random.uniform(k[0], minval=0.6, maxval=1.0))
+            bm = sys.body_mass.at[base].add(jax.random.uniform(k[1], minval=-1.0, maxval=3.0))
+            dcom = jnp.array([jax.random.uniform(k[2], minval=-0.05, maxval=0.05), jax.random.uniform(k[3], minval=-0.05, maxval=0.05),
+                              jax.random.uniform(k[4], minval=-0.01, maxval=0.01)])
+            ipos = sys.body_ipos.at[base].add(dcom)
+            fl = sys.dof_frictionloss.at[leg_dof].multiply(jax.random.uniform(k[5], minval=0.5, maxval=1.5))
+            fl = fl.at[wheel_dof].set(jax.random.uniform(k[6], (4,), minval=0.10, maxval=0.18))
+            dmp = sys.dof_damping.at[wheel_dof].set(jax.random.uniform(jax.random.fold_in(rng, 7), (4,), minval=0.005, maxval=0.03))
+            return gf, bm, ipos, fl, dmp
+
+        gf, bm, ipos, fl, dmp = per_env(rng)
+        in_axes = jax.tree_util.tree_map(lambda x: None, sys)
+        in_axes = in_axes.replace(geom_friction=0, body_mass=0, body_ipos=0, dof_frictionloss=0, dof_damping=0)
+        sys = sys.replace(geom_friction=gf, body_mass=bm, body_ipos=ipos, dof_frictionloss=fl, dof_damping=dmp)
+        return sys, in_axes
+
+    return domain_randomize
+
+
+# ---------------------------------------------------------------- 訓練包裝器（取代 brax AutoResetWrapper：重生已在 WheelEnv.step 做完）
+class RespawnWrapper(Wrapper):
+    def reset(self, rng):
+        return self.env.reset(rng)
+
+    def step(self, state, action):
+        if "steps" in state.info:
+            steps = jnp.where(state.done, jnp.zeros_like(state.info["steps"]), state.info["steps"])
+            state.info.update(steps=steps)
+        state = state.replace(done=jnp.zeros_like(state.done))
+        return self.env.step(state, action)
+
+
+def wrap_env(env, episode_length: int = EPISODE_LEN, action_repeat: int = 1, randomization_fn=None):
+    """給 ppo.train(wrap_env_fn=rl_env_wheel.wrap_env)：Vmap／DR → Episode（截斷 done＋truncation）→ Respawn。
+    截斷步與 WheelEnv 內部 t ≥ episode_len 的重生同一步發生（兩邊都從 0 數）。"""
+    assert episode_length == env.episode_len, "EpisodeWrapper 截斷步必須與 WheelEnv 內部重生同步"
+    from brax.envs.wrappers import training as tw
+    env = tw.DomainRandomizationVmapWrapper(env, randomization_fn) if randomization_fn is not None else tw.VmapWrapper(env)
+    env = tw.EpisodeWrapper(env, episode_length, action_repeat)
+    return RespawnWrapper(env)

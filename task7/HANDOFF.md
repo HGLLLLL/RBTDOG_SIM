@@ -1,6 +1,6 @@
 # task7 交接：D1 Max 現況卡
 
-- 最後更新：**2026-10-13 收工（純 RL 自訓 v1 訓完 5 億步＋MuJoCo 驗收：改動一、二解了，wz 與 ABAD 止點要 v1b）**（分支 `main`）
+- 最後更新：**2026-10-13 深夜（純 RL 自訓 v1b 累計 10 億步：spec 八項過七項，明天上機 trip26）**（分支 `main`）
 - **這份只放「現在」，上限 150 行。** 收工時覆寫本檔，不是往上疊。
   被取代的段落搬到 `docs/handoff_history/`（2026-08-25～09-22 全文在 `HANDOFF_2026-08-25_2026-09-22_全文.md`；
   09-22 §1「Colab 跑 v3.7b」在 `HANDOFF_2026-09-22_§1_v3.7b_Colab訓練.md`；10-06 §1 trip25 在 `HANDOFF_2026-10-06_§1_trip25.md`。查歷史用 grep，不要整份讀）。
@@ -8,25 +8,25 @@
 
 ---
 
-## 1. 下次第一件事：**v1b 續訓（開 dof_pos_limits、調 wz）→ 再驗收 → 過了上機**
+## 1. 下次第一件事：**v1b 上機（trip26）**，照 W 文件 §7.4 的順序與旗標
 
-- **v1 一句話**（2026-10-13，5 億步、G4 約 50 分）：改動一、二的 vy 部分**解了**（後輪實體間隙 181–251 mm 對他的 20–77；vy 0.3 從死區 0.04 到 0.36），
-  但 **wz 沒改善**（±0.5 → 80%／66%、±1.0 → 92.5%，他 77%／101%）、崎嶇地 **2 摔**（boxes 10 cm 與 stairs 8 cm 上，都 vy 0.5）、
-  **ABAD 貼止點**（vy 列誤差峰 0.58–0.80 碰到護欄 0.80、τ 34–47、超限位步數 14–67%；他 0.3／20／0%）。→ `docs/results/W_純RL自訓v1_MuJoCo_2026-10-13.md`。
-- **v1b 要改**：`dof_pos_limits` 權重 0 → −1.0（他的 yaml 是 0，我們照抄，這是 ABAD 貼止點的直接原因）；wz 追蹤權重或輪側滑懲罰在轉向時放寬；從 `rl_wheel_v1_step000500000000.pkl` 續訓 5 億步。
-  改 reward 後先用 `diag/wheel_env_align.py` 攤帳看新項量級，再上 Colab。
-- **Colab 要點**：G4 GPU（A100 慢 2.6 倍、TPU 不能用）；訓練格手動 `NUM_ENVS = 4096`（notebook 的 1.6 倍規則會選 1024）；不用雲端硬碟，跑完立刻下載 `rl_wheel_v1_params.pkl` 與最新 `step*.pkl`；
-  續訓 `RESUME` 指 step 檔、offset 自動解析；停損線累計 2 億步 `len < 600`／`lin < 0.5`／`wgap` 沒往 0 走。
-- **驗收指令**（plan Task 9 Step 5）：`rl_only_infer.py --npz … --self-collision`（real／`--ideal`／`--push 0.5 --noise`）、`diag/rl_only_rough_terrain.py --npz … --self-collision --seeds 3`，他的 10k 同旗標當對照；門檻 spec §1 ＋ W §3 安全面（ABAD 誤差峰 < 0.70）。
-- 若要先上機看平移：只跑 vx 0.3、vy ±0.5，vy 0.6 不跑（誤差峰 0.80 會中止），吊帶必掛，旗標同 trip25 ＋ `--v3 rl_wheel_v1_np.npz`。
-- 環境／吞吐量的坑全在 spec §11（12 條）：MJX 無 hfield–cylinder；hfield–convex 走 SAT 成本∝邊數 → 輪子膠囊（wz 對齊 −4.5 °/s 是有意的取捨）；機身／腿不碰地形；Brax AutoReset 不重 reset；金字塔錐法向力 4 列和；地圖 20 m 邊框＋出界終止。
-- 真樓梯（≥ 15 cm）另開 spec（spec §9）。trip25 與重訓清單 V §6 照舊可交同事。
+- **v1b 一句話**（2026-10-13 晚，從 v1 續訓到 10 億步，G4 50 分）：spec 八項門檻過七項——wz ±0.5 **94%／91%**（他 77%／70%）、wz ±1.0 99.5%、vy 0.3 動（0.33）、後輪實體間隙 245–325 mm（他 20–77）、
+  平地／ideal／擾動 0 摔、ABAD 目標超限位 14–67% → 0–6%、誤差峰 0.80 → 0.56；沒過的只有崎嶇地最難方塊（boxes 10 cm）側移 1/3 seed 摔（v1 2 摔、他 0 摔但幾乎不踏步）。→ W 文件 §7。
+- **上機範圍**：站立 → vx 0.3／0.5 → wz ±0.5／±1.0 → vy ±0.5 → vy 0.6 → 0.5+0.5；旗標同 trip25（`--v3 rl_wheel_v1b_np.npz … --vmax 18 --emax-abad 0.80 --emax 0.55`）。
+  v1b 比他動得快（關節速峰 5–13 對 3–6、平移 roll 峰 7–9°），平移段吊帶必掛、盯 roll 與 `--vmax`。預期值在 W §7.4；實機 log 用 `inference/diag/rl16_trip_report.py`。
+- **上機前**：`bash task7/realbot/push_to_dog.sh` 看到「✅ 全部一致」；`tests/test_policy_rl_np.py` 影子測試對 rl16 npz（`RL_ONLY_NPZ=task7/weights/rl_wheel_v1b_np.npz`；它預設對 ONNX，這顆沒有 ONNX → 用 `test_export_policy_wheel.py` 的 brax 對照已過）。
+- **v1 的紀錄**：W §1–§6（5 億步：平移解、wz 沒過、ABAD 貼止點 → v1b 的三個改動 spec §11.13）。
+- **Colab 要點**：G4 GPU（A100 慢 2.6 倍、TPU 不能用）；throughput 格自動選 4096；不用雲端硬碟，跑完立刻下載 `rl_wheel_v1_params.pkl` 與最新 `step*.pkl`；續訓把 step 檔上傳到 `/content/rl_wheel_v1/` 即自動接（`RESUME="auto"`）；
+  停損線累計 2 億步 `len < 600`／`lin < 0.5`／`wgap` 沒往 0 走。
+- **若 trip26 平移實機還是碰輪或 roll 太大** → v1c：`w_gap` 加大或 GAP_MIN 0.10、roll 懲罰（`angxy` 權重 −0.05 → −0.5）；崎嶇地那摔 → 難地形側移樣本比重。改 reward 先攤帳（`diag/wheel_env_align.py --npz … --tag`）。
+- 環境／吞吐量的坑在 spec §11（13 條）；真樓梯（≥ 15 cm）另開 spec（spec §9）。trip25 與重訓清單 V §6 照舊可交同事。
 
 ## 2. 權重現況
 
 | 權重 | 狀態 | 驗收表（`outputs/`） |
 |---|---|---|
-| **rl_wheel_v1**（我們自訓，MJX，5 億步）`weights/rl_wheel_v1_params.pkl`／`rl_wheel_v1_np.npz`（sha `83220469ef90`） | 平地／擾動 0 摔、vy 死區解、後輪間隙 4 倍；wz 沒改善、崎嶇地 2 摔、ABAD 貼止點 → **v1b 再訓才上機**。 | `rl_wheel/eval_rl_only_{real,ideal,real_v1_push}_v1.md`、`eval_rl_wheel_rough_real_v1.md`；對照 `rl_only/eval_rl_only_{real,rough_real}_10k_pairs.md`；W 文件 |
+| **rl_wheel_v1b**（自訓，MJX，累計 10 億步）`weights/rl_wheel_v1b_params.pkl`／`rl_wheel_v1b_np.npz`（sha `a02a4631d3f3`） | ★ **待上機（trip26）**：spec 八項過七項（wz ±0.5 94／91%、±1.0 99.5%、間隙 245–325 mm、vy 0.3 動、0 摔）；崎嶇地 boxes 10 cm 側移 1/3 摔。 |
+| rl_wheel_v1（5 億步）`weights/rl_wheel_v1_params.pkl`／`rl_wheel_v1_np.npz`（sha `83220469ef90`） | 平移解但 wz 沒過、ABAD 貼止點；已被 v1b 取代。 | `rl_wheel/eval_rl_only_{real,ideal,real_v1_push}_v1.md`、`eval_rl_wheel_rough_real_v1.md`；對照 `rl_only/eval_rl_only_{real,rough_real}_10k_pairs.md`；W 文件 |
 | **RL_only 10k** `weights/rl_only_2026-10-01_10k_np.npz`（sha `5ec719a97175`） | ★ **已上機（trip25）11 趟 0 摔**：直走 0.29、平移真踏步、轉 ±1.0 98–99%、右轉 −0.5 不塌；平移後輪互碰、慢轉飄 → 重訓。 | `rl_only/eval_rl_only_{real,ideal}_10k.md`、`eval_rl_only_rough_real_10k.md`、`logs_1006/` |
 | RL_only 5k `weights/rl_only_2026-10-01_5k_np.npz`（sha `eb4cff3750ec`） | 對照組，**還沒上機**；模擬同 10k 但低速超速、平移後輪間距較寬（124–156 mm）。 | 同上 `_5k` |
 | RL_only 0924 `weights/rl_only_2026-09-24_np.npz`（sha `45327a7285e4`） | **已上機（trip24）12 趟 0 摔**；崎嶇地模擬會摔，右轉 −0.5 實機塌。 | `rl_only/eval_rl_only_{real,real_vy_sweep,real_wz_sweep}.md`、T 文件 |
@@ -87,5 +87,5 @@
 
 08-27 承重站立 → 09-02 第一次走路 → 09-09 RL v2.3 首次上機（trip19）、原廠參考錄製 → 09-15 v3.1 統一產生器 → 09-22 v3.6f（可部署最佳）→
 09-23／09-29 v3.6f 上機驗收完（trip22／23）→ 09-29 主線換同事純 RL（RL_only）→ **09-30 純 RL 首次上機（trip24）12 趟 0 摔** →
-10-06 純 RL 第二版（崎嶇地形 10k／5k）MuJoCo 重現 0 摔 → **同日 trip25 上機 11 趟 0 摔：直走 0.29、平移真踏步、轉 ±1.0 98–99%、右轉 −0.5 不塌；平移後輪互碰、慢轉飄待重訓** → 10-13 純 RL 自訓 v1 訓完 5 億步（G4 50 分）：後輪間隙 4 倍、vy 死區解；wz／ABAD 止點待 v1b。
+10-06 純 RL 第二版（崎嶇地形 10k／5k）MuJoCo 重現 0 摔 → **同日 trip25 上機 11 趟 0 摔：直走 0.29、平移真踏步、轉 ±1.0 98–99%、右轉 −0.5 不塌；平移後輪互碰、慢轉飄待重訓** → 10-13 純 RL 自訓 v1（5 億）→ **v1b（10 億）：wz ±0.5 94%、間隙 245 mm、0 摔，八項過七項，待 trip26**。
 各版為什麼改：`docs/superpowers/specs/2026-09-*-cpg-rl-v3.*.md`；純 RL 線：S／T／U 文件。

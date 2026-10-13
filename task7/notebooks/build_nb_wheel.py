@@ -19,8 +19,10 @@ md0 = """# 純 RL 自訓 **v1**：智元 D1 Max · 同事 Wheel-Rough 環境的 
 - 改動一 自碰撞：輪輪 `<pair>` ＋ 接觸力懲罰（`ww`）。改動二 小指令：追蹤 std 0.5 → 0.25、30% 回合小指令。改動三 輪摩擦：real 關節摩擦 DR。
 - 開訓前關卡已過：`outputs/rl_wheel/align_10k.md`（他的 10k 在這個環境零訓練重現）、`outputs/reward_audit_wheel_v1.md`。
 
-**流程**：第一格 throughput 測試選 `NUM_ENVS` → 訓練（每次 eval 存 pkl 到 Drive）→ 一個 session 跑 3.3 億步 → 下個 session `RESUME` 指到 Drive 上最新的 pkl 再跑 → 合計 10 億步。
-**停損**：2 億步時 `len < 600`（一直摔）、或 `lin < 0.5`（站著不動）、或 `ww` 沒比 step 0 低（改動一沒被學到）→ 停，不硬跑完。
+**流程**：第一格 throughput 測試選 `NUM_ENVS` → 訓練（每次 eval 存 pkl 到 Drive）→ 一個 session 跑 3.3 億步 → 下個 session `RESUME` 指到 Drive 上**檔名步數最大**的 `rl_wheel_v1_step*.pkl` 再跑（累計步數由檔名自動解析）→ 合計 10 億步。
+**續訓注意**：只還原網路與 normalizer，Adam 動量與 ADAPTIVE_KL 學習率會重置，每個 session 開頭 reward 可能短暫抖動，不是退步。
+**記憶體**：throughput 格的 10 億步 ETA 是下限（純 step 速率）；訓練格 OOM 就手動把 `NUM_ENVS` 降一檔。
+**停損**：累計 2 億步時 `len < 600`（一直摔）、或 `lin < 0.5`（站著不動）、或 `ww` 沒比 step 0 低（改動一沒被學到）→ 停，不硬跑完。
 **讀法**：`lin`／`ang` 往 2.5／1.25 走；`ww`、`slip` 往 0；`level` 往上代表課程在升；`lin_small` 是小指令回合的追蹤；`fell` 往 0；len 往 1000。
 """
 
@@ -68,11 +70,14 @@ for NUM_ENVS in (1024, 2048, 4096):
         print(f"{NUM_ENVS} envs: {bench[NUM_ENVS]:,.0f} steps/s  GPU {mem}")
     except Exception as e:                                                          # 多半是 OOM
         print(f"{NUM_ENVS} envs: 失敗 {type(e).__name__}: {str(e)[:120]}"); break
+s = w = step = a = None; del s, w, step, a                                    # 釋放 bench 的環境狀態，免得佔住 GPU 記憶體
 NUM_ENVS = 1024
-for n in (2048, 4096):
+for n in (2048, 4096):                                                          # 遇到第一檔不合 1.6 倍就停，不跳級
     if n in bench and bench[n] >= 1.6 * bench[n // 2]:
         NUM_ENVS = n
-print("→ NUM_ENVS =", NUM_ENVS, "| 10 億步預估", f"{1e9 / bench[NUM_ENVS] / 3600:.1f} 小時")
+    else:
+        break
+print("→ NUM_ENVS =", NUM_ENVS, "| 10 億步預估", f"{1e9 / bench[NUM_ENVS] / 3600:.1f} 小時（下限：純 step 速率，不含 PPO 更新與 eval）")
 '''
 
 train_src = f'''import functools, time
@@ -83,10 +88,14 @@ from google.colab import drive
 drive.mount("/content/drive")
 DRIVE = "/content/drive/MyDrive/rl_wheel_v1"; import os; os.makedirs(DRIVE, exist_ok=True)
 
-# 續訓：RESUME 指到 Drive 上最新的 pkl（每次 eval 存一個；(normalizer, policy, value) 三元組）。None ＝ 從頭。
+# 續訓：RESUME 指到 Drive 上「檔名步數最大」的 rl_wheel_v1_step*.pkl（每次 eval 存一個；(normalizer, policy, value) 三元組）。
+# 不要指 rl_wheel_v1_params.pkl：它檔名沒有步數。None ＝ 從頭。
+# brax 的 restore_params 不還原步數，STEP_OFFSET 從 RESUME 檔名解析累計步數，存檔名與進度列印都用累計步數；停損線「2 億步」是累計步數。
 # TIMESTEPS 是「這一輪再跑幾步」；一個 session 3.3 億，三個 session 合計 10 億。
+import re
 RESUME = None
 _restore = None if RESUME is None else model.load_params(RESUME)
+STEP_OFFSET = 0 if RESUME is None else int(re.search(r"step(\\d+)", RESUME).group(1))   # 續訓：從 RESUME 檔名解析累計步數
 TIMESTEPS = 330_000_000
 
 env = rw.WheelEnv()
@@ -96,14 +105,14 @@ network_factory = functools.partial(ppo_networks.make_ppo_networks,
 _t0 = time.time(); rewards = []
 
 def _save_ckpt(step, make_policy, params):
-    model.save_params(f"{{DRIVE}}/rl_wheel_v1_step{{step:012d}}.pkl", params)
+    model.save_params(f"{{DRIVE}}/rl_wheel_v1_step{{STEP_OFFSET + step:012d}}.pkl", params)
 
 def progress(step, metrics):
-    r = float(metrics.get("eval/episode_reward", 0.0)); rewards.append((step, r))
+    r = float(metrics.get("eval/episode_reward", 0.0)); total = STEP_OFFSET + step; rewards.append((total, r))   # 累計步數
     L = float(metrics.get("eval/avg_episode_length", 1.0)) or 1.0
     ps = lambda k: float(metrics.get(f"eval/episode_{{k}}", 0.0)) / L
-    el = time.time() - _t0; rate = step / max(el, 1e-9)
-    print(f"step {{step:>11,}} R {{r:7.2f}} | lin {{ps('lin'):.2f}}/2.5 ang {{ps('ang'):.2f}}/1.25 small {{ps('lin_small'):.2f}} | "
+    el = time.time() - _t0; rate = step / max(el, 1e-9)                         # 本 session 速率（ETA 用）
+    print(f"step {{total:>11,}} R {{r:7.2f}} | lin {{ps('lin'):.2f}}/2.5 ang {{ps('ang'):.2f}}/1.25 small {{ps('lin_small'):.2f}} | "
           f"ww {{ps('ww'):+.3f}} slip {{ps('slip'):+.3f}} dev {{ps('dev'):+.3f}} rate {{ps('rate'):+.3f}} | "
           f"vxerr {{ps('vx_err'):.2f}} vyerr {{ps('vy_err'):.2f}} wzerr {{ps('wz_err'):.2f}} | level {{ps('level'):.1f}} fell {{ps('fell') * L:.2f}} len {{L:.0f}} | "
           f"{{el:.0f}}s → {{TIMESTEPS / max(rate, 1) / 60:.0f}} 分")
@@ -137,9 +146,20 @@ def cell(kind, src):
     return c
 
 
-nb = {"nbformat": 4, "nbformat_minor": 5,
-      "metadata": {"kernelspec": {"name": "python3", "display_name": "Python 3"}, "accelerator": "GPU"},
-      "cells": [cell("markdown", md0), cell("code", install_src), cell("code", version_src), cell("code", clone_src),
-                cell("code", import_src), cell("code", bench_src), cell("code", train_src), cell("code", plot_src), cell("code", save_src)]}
-OUT.write_text(json.dumps(nb, ensure_ascii=False, indent=1), encoding="utf-8")
-print("→", OUT, f"({len(nb['cells'])} cells)")
+def build():
+    """回傳 notebook dict（測試用來比對已 commit 的 ipynb）。"""
+    return {"nbformat": 4, "nbformat_minor": 5,
+            "metadata": {"kernelspec": {"name": "python3", "display_name": "Python 3"}, "accelerator": "GPU"},
+            "cells": [cell("markdown", md0), cell("code", install_src), cell("code", version_src), cell("code", clone_src),
+                      cell("code", import_src), cell("code", bench_src), cell("code", train_src), cell("code", plot_src),
+                      cell("code", save_src)]}
+
+
+def main():
+    nb = build()
+    OUT.write_text(json.dumps(nb, ensure_ascii=False, indent=1), encoding="utf-8")
+    print("→", OUT, f"({len(nb['cells'])} cells)")
+
+
+if __name__ == "__main__":
+    main()

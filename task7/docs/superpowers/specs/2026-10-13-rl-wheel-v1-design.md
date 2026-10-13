@@ -110,7 +110,7 @@
 ## 6. 開訓前關卡（本機，CPU MJX，不用 Colab）
 
 1. **零訓練對齊**：他的 10k ONNX 放進新環境（`a_env = a_his / 4`，雜訊關、DR 關、flat 等級 0）跑 `rl_only_infer.py` 同樣八個指令，
-   追蹤率、摔倒、後輪間距要與 U 文件／`outputs/rl_only/eval_rl_only_real_10k.md` 對得上（追蹤率差 ≤ 3 個百分點、0 摔）。對不上＝環境做歪，不開訓。
+   追蹤率、摔倒、後輪間距要與 U 文件／`outputs/rl_only/eval_rl_only_real_10k.md` 對得上（原訂追蹤率差 ≤ 3 個百分點、0 摔；執行時改為絕對差，見 §11.8）。對不上＝環境做歪，不開訓。
 2. **reward 攤帳**：同一批 rollout 把十三項各自的每步平均量級列成 `outputs/reward_audit_wheel_v1.md`。
    要看到：輪輪接觸項在 vy ±0.5 非零、小指令回合的追蹤項在 std 0.25 下比 0.5 下明顯低（有東西可咬）、其餘項與他的量級相稱（不被單一項淹沒）。
 
@@ -162,5 +162,5 @@
 5. 場景檔補 `<option timestep="0.005"/>`（原本沒有，載入後是預設 0.002）。
 6. 狗端 `gen_direct` 只收 `ref.family == "rl_only"`（那是 rl16 介面族的名字）：`rl_wheel` npz 的 `ref.family` 維持 `"rl_only"`，用 `preset="rl_wheel"` 與 `gen_json.source.family` 區分；狗端不改。
 7. 續訓：brax `restore_params` 不還原 `env_steps`，notebook 用 `STEP_OFFSET`（從 RESUME 檔名 `step<N>` 解析）讓 checkpoint 檔名與進度列是累計步數；optimizer 與 ADAPTIVE_KL 學習率在續訓時重置。
-8. **對齊關卡改絕對差**：16 邊網格輪子對 CPU 圓柱平面的追蹤差 vx 列 ≤ 0.022 m/s、wz 列 ≤ 2.0 °/s、0 摔；vy 0.3 在他的死區（0.04–0.14 m/s）百分比無意義。同幾何（cpu′）≤ 1.6 pp。32／48 邊實驗：vx 微好、偏航反而差（MJX 對細網格偏低），維持 16 邊。
+8. **對齊關卡改絕對差**：16 邊網格輪子對 CPU 圓柱平面的追蹤差 vx 列 ≤ 0.022 m/s、wz 列 ≤ 2.0 °/s、0 摔；vy 0.3 在他的死區（0.04–0.14 m/s）百分比無意義。同幾何（cpu′）vx 列與 wz 1.0 ≤ 1.6 pp，wz 0.5 為 4.7 pp（約 1 °/s）。攤帳：他的 10k 在 vy 0.5 wgap 平均 −0.022（15% 步 < 80 mm），vy 0.3 −0.001，其餘 0。32／48 邊實驗：vx 微好、偏航反而差（MJX 對細網格偏低），維持 16 邊。
 9. **pair 圓盤碰不到實機的那種碰撞**：v3f 碰撞圓盤在 link y=−0.047（輪胎外側平面、半寬 5 mm），官方網格 y∈[−0.070,+0.017]，實機後輪互碰是內面（+0.017）相碰；兩圓盤要腿交叉才會碰。所以改動一的主力是 `wgap`（實體間隙 hinge，閾值 80 mm、權重 2.0；他的 10k 在 vy 0.5 時 gap 最小 33 mm），`ww` 力項只擋交叉。驗收與工具的 gap 口徑統一為「中心距 − 34 mm」。

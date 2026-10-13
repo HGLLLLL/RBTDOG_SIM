@@ -64,7 +64,8 @@ def main():
     import mujoco, imageio
     from PIL import Image, ImageDraw, ImageFont
     io = json.load(open(a.io))
-    polL = ri.load_policy(a.left, None); polR = ri.load_policy(a.right, None)
+    _pol = lambda path: ri.load_policy(path if path.endswith('.onnx') else None, path if path.endswith('.npz') else None)   # 副檔名決定 onnx／npz（2026-10-14）
+    polL = _pol(a.left); polR = _pol(a.right)
     sim = ri.Sim(io, dt=0.005, ideal=False, wheel_kv=1.0, scene=rt.make_scene_xml())
     n = sim.m.hfield_nrow[0]
     m_vis = mujoco.MjModel.from_xml_path(make_mesh_scene_xml()); d_vis = mujoco.MjData(m_vis)

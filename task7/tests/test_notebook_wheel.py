@@ -24,7 +24,7 @@ def test_notebook_cells():
     assert "wrap_env_fn=rw.wrap_env" in code and "randomization_fn=rw.make_domain_randomize(env)" in code
     assert "policy_hidden_layer_sizes=(512, 256, 128)" in code and "value_hidden_layer_sizes=(512, 256, 128)" in code
     assert "num_envs=NUM_ENVS" in code and "batch_size=256 * NUM_ENVS // 2048" in code and "episode_length=rw.EPISODE_LEN" in code
-    assert "drive.mount" not in code and 'DRIVE = "/content/rl_wheel_v1"' in code and "policy_params_fn=_save_ckpt" in code and "RESUME = None" in code and "TIMESTEPS = 500_000_000" in code and "1.3 * bench" in code and "restore_params=_restore" in code
+    assert "drive.mount" not in code and 'DRIVE = "/content/rl_wheel_v1"' in code and "policy_params_fn=_save_ckpt" in code and 'RESUME = "auto"' in code and "glob.glob" in code and "TIMESTEPS = 500_000_000" in code and "1.3 * bench" in code and "restore_params=_restore" in code
     assert 'model.save_params("rl_wheel_v1_params.pkl", params)' in code
     # 續訓累計步數：brax restore_params 不還原步數，存檔名要加上從 RESUME 檔名解析的 offset
     assert "STEP_OFFSET = 0 if RESUME is None else _step_offset(RESUME)" in code and 're.search(r"step(\\d+)", path)' in code

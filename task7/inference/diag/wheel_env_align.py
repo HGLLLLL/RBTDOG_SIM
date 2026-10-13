@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """開訓前關卡（spec §6）：
-1. 零訓練對齊：policy（預設他的 10k ONNX；--npz 給自訓權重）放進 WheelEnv（平地、無雜訊、無 DR、無推力）跑八指令，與 CPU rl_only_infer（圓柱平地、real）同指令並排。
+1. 零訓練對齊：policy（預設他的 10k ONNX；--npz 給自訓權重）放進 WheelEnv（平地、無雜訊、無 DR、無推力）跑 CMDS 各指令（十列），與 CPU rl_only_infer（圓柱平地、real）同指令並排。
 2. reward 攤帳：同一批 rollout 的各 reward 項每步平均，寫 outputs/reward_audit_wheel_<tag>.md（tag 10k 沿用舊檔名 reward_audit_wheel_v1.md）。
-   --w-ang／--w-lim 轉給 WheelEnv（v1 自己的 reward：--w-ang 1.25 --w-lim 0；v1b：2.5／1.0）。
+   --w-ang／--w-lim 轉給 WheelEnv（v1 自己的 reward：--w-ang 1.25 --w-lim 0；v1b：2.5／2.0）。
    std 只影響 reward、不影響動力學與 obs，所以 std 0.5 的 lin／ang 由同一條 rollout 的 vx_err/vy_err/wz_err 解析算出
    （lin = 2.5·exp(−(vx_err²+vy_err²)/0.25)、ang = w_ang·exp(−wz_err²/0.25)），與重跑一次 std 0.5 逐步相等，省一半時間。
 用法：conda run -n rbtdog --no-capture-output python task7/inference/diag/wheel_env_align.py [--onnx … | --npz …] [--tag 10k] [--w-ang 2.5 --w-lim 1.0] [--secs 8]
@@ -19,11 +19,11 @@ import wheel_terrain as wt  # noqa: E402
 
 ROOT = HERE.parent.parent
 OUT = ROOT / "outputs" / "rl_wheel"
-CMDS = [(0, 0, 0), (0.3, 0, 0), (0.5, 0, 0), (1.0, 0, 0), (0, 0.3, 0), (0, 0.5, 0), (0, 0, 0.5), (0, 0, 1.0)]
+CMDS = [(0, 0, 0), (0.3, 0, 0), (0.5, 0, 0), (1.0, 0, 0), (0, 0.3, 0), (0, 0.5, 0), (0, 0, 0.5), (0, 0, 1.0), (0, -0.5, 0), (0, 0.6, 0)]   # 末兩列 v1b 加（v1 越界最重的 vy −0.5、vy 0.6）
 EXTRA = ("vx_err", "vy_err", "wz_err", "lin_small", "ww_force", "gap_min", "touch_n", "sat_n")
 
 
-def run_env(pol, cmds, secs, settle, std, w_ang=2.5, w_lim=1.0):
+def run_env(pol, cmds, secs, settle, std, w_ang=2.5, w_lim=2.0):
     """pol：ri.load_policy 給的 callable，obs(53,) → 他的尺度動作(16,)。"""
     import jax, jax.numpy as jnp
     import rl_env_wheel as rw
@@ -95,7 +95,7 @@ def main():
     ap.add_argument("--onnx", default=str(ROOT.parent / "RL_only" / "2026-10-01_17-30-20" / "2026-10-01_17-30-20_10000.onnx"))
     ap.add_argument("--npz", default=None, help="自訓權重（policy_np 格式）；給了就不用 --onnx")
     ap.add_argument("--tag", default="10k", help="輸出檔名 align_<tag>.md、reward_audit_wheel_<tag>.md（10k 沿用舊檔名 reward_audit_wheel_v1.md）")
-    ap.add_argument("--w-ang", type=float, default=2.5); ap.add_argument("--w-lim", type=float, default=1.0)
+    ap.add_argument("--w-ang", type=float, default=2.5); ap.add_argument("--w-lim", type=float, default=2.0)
     ap.add_argument("--secs", type=float, default=8.0); ap.add_argument("--settle", type=float, default=1.0)
     a = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
@@ -107,7 +107,7 @@ def main():
     RS = run_cpu(pol, CMDS, a.secs, a.settle, env_scene=True)
     t0 = time.time(); RE = run_env(pol, CMDS, a.secs, a.settle, std=0.25, w_ang=a.w_ang, w_lim=a.w_lim); t_env = time.time() - t0; print(f"env done {t_env:.0f}s", flush=True)
     L = [f"# 對齊：{pname} 在 WheelEnv（MJX，平地）vs CPU rl_only_infer（real）  —  tag {a.tag}", "",
-         f"MJX {t_env:.0f} s（8 環境 vmap）、CPU {t_cpu:.0f} s；指令 {a.secs} s（先 {a.settle} s 零指令）；統計取指令後 1 s 起。"
+         f"MJX {t_env:.0f} s（{len(CMDS)} 環境 vmap）、CPU {t_cpu:.0f} s；指令 {a.secs} s（先 {a.settle} s 零指令）；統計取指令後 1 s 起。"
          "後輪 gap ＝ 後輪實體間隙近似 ＝ 輪心距 − 0.034（官方網格內側面 +0.017 ×2，V 文件口徑；傾斜時高估 ~7 mm）（mm，取最小；env 與 cpu `gap_rr` 同式）。追蹤差 ＝ |env − cpu| / |指令|，只算有下指令的軸。",
          "cpu 欄＝rl_only_infer 預設（v3f 圓柱輪、平面地板）；cpu′＝WheelEnv 場景（膠囊輪／機身／腿、hfield）：同一支 CPU 工具改載，"
          "env vs cpu′ 只剩 MJX 與 CPU MuJoCo 的差，cpu′ vs cpu 是場景（碰撞幾何）的差。", "",
@@ -135,9 +135,9 @@ def main():
     lin5 = 2.5 * np.exp(-(T["vx_err"] ** 2 + T["vy_err"] ** 2) / 0.25); ang5 = a.w_ang * np.exp(-T["wz_err"] ** 2 / 0.25)
     keys = list(T.keys())
     nT = len(rw.TERM_KEYS)
-    A = [f"# reward 攤帳：{pname} 在 WheelEnv 平地八指令（每步平均；std 0.25 為主，括號內 std 0.5）  —  tag {a.tag}", "",
+    A = [f"# reward 攤帳：{pname} 在 WheelEnv 平地 {len(CMDS)} 指令（每步平均；std 0.25 為主，括號內 std 0.5）  —  tag {a.tag}", "",
          f"權重：w_ang {a.w_ang:g}、w_lim {a.w_lim:g}（lin 2.5，其餘照 spec §3）。",
-         f"取指令後 1 s 起（{a.secs - 1:.0f} s × 50 步）；前 {nT} 欄是 reward 項（已乘權重），合計＝{nT} 項和；`sat_n` 是每步超出硬限位的腿關節數（平均）；`lin_small` 在 fixed_cmd 下恆 0（small 旗標固定 False）；`ww_force` 是輪輪法向力 N、`gap_min` 是前後兩對左右輪實體間隙的較小者 m（輪心距 − 0.034）、`touch_n` 是觸地輪數（診斷量，不進 reward）。"
+         f"取指令後 1 s 起（{a.secs - 1:.0f} s × 50 步）；前 {nT} 欄是 reward 項（已乘權重），合計＝{nT} 項和；`lim` 罰 PD 目標超出軟限位、`sat_n` 是每步 PD 目標超出硬限位的腿關節數（平均）；`lin_small` 在 fixed_cmd 下恆 0（small 旗標固定 False）；`ww_force` 是輪輪法向力 N、`gap_min` 是前後兩對左右輪實體間隙的較小者 m（輪心距 − 0.034）、`touch_n` 是觸地輪數（診斷量，不進 reward）。"
          "std 0.5 的 lin／ang 由同一條 rollout 的 vx/vy/wz 誤差解析算出（std 不影響動力學）。", "",
          "| 指令 | " + " | ".join(keys) + " | 合計 |", "|---|" + "---|" * (len(keys) + 1)]
     for j, cmd in enumerate(CMDS):

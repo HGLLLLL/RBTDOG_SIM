@@ -62,7 +62,7 @@
 | wheel_lateral_slip | 輪接觸時，輪心速度沿輪軸（自旋軸 y）分量的平方和，只算有接觸的輪（他的自訂項，依 yaml 參數重寫） | −0.075 |
 | sim2default | `Σ|q − default|`（腿 12），指令範數 < 0.1 時乘 10（他的自訂項 `standing_scale 10、command_threshold 0.1`） | −0.1 |
 | dof_pos_limits | 超出 0.9 軟限位的量 | 0.0（v1，與他同） |
-| ★ lim（v1b，Isaac `joint_pos_limits`） | 腿 12 關節 Σ max(0, lo_soft − q) + max(0, q − hi_soft)，軟限位＝`jnt_range` 中點 ± 0.9 半行程；metric `sat_n`＝超出硬限位的關節數 | **−1.0**（`w_lim`，§11.13；v1 為 0） |
+| ★ lim（v1b，**PD 目標口徑**） | 腿 12 關節 q_des ＝ a·ACT_SCALE ＋ ACT_OFFSET（同 `_ctrl`），Σ max(0, lo_soft − q_des) + max(0, q_des − hi_soft)，軟限位＝`jnt_range` 中點 ± 0.9 半行程；metric `sat_n`＝q_des 超出硬限位的顆數。不罰實際 q（Isaac `joint_pos_limits` 罰 q；v1 的 q 從沒進軟限位，越界的是目標） | **−2.0**（`w_lim`，§11.13；v1 為 0） |
 | ★ wheel_wheel_contact | 四顆輪子彼此接觸力的 L2（取自 `<pair>` 接觸） | **−1.0**（改動一） |
 | ★ wheel_gap（2026-10-13 加） | 前後兩對側向輪實體間隙 gap ＝ 中心距 − 0.034 的 hinge：Σ max(0, 1 − gap/0.08)² | **−2.0**（改動一；40 mm 驗收邊界每對罰 0.5、接觸 2.0；pair 圓盤碰不到實機那種內面接觸，見 §11.9） |
 
@@ -180,8 +180,10 @@
 11. **特權 critic、discount 0.99、探索幅度維持預設**（使用者 2026-10-13 決定）：critic 改看 56 維特權 obs（無雜訊 53 ＋ 機身系線速度 3，同他的 critic），policy 仍看帶雜訊的 53；discount 由 v3 線的 0.97 改他的 0.99（回合 20 s）；`init_noise_std` 維持 brax 預設 1.0 不改，先看第一次 eval 的 len 再說。brax 0.14.2 原生支援字典 obs（`make_ppo_networks(observation_size=dict, policy_obs_key, value_obs_key)`、normalizer 逐葉），匯出取 `norm.mean["state"]`。
 12. **只有輪子碰地形；終止改傾角＋離地高**（修正波 5，吞吐量）：A100 實測 `vmap(mjx.step)` hfield 場景 6.8k env-steps/s、平面模型 102k。MJX `_hfield_collision` 對每個幾何取 subgrid 逐一測稜柱：`(ceil(2·rbound/0.1)+1)² × 2`。機身膠囊 rbound 0.415 → 11²×2 = 242；8 段腿（rbound 0.140／0.125 → 4²×2 = 32）＝ 256；4 輪（rbound 0.136 → 32）＝ 128；合計 ≈ 626 個／env／子步。機身＋8 段腿改 `contype="0" conaffinity="0"`，只剩輪子 128 個（約 5×）。機身碰不到地，`fell` 改成 `_fallen`：tilt＝機身系重力 z > −0.5（傾 > 60°），low＝z − `_terrain_h(x,y)` < `FALL_H` 0.20 m（站立 0.494；輪半徑 0.096、機身箱底離地 ~0.37；< 0.20 表示腿已折到機身快碰地）；`fell = tilt | low | oob`，metric 多 `tilt`。代價：機身／腿可穿地（低於 0.20 前終止，穿地只發生在終止前最後幾步）；機身與腿跨台階時不再被地形擋（原本機器人自身幾何間就不碰撞，contype 1／conaffinity 0，只有輪輪 pair）。
 13. **v1b 改動（2026-10-13，證據：`docs/results/W_純RL自訓v1_MuJoCo_2026-10-13.md` §3–§6）**：
-   - **`lim` 項 −1.0**：v1 在 vy 指令時 PD 目標超出硬限位 14–67% 步、ABAD 命令誤差峰 0.58–0.80（護欄 0.80）、ABAD τ 34–47 N·m（他的 10k 17–23）；根因是 `dof_pos_limits` 在他的 yaml 權重 0、我們照抄。注意：`lim` 罰的是**實際 q** 超出軟限位（同 Isaac），不是 PD 目標；v1 的「超限位」統計是目標口徑，兩者不同，攤帳見 `outputs/reward_audit_wheel_v1_old.md`／`_v1b.md` 的限位表。
-   - **`ang` 權重 1.25 → 2.5**：原地轉 wz 只到 80%；`tau_leg`（−2e-4·Σ τ²，30–40 N·m 時 ≈ −2／步）壓過 ang 追蹤（最多 1.25），完美追蹤的收益抵不過用力的代價。
-   - **課程升級門檻 4 m → 2 m**：v1 level 卡 ~2.5；10 s 重抽指令、10% 站立回合，20 s 內淨位移常被轉向抵銷，4 m 太嚴。降級規則不變。
-   - 攤帳工具 `diag/wheel_env_align.py` 加 `--npz`／`--tag`／`--w-ang`／`--w-lim`；v1 policy 在舊（1.25／0）與新（2.5／1.0）reward 下的攤帳分別寫 `outputs/reward_audit_wheel_v1_old.md`、`reward_audit_wheel_v1b.md`。
-   - **攤帳結果（v1 policy、平地 MJX）**：`lim` 八列全 0、`sat_n` 全 0——實際 q 從沒進軟限位（ABAD q 在 vy 0.5 只到 −0.05～+0.28，軟限位 ±0.46／0.64），但 **PD 目標**在 vy 0.3／0.5 有 13／16% 步超出 RL ABAD（索引 3）硬限位、|目標 − q| 達 0.73。v1 的「貼止點」是目標超限＋大追蹤誤差，不是 q 撞限位；q 口徑的 `lim` 對 v1 這種行為沒有梯度。`tau_leg` 在 wz 0.5／1.0 只有 −0.23／−0.29 每步（不是估的 −2），`ang` 由 0.86／1.06 變 1.73／2.11。
+   - **`lim` 項（PD 目標口徑）−2.0**：v1 在 vy 指令時 PD 目標超出硬限位 14–67% 步、ABAD 命令誤差峰 0.58–0.80（護欄 0.80）、ABAD τ 34–47 N·m（他的 10k 17–23）；根因是 `dof_pos_limits` 在他的 yaml 權重 0、我們照抄。
+     第一版照 Isaac 罰**實際 q** 超出軟限位，v1 policy 攤帳八列全 0：q 從沒進軟限位（vy 0.5 ABAD q −0.05～+0.28，軟限位 ±0.46／0.64），越界的是 **PD 目標**——vy 0.5 時 RL ABAD（索引 3）目標最低 −0.73、硬限 −0.523、目標與 q 差 0.73。q 口徑對「目標越界、q 跟不上」沒有梯度，所以改罰目標 q_des ＝ a·ACT_SCALE ＋ ACT_OFFSET。
+     權重 2.0：目標超 0.1–0.2 rad 時每步 −0.2～−0.4，與追蹤增益同量級。
+     v1 policy 在 v1b reward 下（`outputs/reward_audit_wheel_v1b.md`）：lim／sat_n 每步平均 vy 0.3 −0.043／0.14、vy 0.5 −0.070／0.17、vy −0.5 −0.260／0.65、vy 0.6 −0.080／0.16、wz 0.5 −0.013、wz 1.0 −0.025，直走與站立 0。
+   - **`ang` 權重 1.25 → 2.5**：原地轉 wz 只到 80%。攤帳實測 `tau_leg` 在 wz 0.5／1.0 只有 −0.23／−0.29 每步（不是估的 −2），所以「力矩壓過追蹤」不是主因；但加倍後 wz 0.5 的 ang 由 0.86 變 1.73，離滿分 2.5 的空間 0.77 已大於整個 `tau_leg`。
+   - **課程升級門檻 4 m → 2 m**：v1 level 卡 ~2.5；10 s 重抽指令、10% 站立回合，20 s 內淨位移常被轉向抵銷，4 m 太嚴。降級規則不變，升級優先。
+   - 攤帳工具 `diag/wheel_env_align.py` 加 `--npz`／`--tag`／`--w-ang`／`--w-lim`，指令加 vy −0.5、vy 0.6 兩列；`outputs/reward_audit_wheel_v1_old.md`（v1 自己的 reward 1.25／0，八列，q 口徑版前跑）、`reward_audit_wheel_v1b.md`（2.5／2.0，目標口徑，十列）。

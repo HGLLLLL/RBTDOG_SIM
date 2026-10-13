@@ -72,26 +72,28 @@ def test_action_rate_and_signs(env):
 
 
 def test_joint_limit_penalty(env):
-    """lim（Isaac joint_pos_limits）：腿 12 關節超出軟限位（中點 ± 0.9 半行程）的量之和 × −w_lim；sat_n＝超出硬限位的關節數。"""
+    """lim：腿 12 關節 PD 目標 q_des＝a·ACT_SCALE＋ACT_OFFSET 超出軟限位（中點 ± 0.9 半行程）的量之和 × −w_lim；sat_n＝目標超出硬限位的顆數。
+    罰目標不罰 q：v1 實際 q 從沒進軟限位，越界的是目標（vy 0.5 RL ABAD 目標 −0.73、硬限 −0.523）。"""
     lo, hi = np.asarray(env.Q_LO_HARD), np.asarray(env.Q_HI_HARD)
     mid, half = 0.5 * (lo + hi), 0.5 * (hi - lo)
     assert np.allclose(np.asarray(env.Q_HI_SOFT), mid + 0.9 * half, atol=1e-6) and np.allclose(np.asarray(env.Q_LO_SOFT), mid - 0.9 * half, atol=1e-6)
     data = _standing_data(env)
     info = _info(env, data)
     T0, aux0 = env._reward_terms(data, info, jnp.zeros(16), jnp.zeros(3))
-    assert float(T0["lim"]) == 0.0 and float(aux0["sat_n"]) == 0.0                         # default 站姿在軟限位內
-    j = 4
-    hs = float(env.Q_HI_SOFT[j]); hh = float(env.Q_HI_HARD[j])
-    assert hs + 0.1 < hh                                                                   # 軟＋0.1 仍在硬限位內
-    d1 = data.replace(qpos=data.qpos.at[env.QADR[j]].set(hs + 0.1))
-    T1, aux1 = env._reward_terms(d1, info, jnp.zeros(16), jnp.zeros(3))
-    assert float(T1["lim"]) == pytest.approx(-env.w_lim * 0.1, abs=1e-5) and float(aux1["sat_n"]) == 0.0
-    d2 = data.replace(qpos=data.qpos.at[env.QADR[j]].set(hh + 0.05))
-    T2, aux2 = env._reward_terms(d2, info, jnp.zeros(16), jnp.zeros(3))
-    assert float(aux2["sat_n"]) == 1.0 and float(T2["lim"]) == pytest.approx(-env.w_lim * (hh + 0.05 - hs), abs=1e-5)
-    e2 = rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, w_lim=2.0, scene=env.scene)
-    T3, _ = e2._reward_terms(d1, info, jnp.zeros(16), jnp.zeros(3))
-    assert env.w_lim == 1.0 and float(T3["lim"]) == pytest.approx(2.0 * float(T1["lim"]), rel=1e-5)
+    assert float(T0["lim"]) == 0.0 and float(aux0["sat_n"]) == 0.0                         # 零動作＝default 目標，在軟限位內
+    j = 3                                                                                  # RL ABAD（v1 越界的那顆），往下限推
+    sc, off = float(rw.ACT_SCALE[j]), float(rw.ACT_OFFSET[j])
+    ls, lh = float(env.Q_LO_SOFT[j]), float(env.Q_LO_HARD[j])
+    assert ls - 0.02 > lh
+    a1 = jnp.zeros(16).at[j].set((ls - 0.02 - off) / sc)                                   # 目標＝軟限位下 0.02（仍在硬限位內）
+    T1, aux1 = env._reward_terms(data, info, a1, jnp.zeros(3))
+    assert float(T1["lim"]) == pytest.approx(-env.w_lim * 0.02, abs=1e-5) and float(aux1["sat_n"]) == 0.0
+    a2 = jnp.zeros(16).at[j].set((lh - 0.05 - off) / sc)                                   # 目標＝硬限位下 0.05
+    T2, aux2 = env._reward_terms(data, info, a2, jnp.zeros(3))
+    assert float(aux2["sat_n"]) == 1.0 and float(T2["lim"]) == pytest.approx(-env.w_lim * (ls - (lh - 0.05)), abs=1e-5)
+    e2 = rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, w_lim=2 * env.w_lim, scene=env.scene)
+    T3, _ = e2._reward_terms(data, info, a1, jnp.zeros(3))
+    assert env.w_lim == 2.0 and float(T3["lim"]) == pytest.approx(2.0 * float(T1["lim"]), rel=1e-5)
 
 
 def test_gap_hinge(env):

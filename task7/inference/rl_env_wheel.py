@@ -52,7 +52,7 @@ FALL_COS = -0.5                         # 摔倒：機身系重力 z 分量 > �
 # 課程升級：回合位移 > 2 m（他的規則是 > 方塊一半 4 m）。v1 的 level 卡在 ~2.5：10 s 重抽指令、10% 站立回合，
 # 20 s 內平均要 > 0.2 m/s 淨位移才升，指令轉向後位移互相抵銷，4 m 太嚴（W 文件 §6、spec §4）。降級規則不變。
 CURR_UP_DIST = 2.0
-LIM_SOFT = 0.9                          # 關節軟限位：中點 ± 0.9 × 半行程（Isaac joint_pos_limits 的 soft_joint_pos_limit_factor）
+LIM_SOFT = 0.9                          # 關節軟限位：中點 ± 0.9 × 半行程（同 Isaac soft_joint_pos_limit_factor；lim 罰 PD 目標超出它）
 WW_CAP = 3.0                            # ww 每個接觸 fn/100 的上限：腿交叉時 fn 可達 2755 N，單步 −760 會拉壞 critic
 TERM_KEYS = ("lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap", "lim")
 METRIC_KEYS = TERM_KEYS + ("reward", "lin_small", "level", "fell", "oob", "tilt", "dist", "ww_force", "gap_min", "vx_err", "vy_err", "wz_err", "touch_n", "small", "standing", "sat_n")
@@ -82,10 +82,10 @@ class WheelEnv(Env):
     def __init__(self, scene: str | None = None, map_seed: int = 0, flat: bool = False, noise: bool = True, push: bool = True,
                  fixed_cmd: bool = False, fixed_tile: tuple[int, int] | None = None, small_frac: float = 0.3,
                  std: float = 0.25, w_ww: float = 1.0, w_gap: float = 2.0, episode_len: int = EPISODE_LEN,
-                 w_ang: float = 2.5, w_lim: float = 1.0):
+                 w_ang: float = 2.5, w_lim: float = 2.0):
         """flat：全圖平地、出生在原點（對齊驗證）；fixed_cmd：指令讀 info["cmd_fix"]（不重抽、不站立、不小指令）；
         fixed_tile=(kind_idx, level)：固定出生方塊、不升降課程。std／w_ww／w_gap／small_frac 是三項改動的旋鈕（w_gap：輪輪實體間隙 hinge）。
-        w_ang：偏航追蹤權重（v1 是 1.25，v1b 2.5：原地轉時 tau_leg ≈ −2／步壓過 ang 最多 1.25）；w_lim：腿關節軟限位懲罰（v1 是 0，v1b 1.0）。
+        w_ang：偏航追蹤權重（v1 是 1.25，v1b 2.5：原地轉時 tau_leg ≈ −2／步壓過 ang 最多 1.25）；w_lim：腿關節 PD 目標超出軟限位的懲罰（v1 是 0，v1b 2.0）。
         episode_len：回合步數（內部重生、10 s 指令重抽、推力排程都以它為準；訓練時須與 wrap_env 的 episode_length 相同）。"""
         self.flat, self.noise, self.push, self.fixed_cmd, self.fixed_tile = flat, noise, push, fixed_cmd, fixed_tile
         self.small_frac, self.std, self.w_ww, self.w_gap = small_frac, std, w_ww, w_gap
@@ -114,7 +114,7 @@ class WheelEnv(Env):
         self.QADR = jnp.array([m.jnt_qposadr[j] for j in jid]); self.VADR = jnp.array([m.jnt_dofadr[j] for j in jid])
         trn = {int(m.actuator_trnid[a, 0]): a for a in range(m.nu)}
         self.AID = jnp.array([trn[j] for j in jid])
-        # 腿 12 關節（PhysX 序）的硬限位與軟限位（中點 ± LIM_SOFT × 半行程）；lim 項與 sat_n 指標用
+        # 腿 12 關節（PhysX 序）的硬限位與軟限位（中點 ± LIM_SOFT × 半行程）；lim 項與 sat_n 指標（PD 目標口徑）用
         rng_ = np.array([m.jnt_range[j] for j in jid[:12]], dtype=np.float64)
         assert bool(np.all(np.array([m.jnt_limited[j] for j in jid[:12]]))), "腿關節要有限位"
         mid, half = rng_.mean(1), 0.5 * (rng_[:, 1] - rng_[:, 0])
@@ -339,8 +339,12 @@ class WheelEnv(Env):
         standing_scale = jnp.where(jnp.linalg.norm(cmd) < 0.1, 10.0, 1.0)
         qleg = data.qpos[self.QADR[:12]]
         dev = jnp.sum(jnp.abs(qleg - DEFAULT[:12])) * standing_scale
-        lim = jnp.sum(jnp.maximum(0.0, self.Q_LO_SOFT - qleg) + jnp.maximum(0.0, qleg - self.Q_HI_SOFT))   # Isaac joint_pos_limits
-        sat_n = jnp.sum((qleg < self.Q_LO_HARD) | (qleg > self.Q_HI_HARD)).astype(jnp.float32)
+        # 限位懲罰罰的是 **PD 目標**（與 _ctrl 同式；a 已乘 ACT_GAIN），不是實際 q（Isaac joint_pos_limits 罰 q）：
+        # v1 攤帳顯示實際 q 從沒進軟限位，越界的是目標——vy 0.5 時 RL ABAD 目標最低 −0.73、硬限 −0.523、目標與 q 差 0.73。
+        # q 口徑對這種「目標越界、q 跟不上」沒有梯度。w_lim 2.0：目標超 0.1–0.2 rad 時每步 −0.2～−0.4，與追蹤增益同量級。
+        q_des12 = a[:12] * ACT_SCALE[:12] + ACT_OFFSET[:12]
+        lim = jnp.sum(jnp.maximum(0.0, self.Q_LO_SOFT - q_des12) + jnp.maximum(0.0, q_des12 - self.Q_HI_SOFT))
+        sat_n = jnp.sum((q_des12 < self.Q_LO_HARD) | (q_des12 > self.Q_HI_HARD)).astype(jnp.float32)   # 目標超出硬限位的顆數
         s2 = self.std ** 2
         T = dict(lin=2.5 * jnp.exp(-err_lin / s2), ang=self.w_ang * jnp.exp(-err_ang / s2),
                  vz=-2.0 * vb[2] ** 2, angxy=-0.05 * jnp.sum(w[0:2] ** 2),

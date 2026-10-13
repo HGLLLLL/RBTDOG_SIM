@@ -49,9 +49,13 @@ LAT_PAIRS = ((0, 1), (2, 3))            # FEET 索引：前 FAR–FBL、後 RAR�
 X_LIM, Y_LIM = -wt.X0 - 1.0, -wt.Y0 - 1.0  # 出界終止：hfield 邊緣往內 1 m（離開地圖 _terrain_h 夾到邊緣格、輪子掉出 hfield 後自由落體）
 FALL_H = 0.20                           # 摔倒：機身離地 < 0.20 m（站立 0.494；輪半徑 0.096、機身箱底離地 ~0.37；低於 0.20 表示腿已折到機身快碰地）
 FALL_COS = -0.5                         # 摔倒：機身系重力 z 分量 > −0.5 ＝ 機身傾 > 60°
+# 課程升級：回合位移 > 2 m（他的規則是 > 方塊一半 4 m）。v1 的 level 卡在 ~2.5：10 s 重抽指令、10% 站立回合，
+# 20 s 內平均要 > 0.2 m/s 淨位移才升，指令轉向後位移互相抵銷，4 m 太嚴（W 文件 §6、spec §4）。降級規則不變。
+CURR_UP_DIST = 2.0
+LIM_SOFT = 0.9                          # 關節軟限位：中點 ± 0.9 × 半行程（Isaac joint_pos_limits 的 soft_joint_pos_limit_factor）
 WW_CAP = 3.0                            # ww 每個接觸 fn/100 的上限：腿交叉時 fn 可達 2755 N，單步 −760 會拉壞 critic
-TERM_KEYS = ("lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap")
-METRIC_KEYS = TERM_KEYS + ("reward", "lin_small", "level", "fell", "oob", "tilt", "dist", "ww_force", "gap_min", "vx_err", "vy_err", "wz_err", "touch_n", "small", "standing")
+TERM_KEYS = ("lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap", "lim")
+METRIC_KEYS = TERM_KEYS + ("reward", "lin_small", "level", "fell", "oob", "tilt", "dist", "ww_force", "gap_min", "vx_err", "vy_err", "wz_err", "touch_n", "small", "standing", "sat_n")
 
 
 def quat_rot_inv(q, v):
@@ -77,12 +81,15 @@ def wrap_pi(a):
 class WheelEnv(Env):
     def __init__(self, scene: str | None = None, map_seed: int = 0, flat: bool = False, noise: bool = True, push: bool = True,
                  fixed_cmd: bool = False, fixed_tile: tuple[int, int] | None = None, small_frac: float = 0.3,
-                 std: float = 0.25, w_ww: float = 1.0, w_gap: float = 2.0, episode_len: int = EPISODE_LEN):
+                 std: float = 0.25, w_ww: float = 1.0, w_gap: float = 2.0, episode_len: int = EPISODE_LEN,
+                 w_ang: float = 2.5, w_lim: float = 1.0):
         """flat：全圖平地、出生在原點（對齊驗證）；fixed_cmd：指令讀 info["cmd_fix"]（不重抽、不站立、不小指令）；
         fixed_tile=(kind_idx, level)：固定出生方塊、不升降課程。std／w_ww／w_gap／small_frac 是三項改動的旋鈕（w_gap：輪輪實體間隙 hinge）。
+        w_ang：偏航追蹤權重（v1 是 1.25，v1b 2.5：原地轉時 tau_leg ≈ −2／步壓過 ang 最多 1.25）；w_lim：腿關節軟限位懲罰（v1 是 0，v1b 1.0）。
         episode_len：回合步數（內部重生、10 s 指令重抽、推力排程都以它為準；訓練時須與 wrap_env 的 episode_length 相同）。"""
         self.flat, self.noise, self.push, self.fixed_cmd, self.fixed_tile = flat, noise, push, fixed_cmd, fixed_tile
         self.small_frac, self.std, self.w_ww, self.w_gap = small_frac, std, w_ww, w_gap
+        self.w_ang, self.w_lim = float(w_ang), float(w_lim)
         self.episode_len = int(episode_len)
         self.scene = scene or wt.make_scene_xml()
         m = mujoco.MjModel.from_xml_path(self.scene)
@@ -107,6 +114,13 @@ class WheelEnv(Env):
         self.QADR = jnp.array([m.jnt_qposadr[j] for j in jid]); self.VADR = jnp.array([m.jnt_dofadr[j] for j in jid])
         trn = {int(m.actuator_trnid[a, 0]): a for a in range(m.nu)}
         self.AID = jnp.array([trn[j] for j in jid])
+        # 腿 12 關節（PhysX 序）的硬限位與軟限位（中點 ± LIM_SOFT × 半行程）；lim 項與 sat_n 指標用
+        rng_ = np.array([m.jnt_range[j] for j in jid[:12]], dtype=np.float64)
+        assert bool(np.all(np.array([m.jnt_limited[j] for j in jid[:12]]))), "腿關節要有限位"
+        mid, half = rng_.mean(1), 0.5 * (rng_[:, 1] - rng_[:, 0])
+        self.Q_LO_HARD, self.Q_HI_HARD = jnp.array(rng_[:, 0], dtype=jnp.float32), jnp.array(rng_[:, 1], dtype=jnp.float32)
+        self.Q_LO_SOFT = jnp.array(mid - LIM_SOFT * half, dtype=jnp.float32)
+        self.Q_HI_SOFT = jnp.array(mid + LIM_SOFT * half, dtype=jnp.float32)
         self.FLOOR = int(mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, "floor"))
         base = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, "base_link")
         self.BASE_BID = int(base)                       # DR（質量／質心）用；機身不碰撞，終止不靠接觸
@@ -212,7 +226,7 @@ class WheelEnv(Env):
         return State(data, obs, z0, z0, {k_: z0 for k_ in METRIC_KEYS}, info)
 
     def _next_tile(self, rng, data, info):
-        """他的 terrain_levels_vel：位移 > 方塊一半升級；位移 < 0.5 × 指令速度 × 回合時間降級；到頂隨機重抽；站立回合不動。
+        """他的 terrain_levels_vel（升級門檻改 CURR_UP_DIST 2 m，他的是方塊一半 4 m）：位移 > 門檻升級；位移 < 0.5 × 指令速度 × 回合時間降級；到頂隨機重抽；站立回合不動。
         reset()（data=None）時初始等級抽 0–5；到頂重抽仍是 0–9。"""
         if self.fixed_tile is not None:
             return jnp.int32(self.fixed_tile[0]), jnp.int32(self.fixed_tile[1])
@@ -223,7 +237,7 @@ class WheelEnv(Env):
             return kind, jax.random.randint(k[1], (), 0, 6)
         dist = jnp.linalg.norm(data.qpos[0:2] - info["xy0"])
         vref = 0.5 * (jnp.linalg.norm(info["cmd_ab"][0]) + jnp.linalg.norm(info["cmd_ab"][1]))
-        up = dist > wt.TILE / 2
+        up = dist > CURR_UP_DIST                                     # 升級優先於降級（見下行 where 順序）
         down = dist < 0.5 * vref * (self.episode_len * CTRL_DT)
         delta = jnp.where(info["standing"], 0, jnp.where(up, 1, jnp.where(down, -1, 0)))
         lvl = info["level"] + delta
@@ -323,15 +337,18 @@ class WheelEnv(Env):
         gaps = jnp.stack([jnp.linalg.norm(foot[i] - foot[j]) for i, j in LAT_PAIRS]) - WHEEL_INNER_W
         wgap = jnp.sum(jnp.maximum(0.0, 1.0 - gaps / GAP_MIN) ** 2)
         standing_scale = jnp.where(jnp.linalg.norm(cmd) < 0.1, 10.0, 1.0)
-        dev = jnp.sum(jnp.abs(data.qpos[self.QADR[:12]] - DEFAULT[:12])) * standing_scale
+        qleg = data.qpos[self.QADR[:12]]
+        dev = jnp.sum(jnp.abs(qleg - DEFAULT[:12])) * standing_scale
+        lim = jnp.sum(jnp.maximum(0.0, self.Q_LO_SOFT - qleg) + jnp.maximum(0.0, qleg - self.Q_HI_SOFT))   # Isaac joint_pos_limits
+        sat_n = jnp.sum((qleg < self.Q_LO_HARD) | (qleg > self.Q_HI_HARD)).astype(jnp.float32)
         s2 = self.std ** 2
-        T = dict(lin=2.5 * jnp.exp(-err_lin / s2), ang=1.25 * jnp.exp(-err_ang / s2),
+        T = dict(lin=2.5 * jnp.exp(-err_lin / s2), ang=self.w_ang * jnp.exp(-err_ang / s2),
                  vz=-2.0 * vb[2] ** 2, angxy=-0.05 * jnp.sum(w[0:2] ** 2),
                  tau_leg=-2e-4 * jnp.sum(tau[:12] ** 2), tau_wheel=-2e-4 * jnp.sum(tau[12:] ** 2),
                  acc_leg=-2.5e-7 * jnp.sum(qacc[:12] ** 2), acc_wheel=-2.5e-7 * jnp.sum(qacc[12:] ** 2),
                  rate=-0.01 * jnp.sum((a - info["last_a"]) ** 2),
-                 slip=-0.075 * slip, dev=-0.1 * dev, ww=-self.w_ww * ww, wgap=-self.w_gap * wgap)
-        aux = dict(vb=vb, w=w, touch=touch, ww_force=ww_force, gaps=gaps, err_lin=err_lin, err_ang=err_ang, C=C)
+                 slip=-0.075 * slip, dev=-0.1 * dev, ww=-self.w_ww * ww, wgap=-self.w_gap * wgap, lim=-self.w_lim * lim)
+        aux = dict(vb=vb, w=w, touch=touch, ww_force=ww_force, gaps=gaps, err_lin=err_lin, err_ang=err_ang, C=C, sat_n=sat_n)
         return T, aux
 
     def _after_physics(self, data, info, a, cmd):
@@ -346,7 +363,7 @@ class WheelEnv(Env):
         metrics = dict(T, reward=reward, lin_small=T["lin"] * info["small"], level=info["level"].astype(jnp.float32),
                        fell=fell.astype(jnp.float32), oob=oob.astype(jnp.float32), tilt=tilt.astype(jnp.float32), dist=jnp.linalg.norm(data.qpos[0:2] - info["xy0"]), ww_force=aux["ww_force"], gap_min=jnp.min(aux["gaps"]),
                        vx_err=jnp.abs(aux["vb"][0] - cmd[0]), vy_err=jnp.abs(aux["vb"][1] - cmd[1]), wz_err=jnp.abs(aux["w"][2] - cmd[2]),
-                       touch_n=jnp.sum(aux["touch"]).astype(jnp.float32), small=info["small"].astype(jnp.float32), standing=info["standing"].astype(jnp.float32))
+                       touch_n=jnp.sum(aux["touch"]).astype(jnp.float32), small=info["small"].astype(jnp.float32), standing=info["standing"].astype(jnp.float32), sat_n=aux["sat_n"])
         return reward, fell, metrics
 
     @property

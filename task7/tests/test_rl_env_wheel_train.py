@@ -54,9 +54,10 @@ def test_curriculum_rule(env):
     near = s.pipeline_state.replace(qpos=s.pipeline_state.qpos.at[0:2].set(base["xy0"] + jnp.array([1.0, 0.0])))
     mid = s.pipeline_state.replace(qpos=s.pipeline_state.qpos.at[0:2].set(base["xy0"] + jnp.array([3.0, 0.0])))
     k = jax.random.PRNGKey(1)
-    assert int(env._next_tile(k, far, base)[1]) == 5                                  # > 4 m 升級
-    assert int(env._next_tile(k, near, base)[1]) == 3                                 # < 0.5 × 0.5 m/s × 20 s = 5 m 降級
-    assert int(env._next_tile(k, mid, base)[1]) == 3                                  # 3 m 也 < 5 m → 降
+    assert rw.CURR_UP_DIST == 2.0
+    assert int(env._next_tile(k, far, base)[1]) == 5                                  # > 2 m 升級
+    assert int(env._next_tile(k, near, base)[1]) == 3                                 # 1 m < 2 m 且 < 0.5 × 0.5 m/s × 20 s = 5 m → 降級
+    assert int(env._next_tile(k, mid, base)[1]) == 5                                  # 3 m：> 2 m 也 < 5 m，升級優先 → 升
     assert int(env._next_tile(k, far, dict(base, standing=jnp.array(True)))[1]) == 4  # 站立回合不動
     top = dict(base, level=jnp.int32(9)); lv = int(env._next_tile(k, far, top)[1]); assert 0 <= lv <= 9
     assert int(env._next_tile(k, near, dict(base, level=jnp.int32(0)))[1]) == 0

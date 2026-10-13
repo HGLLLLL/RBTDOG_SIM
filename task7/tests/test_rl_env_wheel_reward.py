@@ -36,7 +36,8 @@ def test_perfect_tracking_gives_full_weight(env):
     data = _standing_data(env)
     data = data.replace(qvel=data.qvel.at[0].set(0.5))              # 機身 vx 0.5（yaw 0 → 機身系＝世界系）
     T, aux = env._reward_terms(data, _info(env, data), jnp.zeros(16), jnp.array([0.5, 0.0, 0.0]))
-    assert float(T["lin"]) == pytest.approx(2.5, abs=1e-4) and float(T["ang"]) == pytest.approx(1.25, abs=1e-4)
+    assert float(T["lin"]) == pytest.approx(2.5, abs=1e-4) and float(T["ang"]) == pytest.approx(env.w_ang, abs=1e-4)
+    assert env.w_ang == 2.5                                         # v1b：偏航追蹤權重 1.25 → 2.5
     assert float(aux["err_lin"]) == pytest.approx(0.0, abs=1e-6)
 
 
@@ -65,9 +66,32 @@ def test_action_rate_and_signs(env):
     a = jnp.full(16, 0.5)
     T, _ = env._reward_terms(data, _info(env, data), a, jnp.array([0.0, 0.0, 0.0]))
     assert float(T["rate"]) == pytest.approx(-0.01 * 16 * 0.25, abs=1e-6)
-    for k in ("vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap"):
+    for k in ("vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap", "lim"):
         assert float(T[k]) <= 1e-9, k
-    assert set(T) == {"lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap"}
+    assert set(T) == {"lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap", "lim"}
+
+
+def test_joint_limit_penalty(env):
+    """lim（Isaac joint_pos_limits）：腿 12 關節超出軟限位（中點 ± 0.9 半行程）的量之和 × −w_lim；sat_n＝超出硬限位的關節數。"""
+    lo, hi = np.asarray(env.Q_LO_HARD), np.asarray(env.Q_HI_HARD)
+    mid, half = 0.5 * (lo + hi), 0.5 * (hi - lo)
+    assert np.allclose(np.asarray(env.Q_HI_SOFT), mid + 0.9 * half, atol=1e-6) and np.allclose(np.asarray(env.Q_LO_SOFT), mid - 0.9 * half, atol=1e-6)
+    data = _standing_data(env)
+    info = _info(env, data)
+    T0, aux0 = env._reward_terms(data, info, jnp.zeros(16), jnp.zeros(3))
+    assert float(T0["lim"]) == 0.0 and float(aux0["sat_n"]) == 0.0                         # default 站姿在軟限位內
+    j = 4
+    hs = float(env.Q_HI_SOFT[j]); hh = float(env.Q_HI_HARD[j])
+    assert hs + 0.1 < hh                                                                   # 軟＋0.1 仍在硬限位內
+    d1 = data.replace(qpos=data.qpos.at[env.QADR[j]].set(hs + 0.1))
+    T1, aux1 = env._reward_terms(d1, info, jnp.zeros(16), jnp.zeros(3))
+    assert float(T1["lim"]) == pytest.approx(-env.w_lim * 0.1, abs=1e-5) and float(aux1["sat_n"]) == 0.0
+    d2 = data.replace(qpos=data.qpos.at[env.QADR[j]].set(hh + 0.05))
+    T2, aux2 = env._reward_terms(d2, info, jnp.zeros(16), jnp.zeros(3))
+    assert float(aux2["sat_n"]) == 1.0 and float(T2["lim"]) == pytest.approx(-env.w_lim * (hh + 0.05 - hs), abs=1e-5)
+    e2 = rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, w_lim=2.0, scene=env.scene)
+    T3, _ = e2._reward_terms(d1, info, jnp.zeros(16), jnp.zeros(3))
+    assert env.w_lim == 1.0 and float(T3["lim"]) == pytest.approx(2.0 * float(T1["lim"]), rel=1e-5)
 
 
 def test_gap_hinge(env):
@@ -183,6 +207,7 @@ def test_out_of_map_terminates(env, field):
 def test_metrics_keys(env):
     s = jax.jit(env.step)(jax.jit(env.reset)(jax.random.PRNGKey(0)), jnp.zeros(16))
     assert set(s.metrics) == set(rw.METRIC_KEYS)
-    assert float(s.reward) == pytest.approx(sum(float(s.metrics[k]) for k in ("lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap")), abs=1e-5)
+    assert float(s.reward) == pytest.approx(sum(float(s.metrics[k]) for k in ("lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap", "lim")), abs=1e-5)
+    assert float(s.metrics["lim"]) == 0.0 and float(s.metrics["sat_n"]) == 0.0
     assert "gap_min" in s.metrics and 0.28 < float(s.metrics["gap_min"]) < 0.4               # 出生站姿：兩對左右輪實體間隙 ~308 mm
     assert float(s.metrics["small"]) == 0.0 and float(s.metrics["standing"]) == 0.0            # fixed_cmd：旗標固定 False

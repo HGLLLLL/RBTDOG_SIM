@@ -25,12 +25,14 @@ def test_notebook_cells():
     assert "drive.mount" in code and "policy_params_fn=_save_ckpt" in code and "RESUME = None" in code and "restore_params=_restore" in code
     assert 'model.save_params("rl_wheel_v1_params.pkl", params)' in code
     # 續訓累計步數：brax restore_params 不還原步數，存檔名要加上從 RESUME 檔名解析的 offset
-    assert "STEP_OFFSET" in code and 're.search(r"step(\\d+)", RESUME)' in code
+    assert "STEP_OFFSET = 0 if RESUME is None else _step_offset(RESUME)" in code and 're.search(r"step(\\d+)", path)' in code
+    assert 'raise ValueError("RESUME 要指到 rl_wheel_v1_step<N>.pkl，不是 rl_wheel_v1_params.pkl")' in code
     assert "rl_wheel_v1_step{STEP_OFFSET + step:012d}.pkl" in code and "total = STEP_OFFSET + step" in code
     assert "else:\n        break" in code                                     # throughput 遇第一檔不合格就停
     for k in ("ps('lin')", "ps('ang')", "ps('ww')", "ps('wgap')", "ps('slip')", "ps('level')", "ps('lin_small')", "ps('fell')"):
         assert k in code, k
     assert "停損" in md and "len < 600" in md and "lin < 0.5" in md and "2 億步" in md and "2026-10-13" in md
+    assert "`wgap` 沒比 step 0 好" in md and "`gap` 中位 < 40 mm" in md and "`ww` 沒比 step 0 低" not in md   # ww 平地恆 0，停損看 wgap
 
 
 def test_code_cells_parse():

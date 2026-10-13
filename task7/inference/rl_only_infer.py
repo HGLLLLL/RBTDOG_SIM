@@ -213,7 +213,7 @@ def main():
     ap.add_argument("--onnx", default=str(RL / "2026-09-24_13-23-11.onnx"))
     ap.add_argument("--npz", default="", help="自訓 policy 的狗端 npz（policy_np，含 act_gain）；給了就不用 --onnx，輸出到 outputs/rl_wheel/")
     ap.add_argument("--self-collision", action="store_true", dest="self_collision", help="載入含輪輪 pair 的場景（後輪互碰才看得到）")
-    ap.add_argument("--io", default=str(RL / "policy_io.json"))
+    ap.add_argument("--io", default="", help="policy_io.json；空＝--npz 時用 inference/rl_wheel_io.json（RL_only/ 不在 git），否則 RL_only/policy_io.json")
     ap.add_argument("--cmds", default="0,0,0;0.5,0,0;1.0,0,0;-0.5,0,0;0,0.5,0;0,-0.5,0;0,0,0.8;0,0,-0.8;0.5,0,0.5")
     ap.add_argument("--secs", type=float, default=8.0); ap.add_argument("--settle", type=float, default=1.0)
     ap.add_argument("--dt", type=float, default=0.005); ap.add_argument("--ideal", action="store_true")
@@ -226,6 +226,8 @@ def main():
     ap.add_argument("--video-start", type=float, default=2.0, dest="video_start", help="影片每段從第幾秒開始（含 --settle 那 1 s）")
     ap.add_argument("--names", default="", help="影片各段顯示名稱，分號分隔，與 --cmds 一一對應（空＝印指令）")
     a = ap.parse_args()
+    a.io = a.io or str(HERE / "rl_wheel_io.json" if a.npz else RL / "policy_io.json")
+    print("io:", a.io)
     io = json.load(open(a.io)); pol = load_policy(a.onnx if not a.npz else None, a.npz)
     if a.npz:
         a.tag = a.tag or Path(a.npz).stem

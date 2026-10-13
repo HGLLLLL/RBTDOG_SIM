@@ -43,9 +43,11 @@ FEET = ("FAR", "FBL", "RAR", "RBL")
 WHEEL_INNER_W = 0.034                   # 2 × 0.017：兩輪內側面到各自 link 原點的距離和
 GAP_MIN = 0.08                          # 實體間隙 < 80 mm 開始罰（他的 10k 在 vy 0.5 ~33 mm）。0.05 時 40 mm 驗收邊界只罰 (1−0.8)² = 4%，太弱；
                                         # 0.08 配 w_gap 2.0：40 mm 時每對 (1−0.5)²×2 = 0.5，接觸（gap 0）時 2.0
-LAT_PAIRS = ((0, 1), (2, 3))            # FEET 索引：前 FAR–FBL、後 RAR–RBL
+LAT_PAIRS = ((0, 1), (2, 3))
+X_LIM, Y_LIM = -wt.X0 - 1.0, -wt.Y0 - 1.0  # 出界終止：hfield 邊緣往內 1 m（離開地圖 base 碰不到 floor，fell 不會觸發而自由落體）
+WW_CAP = 3.0                            # ww 每個接觸 fn/100 的上限：腿交叉時 fn 可達 2755 N，單步 −760 會拉壞 critic            # FEET 索引：前 FAR–FBL、後 RAR–RBL
 TERM_KEYS = ("lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap")
-METRIC_KEYS = TERM_KEYS + ("reward", "lin_small", "level", "fell", "dist", "ww_force", "gap_min", "vx_err", "vy_err", "wz_err", "touch_n", "small", "standing")
+METRIC_KEYS = TERM_KEYS + ("reward", "lin_small", "level", "fell", "oob", "dist", "ww_force", "gap_min", "vx_err", "vy_err", "wz_err", "touch_n", "small", "standing")
 
 
 def quat_rot_inv(q, v):
@@ -87,6 +89,9 @@ class WheelEnv(Env):
         # 換 elliptic 錐或改 condim（含 <pair>）時，_contacts 的法向力解碼就要跟著改，否則讀值錯。
         assert m.opt.cone == 0 and bool((m.geom_condim == 3).all()) and (m.npair == 0 or bool((m.pair_dim == 3).all())), \
             (m.opt.cone, np.unique(m.geom_condim), m.pair_dim)
+        # _contacts 用 dist < 0 判接觸（忽略 margin）；有人改 geom／pair margin 時讀值會靜默出錯，所以在這裡擋
+        assert bool((m.geom_margin == 0).all()) and (m.npair == 0 or bool((m.pair_margin == 0).all())), \
+            (np.unique(m.geom_margin), m.pair_margin)
         self._mj = m
         self.sys = mjx.put_model(m)
         self.H = jnp.array(self.H_np, dtype=jnp.float32)
@@ -182,14 +187,14 @@ class WheelEnv(Env):
 
     def _next_tile(self, rng, data, info):
         """他的 terrain_levels_vel：位移 > 方塊一半升級；位移 < 0.5 × 指令速度 × 回合時間降級；到頂隨機重抽；站立回合不動。
-        reset()（data=None）時隨機抽。"""
+        reset()（data=None）時初始等級抽 0–5；到頂重抽仍是 0–9。"""
         if self.fixed_tile is not None:
             return jnp.int32(self.fixed_tile[0]), jnp.int32(self.fixed_tile[1])
         k = jax.random.split(rng, 3)
         kind = jax.random.randint(k[0], (), 0, len(wt.KINDS))
         rnd = jax.random.randint(k[1], (), 0, wt.LEVELS)
-        if data is None:
-            return kind, rnd
+        if data is None:                                             # 初始等級 0–5（他的 max_init_terrain_level 5）
+            return kind, jax.random.randint(k[1], (), 0, 6)
         dist = jnp.linalg.norm(data.qpos[0:2] - info["xy0"])
         vref = 0.5 * (jnp.linalg.norm(info["cmd_ab"][0]) + jnp.linalg.norm(info["cmd_ab"][1]))
         up = dist > wt.TILE / 2
@@ -283,7 +288,7 @@ class WheelEnv(Env):
         slip = jnp.sum(touch * jnp.sum(vfoot * axis, axis=1) ** 2)                 # 他的 wheel_lateral_slip（spin_axis 1）
         ww_mask = jnp.isin(C["g0"], self.WHEEL_GIDS) & jnp.isin(C["g1"], self.WHEEL_GIDS)
         ww_force = jnp.sum(C["fn"] * ww_mask)
-        ww = jnp.sum((C["fn"] * ww_mask / 100.0) ** 2)                              # 法向力 / 100 N 的 L2（改動一；量級由攤帳校正）
+        ww = jnp.sum((jnp.minimum(C["fn"] / 100.0, WW_CAP) * ww_mask) ** 2)         # 法向力 / 100 N 的 L2（改動一）；上限 3（腿交叉時 fn 可達 2755 N，單步 −760 會拉壞 critic）
         # 實體間隙 hinge（pair 碰不到內側面，見 WHEEL_INNER_W 註解）：gap < GAP_MIN 起罰，(1 − gap/GAP_MIN)²，gap ≤ 0 繼續長
         gaps = jnp.stack([jnp.linalg.norm(foot[i] - foot[j]) for i, j in LAT_PAIRS]) - WHEEL_INNER_W
         wgap = jnp.sum(jnp.maximum(0.0, 1.0 - gaps / GAP_MIN) ** 2)
@@ -302,9 +307,11 @@ class WheelEnv(Env):
     def _after_physics(self, data, info, a, cmd):
         T, aux = self._reward_terms(data, info, a, cmd)
         reward = sum(T.values())
-        fell = self._base_contact(aux["C"])
+        x, y, z = data.qpos[0], data.qpos[1], data.qpos[2]
+        oob = (jnp.abs(x) > X_LIM) | (jnp.abs(y) > Y_LIM) | (z < wt.BASE_H - 0.5)    # 出界／掉落（base 碰不到 floor 時的保險）
+        fell = self._base_contact(aux["C"]) | oob
         metrics = dict(T, reward=reward, lin_small=T["lin"] * info["small"], level=info["level"].astype(jnp.float32),
-                       fell=fell.astype(jnp.float32), dist=jnp.linalg.norm(data.qpos[0:2] - info["xy0"]), ww_force=aux["ww_force"], gap_min=jnp.min(aux["gaps"]),
+                       fell=fell.astype(jnp.float32), oob=oob.astype(jnp.float32), dist=jnp.linalg.norm(data.qpos[0:2] - info["xy0"]), ww_force=aux["ww_force"], gap_min=jnp.min(aux["gaps"]),
                        vx_err=jnp.abs(aux["vb"][0] - cmd[0]), vy_err=jnp.abs(aux["vb"][1] - cmd[1]), wz_err=jnp.abs(aux["w"][2] - cmd[2]),
                        touch_n=jnp.sum(aux["touch"]).astype(jnp.float32), small=info["small"].astype(jnp.float32), standing=info["standing"].astype(jnp.float32))
         return reward, fell, metrics

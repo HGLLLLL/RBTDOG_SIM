@@ -215,13 +215,15 @@ def main():
     ap.add_argument("--onnx", default=str(ROOT.parent / "RL_only" / "2026-09-24_13-23-11.onnx"))
     ap.add_argument("--npz", default="", help="自訓 policy 的狗端 npz（policy_np，含 act_gain）；給了就不用 --onnx，輸出到 outputs/rl_wheel/")
     ap.add_argument("--self-collision", action="store_true", dest="self_collision", help="載入含輪輪 pair 的場景（後輪互碰才看得到）")
-    ap.add_argument("--io", default=str(ROOT.parent / "RL_only" / "policy_io.json"))
+    ap.add_argument("--io", default="", help="policy_io.json；空＝--npz 時用 inference/rl_wheel_io.json（RL_only/ 不在 git），否則 RL_only/policy_io.json")
     ap.add_argument("--terrains", default="flat:0,rough:0.02,rough:0.04,rough:0.06,boxes:0.025,boxes:0.05,boxes:0.10,stairs:0.03,stairs:0.08")
     ap.add_argument("--cmds", default="0.3,0,0;0.5,0,0;1.0,0,0;0,0.5,0;0,0,1.0")
     ap.add_argument("--secs", type=float, default=8.0); ap.add_argument("--seeds", type=int, default=3)
     ap.add_argument("--ideal", action="store_true"); ap.add_argument("--tag", default="")
     ap.add_argument("--video", default=""); ap.add_argument("--video-secs", type=float, default=5.0, dest="video_secs")
     a = ap.parse_args()
+    a.io = a.io or str(ROOT / "inference" / "rl_wheel_io.json" if a.npz else ROOT.parent / "RL_only" / "policy_io.json")
+    print("io:", a.io)
     io = json.load(open(a.io)); pol = ri.load_policy(a.onnx if not a.npz else None, a.npz)
     if a.npz:
         a.tag = a.tag or Path(a.npz).stem

@@ -97,13 +97,13 @@ def test_wheel_wheel_contact_fires_when_squeezed(env):
     T1, aux1 = env._reward_terms(near, _info(env, near), jnp.zeros(16), jnp.zeros(3))
     assert float(aux1["ww_force"]) > 10.0 and float(T1["ww"]) < 0.0
     assert aux1["touch"].shape == (4,)
-    # 釘公式：ww ＝ −w_ww · Σ(fn/100)²，只算兩端都是輪的接觸
+    # 釘公式：ww ＝ −w_ww · Σ min(fn/100, 3)²，只算兩端都是輪的接觸（ww_force 是未截斷的和）
     C = aux1["C"]
     fn, g0, g1 = (np.asarray(C[k]) for k in ("fn", "g0", "g1"))
     wg = np.asarray(env.WHEEL_GIDS)
     mask = np.isin(g0, wg) & np.isin(g1, wg)
     assert float(aux1["ww_force"]) == pytest.approx(float(np.sum(fn * mask)), rel=1e-5)
-    assert float(T1["ww"]) == pytest.approx(-1.0 * float(np.sum((fn * mask / 100.0) ** 2)), rel=1e-5)
+    assert float(T1["ww"]) == pytest.approx(-1.0 * float(np.sum((np.minimum(fn / 100.0, rw.WW_CAP) * mask) ** 2)), rel=1e-5)
     e2 = rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, w_ww=2.0, scene=env.scene)
     T2, _ = e2._reward_terms(near, _info(env, near), jnp.zeros(16), jnp.zeros(3))
     assert float(T2["ww"]) == pytest.approx(2.0 * float(T1["ww"]), rel=1e-6)
@@ -149,6 +149,19 @@ def test_base_contact_terminates(env):
     assert float(s2.metrics["fell"]) == 1.0
     s3 = jax.jit(env.step)(jax.jit(env.reset)(jax.random.PRNGKey(1)), jnp.zeros(16))
     assert float(s3.done) == 0.0
+
+
+@pytest.mark.parametrize("field", ["x", "z"])
+def test_out_of_map_terminates(env, field):
+    """出界／掉落：base 碰不到 floor 時 fell 靠 oob 觸發（x 超過 X_LIM，或 z 低於 BASE_H − 0.5）。"""
+    s = jax.jit(env.reset)(jax.random.PRNGKey(0))
+    q = s.pipeline_state.qpos
+    q = q.at[0].set(rw.X_LIM + 0.5) if field == "x" else q.at[2].set(wt.BASE_H - 0.6)
+    s = s.replace(pipeline_state=s.pipeline_state.replace(qpos=q))
+    s2 = jax.jit(env.step)(s, jnp.zeros(16))
+    assert float(s2.done) == 1.0 and float(s2.metrics["oob"]) == 1.0 and float(s2.metrics["fell"]) == 1.0
+    assert int(s2.info["t"]) == 0                                    # 重生
+    assert abs(float(s2.pipeline_state.qpos[0])) < 1.0               # flat 出生在原點附近
 
 
 def test_metrics_keys(env):

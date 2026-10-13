@@ -91,7 +91,7 @@ def test_spawn_height_on_each_kind():
         assert z == pytest.approx(h + e.Z_STAND, abs=1e-3) and z >= h9 + e.Z_STAND - 1e-4
         assert int(s.info["kind"]) == ki and int(s.info["level"]) == 9
     s = jit_reset(jax.random.PRNGKey(5))
-    assert 0 <= int(s.info["level"]) <= 9 and 0 <= int(s.info["kind"]) <= 2
+    assert 0 <= int(s.info["level"]) <= 5 and 0 <= int(s.info["kind"]) <= 2          # 初始等級 0–5（他的 max_init_terrain_level）
     assert 0.40 < float(rw.WheelEnv(noise=False, push=False, flat=True).Z_STAND) < 0.52
 
 

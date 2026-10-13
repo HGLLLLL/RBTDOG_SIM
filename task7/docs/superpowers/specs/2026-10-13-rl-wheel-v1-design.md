@@ -74,7 +74,7 @@
 ## 4. 地形與課程
 
 - MJX 一個模型一張 hfield → 所有地形拼成一張大圖，出生位置決定踩哪塊。
-- **大圖**：三列 × 十欄的 8 m × 8 m 方塊，解析度 0.1 m，外圍 2 m 平地邊框。欄＝難度等級 0–9，列＝種類：
+- **大圖**：三列 × 十欄的 8 m × 8 m 方塊，解析度 0.1 m，外圍 20 m 平地邊框（他的 border_width 200；大圖 120 m × 64 m，hfield 1201 × 641，`size="60.0 32.0 2.0 0.5"`）。欄＝難度等級 0–9，列＝種類：
 
 | 列 | 種類 | 產生函數 | 幅度隨等級線性 |
 |---|---|---|---|
@@ -84,7 +84,7 @@
 
   `terrain_grid` 從 `diag/rl_only_rough_terrain.py` 搬到環境模組可 import 的位置（diag 腳本改 import），加 "stairs"。
   方格在 hfield 裡是階梯面而非垂直面，與 U 文件的近似相同。
-- **出生**：state.info 帶 `level`（0–9）與 `kind`（0–2 各 1/3）。reset 出生在對應方塊中央 2 m 內隨機點、隨機 yaw，
+- **出生**：state.info 帶 `level`（0–9；reset 初始等級 0–5，他的 max_init_terrain_level）與 `kind`（0–2 各 1/3）。reset 出生在對應方塊中央 2 m 內隨機點、隨機 yaw，
   z ＝ hfield 查高（JAX gather）＋ 0.485。
 - **課程**（他的 `terrain_levels_vel` 規則）：回合結束時，水平位移 > 4 m（方塊一半）→ level +1；位移 < 0.5 · ‖v_xy_cmd‖ · 20 s → level −1；
   夾 0–9；到 9 再升時隨機重抽 0–9。站立回合不升降。等級不進 obs（盲走，同他）。
@@ -104,7 +104,7 @@
 - **總步數**：目標 10 億步（他的 10k ≈ 10k × 4096 × 24 ≈ 9.8 億）。一個 session 跑 3.3 億，`save_checkpoint_path` 指到 Google Drive，
   下一 session `restore_checkpoint_path` 接。Brax 每次 eval（num_evals 20 → 每 5%）存 checkpoint，斷線最多丟 5%。
 - **進度欄**（state.metrics 平均，progress 印）：`len`（回合長度）、`lin`（track_lin 項）、`ang`、`ww`（輪輪接觸項）、`slip`、`level`（平均等級）、`small_lin`（小指令回合的 track_lin）。
-- **停損線**：2 億步時 `len < 600`、或 `lin < 0.5`、或 `ww` 沒比 step 0 低 → 停，不硬跑完。
+- **停損線**：2 億步時 `len < 600`、或 `lin < 0.5`、或 `wgap` 沒比 step 0 好（往 0 走）／`gap` 中位 < 40 mm → 停，不硬跑完。（`ww` 在平地恆 0，只在腿交叉時有值，不能當停損指標；自碰撞的變化由 `wgap` 承載。）
 - **產出**：`task7/weights/rl_wheel_v1_params.pkl`（Brax 格式，含正規化統計）＋ Drive checkpoint 目錄。
 
 ## 6. 開訓前關卡（本機，CPU MJX，不用 Colab）
@@ -158,9 +158,10 @@
 1. **MJX 3.10 無 hfield–cylinder 碰撞**（實測 `NotImplementedError`）：訓練模型 `zgws_mjx_wheel.xml` 的輪子改凸網格圓盤（半徑 0.096、半寬 0.005、16 邊），hfield–mesh、mesh–mesh 都支援；CPU 驗收工具仍用圓柱模型。零訓練對齊（§6）就是在驗這個差異。
 2. **Brax `AutoResetWrapper` 只還原第一次 reset 的狀態、不重呼叫 reset**：回合結束（摔或 t ≥ episode_len）的重生、課程升降、指令重抽全在 `WheelEnv.step` 內用 `jnp.where` 做；訓練用 `rl_env_wheel.wrap_env`（Vmap／DR → Episode → `RespawnWrapper`）傳 `ppo.train(wrap_env_fn=…)`。`WheelEnv` 只回 `done=fell`，time-out 交給 EpisodeWrapper 設 truncation。
 3. **地形基準高 `BASE_H = 1.0`、`ZMAX = 2.0`**：反向樓梯（中央是坑）要往下挖，hfield 資料必須 ≥ 0。CPU 崎嶇地工具的 ZMAX 也由 0.30 改 1.0（stairs 0.08 的平台 0.8 m 超出舊量程會穿地；rough／boxes 幾何不變）。
-4. **輪輪接觸懲罰的法向力**：場景是金字塔摩擦錐（`opt.cone=0`）、condim 3，每個接觸 4 列 efc，法向力＝4 列和（同 `mj_contactForce`），不是第 0 列；`ww = Σ(fn/100 N)²`。MJX 與 CPU MuJoCo 同一姿勢同一步的輪輪法向力差約 15%（2755 vs 3245 N），`ww_force` 不要當絕對牛頓數讀。
+4. **輪輪接觸懲罰的法向力**：場景是金字塔摩擦錐（`opt.cone=0`）、condim 3，每個接觸 4 列 efc，法向力＝4 列和（同 `mj_contactForce`），不是第 0 列；`ww = Σ min(fn/100 N, 3)²`（上限見註記 10）。MJX 與 CPU MuJoCo 同一姿勢同一步的輪輪法向力差約 15%（2755 vs 3245 N），`ww_force` 不要當絕對牛頓數讀。
 5. 場景檔補 `<option timestep="0.005"/>`（原本沒有，載入後是預設 0.002）。
 6. 狗端 `gen_direct` 只收 `ref.family == "rl_only"`（那是 rl16 介面族的名字）：`rl_wheel` npz 的 `ref.family` 維持 `"rl_only"`，用 `preset="rl_wheel"` 與 `gen_json.source.family` 區分；狗端不改。
 7. 續訓：brax `restore_params` 不還原 `env_steps`，notebook 用 `STEP_OFFSET`（從 RESUME 檔名 `step<N>` 解析）讓 checkpoint 檔名與進度列是累計步數；optimizer 與 ADAPTIVE_KL 學習率在續訓時重置。
 8. **對齊關卡改絕對差**：16 邊網格輪子對 CPU 圓柱平面的追蹤差 vx 列 ≤ 0.022 m/s、wz 列 ≤ 2.0 °/s、0 摔；vy 0.3 在他的死區（0.04–0.14 m/s）百分比無意義。同幾何（cpu′）vx 列與 wz 1.0 ≤ 1.6 pp，wz 0.5 為 4.7 pp（約 1 °/s）。攤帳：他的 10k 在 vy 0.5 wgap 平均 −0.022（15% 步 < 80 mm），vy 0.3 −0.001，其餘 0。32／48 邊實驗：vx 微好、偏航反而差（MJX 對細網格偏低），維持 16 邊。
 9. **pair 圓盤碰不到實機的那種碰撞**：v3f 碰撞圓盤在 link y=−0.047（輪胎外側平面、半寬 5 mm），官方網格 y∈[−0.070,+0.017]，實機後輪互碰是內面（+0.017）相碰；兩圓盤要腿交叉才會碰。所以改動一的主力是 `wgap`（實體間隙 hinge，閾值 80 mm、權重 2.0；他的 10k 在 vy 0.5 時 gap 最小 33 mm），`ww` 力項只擋交叉。驗收與工具的 gap 口徑統一為「中心距 − 34 mm」。
+10. **出界／掉落終止、BORDER 20 m、初始等級 0–5、ww 上限 3**（整支 review 後修正）：外框原為 2 m，方塊中心離圖邊只 6 m，我們的指令分佈約 22% 回合開出圖外；開出去後 base 碰不到 `floor`，`fell` 不觸發而自由落體（實測 6 s 掉到 z −98 m、`vz` 項每步約 −3900）。改為 `BORDER = 20.0`（同他的 border_width 200），並在終止加 `oob`：|x| > X_LIM、|y| > Y_LIM（hfield 邊往內 1 m）或 z < BASE_H − 0.5，`fell = base_contact | oob`，metric 多 `oob`。reset 初始等級改抽 0–5（他的 max_init_terrain_level 5），到頂重抽維持 0–9。`ww` 每個接觸 fn/100 截在 3（腿交叉時 fn 可達 2755 N，單步 −760 會拉壞 critic）；`ww_force` metric 仍是未截斷的和。`_contacts` 用 dist < 0，`WheelEnv` 啟動時 assert 所有 geom／pair margin 為 0。

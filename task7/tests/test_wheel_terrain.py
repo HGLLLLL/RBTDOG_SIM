@@ -11,8 +11,8 @@ import wheel_terrain as wt  # noqa: E402
 
 
 def test_layout_constants():
-    assert (wt.NT, wt.NB, wt.NCOL, wt.NROW) == (80, 20, 841, 281)
-    assert (wt.X0, wt.Y0) == (-42.0, -14.0)
+    assert (wt.NT, wt.NB, wt.NCOL, wt.NROW) == (80, 200, 1201, 641)      # 外框 20 m（他的 border_width 200）
+    assert (wt.X0, wt.Y0) == (-60.0, -32.0)
     assert wt.tile_origin(0, 0) == (-36.0, -8.0) and wt.tile_origin(2, 9) == (36.0, 8.0)
 
 
@@ -54,6 +54,7 @@ def test_build_map_tiles_and_border():
     H = wt.build_map(seed=0)
     assert H.shape == (wt.NROW, wt.NCOL)
     assert np.all(H[:wt.NB, :] == wt.BASE_H) and np.all(H[:, :wt.NB] == wt.BASE_H)        # 外框平地
+    assert np.all(H[-wt.NB:, :] == wt.BASE_H) and np.all(H[:, -wt.NB:] == wt.BASE_H)
     for ki in range(3):
         for lv in range(wt.LEVELS):
             x, y = wt.tile_origin(ki, lv)
@@ -82,7 +83,7 @@ def test_scene_files_load_and_match_mjx_requirements():
         assert m.geom_type[g] == mujoco.mjtGeom.mjGEOM_MESH
         a = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_ACTUATOR, f"{p}_FOOT_LINK")
         assert m.actuator_gainprm[a, 0] == pytest.approx(1.0) and m.actuator_biasprm[a, 2] == pytest.approx(-1.0)
-    assert abs(m.hfield_size[0][0] - 42.0) < 1e-9 and abs(m.hfield_size[0][1] - 14.0) < 1e-9 and m.hfield_size[0][2] == wt.ZMAX
+    assert abs(m.hfield_size[0][0] - 60.0) < 1e-9 and abs(m.hfield_size[0][1] - 32.0) < 1e-9 and m.hfield_size[0][2] == wt.ZMAX
     # CPU 工具的 pair 場景：圓柱輪子不動、只加 pair
     m2 = mujoco.MjModel.from_xml_path(wt.make_flat_pairs_scene_xml())
     g = mujoco.mj_name2id(m2, mujoco.mjtObj.mjOBJ_GEOM, "FAR_FOOT_LINK_COLL")

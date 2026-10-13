@@ -1,6 +1,6 @@
 """純 RL 自訓 v1 的地形與場景（spec docs/superpowers/specs/2026-10-13-rl-wheel-v1-design.md §4）。
 
-大圖：三列（rough／boxes／stairs）× 十欄（難度 0–9）的 8 m × 8 m 方塊，格距 0.1 m，外圍 2 m 平地；
+大圖：三列（rough／boxes／stairs）× 十欄（難度 0–9）的 8 m × 8 m 方塊，格距 0.1 m，外圍 20 m 平地（他的 border_width 200；2 m 時離邊只 6 m、開出圖外會自由落體）；
 全圖基準高 BASE_H（反向樓梯往下挖，hfield 資料仍 ≥ 0）。
 場景：`scene_flat_mjx_v3f.xml` 去平面、加 hfield、輪子換凸網格圓盤（**MJX 3.10 不支援 hfield–cylinder**）、輪速伺服 kv 1.0（他的 IdealPD）、
 四個輪輪 `<pair>`。CPU 驗收工具用 `make_flat_pairs_scene_xml()`（圓柱輪子＋pair）。
@@ -20,12 +20,12 @@ TILE = 8.0                                 # 方塊邊長 m
 NT = int(round(TILE / DX))                 # 每方塊 80 格
 LEVELS = 10
 KINDS = ("rough", "boxes", "stairs")
-BORDER = 2.0                               # 大圖外圍平地 m
-NB = int(round(BORDER / DX))               # 20 格
-NCOL = 2 * NB + LEVELS * NT + 1            # 841（x）
-NROW = 2 * NB + len(KINDS) * NT + 1        # 281（y）
-X0 = -(NCOL - 1) * DX / 2                  # -42.0
-Y0 = -(NROW - 1) * DX / 2                  # -14.0
+BORDER = 20.0                              # 大圖外圍平地 m（他的 border_width 200；2 m 時 ~22% 回合開出圖外）
+NB = int(round(BORDER / DX))               # 200 格
+NCOL = 2 * NB + LEVELS * NT + 1            # 1201（x）
+NROW = 2 * NB + len(KINDS) * NT + 1        # 641（y）
+X0 = -(NCOL - 1) * DX / 2                  # -60.0
+Y0 = -(NROW - 1) * DX / 2                  # -32.0
 BASE_H = 1.0                               # 全圖基準高 m
 ZMAX = 2.0                                 # hfield 高度量程 m（資料 0..1 ↔ 0..ZMAX）
 TILE_BORDER = 0.25                         # 每方塊邊緣壓平寬 m（他的 border_width）

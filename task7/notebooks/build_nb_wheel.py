@@ -16,14 +16,14 @@ md0 = """# 純 RL 自訓 **v1**：智元 D1 Max · 同事 Wheel-Rough 環境的 
 
 在同事的純 RL 第二版（Isaac Lab，10k，trip25 上機 11 趟 0 摔）之上，用我們的 MJX + Brax PPO 線重訓（spec `docs/superpowers/specs/2026-10-13-rl-wheel-v1-design.md`）：
 - obs 53／動作 16／reward 十項照他的 env.yaml；地形 rough／boxes／**stairs**（階高 3–8 cm）三列 × 十級課程。
-- 改動一 自碰撞：輪輪 `<pair>` ＋ 接觸力懲罰（`ww`）。改動二 小指令：追蹤 std 0.5 → 0.25、30% 回合小指令。改動三 輪摩擦：real 關節摩擦 DR。
+- 改動一 自碰撞：輪輪 pair ＋ 實體間隙 hinge（`wgap`）＋ 接觸力（`ww`，只擋腿交叉）。改動二 小指令：追蹤 std 0.5 → 0.25、30% 回合小指令。改動三 輪摩擦：real 關節摩擦 DR。
 - 開訓前關卡已過：`outputs/rl_wheel/align_10k.md`（他的 10k 在這個環境零訓練重現）、`outputs/reward_audit_wheel_v1.md`。
 
 **流程**：第一格 throughput 測試選 `NUM_ENVS` → 訓練（每次 eval 存 pkl 到 Drive）→ 一個 session 跑 3.3 億步 → 下個 session `RESUME` 指到 Drive 上**檔名步數最大**的 `rl_wheel_v1_step*.pkl` 再跑（累計步數由檔名自動解析）→ 合計 10 億步。
 **續訓注意**：只還原網路與 normalizer，Adam 動量與 ADAPTIVE_KL 學習率會重置，每個 session 開頭 reward 可能短暫抖動，不是退步。
 **記憶體**：throughput 格的 10 億步 ETA 是下限（純 step 速率）；訓練格 OOM 就手動把 `NUM_ENVS` 降一檔。
-**停損**：累計 2 億步時 `len < 600`（一直摔）、或 `lin < 0.5`（站著不動）、或 `ww` 沒比 step 0 低（改動一沒被學到）→ 停，不硬跑完。
-**讀法**：`lin`／`ang` 往 2.5／1.25 走；`ww`、`slip` 往 0；`level` 往上代表課程在升；`lin_small` 是小指令回合的追蹤；`fell` 往 0；len 往 1000。
+**停損**：累計 2 億步時 `len < 600`（一直摔）、或 `lin < 0.5`（站著不動）、或 `wgap` 沒比 step 0 好（往 0 走）／`gap` 中位 < 40 mm（改動一沒被學到；`ww` 平地恆 0 不能看）→ 停，不硬跑完。
+**讀法**：`lin`／`ang` 往 2.5／1.25 走；`wgap`、`ww`、`slip` 往 0；`level` 往上代表課程在升；`lin_small` 是小指令回合的追蹤；`fell` 往 0；len 往 1000。
 """
 
 clone_src = '''import os, subprocess, sys
@@ -95,7 +95,13 @@ DRIVE = "/content/drive/MyDrive/rl_wheel_v1"; import os; os.makedirs(DRIVE, exis
 import re
 RESUME = None
 _restore = None if RESUME is None else model.load_params(RESUME)
-STEP_OFFSET = 0 if RESUME is None else int(re.search(r"step(\\d+)", RESUME).group(1))   # 續訓：從 RESUME 檔名解析累計步數
+def _step_offset(path):
+    """續訓：從 RESUME 檔名解析累計步數；檔名沒有 step<N> 就報錯（不要靜默從 0 算）。"""
+    m_ = re.search(r"step(\\d+)", path)
+    if m_ is None:
+        raise ValueError("RESUME 要指到 rl_wheel_v1_step<N>.pkl，不是 rl_wheel_v1_params.pkl")
+    return int(m_.group(1))
+STEP_OFFSET = 0 if RESUME is None else _step_offset(RESUME)
 TIMESTEPS = 330_000_000
 
 env = rw.WheelEnv()

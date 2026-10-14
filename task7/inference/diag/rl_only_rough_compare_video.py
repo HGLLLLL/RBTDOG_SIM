@@ -59,6 +59,7 @@ def main():
                     help="地形:振幅:vx,vy,wz 以分號分隔")
     ap.add_argument("--seed", type=int, default=0); ap.add_argument("--secs", type=float, default=6.0, help="每段影片長（從指令切入起算）")
     ap.add_argument("--video", default=str(rt.OUT / "rough_compare.mp4"))
+    ap.add_argument("--no-air", action="store_true", dest="no_air", help="字幕不印「真離地」欄（給報告用；8 cm 樓梯 v1b 是滾上去的，離地 1% 會被問）")
     a = ap.parse_args()
     os.environ.setdefault("MUJOCO_GL", "egl")
     import mujoco, imageio
@@ -99,7 +100,8 @@ def main():
                 fell = R["fell"]; t_now = (i - i0) * 0.02
                 status = "摔倒" if (fell is not None and i * 0.02 >= fell) else ("" if fell is None else "")
                 dr.text((14, 6), name + (f"　　× {status}" if status else ""), font=font, fill=(255, 120, 120) if status else (255, 255, 255))
-                dr.text((14, 44), f"vx {g['vx']:+.2f}  vy {g['vy']:+.2f}  偏航 {g['yaw']:+.0f}°/s  roll 峰 {g['roll_max']:.0f}°  pitch 峰 {g['pitch_max']:.0f}°  真離地 {np.mean(g['tsteps_s']):.1f} 步/秒・{np.mean(g['tair']):.0f}%  摔 {'無' if fell is None else f'{fell-1.0:.1f} s'}", font=font2, fill=(255, 235, 120))
+                air = "" if a.no_air else f"  真離地 {np.mean(g['tsteps_s']):.1f} 步/秒・{np.mean(g['tair']):.0f}%"
+                dr.text((14, 44), f"vx {g['vx']:+.2f}  vy {g['vy']:+.2f}  偏航 {g['yaw']:+.0f}°/s  roll 峰 {g['roll_max']:.0f}°  pitch 峰 {g['pitch_max']:.0f}°{air}  摔 {'無' if fell is None else f'{fell-1.0:.1f} s'}", font=font2, fill=(255, 235, 120))
                 panels.append(im)
             canvas = Image.new("RGB", (2 * W + 6, H + 40), (20, 20, 20))
             canvas.paste(panels[0], (0, 40)); canvas.paste(panels[1], (W + 6, 40))

@@ -19,6 +19,8 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import wheel_terrain as wt  # noqa: E402
+sys.path.insert(0, str(HERE.parent / "realbot"))
+from rl_obs_rl import grav_fix_matrix  # noqa: E402   # 重力歸零矩陣與狗端同一份（--grav-bias 注入、--grav-offset 歸零）
 RL = HERE.parent.parent / "RL_only"
 OUT = HERE.parent / "outputs" / "rl_only"
 
@@ -51,9 +53,13 @@ def segments(c, thr, dt, lo=None, min_s=0.06):
 
 
 class Sim:
-    def __init__(self, io, dt=0.005, ideal=False, wheel_kv=1.0, scene=None):
+    def __init__(self, io, dt=0.005, ideal=False, wheel_kv=1.0, scene=None, grav_bias=(0.0, 0.0), grav_offset=(0.0, 0.0)):
         import mujoco, max_model as mm
         self.mj = mujoco
+        # ★ 重力向量的 sim2real 項（2026-10-14，trip26 平移前漂）：`grav_bias` 模擬 IMU 安裝偏差——機身水平時讀 (roll, pitch)，
+        #   policy 看到 g = R_biasᵀ·g_true；`grav_offset` 是狗端 `--grav-offset` 的同一個修正 g' = R_fix·g。兩者同值就互相抵消。
+        self.grav_bias_T = grav_fix_matrix(*grav_bias).T
+        self.grav_fix = grav_fix_matrix(*grav_offset)
         self.m = mujoco.MjModel.from_xml_path(scene or mm.SCENE_MJX_V3F)
         self.d = mujoco.MjData(self.m)
         self.m.opt.timestep = dt
@@ -96,7 +102,7 @@ class Sim:
     def obs(self, cmd):
         d = self.d
         R = quat_to_R(d.qpos[3:7])
-        grav = R.T @ np.array([0.0, 0.0, -1.0])
+        grav = self.grav_fix @ (self.grav_bias_T @ (R.T @ np.array([0.0, 0.0, -1.0])))
         ang = d.qvel[3:6].copy()                       # free joint 角速度＝機身座標
         jpos = d.qpos[self.qadr[:12]] - self.default[:12]
         jvel = d.qvel[self.vadr]
@@ -219,6 +225,10 @@ def main():
     ap.add_argument("--dt", type=float, default=0.005); ap.add_argument("--ideal", action="store_true")
     ap.add_argument("--wheel-kv", type=float, default=1.0)
     ap.add_argument("--delay", type=int, default=0); ap.add_argument("--noise", action="store_true"); ap.add_argument("--push", type=float, default=0.0)
+    ap.add_argument("--grav-bias", type=float, nargs=2, default=[0.0, 0.0], metavar=("ROLL", "PITCH"), dest="grav_bias",
+                    help="注入 IMU 安裝偏差（機身水平時讀到的 roll°, pitch°；實機 trip24–26 站立 +0.7／−1.5）")
+    ap.add_argument("--grav-offset", type=float, nargs=2, default=[0.0, 0.0], metavar=("ROLL", "PITCH"), dest="grav_offset",
+                    help="狗端 M9 --grav-offset 的同一個歸零修正；與 --grav-bias 同值就抵消")
     ap.add_argument("--video", default=""); ap.add_argument("--tag", default="")
     ap.add_argument("--mesh", action="store_true", help="影片用官方 STL 網格模型渲染（scene_flat.xml；物理仍是 v3f 模型，只換外觀）")
     ap.add_argument("--title", default="", help="影片標題前綴")
@@ -232,7 +242,8 @@ def main():
     if a.npz:
         a.tag = a.tag or Path(a.npz).stem
     out_dir = OUT.parent / "rl_wheel" if a.npz else OUT
-    sim = Sim(io, dt=a.dt, ideal=a.ideal, wheel_kv=a.wheel_kv, scene=(wt.make_flat_pairs_scene_xml() if a.self_collision else None))
+    sim = Sim(io, dt=a.dt, ideal=a.ideal, wheel_kv=a.wheel_kv, scene=(wt.make_flat_pairs_scene_xml() if a.self_collision else None),
+              grav_bias=a.grav_bias, grav_offset=a.grav_offset)
     out_dir.mkdir(parents=True, exist_ok=True)
     rows, trajs = [], {}
     for s in a.cmds.split(";"):
@@ -247,7 +258,8 @@ def main():
     mode = "ideal" if a.ideal else "real"
     L = [f"# RL_only 純 RL 步態在 MuJoCo 重現（{mode}{'，' + a.tag if a.tag else ''}）", "",
          f"模型 `scene_flat_mjx_v3f.xml`（腿 kp 60/120/120 kd 1.0、輪 kv {a.wheel_kv}、forcerange 150/33）；子步 {a.dt} s × {sim.sub}；指令 {a.secs} s（先 {a.settle} s 零指令站定）；統計取指令後 1 s 起。",
-         f"{'關節摩擦／慣量歸零（IdealPD）' if a.ideal else '含實機辨識的關節摩擦 1.85/1.5、輪 0.13'}；動作延遲 {a.delay} 步、obs 雜訊 {'開' if a.noise else '關'}、推力 ±{a.push} m/s；輪輪 pair {'開' if a.self_collision else '關'}；policy `{Path(a.npz or a.onnx).name}`。", "",
+         f"{'關節摩擦／慣量歸零（IdealPD）' if a.ideal else '含實機辨識的關節摩擦 1.85/1.5、輪 0.13'}；動作延遲 {a.delay} 步、obs 雜訊 {'開' if a.noise else '關'}、推力 ±{a.push} m/s；輪輪 pair {'開' if a.self_collision else '關'}；"
+         f"IMU 偏差 roll {a.grav_bias[0]:+g}° pitch {a.grav_bias[1]:+g}°、重力歸零 {a.grav_offset[0]:+g}／{a.grav_offset[1]:+g}°；policy `{Path(a.npz or a.onnx).name}`。", "",
          "| 指令 | 摔 | vx | vy | 偏航 °/s（±std） | roll std/峰 ° | 機身高 | 抬腳 mm（FR,FL,RR,RL） | 步/秒 | τ ABAD/髖/膝/輪 | \\|a\\| 平均/最大/>1% | 輪速峰 | 關節速峰 | 誤差峰 ABAD/髖膝 | 命令速峰 | 飽和% | 後輪 gap mm |",
          "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for name, cmd, g in rows:

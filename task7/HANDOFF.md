@@ -28,7 +28,7 @@
 
 | 權重 | 狀態 | 驗收表（`outputs/`） |
 |---|---|---|
-| **rl_wheel_v1b**（自訓，MJX，累計 10 億步）`weights/rl_wheel_v1b_params.pkl`／`rl_wheel_v1b_np.npz`（sha `a02a4631d3f3`） | ★ **待上機（trip26）**：spec 八項過七項（wz ±0.5 94／91%、±1.0 99.5%、間隙 245–325 mm、vy 0.3 動、0 摔）；崎嶇地 boxes 10 cm 側移 1/3 摔。 |
+| **rl_wheel_v1b**（自訓，MJX，累計 10 億步）`weights/rl_wheel_v1b_params.pkl`／`rl_wheel_v1b_np.npz`（sha `a02a4631d3f3`） | ★ **已上機（trip26）13 趟 0 摔**：後輪不碰 ≥ 206 mm、慢轉 89–92% 不飄、±1.0 98%、vy 0.3 會動；**平移前漂 +0.12～0.17 m/s**（IMU 重力偏差，`--grav-offset` 待 trip27）；左平移持續 roll 7–10°（模擬同）。模擬：崎嶇地 boxes 10 cm 側移 1/3 摔。 | `rl_wheel/eval_rl_only_{real,ideal,real_v1b_push}_v1b.md`、`eval_rl_wheel_rough_real_v1b.md`；W §7、**X 文件** |
 | rl_wheel_v1（5 億步）`weights/rl_wheel_v1_params.pkl`／`rl_wheel_v1_np.npz`（sha `83220469ef90`） | 平移解但 wz 沒過、ABAD 貼止點；已被 v1b 取代。 | `rl_wheel/eval_rl_only_{real,ideal,real_v1_push}_v1.md`、`eval_rl_wheel_rough_real_v1.md`；對照 `rl_only/eval_rl_only_{real,rough_real}_10k_pairs.md`；W 文件 |
 | **RL_only 10k** `weights/rl_only_2026-10-01_10k_np.npz`（sha `5ec719a97175`） | ★ **已上機（trip25）11 趟 0 摔**：直走 0.29、平移真踏步、轉 ±1.0 98–99%、右轉 −0.5 不塌；平移後輪互碰、慢轉飄 → 重訓。 | `rl_only/eval_rl_only_{real,ideal}_10k.md`、`eval_rl_only_rough_real_10k.md`、`logs_1006/` |
 | RL_only 5k `weights/rl_only_2026-10-01_5k_np.npz`（sha `eb4cff3750ec`） | 對照組，**還沒上機**；模擬同 10k 但低速超速、平移後輪間距較寬（124–156 mm）。 | 同上 `_5k` |
@@ -54,13 +54,15 @@
 - **實機 log 分析** `inference/diag/m9_v3_trip_report.py [目錄stamp:名稱 …]`（FK 足端離地、偏航率、ABAD 用量、時序；rl16 log 的 FK／偏航部分通用）。
 - **CPG-RL v3 線** `inference/local_infer_v3.py --preset … --mirror --mirror-lat`；`export_policy_v3.py`；影子 `tests/test_policy_v3_closed_loop.py`。
 - **給同事的獨立 repo `~/d1max-rl-deploy`**（2026-09-30）：純 RL 上機線；**commit 不加 AI 署名**；這次改的 `tests/test_policy_rl_*.py`（環境變數）、`diag/rl_only_rough_terrain.py`、兩個掃描腳本、`push_to_dog.sh` 要同步搬過去（那邊沒有 `task7/` 這層）。
-- 全套測試 `conda run -n rbtdog python -m pytest task7/tests -q`；`test_rl_env_v3_golden.py` 釘住 v3.3 逐位元不變。
+- **重力歸零** `M9_gait.py … --grav-offset 0.7 -1.5`（rl16 限定；表頭印「重力歸零 …」）；模擬端 `rl_only_infer.py --grav-bias R P`（注入 IMU 偏差）／`--grav-offset R P`（歸零）。
+- **實機里程法**（X §3）：支撐足＝FK 淨空 < 6 mm，vx ＝ −支撐足 x 速度 ＋ 輪速×0.0961；直走驗過（0.32 對 0.32）；vy 看不到輪側滑會低估。腳本沒入 repo，要用再從 X §3 重寫進 `rl16_trip_report.py`。
+- 全套測試 `conda run -n rbtdog python -m pytest task7/tests -q`；`test_rl_env_v3_golden.py` 釘住 v3.3 逐位元不變。**grav-offset 改動後全套 1099 passed（10-14 下午，30 分）。**
 
 ## 4. 未解／待決（依優先序）
 
-0′. **純 RL 自訓 v1 上 Colab**（§1）；plan 層級待觀察：探索幅度、每回合只推一次（同 Isaac）、腿 frictionloss 單一倍率。最終審查 Minor 清單在 `.superpowers/sdd/progress.md`。
-0. **純 RL 線重訓清單（V §6）**：自碰撞（平移後輪互碰）、小指令追蹤（vy ≤ 0.3 死區、wz 0.5 只 70% 且飄）、輪摩擦補償。右轉止點餘裕已解（實機驗過）。
-   站立／輪行時腿小幅調整的代價實測：溫度最高 27 °C、τ 峰 28，沒事。
+0. **trip27 歸零驗證**（§1）→ 決定 v1c 清單：動作延遲＋IMU 常數偏差隨機化、roll 懲罰、崎嶇地側移樣本。plan 層級待觀察：探索幅度、每回合只推一次、腿 frictionloss 單一倍率（`.superpowers/sdd/progress.md`）。
+0′. **`rl16_trip_report.py` 抬腳欄要修**（X §5）：FK 校正拿 IMU 原始 roll／pitch，站立不動也算出前腳抬 16–24 mm → 要扣 READY 段均值、各腿對自己基準；V 文件（trip25）的前腳抬腳數字可能同樣偏高，修完回頭重算。順便把里程法加進去。
+0″. V §6 重訓清單裡**已解**（v1b 實機）：後輪互碰、vy 0.3 死區、慢轉飄。還在：輪摩擦補償（輪 effort 恆 0）。站立腿小幅調整的代價實測：溫度 27 °C、τ 峰 28，沒事。
 1. **M9 硬上限誤中止**（trip25 ④）：`tau_hot` 連續 2 筆要加「相隔 ≥ 4 ms」（追趕 tick 不計；程式在 `M9_gait.py` 約 2075 行，`test_m9_gait.py` 有釘住快速路徑字面的測試要一起改）。
 1′. **影子跟跑 Δact 門檻**放寬到 1e-3（新 policy 對 `last_action` 敏感、兩端各餵自己的動作沿軌跡放大；感測段 Δobs 仍 0）—— 理由在測試註解與 U §2。
 2. **CPG-RL v3 線（暫停）**：低速原地轉拖地＝抬高隨 |wz|/1.3 縮（R §2）、平移側滑、平移 0.20 護欄不夠、ABAD 貼止點、τ 逼近 TMAX（不動 TMAX）、
@@ -90,5 +92,6 @@
 
 08-27 承重站立 → 09-02 第一次走路 → 09-09 RL v2.3 首次上機（trip19）、原廠參考錄製 → 09-15 v3.1 統一產生器 → 09-22 v3.6f（可部署最佳）→
 09-23／09-29 v3.6f 上機驗收完（trip22／23）→ 09-29 主線換同事純 RL（RL_only）→ **09-30 純 RL 首次上機（trip24）12 趟 0 摔** →
-10-06 純 RL 第二版（崎嶇地形 10k／5k）MuJoCo 重現 0 摔 → **同日 trip25 上機 11 趟 0 摔：直走 0.29、平移真踏步、轉 ±1.0 98–99%、右轉 −0.5 不塌；平移後輪互碰、慢轉飄待重訓** → 10-13 純 RL 自訓 v1（5 億）→ **v1b（10 億）：wz ±0.5 94%、間隙 245 mm、0 摔，八項過七項，待 trip26**。
+10-06 純 RL 第二版（崎嶇地形 10k／5k）MuJoCo 重現 0 摔 → **同日 trip25 上機 11 趟 0 摔：直走 0.29、平移真踏步、轉 ±1.0 98–99%、右轉 −0.5 不塌；平移後輪互碰、慢轉飄待重訓** → 10-13 純 RL 自訓 v1（5 億）→ v1b（10 億）八項過七項 →
+**10-14 trip26 v1b 上機 13 趟 0 摔：後輪不碰、慢轉不飄、vy 0.3 會動；平移前漂 → 根因 IMU 重力偏差，`--grav-offset` 待 trip27**。
 各版為什麼改：`docs/superpowers/specs/2026-09-*-cpg-rl-v3.*.md`；純 RL 線：S／T／U 文件。

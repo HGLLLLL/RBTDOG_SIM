@@ -1356,6 +1356,9 @@ def main() -> int:
                     help="--v3 這趟的固定指令 (m/s, m/s, rad/s)；GAIT 進入 1 s 後生效。原地右轉／右平移自動走鏡像推論")
     ap.add_argument("--mirror", action=argparse.BooleanOptionalAction, default=True,
                     help="--v3：右向指令用鏡像推論（obs 鏡像 → policy → 動作鏡像）。--no-mirror 只為對照")
+    ap.add_argument("--grav-offset", type=float, nargs=2, default=[0.0, 0.0], metavar=("ROLL", "PITCH"), dest="grav_offset",
+                    help="★ rl16 限定：機身水平時 IMU 讀到的 (roll°, pitch°)，policy 的重力向量會扣掉它（2026-10-14，trip26 平移前漂 +0.13 m/s；"
+                         "trip24／25／26 站立讀值 +0.7／−1.5）。只動 obs，傾角護欄仍用原始 IMU")
     ap.add_argument("--emax-abad", type=float, default=1.2, dest="emax_abad",
                     help="--v3：ABAD 追蹤誤差護欄 rad（原廠平移 ABAD 命令差實測到 1.02；--emax 只管髖膝）。值照影子跟跑峰值 ×1.3")
     ap.add_argument("--hold-max", type=float, default=25.0, dest="hold_max",
@@ -1585,7 +1588,14 @@ def main() -> int:
                   f"（要 v3/88/24 或 rl16/53/16）—— 用 export_policy_v3.py／export_policy_rl.py 重匯出。")
             return 1
         P3 = genmod.load_params(a.v3)
-        O3 = obsmod.Obs(a.v3)
+        grav_off = (float(a.grav_offset[0]), float(a.grav_offset[1]))
+        if policy.layout == "rl16":
+            O3 = obsmod.Obs(a.v3, grav_offset=grav_off)      # rl_obs_rl：重力歸零（見該檔 docstring）
+        elif grav_off != (0.0, 0.0):
+            print("❌ --grav-offset 只有 rl16 版面（rl_obs_rl）支援；v3 版面請拿掉。")
+            return 1
+        else:
+            O3 = obsmod.Obs(a.v3)
         # ★ npz 太舊（2026-09-23 最終審查）：`WHEEL_TAU_MAX` 是後來才加進 npz 的，`v3_wheel_rows` 在 200 Hz 迴圈裡直接
         #   `p.K["WHEEL_TAU_MAX"]`，缺鍵會在**承重中的第一個 GAIT_IN tick** KeyError 把主迴圈炸掉；而 sha 印的是 pkl 的指紋，
         #   分不出新舊 npz。所以開跑前先擋。
@@ -1604,6 +1614,10 @@ def main() -> int:
               f"指令 vx {a.cmd[0]:g} vy {a.cmd[1]:g} wz {a.cmd[2]:g}　鏡像 {'開' if a.mirror else '關'}"
               f"（這趟{'走鏡像' if a.mirror and rl_obs_v3.is_right(a.cmd) else '不鏡像'}）　混合比例 {a.policy_gain:g}"
               f"{'（乾跑：零動作名目）' if a.policy_gain == 0 else ''}")
+        if policy.layout == "rl16":
+            print(f"重力歸零 roll {grav_off[0]:+.2f}° pitch {grav_off[1]:+.2f}°"
+                  + ("（關；站立時 policy 看到的是 IMU 原始值，trip24–26 讀 +0.7／−1.5 → 平移會前漂）" if grav_off == (0.0, 0.0)
+                     else "（READY 站好時 IMU 讀值應接近這組；差 > 1° 就停下來想）"))
         _t0 = time.perf_counter()
         for _ in range(20):
             policy.infer(_np.zeros(policy.obs_dim, dtype=_np.float32))

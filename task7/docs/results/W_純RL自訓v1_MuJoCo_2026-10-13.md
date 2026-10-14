@@ -102,3 +102,7 @@
 - 旗標同 trip25：`--v3 rl_wheel_v1b_np.npz --interactive --no-mirror --kp 120 --kp-abad 60 --kd 1.0 --wheel-mode kd1 --wheel-kd 1.0 --vmax 18 --vcmd-max 16 --emax-abad 0.80 --emax 0.55 --tau-total 5 --wheel-vmax 30 --hold-max 15`。
 - 順序：站立 → vx 0.3 → vx 0.5 → wz ±0.5 → wz ±1.0 → vy ±0.5 → vy 0.6 → 0.5+0.5。平移段吊帶必掛（roll 峰 9°、關節速 9–11）。
 - 預期值（從上表）：直走 0.3 → 0.33、wz 0.5 → 27 °/s、wz 1.0 → 57、vy 0.5 → 0.44、後輪間隙 ≥ 245 mm（實機口徑同 V 文件 FK）。
+
+## 8. 上機結果（trip26，2026-10-14）
+
+→ `X_純RL自訓v1b_首次上機_trip26_2026-10-14.md`：13 趟 0 摔，三項重訓目標達成；平移前漂 +0.12～0.17 m/s，根因＝IMU 重力向量偏差（+0.7／−1.5°），`--grav-offset` 待 trip27 驗。

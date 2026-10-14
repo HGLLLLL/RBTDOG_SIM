@@ -1260,3 +1260,59 @@ Ctrl-C 可隨時結束並印摘要
 [14:28:18.138  t=3378.50s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fl4_foot, fr1_hip_roll, fr2_hip_pitch 等 16 顆
 [14:28:29.637  t=3390.00s] 取樣  33900  最高溫 27°C  最低電壓 60.0V  error=[1]
 [14:28:59.639  t=3420.00s] 取樣  34200  最高溫 27°C  最低電壓 60.0V  error=[1]
+[14:29:29.637  t=3450.00s] 取樣  34500  最高溫 27°C  最低電壓 60.0V  error=[1]
+[14:29:59.637  t=3480.00s] 取樣  34800  最高溫 27°C  最低電壓 60.0V  error=[1]
+[14:30:29.637  t=3510.00s] 取樣  35100  最高溫 27°C  最低電壓 60.0V  error=[1]
+[14:30:59.637  t=3540.00s] 取樣  35400  最高溫 27°C  最低電壓 60.0V  error=[1]
+[14:31:29.638  t=3570.00s] 取樣  35700  最高溫 27°C  最低電壓 60.0V  error=[1]
+
+============================================================
+記錄 3600.0 秒、36000 筆取樣
+
+★ 偵測到 1140 個事件：
+   [13:33:02.838  t=  63.20s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fl4_foot, fr1_hip_roll, fr2_hip_pitch 等 16 顆
+   [13:33:06.838  t=  67.20s] joint_cmd 增益變化：fl1_hip_roll, fl2_hip_pitch, fl3_knee_pitch, fl4_foot, fr1_hip_roll, fr2_hip_pitch 等 16 顆
+   [13:33:06.938  t=  67.30s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:07.038  t=  67.40s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:07.138  t=  67.50s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:07.238  t=  67.60s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:07.338  t=  67.70s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:07.438  t=  67.80s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:07.538  t=  67.90s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:07.638  t=  68.00s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:07.738  t=  68.10s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:07.838  t=  68.20s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:07.938  t=  68.30s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:08.038  t=  68.40s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:08.138  t=  68.50s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:08.238  t=  68.60s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:08.338  t=  68.70s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:08.438  t=  68.80s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:08.538  t=  68.90s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:08.639  t=  69.00s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:08.738  t=  69.10s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:08.838  t=  69.20s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:08.938  t=  69.30s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:09.038  t=  69.40s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:09.138  t=  69.50s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:09.238  t=  69.60s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:09.338  t=  69.70s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:09.438  t=  69.80s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:09.538  t=  69.90s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:09.640  t=  70.00s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:09.738  t=  70.10s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:09.839  t=  70.20s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:09.938  t=  70.30s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:10.038  t=  70.40s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:10.138  t=  70.50s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:10.239  t=  70.60s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:10.338  t=  70.70s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:10.439  t=  70.80s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:10.539  t=  70.90s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   [13:33:10.638  t=  71.00s] joint_cmd 增益變化：fl4_foot, fr4_foot, bl4_foot, br4_foot
+   …另有 1100 筆，見 log
+
+📄 log → /home/robot/m_logs/Mfault_20261006_133159.log
+📄 CSV → /home/robot/m_logs/Mfault_20261006_133159.csv
+
+帶回來：scp -r robot@192.168.234.1:/home/robot/m_logs ./

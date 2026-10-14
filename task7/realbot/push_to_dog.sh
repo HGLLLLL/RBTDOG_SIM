@@ -47,6 +47,7 @@ FILES=(
   "$HERE/../weights/rl_only_2026-09-24_np.npz"   # ★★★ 同事純 RL 權重（export_policy_rl 產，ONNX → npz，ELU）
   "$HERE/../weights/rl_only_2026-10-01_5k_np.npz"   # ★★★ 同事純 RL 第二版（崎嶇地形訓練 5000 iter，2026-10-06 匯出）
   "$HERE/../weights/rl_only_2026-10-01_10k_np.npz"  # ★★★ 同事純 RL 第二版（同上續訓到 10000 iter）
+  "$HERE/../weights/rl_wheel_v1b_np.npz"            # ★★★ 純 RL 自訓 v1b（export_policy_wheel 產，swish／tanh_loc／act_gain 4，trip26）
 )
 
 # ★ 軌跡檔（`M9_gait.py --traj` 要用）。2026-09-03 加：清單原本只有 .py/.sh，

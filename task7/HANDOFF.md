@@ -12,6 +12,7 @@
 
 - **v1b 一句話**（2026-10-13 晚，從 v1 續訓到 10 億步，G4 50 分）：spec 八項門檻過七項——wz ±0.5 **94%／91%**（他 77%／70%）、wz ±1.0 99.5%、vy 0.3 動（0.33）、後輪實體間隙 245–325 mm（他 20–77）、
   平地／ideal／擾動 0 摔、ABAD 目標超限位 14–67% → 0–6%、誤差峰 0.80 → 0.56；沒過的只有崎嶇地最難方塊（boxes 10 cm）側移 1/3 seed 摔（v1 2 摔、他 0 摔但幾乎不踏步）。→ W 文件 §7。
+- **操作卡**（10-14 寫好，逐行可複製）：`docs/現場操作卡_純RL自訓v1b_trip26_2026-10-14.md`；`push_to_dog.sh` 清單已補 `rl_wheel_v1b_np.npz`（原本漏了）。
 - **上機範圍**：站立 → vx 0.3／0.5 → wz ±0.5／±1.0 → vy ±0.5 → vy 0.6 → 0.5+0.5；旗標同 trip25（`--v3 rl_wheel_v1b_np.npz … --vmax 18 --emax-abad 0.80 --emax 0.55`）。
   v1b 比他動得快（關節速峰 5–13 對 3–6、平移 roll 峰 7–9°），平移段吊帶必掛、盯 roll 與 `--vmax`。預期值在 W §7.4；實機 log 用 `inference/diag/rl16_trip_report.py`。
 - **影片**（本機，mp4 被 .gitignore）：`outputs/rl_wheel/report_v1b_mesh.mp4`（平地七段）、`rough_compare_10k_vs_v1b_mesh.mp4`（崎嶇地＋樓梯並排 10k vs v1b）；各有 `_small`。主管報告 10-14 已給（口徑：「前一版 RL 步態」，不說學長）。

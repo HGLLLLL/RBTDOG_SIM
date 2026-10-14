@@ -1,6 +1,6 @@
 # task7 交接：D1 Max 現況卡
 
-- 最後更新：**2026-10-13 深夜（純 RL 自訓 v1b 累計 10 億步：spec 八項過七項，明天上機 trip26）**（分支 `main`）
+- 最後更新：**2026-10-14 晚（trip26＋trip27 上機完：v1b 24 趟 0 摔；`--grav-offset 0.7 -1.5` 把左平移前漂砍半、列為標準旗標；右平移待再驗）**（分支 `main`）
 - **這份只放「現在」，上限 150 行。** 收工時覆寫本檔，不是往上疊。
   被取代的段落搬到 `docs/handoff_history/`（2026-08-25～09-22 全文在 `HANDOFF_2026-08-25_2026-09-22_全文.md`；
   09-22 §1「Colab 跑 v3.7b」在 `HANDOFF_2026-09-22_§1_v3.7b_Colab訓練.md`；10-06 §1 trip25 在 `HANDOFF_2026-10-06_§1_trip25.md`。查歷史用 grep，不要整份讀）。
@@ -8,27 +8,25 @@
 
 ---
 
-## 1. 下次第一件事：**v1b 上機（trip26）**，照 W 文件 §7.4 的順序與旗標
+## 1. 下次第一件事：**右平移 0.5 再跑兩趟（帶 `--grav-offset`）定案**，然後決定 v1c 清單
 
-- **v1b 一句話**（2026-10-13 晚，從 v1 續訓到 10 億步，G4 50 分）：spec 八項門檻過七項——wz ±0.5 **94%／91%**（他 77%／70%）、wz ±1.0 99.5%、vy 0.3 動（0.33）、後輪實體間隙 245–325 mm（他 20–77）、
-  平地／ideal／擾動 0 摔、ABAD 目標超限位 14–67% → 0–6%、誤差峰 0.80 → 0.56；沒過的只有崎嶇地最難方塊（boxes 10 cm）側移 1/3 seed 摔（v1 2 摔、他 0 摔但幾乎不踏步）。→ W 文件 §7。
-- **操作卡**（10-14 寫好，逐行可複製）：`docs/現場操作卡_純RL自訓v1b_trip26_2026-10-14.md`；`push_to_dog.sh` 清單已補 `rl_wheel_v1b_np.npz`（原本漏了）。
-- **上機範圍**：站立 → vx 0.3／0.5 → wz ±0.5／±1.0 → vy ±0.5 → vy 0.6 → 0.5+0.5；旗標同 trip25（`--v3 rl_wheel_v1b_np.npz … --vmax 18 --emax-abad 0.80 --emax 0.55`）。
-  v1b 比他動得快（關節速峰 5–13 對 3–6、平移 roll 峰 7–9°），平移段吊帶必掛、盯 roll 與 `--vmax`。預期值在 W §7.4；實機 log 用 `inference/diag/rl16_trip_report.py`。
-- **影片**（本機，mp4 被 .gitignore）：`outputs/rl_wheel/report_v1b_mesh.mp4`（平地七段）、`rough_compare_10k_vs_v1b_mesh.mp4`（崎嶇地＋樓梯並排 10k vs v1b）；各有 `_small`。主管報告 10-14 已給（口徑：「前一版 RL 步態」，不說學長）。
-- **全套 pytest 最後完整跑在 f3110cf（1088 passed）**；之後的 capsule／v1b 改動只跑了相關測試檔 → 下次開工先背景跑 `conda run -n rbtdog python -m pytest task7/tests -q`（約 25 分）。
-- **上機前**：`bash task7/realbot/push_to_dog.sh` 看到「✅ 全部一致」；`tests/test_policy_rl_np.py` 影子測試對 rl16 npz（`RL_ONLY_NPZ=task7/weights/rl_wheel_v1b_np.npz`；它預設對 ONNX，這顆沒有 ONNX → 用 `test_export_policy_wheel.py` 的 brax 對照已過）。
-- **v1 的紀錄**：W §1–§6（5 億步：平移解、wz 沒過、ABAD 貼止點 → v1b 的三個改動 spec §11.13）。
+- **trip26＋27 一句話**（X 文件 §1–§6）：v1b 24 趟 0 中止 0 摔；後輪不碰、慢轉 89–97% 不飄、±0.9 99–100%、vy 0.3 會動。
+  平移前漂根因＝IMU 重力向量偏差（站好讀 +0.7／−1.5°，trip24–27 一致）：trip27 同一天對照趟 +0.12 → 歸零後 **+0.06／+0.05**（左平移 0.5）、0.3 從 +0.12 → +0.05，和模擬預期一致；
+  **右平移 0.5 只從 +0.14～0.17 降到 +0.13，一趟分不出**→ 下次多跑兩趟。剩下的前漂歸延遲（模擬延遲 2 步單獨就 +0.09～0.18）。**不是膠囊**（驗收模擬本來就是圓柱、沒漂）。
+- **`--grav-offset 0.7 -1.5` 已列為 rl16 標準旗標**（操作卡 §7.4 的 `CG`）；READY 站好讀值差 > 1° 就改成當天讀值。只動 obs 重力三維，傾角護欄用原始 IMU。
+- **v1c 清單（看右平移結果定）**：訓練加動作延遲 1–2 步＋常數 IMU 偏差 ±2° 隨機化（壓剩下的前漂）；左平移持續 roll 7–10° 是 policy 學的姿勢（模擬同），要壓就加 roll 懲罰（`angxy` −0.05 → −0.5）；
+  崎嶇地 boxes 10 cm 側移那摔照舊。改 reward 先攤帳（`diag/wheel_env_align.py --npz … --tag`）。
 - **Colab 要點**：G4 GPU（A100 慢 2.6 倍、TPU 不能用）；throughput 格自動選 4096；不用雲端硬碟，跑完立刻下載 `rl_wheel_v1_params.pkl` 與最新 `step*.pkl`；續訓把 step 檔上傳到 `/content/rl_wheel_v1/` 即自動接（`RESUME="auto"`）；
-  停損線累計 2 億步 `len < 600`／`lin < 0.5`／`wgap` 沒往 0 走。
-- **若 trip26 平移實機還是碰輪或 roll 太大** → v1c：`w_gap` 加大或 GAP_MIN 0.10、roll 懲罰（`angxy` 權重 −0.05 → −0.5）；崎嶇地那摔 → 難地形側移樣本比重。改 reward 先攤帳（`diag/wheel_env_align.py --npz … --tag`）。
-- 環境／吞吐量的坑在 spec §11（13 條）；真樓梯（≥ 15 cm）另開 spec（spec §9）。trip25 與重訓清單 V §6 照舊可交同事。
+  停損線累計 2 億步 `len < 600`／`lin < 0.5`／`wgap` 沒往 0 走。環境／吞吐量的坑 spec §11；真樓梯另開 spec（§9）。
+- **影片**（本機，mp4 被 .gitignore）：`outputs/rl_wheel/report_v1b_mesh.mp4`、`rough_compare_10k_vs_v1b_mesh.mp4`（各有 `_small`）。主管報告 10-14 已給（口徑「前一版 RL 步態」，不說學長）。
+- **全套 pytest**：grav-offset 改動後 1099 passed（10-14 下午，30 分）。
+- ⚠️ **工具坑**：`conda run -n rbtdog python - <<EOF` 不會把 heredoc 餵進 stdin，腳本等於沒跑、什麼都不印；要跑 python 片段先寫成檔案再執行（10-14 兩次無聲失敗）。
 
 ## 2. 權重現況
 
 | 權重 | 狀態 | 驗收表（`outputs/`） |
 |---|---|---|
-| **rl_wheel_v1b**（自訓，MJX，累計 10 億步）`weights/rl_wheel_v1b_params.pkl`／`rl_wheel_v1b_np.npz`（sha `a02a4631d3f3`） | ★ **已上機（trip26）13 趟 0 摔**：後輪不碰 ≥ 206 mm、慢轉 89–92% 不飄、±1.0 98%、vy 0.3 會動；**平移前漂 +0.12～0.17 m/s**（IMU 重力偏差，`--grav-offset` 待 trip27）；左平移持續 roll 7–10°（模擬同）。模擬：崎嶇地 boxes 10 cm 側移 1/3 摔。 | `rl_wheel/eval_rl_only_{real,ideal,real_v1b_push}_v1b.md`、`eval_rl_wheel_rough_real_v1b.md`；W §7、**X 文件** |
+| **rl_wheel_v1b**（自訓，MJX，累計 10 億步）`weights/rl_wheel_v1b_params.pkl`／`rl_wheel_v1b_np.npz`（sha `a02a4631d3f3`） | ★ **已上機（trip26＋27）24 趟 0 摔**：後輪不碰 ≥ 201 mm、慢轉 89–97% 不飄、±0.9 99–100%、vy 0.3 會動；平移前漂 +0.13 → `--grav-offset` 後左 +0.05（右 +0.13 待再驗）；左平移持續 roll 7–10°（模擬同）。模擬：崎嶇地 boxes 10 cm 側移 1/3 摔。 | `rl_wheel/eval_rl_only_{real,ideal,real_v1b_push}_v1b.md`、`eval_rl_wheel_rough_real_v1b.md`；W §7、**X 文件** |
 | rl_wheel_v1（5 億步）`weights/rl_wheel_v1_params.pkl`／`rl_wheel_v1_np.npz`（sha `83220469ef90`） | 平移解但 wz 沒過、ABAD 貼止點；已被 v1b 取代。 | `rl_wheel/eval_rl_only_{real,ideal,real_v1_push}_v1.md`、`eval_rl_wheel_rough_real_v1.md`；對照 `rl_only/eval_rl_only_{real,rough_real}_10k_pairs.md`；W 文件 |
 | **RL_only 10k** `weights/rl_only_2026-10-01_10k_np.npz`（sha `5ec719a97175`） | ★ **已上機（trip25）11 趟 0 摔**：直走 0.29、平移真踏步、轉 ±1.0 98–99%、右轉 −0.5 不塌；平移後輪互碰、慢轉飄 → 重訓。 | `rl_only/eval_rl_only_{real,ideal}_10k.md`、`eval_rl_only_rough_real_10k.md`、`logs_1006/` |
 | RL_only 5k `weights/rl_only_2026-10-01_5k_np.npz`（sha `eb4cff3750ec`） | 對照組，**還沒上機**；模擬同 10k 但低速超速、平移後輪間距較寬（124–156 mm）。 | 同上 `_5k` |
@@ -60,7 +58,7 @@
 
 ## 4. 未解／待決（依優先序）
 
-0. **trip27 歸零驗證**（§1）→ 決定 v1c 清單：動作延遲＋IMU 常數偏差隨機化、roll 懲罰、崎嶇地側移樣本。plan 層級待觀察：探索幅度、每回合只推一次、腿 frictionloss 單一倍率（`.superpowers/sdd/progress.md`）。
+0. **右平移 0.5 再驗兩趟**（§1）→ 決定 v1c 清單：動作延遲＋IMU 常數偏差隨機化、roll 懲罰、崎嶇地側移樣本。plan 層級待觀察：探索幅度、每回合只推一次、腿 frictionloss 單一倍率（`.superpowers/sdd/progress.md`）。
 0′. **`rl16_trip_report.py` 抬腳欄要修**（X §5）：FK 校正拿 IMU 原始 roll／pitch，站立不動也算出前腳抬 16–24 mm → 要扣 READY 段均值、各腿對自己基準；V 文件（trip25）的前腳抬腳數字可能同樣偏高，修完回頭重算。順便把里程法加進去。
 0″. V §6 重訓清單裡**已解**（v1b 實機）：後輪互碰、vy 0.3 死區、慢轉飄。還在：輪摩擦補償（輪 effort 恆 0）。站立腿小幅調整的代價實測：溫度 27 °C、τ 峰 28，沒事。
 1. **M9 硬上限誤中止**（trip25 ④）：`tau_hot` 連續 2 筆要加「相隔 ≥ 4 ms」（追趕 tick 不計；程式在 `M9_gait.py` 約 2075 行，`test_m9_gait.py` 有釘住快速路徑字面的測試要一起改）。
@@ -93,5 +91,5 @@
 08-27 承重站立 → 09-02 第一次走路 → 09-09 RL v2.3 首次上機（trip19）、原廠參考錄製 → 09-15 v3.1 統一產生器 → 09-22 v3.6f（可部署最佳）→
 09-23／09-29 v3.6f 上機驗收完（trip22／23）→ 09-29 主線換同事純 RL（RL_only）→ **09-30 純 RL 首次上機（trip24）12 趟 0 摔** →
 10-06 純 RL 第二版（崎嶇地形 10k／5k）MuJoCo 重現 0 摔 → **同日 trip25 上機 11 趟 0 摔：直走 0.29、平移真踏步、轉 ±1.0 98–99%、右轉 −0.5 不塌；平移後輪互碰、慢轉飄待重訓** → 10-13 純 RL 自訓 v1（5 億）→ v1b（10 億）八項過七項 →
-**10-14 trip26 v1b 上機 13 趟 0 摔：後輪不碰、慢轉不飄、vy 0.3 會動；平移前漂 → 根因 IMU 重力偏差，`--grav-offset` 待 trip27**。
+**10-14 trip26＋27 v1b 上機 24 趟 0 摔：後輪不碰、慢轉不飄、vy 0.3 會動；平移前漂 → 根因 IMU 重力偏差（站好讀 +0.7／−1.5°），`--grav-offset` 把左平移前漂砍半、列為標準旗標**。
 各版為什麼改：`docs/superpowers/specs/2026-09-*-cpg-rl-v3.*.md`；純 RL 線：S／T／U 文件。

@@ -93,3 +93,27 @@ def test_wrap_env_runs_two_episodes():
     assert np.all(dones[29] == 1.0) and np.all(dones[59] == 1.0) and np.all(dones[30] == 0.0)   # EpisodeWrapper 截斷
     assert np.all(np.asarray(s.info["steps"]) == 5) and np.all(np.asarray(s.info["t"]) == 5)      # 兩邊計數同步
     assert "truncation" in s.info and s.obs["state"].shape == (4, 53) and s.obs["privileged_state"].shape == (4, 56)
+
+
+def test_action_delay_buffer_and_sampling(env):
+    e = rw.WheelEnv(flat=True, noise=False, push=False, delay_max=2, scene=env.scene)
+    ks = jax.random.split(jax.random.PRNGKey(0), 600)
+    dl = np.asarray(jax.vmap(e.reset)(ks).info["delay"])
+    assert set(np.unique(dl)) == {0, 1, 2} and 0.2 < (dl == 2).mean() < 0.47
+    assert np.all(np.asarray(jax.vmap(rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, delay_max=2, scene=env.scene).reset)(ks[:8]).info["delay"]) == 0)   # fixed_cmd：0
+    assert np.all(np.asarray(jax.vmap(env.reset)(ks[:8]).info["delay"]) == 0)                                                                                        # 預設：0
+    step = jax.jit(e.step)
+    acts = [jnp.full(16, 0.1 * (i + 1)) for i in range(4)]
+    for d in (0, 1, 2):
+        s = jax.jit(e.reset)(jax.random.PRNGKey(1))
+        s = s.replace(info={**s.info, "delay": jnp.int32(d)})
+        for i, a in enumerate(acts):
+            s = step(s, a)
+            want = rw.ACT_GAIN * acts[i - d] if i - d >= 0 else jnp.zeros(16)                 # 物理吃 d 步前的動作；緩衝初值 0
+            np.testing.assert_allclose(np.asarray(s.pipeline_state.ctrl[e.AID]), np.asarray(e._ctrl(want)[e.AID]), atol=1e-6, err_msg=f"d={d} i={i}")
+            np.testing.assert_allclose(np.asarray(s.obs["state"][37:53]), np.asarray(rw.ACT_GAIN * a), atol=1e-6)      # obs 的 last_action 不延遲
+            assert float(s.metrics["delay"]) == d
+    # 重生：緩衝清零、delay 重抽（t 推到回合末）
+    s = s.replace(info={**s.info, "t": jnp.int32(rw.EPISODE_LEN - 1)})
+    s2 = step(s, acts[0])
+    assert int(s2.info["t"]) == 0 and np.all(np.asarray(s2.info["a_hist"]) == 0.0)

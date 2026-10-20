@@ -293,11 +293,13 @@ class WheelEnv(Env):
         cmd_a, head_a, standing, small = self._sample_cmd(k[2], yaw)
         cmd_b, head_b, _, _ = self._sample_cmd(k[3], yaw)
         mir = jax.random.bernoulli(jax.random.fold_in(rng, 11)) if (self.mirror and not self.fixed_cmd) else jnp.bool_(False)
+        delay = jax.random.randint(jax.random.fold_in(rng, 12), (), 0, self.delay_max + 1) if (self.delay_max > 0 and not self.fixed_cmd) else jnp.int32(0)
         info = dict(rng=k[4], t=jnp.int32(0), kind=kind, level=level, xy0=xy,
                     cmd_ab=jnp.stack([cmd_a, cmd_b]), head_ab=jnp.stack([head_a, head_b]), standing=standing, small=small,
                     cmd_fix=jnp.zeros(3), cmd=jnp.zeros(3), last_a=jnp.zeros(ACT_DIM),
                     qvel_prev=data.qvel[self.VADR], foot_prev=data.xpos[self.FOOT_BIDS],
                     touch_prev=jnp.zeros(4, bool), vfoot_prev=jnp.zeros((4, 3)), mir=mir,
+                    delay=delay, a_hist=jnp.zeros((3, ACT_DIM)),
                     push_t=jnp.int32(self.episode_len // 2) + jax.random.randint(k[5], (), 0, self.episode_len // 4))   # 10–15 s 後第一次推
         info["cmd"] = self._cmd_now(data, info)
         obs = self._obs_dict(data, info["cmd"], info["last_a"], jax.random.fold_in(rng, 6))   # 第一個 obs 也帶雜訊；fold_in 不動 split(6) 的出生／指令抽樣
@@ -358,14 +360,19 @@ class WheelEnv(Env):
             data = data.replace(qvel=data.qvel.at[0:2].set(jnp.where(do_push, vxy, data.qvel[0:2])))
             nxt = jax.random.randint(k_next, (), self.episode_len // 2, self.episode_len * 3 // 4 + 1)   # 下一次在 10–15 s 後
             info["push_t"] = jnp.where(do_push, info["push_t"] + nxt, info["push_t"])
-        data = self._physics(data, a)
+        if self.delay_max > 0:                          # 動作延遲 DR：物理吃 delay 步前的動作（實機 des→q 約 30 ms ≈ 1–2 步）；obs 的 last_action 仍是 policy 本步輸出
+            a_hist = jnp.concatenate([a[None], info["a_hist"][:-1]], axis=0)
+            a_exec = a_hist[info["delay"]]
+        else:
+            a_hist, a_exec = info["a_hist"], a
+        data = self._physics(data, a_exec)
         cmd = info["cmd"]
         reward, fell, metrics, aux = self._after_physics(data, info, a, cmd)
         t1 = info["t"] + 1
         done_env = fell | (t1 >= self.episode_len)
         # 續走路徑
         info_c = dict(info, rng=rng, t=t1, last_a=a, qvel_prev=data.qvel[self.VADR], foot_prev=data.xpos[self.FOOT_BIDS],
-                      touch_prev=aux["touch"], vfoot_prev=aux["vfoot"])
+                      touch_prev=aux["touch"], vfoot_prev=aux["vfoot"], a_hist=a_hist)
         info_c["cmd"] = self._cmd_now(data, info_c)
         obs_c = self._obs_dict(data, info_c["cmd"], a, k_noise)
         obs_c = self._maybe_mirror(obs_c, info["mir"])
@@ -462,7 +469,7 @@ class WheelEnv(Env):
                        fell=fell.astype(jnp.float32), oob=oob.astype(jnp.float32), tilt=tilt.astype(jnp.float32), dist=jnp.linalg.norm(data.qpos[0:2] - info["xy0"]), ww_force=aux["ww_force"], gap_min=jnp.min(aux["gaps"]),
                        vx_err=jnp.abs(aux["vb"][0] - cmd[0]), vy_err=jnp.abs(aux["vb"][1] - cmd[1]), wz_err=jnp.abs(aux["w"][2] - cmd[2]),
                        touch_n=jnp.sum(aux["touch"]).astype(jnp.float32), small=info["small"].astype(jnp.float32), standing=info["standing"].astype(jnp.float32), sat_n=aux["sat_n"],
-                       impact_vz=aux["impact_vz"], td_n=aux["td_n"], impact_fn=aux["impact_fn"], mir=info["mir"].astype(jnp.float32), delay=jnp.float32(0.0))   # delay：Task 5 換真值
+                       impact_vz=aux["impact_vz"], td_n=aux["td_n"], impact_fn=aux["impact_fn"], mir=info["mir"].astype(jnp.float32), delay=info["delay"].astype(jnp.float32))
         return reward, fell, metrics, aux
 
     @property

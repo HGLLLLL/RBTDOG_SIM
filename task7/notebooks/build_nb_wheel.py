@@ -164,9 +164,9 @@ md0_c = """# 純 RL 自訓 **v1c**：左右鏡像增強 ＋ roll 姿態角懲罰
 - 開訓前關卡已過：`outputs/reward_audit_wheel_{10k,v1b}_v1c.md`（`impact` 10k < v1b 一半、`roll` 左 > 右）。
 
 **流程**：第一格 throughput 測試選 `NUM_ENVS` → 訓練（每次 eval 存 pkl 到 `/content/rl_wheel_v1c/`，**不用雲端硬碟**；session 跑完立刻下載 `rl_wheel_v1c_params.pkl` 與最新的 `rl_wheel_v1c_step*.pkl`）→ 一個 session 5 億步（G4、4096 環境約 50 分鐘）→ 下個 session 把 `rl_wheel_v1c_step*.pkl` 上傳回 `/content/rl_wheel_v1c/`，`RESUME="auto"` 自動接。
-**5 億步中場檢查**：session 1 結束把 step 檔拉回本機 `export_policy_wheel.py` → 跑 spec §6 全表；roll 左右差沒縮、或驗收表的「落地 vz」沒比 v1b 低 → 先調權重再跑 session 2。
-**停損**：累計 2 億步時 `len < 600`、或 `lin < 0.5`、或 `wgap` 沒比 step 0 好／`gap` 中位 < 40 mm、或 `impact`、`roll` 沒比 step 0 往 0 走 → 停。
-**讀法**：`lin`／`ang` 往 2.5／2.5；`roll`、`impact` 往 0；`land_vz` ＝ 每次落地平均下落速度 m/s（Σvz／Σ落地次數，不是除步數；v1b 本機驗收平移 0.5 約 0.36），往下；`mir` 應在 0.5 附近、`d` 在 1.0 附近（0–2 平均）；eval 也開鏡像／延遲／偏差，所以 eval reward 不是乾淨名目條件的數字，中場判讀以本機驗收表為準；其餘同 v1。
+**5 億步中場檢查**：session 1 結束把 step 檔拉回本機 `export_policy_wheel.py` → 跑 spec §6 全表；roll 左右差沒縮、或驗收表的「落地 vz」沒比 v1b 低 → 先調權重再跑 session 2；Colab 進度列的 `land_vz` 是 MJX 接觸口徑（v1b 左／右平移 0.43／0.70），本機驗收表的「落地 vz」是 CPU 淨空口徑（v1b 0.36／0.37），**兩者不能互比**，中場判讀以本機驗收表前後比為準。
+**停損**：累計 2 億步時 `len < 600`、或 `lin < 0.5`、或 `wgap` 沒比 step 0 好／`gap` 中位 < 40 mm、或 `impact`、`roll` 沒比 step 0 往 0 走、或 `level` 明顯低於 v1b 同步數的曲線（崎嶇地 `impact` 量級大：樓梯 8 側移 −0.75／步、方格 8 −0.48，平地 −0.17；policy 可能逃避高等級地形）→ 停。
+**讀法**：`lin`／`ang` 往 2.5／2.5；`roll`、`impact` 往 0；`land_vz` ＝ 每次落地平均下落速度 m/s（Σvz／Σ落地次數，不是除步數；MJX 口徑，v1b 平移 0.5 左／右 0.43／0.70，與本機驗收表的 0.36 不同口徑），往下；`mir` 應在 0.5 附近、`d` 在 1.0 附近（0–2 平均）；eval 也開鏡像／延遲／偏差，所以 eval reward 不是乾淨名目條件的數字，中場判讀以本機驗收表為準；其餘同 v1。
 """
 import_src_c = import_src.replace("env = rw.WheelEnv()", "env = rw.WheelEnv(**rw.V1C)")
 train_src_c = (train_src.replace("rl_wheel_v1", "rl_wheel_v1c")

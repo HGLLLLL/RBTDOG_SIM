@@ -148,7 +148,8 @@ def test_mir_is_sampled_half_and_off_under_fixed_cmd(env, env_m):
     ks = jax.random.split(jax.random.PRNGKey(0), 400)
     mir = np.asarray(jax.vmap(env_m.reset)(ks).info["mir"])
     assert mir.dtype == bool and 0.4 < mir.mean() < 0.6
-    assert not np.any(np.asarray(jax.vmap(env.reset)(ks).info["mir"]))          # fixed_cmd：恆 False
+    env_fc = rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, mirror=True, scene=env.scene)
+    assert not np.any(np.asarray(jax.vmap(env_fc.reset)(ks[:8]).info["mir"]))   # mirror=True 但 fixed_cmd：恆 False
     assert not np.any(np.asarray(jax.vmap(rw.WheelEnv(flat=True, noise=False, push=False, scene=env.scene).reset)(ks[:8]).info["mir"]))   # 預設 mirror=False
 
 

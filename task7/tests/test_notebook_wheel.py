@@ -71,6 +71,7 @@ def test_v1c_notebook_cells():
         assert k in code, k
     assert "鏡像" in md and "2026-10-20" in md and "`impact`" in md and "`roll`" in md and "5 億步中場檢查" in md
     assert "停損" in md and "len < 600" in md and "`impact`、`roll` 沒比 step 0 往 0 走" in md
+    assert "`level` 明顯低於 v1b" in md and "兩者不能互比" in md
     # v1 notebook 內容不受影響
     code1 = _src("code")
     assert "rw.WheelEnv()" in code1 and 'DRIVE = "/content/rl_wheel_v1"' in code1 and "V1C" not in code1

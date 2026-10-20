@@ -19,13 +19,13 @@ v1b 上機 24 趟 0 摔，步態整體可用，剩兩個問題：
 ## 1. 範圍與起點
 
 - **起點：從頭訓、一開始就開鏡像**（使用者定；不從 v1b 續訓）。累計 10 億步，Colab G4 兩個 session。
-- **範圍**：鏡像增強、`tilt`、`impact`、動作延遲 DR、IMU 常數偏差 DR，一次全加（使用者定）。歸因靠：開訓前攤帳、每項單獨的 reward 單元測試、訓練曲線分項列印、5 億步中場檢查。
+- **範圍**：鏡像增強、`roll`、`impact`、動作延遲 DR、IMU 常數偏差 DR，一次全加（使用者定）。歸因靠：開訓前攤帳、每項單獨的 reward 單元測試、訓練曲線分項列印、5 億步中場檢查。
 - **不包含**：上機（trip29 另排）、`rl16_trip_report.py` 抬腳欄修正、M9 硬上限修正、真樓梯。
 - **狗端零改動**：policy 仍是同一種 MLP／`rl16` 版面，只多一個 `rl_wheel_v1c_np.npz`。`--grav-offset 0.7 -1.5` 照舊。
 
 ## 2. 環境改動（`inference/rl_env_wheel.py`）
 
-**原則**：建構子預設值＝v1b 行為；新東西集中在一個預設字典 `V1C = dict(mirror=True, w_tilt=10.0, w_impact=3.0, delay_max=2, grav_bias_deg=2.0)`，notebook 用 `WheelEnv(**rw.V1C)`，工具用 `--preset v1c`。golden 測試釘住 `WheelEnv()`。
+**原則**：建構子預設值＝v1b 行為；新東西集中在一個預設字典 `V1C = dict(mirror=True, w_roll=10.0, w_impact=3.0, delay_max=2, grav_bias_deg=2.0)`，notebook 用 `WheelEnv(**rw.V1C)`，工具用 `--preset v1c`。golden 測試釘住 `WheelEnv()`。
 
 ### 2.1 鏡像增強（`mirror=True`；照 v3.7b `MIRROR_AUG` 的做法，那版設計過沒訓過）
 
@@ -36,9 +36,11 @@ v1b 上機 24 趟 0 摔，步態整體可用，剩兩個問題：
 - `fixed_cmd`（攤帳、驗收、golden）固定 `mir=False`。
 - metrics 加 `mir`（回合比例，曲線上應在 0.5 附近）。
 
-### 2.2 `tilt`：姿態角懲罰（`w_tilt`，起 10）
+### 2.2 `roll`：姿態角懲罰（`w_roll`，起 10）
 
-- `tilt = −w_tilt · g_y²`，g ＝ **真實**重力在機身系的投影（`_obs` 的 `grav`，不是帶偏差的 obs）。
+（原名 `tilt`／`w_tilt`；`METRIC_KEYS` 已有摔倒旗標 `tilt`，故 reward 項改名 `roll`。）
+
+- `roll = −w_roll · g_y²`，g ＝ **真實**重力在機身系的投影（`_obs` 的 `grav`，不是帶偏差的 obs）。
 - 只罰 roll：上樓梯／斜坡俯仰是正當的。`angxy` 原樣留著。
 - 量級：roll 9° → sin²(9°)·10 ≈ −0.25／步（與平移多出來的 `tau_leg` 同級）；3° → −0.03。
 
@@ -47,7 +49,8 @@ v1b 上機 24 趟 0 摔，步態整體可用，剩兩個問題：
 - `impact = −w_impact · Σ_腿 [touch_k ∧ ¬touch_prev_k] · max(0, −vz_prev_k)²`，`vz_prev_k` ＝ 觸地**前一步**的足端垂直速度（`info` 多存 `touch_prev`（4 bool）與 `vfoot_prev`（4×3））。
 - 接觸法向力峰只記 metrics（`impact_fn`），不進 reward（16 邊形輪的力會跳）。
 - 估計：v1b 平移抬 35 mm、3 步/秒 → 落地 vz 0.3～0.6 m/s，每步平均落地事件 ≈ 0.24 → 每步 ≈ −0.05×w ≈ −0.15。
-- metrics 加 `impact`、`impact_vz`（落地 vz 平均，診斷）。
+- metrics 加 `impact`、`impact_vz`、`td_n`：`impact_vz` 是**每步落地 vz 的總和**（不是平均）、`td_n` 是該步落地次數；每次落地平均 ＝ Σimpact_vz／Σtd_n。
+- 出生／重生後 `IMPACT_SETTLE`＝25 步內的落地不計（出生離地 3 mm 的落地會被算成 4 次事件）。
 
 ### 2.4 動作延遲 DR（`delay_max=2`）
 
@@ -57,28 +60,34 @@ v1b 上機 24 趟 0 摔，步態整體可用，剩兩個問題：
 
 ### 2.5 IMU 常數偏差 DR（`grav_bias_deg=2.0`）
 
-- 出生／重生時抽 roll、pitch 各 U(−2°, 2°)，整回合固定；只旋轉 `state` 的重力三維（`grav_obs = R_x(roll)·R_y(pitch)·grav`），角速度、critic 的 `privileged_state` 不動。
+- 出生／重生時抽 roll、pitch 各 U(−2°, 2°)，整回合固定；只旋轉 `state` 的重力三維（`g_obs = (Ry(pitch)·Rx(roll))ᵀ·g_true`，慣例同 `realbot/rl_obs_rl.grav_fix_matrix`），角速度、critic 的 `privileged_state` 不動。
 - 既有 obs 雜訊照舊疊在後面。`fixed_cmd` 下偏差 0。
 
 ### 2.6 不動的
 
-`wgap`（80 mm、2.0）、`ww`、`lim`（2.0）、`w_ang`（2.5）、σ 0.25、`acc_leg`／`rate`／`dev`、課程（2 m）、推力、既有雜訊與 DR、網路、匯出格式。`TERM_KEYS` 加 `tilt`、`impact`（16 項）；`METRIC_KEYS` 加 `mir`、`delay`、`impact_vz`、`impact_fn`。
+`wgap`（80 mm、2.0）、`ww`、`lim`（2.0）、`w_ang`（2.5）、σ 0.25、`acc_leg`／`rate`／`dev`、課程（2 m）、推力、既有雜訊與 DR、網路、匯出格式。`TERM_KEYS` 加 `roll`、`impact`（16 項）；`METRIC_KEYS` 加 `mir`、`delay`、`impact_vz`、`impact_fn`。
 
 ## 3. 開訓前關卡（本機 CPU MJX）
 
 1. **golden 原樣通過**（§5.1）。
 2. **攤帳**：`diag/wheel_env_align.py --preset v1c` 拿 10k 與 v1b 跑（`fixed_cmd`，鏡像／延遲／偏差關），`outputs/reward_audit_wheel_{10k,v1b}_v1c.md`。要看到：
    - `impact`：10k 的值 < v1b 的一半（量的才是使用者聽到的那個聲音）。不過 → 權重不定、不開訓。
-   - `tilt`：v1b 左平移 0.5 明顯大於右平移 0.5（約 −0.25 對 −0.03）。
+   - `roll`：v1b 左平移 0.5 明顯大於右平移 0.5（約 −0.25 對 −0.03）。
    - 新增兩項在 v1b 平移時合計每步 −0.1～−0.5，沒有單項 > 1（不淹沒追蹤項）。
 3. **鏡像對齊**（§5.2 的測試即是）。
+
+**執行紀錄（2026-10-20）**
+- (a) `impact`：10k／v1b 比值 0.11／0.03／0.20（vy +0.5／−0.5／+0.6），過（< 0.5）。每次落地 vz：10k 0.12／0.10／0.19 m/s，v1b 0.43／0.71／0.44 m/s。
+- (b) `roll`：v1b 左平移 −0.179、右平移 −0.024，左明顯大於右，過。
+- (c) `roll`＋`impact` 在 v1b 平移：−0.33／−0.53／−0.28；其中一列超出 −0.5 上限 7%，接受，`w_impact` 維持 3.0。
+- 崎嶇地 `impact`（最終審查補量，v1b，每步）：平地 vy 0.5 −0.17／rough 4、8 −0.21／boxes 4 −0.33／boxes 8 −0.48／stairs 4 −0.32／stairs 8 −0.75（每次落地 vz 0.72）；各地形 vx 0.5 ≤ −0.035。→ 高等級地形罰得重，policy 可能逃避升級，訓練盯 `level`。
 
 ## 4. 訓練（`notebooks/build_nb_wheel.py` → `rl_wheel_v1c_colab.ipynb`）
 
 - 超參數、網路、throughput 格、RESUME 機制沿用 v1 spec §5；`env = rw.WheelEnv(**rw.V1C)`、`eval_env = rw.WheelEnv(noise=False, push=False, **rw.V1C)`；存檔名 `rl_wheel_v1c_step*.pkl`、`rl_wheel_v1c_params.pkl`；`RESUME="auto"` 只認 v1c 的檔。
 - seed 0、`TIMESTEPS` 5 億／session、兩個 session。
-- 進度列多印 `tilt`、`impact`、`impact_vz`、`mir`、`delay`。
-- **停損線（累計 2 億步）**：沿用 `len < 600`／`lin < 0.5`／gap 中位 < 40 mm；新增 `impact`、`tilt` 沒比 step 0 往 0 走。
+- 進度列多印 `roll`、`impact`、`impact_vz`、`mir`、`delay`。
+- **停損線（累計 2 億步）**：沿用 `len < 600`／`lin < 0.5`／gap 中位 < 40 mm；新增 `impact`、`roll` 沒比 step 0 往 0 走。
 - **5 億步中場檢查**：session 1 結束把 `step000500000000.pkl` 拉回本機匯出、跑 §6 全表。roll 左右差沒縮、或 `impact_vz` 沒比 v1b 低 → 先調權重再跑 session 2。
 
 ## 5. 測試（pytest；先寫測試再改程式；全套每批跑一次，`test_rl_env_v3_golden.py` 不能動）
@@ -88,8 +97,9 @@ v1b 上機 24 趟 0 摔，步態整體可用，剩兩個問題：
    - 鏡像表兩次 ＝ 恆等（obs 與 act）。
    - 把 MuJoCo 狀態真的左右翻（`qpos` y 取負、四元數鏡射、腿互換、ABAD 變號；`qvel` 同理）→ `_obs` 的結果等於原 obs 套鏡像表（1e-6）。
    - 翻過的狀態用翻過的動作跑 5 步，軌跡等於原軌跡翻過去（1e-4；同時驗證模型左右對稱）。
+     實作：模型本身不完全對稱（base COM y +3.45 mm、RAR 膝質量低 0.4%、base 慣量主軸微傾），且 hfield 接觸數在第 5 步有離散事件，所以等變測試在 `env.sys` 的**對稱化副本**上跑 4 步；另加 `test_model_lr_asymmetry_is_within_dr` 確認原模型的不對稱在 DR 範圍內。
    - `mir=True` 回合：`state.obs` ＝ 鏡像表(真實 obs)；物理 ctrl ＝ 鏡像表(policy 動作)。
-3. `test_rl_env_wheel_reward.py` 加：`tilt` roll 9° ＝ −w·sin²(9°)、水平 0、只動 pitch 0；`impact` 觸地事件（上步沒觸地、vz_prev −0.5）＝ −w·0.25，持續觸地／抬腿時 0；`TERM_KEYS`／`METRIC_KEYS` 更新。
+3. `test_rl_env_wheel_reward.py` 加：`roll` roll 9° ＝ −w·sin²(9°)、水平 0、只動 pitch 0；`impact` 觸地事件（上步沒觸地、vz_prev −0.5）＝ −w·0.25，持續觸地／抬腿時 0；`TERM_KEYS`／`METRIC_KEYS` 更新。
 4. `test_rl_env_wheel_train.py` 加：d＝2 時第 t 步 ctrl ＝ 第 t−2 步動作、d＝0 同現況、obs `last_action` 不延遲、重生清緩衝；IMU 偏差 (2°, 0) 時 `state` 重力偏 2° 而 `privileged_state` 不偏；`mir`／`delay` 分布。
 5. `test_notebook_wheel.py`：產生的 ipynb 含 `V1C`、`rl_wheel_v1c` 檔名、新進度欄。
 6. `test_export_policy_wheel.py` 不動（匯出格式不變）。

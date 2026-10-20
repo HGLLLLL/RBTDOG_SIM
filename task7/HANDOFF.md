@@ -18,9 +18,9 @@
   (b) v1b `roll` 左平移 −0.179 vs 右 −0.024 → 過。(c) v1b `roll+impact` −0.33／−0.53／−0.28，右平移那列超 −0.5 下限 7%，單項最大 0.51 < 1 → **接受，w_impact 維持 3.0**。
   順帶：v1b **右**平移落地反而比左重（0.71 vs 0.43 m/s、94 vs 77 次），roll 是左大；兩個問題在不同邊。
 - **Colab 步驟**：先 `git push`（notebook 是 clone GitHub main）→ 開 `notebooks/rl_wheel_v1c_colab.ipynb`，G4、throughput 格自動選 4096、`TIMESTEPS` 5 億／session、不用雲端硬碟、跑完立刻下載 `rl_wheel_v1c_params.pkl` 與最新 `rl_wheel_v1c_step*.pkl`；session 2 上傳 step 檔到 `/content/rl_wheel_v1c/` 自動續。
-  進度列讀法：`roll`、`impact` 往 0；`land_vz` ＝ Σvz／Σ落地次數（v1b 本機平移 0.5 約 0.36～0.43），往下；`mir` ≈ 0.5、`d` ≈ 1.0；eval 也開鏡像／延遲／偏差，eval reward 不是乾淨名目數字。
-  停損（累計 2 億）：`len < 600`／`lin < 0.5`／gap 中位 < 40 mm／`impact`、`roll` 沒往 0 走。**5 億步中場檢查**：step 檔拉回本機 `export_policy_wheel.py` → 跑 §6 表，roll 左右差沒縮或「落地 vz」沒比 v1b 低 → 先調權重再跑 session 2。
-- **訓完及格線**（spec §6；工具同 v1b、每條 `--self-collision`；完整指令在 plan Task 11）：摔 0（平地 real／ideal／push、斜走 9 條、倒退 5 條）、崎嶇地 114 趟 ≤ 1；vy ±0.5 ≥ 0.42、wz 0.5 ≥ 24°/s；**對稱** vy ±0.5 roll 峰左右差 ≤ 3° 且都 ≤ 6°；**落地輕** 驗收表「落地 vz」欄低於 v1b（v1b 0.36／0.37）；ABAD 誤差峰 ≤ 0.70、髖膝 ≤ 0.45、gap ≥ 200 mm；延遲 1 步＋雜訊 0 摔、延遲 2 步左平移不摔。任一格不過不上機，v1b 權重不動。
+  進度列讀法：`roll`、`impact` 往 0；`land_vz` ＝ Σvz／Σ落地次數（MJX 接觸口徑；v1b 左／右平移 0.43／0.70），往下；**和本機驗收表「落地 vz」（CPU 淨空口徑，v1b 0.36／0.37）不同尺度、不能互比**；`mir` ≈ 0.5、`d` ≈ 1.0；eval 也開鏡像／延遲／偏差，eval reward 不是乾淨名目數字。
+  停損（累計 2 億）：`len < 600`／`lin < 0.5`／gap 中位 < 40 mm／`impact`、`roll` 沒往 0 走／`level` 明顯低於 v1b 同步數（崎嶇地 impact 大：stairs 8 側移 −0.75／步、boxes 8 −0.48，平地 −0.17；最終審查補量）。**5 億步中場檢查**：step 檔拉回本機 `export_policy_wheel.py` → 跑 §6 表，roll 左右差沒縮或「落地 vz」沒比 v1b 低 → 先調權重再跑 session 2。
+- **訓完及格線**（spec §6；工具同 v1b、每條 `--self-collision`；完整指令在 plan Task 11）：摔 0（平地 real／ideal／push、斜走 9 條、倒退 5 條）、崎嶇地 114 趟 ≤ 1；vy ±0.5 ≥ 0.42、wz 0.5 ≥ 24°/s；**對稱** vy ±0.5 roll 峰左右差 ≤ 3° 且都 ≤ 6°；**落地輕** 驗收表「落地 vz」欄低於 v1b（v1b 0.36／0.37）；ABAD 誤差峰 ≤ 0.70、髖膝 ≤ 0.45、gap ≥ 200 mm；延遲 1 步＋雜訊 0 摔、延遲 2 步左平移不摔。任一格不過不上機，v1b 權重不動。**跑及格線前先修 `landing_vz` 的遲滯**（5 mm 門檻無遲滯／最小騰空時間，抖動會灌水事件數、拉低平均；修完 v1b 的 `eval_rl_only_real_landcol_v1b.md` 要重跑當基準）。
   結果寫 `docs/results/Z_純RL自訓v1c_MuJoCo_<日期>.md`；過了寫 trip29 操作卡（照 trip26 卡 §8 格式）。
 - **工具坑**：`conda run -n rbtdog python - <<EOF` 不會把 heredoc 餵進 stdin，python 片段先寫成檔案；`--cmds` 以負號開頭要寫 `--cmds=-0.3,...`。
 - **給經理的訊息（10-20 下午）**寫「已開始訓練」；實際開訓要等 push 後在 Colab 按下去。
@@ -54,7 +54,7 @@
 
 ## 4. 未解／待決（依優先序）
 
-0. **v1c**：Colab 開訓 → 中場檢查 → 及格線 → Z 文件 → trip29（§1）。plan 的 Minor 審查項（測試覆蓋：鏡像＋延遲同開、重生後 delay 重抽、對稱化測試的覆寫範圍、IMU 偏差 .T 方向）記在 `.superpowers/sdd/progress.md`，最終審查修正波處理。
+0. **v1c**：Colab 開訓 → 中場檢查 → 及格線 → Z 文件 → trip29（§1）。plan 的 Minor 審查項（測試覆蓋：鏡像＋延遲同開、重生後 delay 重抽、對稱化測試的覆寫範圍、IMU 偏差 .T 方向）記在 `.superpowers/sdd/progress.md`，最終審查修正波處理；最終審查 Minor 清單在 `.superpowers/sdd/progress.md`。
 0′. **模型左右不對稱（10-20 量到）**：`base_link` 質心 y +3.45 mm、RAR 膝 0.8598 vs 其他 0.8631 kg、**機身慣量主軸 iquat 有小傾斜（影響比質心偏移大）**；質心在 DR ±50 mm 內、慣量傾斜 DR 沒隨機化。訓練模型沒改。要不要把慣量姿態加進 DR → 使用者定。測試 `tests/test_rl_env_wheel_mirror.py::test_model_lr_asymmetry_is_within_dr`。
 0″. `rl16_trip_report.py` 抬腳欄要修（X §5）；里程法併入。
 1. **M9 硬上限誤中止**（trip25 ④）：`tau_hot` 連續 2 筆要加「相隔 ≥ 4 ms」（`M9_gait.py` 約 2075 行，`test_m9_gait.py` 要一起改）。

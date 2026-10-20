@@ -138,7 +138,7 @@ def main():
     keys = list(T.keys())
     nT = len(rw.TERM_KEYS)
     A = [f"# reward 攤帳：{pname} 在 WheelEnv 平地 {len(CMDS)} 指令（每步平均；std 0.25 為主，括號內 std 0.5）  —  tag {a.tag}", "",
-         f"權重：w_ang {a.w_ang:g}、w_lim {a.w_lim:g}（lin 2.5，其餘照 spec §3）" + f"；preset {a.preset or '無（v1b）'}",
+         f"權重：w_ang {a.w_ang:g}、w_lim {a.w_lim:g}（lin 2.5，其餘照 spec §3）" + f"；preset {a.preset or '無（v1b）'}" + (f"；preset v1c {json.dumps(rw.V1C)}" if a.preset == "v1c" else ""),
          f"取指令後 1 s 起（{a.secs - 1:.0f} s × 50 步）；前 {nT} 欄是 reward 項（已乘權重），合計＝{nT} 項和；`lim` 罰 PD 目標超出軟限位、`sat_n` 是每步 PD 目標超出硬限位的腿關節數（平均）；`lin_small` 在 fixed_cmd 下恆 0（small 旗標固定 False）；`ww_force` 是輪輪法向力 N、`gap_min` 是前後兩對左右輪實體間隙的較小者 m（輪心距 − 0.034）、`touch_n` 是觸地輪數（診斷量，不進 reward）。"
          "std 0.5 的 lin／ang 由同一條 rollout 的 vx/vy/wz 誤差解析算出（std 不影響動力學）。", "",
          "| 指令 | " + " | ".join(keys) + " | 合計 |", "|---|" + "---|" * (len(keys) + 1)]

@@ -59,7 +59,9 @@ TERM_KEYS = ("lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "ac
 METRIC_KEYS = TERM_KEYS + ("reward", "lin_small", "level", "fell", "oob", "tilt", "dist", "ww_force", "gap_min", "vx_err", "vy_err", "wz_err", "touch_n", "small", "standing", "sat_n",
                            "impact_vz", "td_n", "impact_fn", "mir", "delay")
 # v1c 預設（spec 2026-10-20 §2）：鏡像增強、roll 姿態角懲罰、落地衝擊懲罰、動作延遲 0–2 步、IMU 常數偏差 ±2°。WheelEnv() 預設＝v1b。
-V1C = dict(mirror=True, w_roll=10.0, w_impact=3.0, delay_max=2, grav_bias_deg=2.0)
+V1C = dict(mirror=True, w_roll=10.0, w_impact=3.0, impact_v0=0.3, delay_max=2, grav_bias_deg=2.0)
+# impact_v0（10-20 晚加）：只罰超過 0.3 m/s 的落地速度 → 10k 等級的輕落地（0.10–0.19）免費、v1b 等級（0.43–0.71）仍罰。
+# v1c 從頭訓（w 3、無門檻）5 億步後 policy 完全不抬腳、側向軸死掉（lin 0.04 vs v1b 2.40）：早期笨拙落地每次 −3～−12 把探索殺掉。
 
 
 def quat_rot_inv(q, v):
@@ -155,7 +157,7 @@ class WheelEnv(Env):
                  fixed_cmd: bool = False, fixed_tile: tuple[int, int] | None = None, small_frac: float = 0.3,
                  std: float = 0.25, w_ww: float = 1.0, w_gap: float = 2.0, episode_len: int = EPISODE_LEN,
                  w_ang: float = 2.5, w_lim: float = 2.0,
-                 mirror: bool = False, w_roll: float = 0.0, w_impact: float = 0.0, delay_max: int = 0, grav_bias_deg: float = 0.0):
+                 mirror: bool = False, w_roll: float = 0.0, w_impact: float = 0.0, impact_v0: float = 0.0, delay_max: int = 0, grav_bias_deg: float = 0.0):
         """flat：全圖平地、出生在原點（對齊驗證）；fixed_cmd：指令讀 info["cmd_fix"]（不重抽、不站立、不小指令）；
         fixed_tile=(kind_idx, level)：固定出生方塊、不升降課程。std／w_ww／w_gap／small_frac 是三項改動的旋鈕（w_gap：輪輪實體間隙 hinge）。
         w_ang：偏航追蹤權重（v1 是 1.25，v1b 2.5：原地轉時 tau_leg ≈ −2／步壓過 ang 最多 1.25）；w_lim：腿關節 PD 目標超出軟限位的懲罰（v1 是 0，v1b 2.0）。
@@ -165,7 +167,7 @@ class WheelEnv(Env):
         self.flat, self.noise, self.push, self.fixed_cmd, self.fixed_tile = flat, noise, push, fixed_cmd, fixed_tile
         self.small_frac, self.std, self.w_ww, self.w_gap = small_frac, std, w_ww, w_gap
         self.w_ang, self.w_lim = float(w_ang), float(w_lim)
-        self.mirror, self.w_roll, self.w_impact = bool(mirror), float(w_roll), float(w_impact)
+        self.mirror, self.w_roll, self.w_impact, self.impact_v0 = bool(mirror), float(w_roll), float(w_impact), float(impact_v0)
         self.delay_max, self.grav_bias_deg = int(delay_max), float(grav_bias_deg)
         assert 0 <= self.delay_max <= 2, "a_hist 長度 3：延遲最多 2 步"
         self.episode_len = int(episode_len)
@@ -437,7 +439,7 @@ class WheelEnv(Env):
         roll = grav_true[1] ** 2                                                     # 只罰 roll：上樓梯／斜坡的俯仰是正當的
         touchdown = touch & ~info["touch_prev"] & (info["t"] >= IMPACT_SETTLE)       # 本步觸地、上步沒觸地；出生落定期（t 是本步前的計數）不算
         vz_prev = jnp.maximum(0.0, -info["vfoot_prev"][:, 2])                        # 觸地前一步的下落速度
-        impact = jnp.sum(touchdown * vz_prev ** 2)
+        impact = jnp.sum(touchdown * jnp.maximum(0.0, vz_prev - self.impact_v0) ** 2)     # 門檻形式：只罰超過 impact_v0 的部分（預設 0＝原式）
         impact_vz = jnp.sum(touchdown * vz_prev)                                     # 本步落地事件的下落速度**總和**（診斷量；平均要除 td_n，不能除步數）
         td_n = jnp.sum(touchdown).astype(jnp.float32)                                # 本步落地事件數
         impact_fn = jnp.max(C["fn"] * floor_hit)                                     # 本步輪–地法向力峰（診斷量）

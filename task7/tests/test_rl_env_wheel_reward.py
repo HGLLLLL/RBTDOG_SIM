@@ -222,7 +222,7 @@ def env_c(env):
 
 
 def test_v1c_preset_values():
-    assert rw.V1C == dict(mirror=True, w_roll=10.0, w_impact=3.0, delay_max=2, grav_bias_deg=2.0)
+    assert rw.V1C == dict(mirror=True, w_roll=10.0, w_impact=3.0, impact_v0=0.3, delay_max=2, grav_bias_deg=2.0)
 
 
 def test_roll_penalty_is_true_gravity_y_squared(env, env_c):
@@ -254,7 +254,10 @@ def test_impact_penalty_on_touchdown_only(env, env_c):
     info["t"] = jnp.int32(rw.IMPACT_SETTLE)                                  # _info 的 t＝0（出生後第一步）→ 先移到落定期之後
     info["touch_prev"] = jnp.array([False, True, True, True]); info["vfoot_prev"] = jnp.zeros((4, 3)).at[0, 2].set(-0.5)
     T, _ = env_c._reward_terms(data, info, jnp.zeros(16), jnp.zeros(3))
-    assert float(T["impact"]) == pytest.approx(-3.0 * 0.25, abs=1e-6)        # 只有 FR 是「本步觸地、上步沒觸地」，vz_prev −0.5
+    assert float(T["impact"]) == pytest.approx(-3.0 * (0.5 - 0.3) ** 2, abs=1e-6)   # 只有 FR 是「本步觸地、上步沒觸地」，vz_prev −0.5，門檻 0.3 → 罰 (0.2)²
+    e0 = rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, w_impact=3.0, impact_v0=0.0, scene=env.scene)
+    Tz, _ = e0._reward_terms(data, info, jnp.zeros(16), jnp.zeros(3)); assert float(Tz["impact"]) == pytest.approx(-3.0 * 0.25, abs=1e-6)   # 無門檻＝原式
+    Tl, _ = env_c._reward_terms(data, dict(info, vfoot_prev=jnp.zeros((4, 3)).at[0, 2].set(-0.2)), jnp.zeros(16), jnp.zeros(3)); assert float(Tl["impact"]) == 0.0   # 0.2 m/s < 門檻：免費
     T, _ = env_c._reward_terms(data, dict(info, t=jnp.int32(rw.IMPACT_SETTLE - 1)), jnp.zeros(16), jnp.zeros(3))
     assert float(T["impact"]) == 0.0                                         # 落定期內的觸地不算事件
     info["touch_prev"] = jnp.ones(4, bool)

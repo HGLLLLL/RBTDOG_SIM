@@ -10,6 +10,8 @@ OUT = HERE / "rl_wheel_v1_colab.ipynb"
 WEIGHTS = "rl_wheel_v1_params.pkl"
 OUT_C = HERE / "rl_wheel_v1c_colab.ipynb"
 WEIGHTS_C = "rl_wheel_v1c_params.pkl"
+OUT_D = HERE / "rl_wheel_v1d_colab.ipynb"
+WEIGHTS_D = "rl_wheel_v1d_params.pkl"
 OLD = json.loads((HERE / "cpg_rl_max_colab.ipynb").read_text(encoding="utf-8"))
 _code = [c for c in OLD["cells"] if c["cell_type"] == "code"]
 install_src, version_src = "".join(_code[0]["source"]), "".join(_code[1]["source"])
@@ -200,6 +202,29 @@ save_src_c = (save_src.replace(WEIGHTS, WEIGHTS_C).replace("/content/rl_wheel_v1
 assert "GDRIVE" in save_src_c and "立刻從檔案面板下載" not in save_src_c
 
 
+# ---- v1d（2026-10-20 晚）：v1c 從頭訓 5 億步後 policy 完全不抬腳、側向軸死掉（lin 0.04 vs v1b 2.40；impact 把早期探索殺掉）→
+#      改成 **從 v1b 熱啟動** 續訓，reward／DR 同 V1C 但 impact 改門檻形式（impact_v0 0.3）。檔名與雲端硬碟資料夾用 v1d，避免 RESUME 撿到 v1c 的 step 檔。
+md0_d = md0_c.replace("# 純 RL 自訓 **v1c**：", "# 純 RL 自訓 **v1d**：v1b 熱啟動 ＋ ").replace("（2026-10-20）", "（2026-10-20 晚）").replace(
+    "從頭訓（不從 v1b 續），環境 `WheelEnv(**rw.V1C)`",
+    "**從 v1b 熱啟動**（`INIT_FROM`，normalizer／policy／value 都還原，步數從 0 算）續訓；v1c 從頭訓 5 億步的結果是 policy 完全不抬腳、側向軸死掉（`outputs/rl_wheel/eval_rl_only_real_v1c_s1.md`、`outputs/reward_audit_wheel_v1c_s1.md`：平移 0.5 的 lin 0.04 vs v1b 2.40），判斷是 `impact` 把早期笨拙落地的探索殺掉。環境 `WheelEnv(**rw.V1C)`").replace(
+    "- **`impact`**：罰觸地前一步足端下落速度平方（w 3）；原本沒有任何接觸力項。",
+    "- **`impact`**：罰觸地前一步足端下落速度**超過 0.3 m/s 的部分**的平方（w 3，`impact_v0` 0.3；10k 等級 0.10–0.19 免費、v1b 等級 0.43–0.71 仍罰）；原本沒有任何接觸力項。").replace(
+    "rl_wheel_v1c", "rl_wheel_v1d").replace("MyDrive/rl_wheel_v1c/", "MyDrive/rl_wheel_v1d/").replace("/content/rl_wheel_v1c/", "/content/rl_wheel_v1d/")
+md0_d = md0_d.replace("一個 session 5 億步（G4、4096 環境約 50 分鐘）", "一個 session 5 億步（G4、4096 環境約 50 分鐘；使用者：有必要可以多跑幾個 session）")
+assert "v1b 熱啟動" in md0_d and "rl_wheel_v1c" not in md0_d
+mount_src_d = mount_src_c.replace("rl_wheel_v1c", "rl_wheel_v1d").replace("（v1c，", "（v1d，")
+train_src_d = (train_src_c.replace("rl_wheel_v1c", "rl_wheel_v1d")
+               .replace('_restore = None if RESUME is None else model.load_params(RESUME)\n',
+                        '_restore = None if RESUME is None else model.load_params(RESUME)\n'
+                        'INIT_FROM = "rbtdog_sim/task7/weights/rl_wheel_v1b_params.pkl"     # v1d：沒有 v1d 的 step 檔時從 v1b 熱啟動（normalizer＋policy＋value 都還原；累計步數從 0 算）\n'
+                        'if _restore is None and INIT_FROM:\n'
+                        '    _restore = model.load_params(INIT_FROM); print("熱啟動自", INIT_FROM)\n')
+               .replace("（v1c 從頭訓，兩個 session 各 5 億）", "（v1d 從 v1b 熱啟動，每 session 5 億，可多跑）"))
+assert "INIT_FROM" in train_src_d and "rl_wheel_v1c" not in train_src_d and 'print("熱啟動自", INIT_FROM)' in train_src_d
+save_src_d = save_src_c.replace("rl_wheel_v1c", "rl_wheel_v1d")
+assert "rl_wheel_v1d_params.pkl" in save_src_d and "rl_wheel_v1c" not in save_src_d
+
+
 def cell(kind, src):
     c = {"cell_type": kind, "metadata": {}, "source": src.splitlines(keepends=True)}
     if kind == "code":
@@ -215,6 +240,9 @@ def build(variant="v1"):
     elif variant == "v1c":
         cells = [cell("markdown", md0_c), cell("code", install_src), cell("code", version_src), cell("code", clone_src), cell("code", mount_src_c),
                  cell("code", import_src_c), cell("code", bench_src), cell("code", train_src_c), cell("code", plot_src), cell("code", save_src_c)]
+    elif variant == "v1d":
+        cells = [cell("markdown", md0_d), cell("code", install_src), cell("code", version_src), cell("code", clone_src), cell("code", mount_src_d),
+                 cell("code", import_src_c), cell("code", bench_src), cell("code", train_src_d), cell("code", plot_src), cell("code", save_src_d)]
     else:
         raise ValueError(variant)
     return {"nbformat": 4, "nbformat_minor": 5,
@@ -222,7 +250,7 @@ def build(variant="v1"):
 
 
 def main():
-    for variant, out in (("v1", OUT), ("v1c", OUT_C)):
+    for variant, out in (("v1", OUT), ("v1c", OUT_C), ("v1d", OUT_D)):
         nb = build(variant)
         out.write_text(json.dumps(nb, ensure_ascii=False, indent=1), encoding="utf-8")
         print("→", out, f"({len(nb['cells'])} cells)")

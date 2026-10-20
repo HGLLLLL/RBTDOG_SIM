@@ -1,6 +1,6 @@
 # 對齊：2026-10-01_17-30-20_10000.onnx 在 WheelEnv（MJX，平地）vs CPU rl_only_infer（real）  —  tag 10k_v1c
 
-MJX 47 s（10 環境 vmap）、CPU 1 s；指令 8.0 s（先 1.0 s 零指令）；統計取指令後 1 s 起。後輪 gap ＝ 後輪實體間隙近似 ＝ 輪心距 − 0.034（官方網格內側面 +0.017 ×2，V 文件口徑；傾斜時高估 ~7 mm）（mm，取最小；env 與 cpu `gap_rr` 同式）。追蹤差 ＝ |env − cpu| / |指令|，只算有下指令的軸。
+MJX 45 s（10 環境 vmap）、CPU 1 s；指令 8.0 s（先 1.0 s 零指令）；統計取指令後 1 s 起。後輪 gap ＝ 後輪實體間隙近似 ＝ 輪心距 − 0.034（官方網格內側面 +0.017 ×2，V 文件口徑；傾斜時高估 ~7 mm）（mm，取最小；env 與 cpu `gap_rr` 同式）。追蹤差 ＝ |env − cpu| / |指令|，只算有下指令的軸。
 cpu 欄＝rl_only_infer 預設（v3f 圓柱輪、平面地板）；cpu′＝WheelEnv 場景（膠囊輪／機身／腿、hfield）：同一支 CPU 工具改載，env vs cpu′ 只剩 MJX 與 CPU MuJoCo 的差，cpu′ vs cpu 是場景（碰撞幾何）的差。
 
 | 指令 | 摔 env/cpu/cpu′ | vx env/cpu/cpu′ | vy env/cpu/cpu′ | 偏航 °/s env/cpu/cpu′ | 抬腳 mm env | 抬腳 mm cpu | 抬腳 mm cpu′ | 後輪 gap mm env/cpu/cpu′ | \|a\| max env/cpu | 追蹤差 env↔cpu | 追蹤差 env↔cpu′ |

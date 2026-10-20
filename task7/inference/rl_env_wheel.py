@@ -78,6 +78,66 @@ def wrap_pi(a):
     return (a + jnp.pi) % (2 * jnp.pi) - jnp.pi
 
 
+# ---------------------------------------------------------------- 左右鏡像（v1c 鏡像增強；y → −y）
+# 腿 FR↔FL、RR↔RL。四腿關節軸同向（ABAD x 軸、髖／膝／輪 y 軸），y 鏡射下繞 x／z 的量變號、繞 y 的不變：
+# ABAD 位置／速度／動作、ωx／ωz、grav_y、cmd vy／wz、機身 vy 變號；髖、膝、輪速、輪動作只換腿。
+MIRROR_LR = (1, 0, 3, 2)
+
+
+def _mirror_maps():
+    oi, os_ = np.arange(OBS_DIM), np.ones(OBS_DIM, np.float32)
+    ai, as_ = np.arange(ACT_DIM), np.ones(ACT_DIM, np.float32)
+
+    def group4(idx, sg, base, neg):
+        for k in range(4):
+            idx[base + k] = base + MIRROR_LR[k]
+            if neg:
+                sg[base + k] = -1.0
+    os_[0] = os_[2] = -1.0                      # ωx、ωz
+    os_[4] = -1.0                               # grav y
+    os_[7] = os_[8] = -1.0                      # cmd vy、wz
+    for base, neg in ((9, True), (13, False), (17, False)):                  # jpos：ABAD／HIP／KNEE
+        group4(oi, os_, base, neg)
+    for base, neg in ((21, True), (25, False), (29, False), (33, False)):    # jvel：＋WHEEL
+        group4(oi, os_, base, neg)
+    for base, neg in ((37, True), (41, False), (45, False), (49, False)):    # last_action
+        group4(oi, os_, base, neg)
+    for base, neg in ((0, True), (4, False), (8, False), (12, False)):       # 動作
+        group4(ai, as_, base, neg)
+    return jnp.array(oi), jnp.array(os_), jnp.array(ai), jnp.array(as_)
+
+
+OBS_MIRROR_IDX, OBS_MIRROR_SGN, ACT_MIRROR_IDX, ACT_MIRROR_SGN = _mirror_maps()
+PRIV_MIRROR_SGN = jnp.array([1.0, -1.0, 1.0], dtype=jnp.float32)      # 機身系線速度 (vx, vy, vz)
+
+
+def mirror_obs(o):
+    return o[OBS_MIRROR_IDX] * OBS_MIRROR_SGN
+
+
+def mirror_act(a):
+    return a[ACT_MIRROR_IDX] * ACT_MIRROR_SGN
+
+
+def mirror_priv(p):
+    return jnp.concatenate([mirror_obs(p[:OBS_DIM]), p[OBS_DIM:] * PRIV_MIRROR_SGN])
+
+
+def mirror_data(env, data):
+    """測試用：把 MJX data 真的左右翻（y → −y、四元數 (w,x,y,z) → (w,−x,y,−z)、腿互換、ABAD 變號、ctrl 同樣翻），再 mjx.forward。
+    free joint 的 qvel 線速度在世界系（vy 變號）、角速度在機身系（ωx、ωz 變號）。"""
+    q, v = data.qpos, data.qvel
+    q = q.at[1].multiply(-1.0).at[4].multiply(-1.0).at[6].multiply(-1.0)
+    v = v.at[1].multiply(-1.0).at[3].multiply(-1.0).at[5].multiply(-1.0)
+    QA, VA = env.QADR, env.VADR
+    jq, jv = data.qpos[QA], data.qvel[VA]
+    sgn16 = jnp.concatenate([-jnp.ones(4), jnp.ones(12)])
+    idx16 = jnp.array([g * 4 + MIRROR_LR[k] for g in range(4) for k in range(4)])
+    q = q.at[QA].set(jq[idx16] * sgn16); v = v.at[VA].set(jv[idx16] * sgn16)
+    c = data.ctrl.at[env.AID].set(data.ctrl[env.AID][idx16] * sgn16)        # PD 目標／輪速也翻（ABAD offset 0，變號合法）
+    return mjx.forward(env.sys, data.replace(qpos=q, qvel=v, ctrl=c))
+
+
 class WheelEnv(Env):
     def __init__(self, scene: str | None = None, map_seed: int = 0, flat: bool = False, noise: bool = True, push: bool = True,
                  fixed_cmd: bool = False, fixed_tile: tuple[int, int] | None = None, small_frac: float = 0.3,

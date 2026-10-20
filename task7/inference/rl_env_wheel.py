@@ -54,8 +54,11 @@ FALL_COS = -0.5                         # 摔倒：機身系重力 z 分量 > �
 CURR_UP_DIST = 2.0
 LIM_SOFT = 0.9                          # 關節軟限位：中點 ± 0.9 × 半行程（同 Isaac soft_joint_pos_limit_factor；lim 罰 PD 目標超出它）
 WW_CAP = 3.0                            # ww 每個接觸 fn/100 的上限：腿交叉時 fn 可達 2755 N，單步 −760 會拉壞 critic
-TERM_KEYS = ("lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap", "lim")
-METRIC_KEYS = TERM_KEYS + ("reward", "lin_small", "level", "fell", "oob", "tilt", "dist", "ww_force", "gap_min", "vx_err", "vy_err", "wz_err", "touch_n", "small", "standing", "sat_n")
+TERM_KEYS = ("lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap", "lim", "roll", "impact")
+METRIC_KEYS = TERM_KEYS + ("reward", "lin_small", "level", "fell", "oob", "tilt", "dist", "ww_force", "gap_min", "vx_err", "vy_err", "wz_err", "touch_n", "small", "standing", "sat_n",
+                           "impact_vz", "td_n", "impact_fn", "mir", "delay")
+# v1c 預設（spec 2026-10-20 §2）：鏡像增強、roll 姿態角懲罰、落地衝擊懲罰、動作延遲 0–2 步、IMU 常數偏差 ±2°。WheelEnv() 預設＝v1b。
+V1C = dict(mirror=True, w_roll=10.0, w_impact=3.0, delay_max=2, grav_bias_deg=2.0)
 
 
 def quat_rot_inv(q, v):
@@ -142,14 +145,20 @@ class WheelEnv(Env):
     def __init__(self, scene: str | None = None, map_seed: int = 0, flat: bool = False, noise: bool = True, push: bool = True,
                  fixed_cmd: bool = False, fixed_tile: tuple[int, int] | None = None, small_frac: float = 0.3,
                  std: float = 0.25, w_ww: float = 1.0, w_gap: float = 2.0, episode_len: int = EPISODE_LEN,
-                 w_ang: float = 2.5, w_lim: float = 2.0):
+                 w_ang: float = 2.5, w_lim: float = 2.0,
+                 mirror: bool = False, w_roll: float = 0.0, w_impact: float = 0.0, delay_max: int = 0, grav_bias_deg: float = 0.0):
         """flat：全圖平地、出生在原點（對齊驗證）；fixed_cmd：指令讀 info["cmd_fix"]（不重抽、不站立、不小指令）；
         fixed_tile=(kind_idx, level)：固定出生方塊、不升降課程。std／w_ww／w_gap／small_frac 是三項改動的旋鈕（w_gap：輪輪實體間隙 hinge）。
         w_ang：偏航追蹤權重（v1 是 1.25，v1b 2.5：原地轉時 tau_leg ≈ −2／步壓過 ang 最多 1.25）；w_lim：腿關節 PD 目標超出軟限位的懲罰（v1 是 0，v1b 2.0）。
-        episode_len：回合步數（內部重生、10 s 指令重抽、推力排程都以它為準；訓練時須與 wrap_env 的 episode_length 相同）。"""
+        episode_len：回合步數（內部重生、10 s 指令重抽、推力排程都以它為準；訓練時須與 wrap_env 的 episode_length 相同）。
+        v1c（全部預設關，WheelEnv() ＝ v1b）：mirror 每回合 50% 左右鏡像；w_roll 罰真實重力 y 分量平方（只罰 roll）；w_impact 罰觸地前一步足端下落速度平方；
+        delay_max 每回合抽 0–delay_max 步動作延遲；grav_bias_deg 每回合抽 ±deg 的 IMU roll／pitch 常數偏差（只動 policy 的重力 obs）。fixed_cmd 下三個隨機項全關。"""
         self.flat, self.noise, self.push, self.fixed_cmd, self.fixed_tile = flat, noise, push, fixed_cmd, fixed_tile
         self.small_frac, self.std, self.w_ww, self.w_gap = small_frac, std, w_ww, w_gap
         self.w_ang, self.w_lim = float(w_ang), float(w_lim)
+        self.mirror, self.w_roll, self.w_impact = bool(mirror), float(w_roll), float(w_impact)
+        self.delay_max, self.grav_bias_deg = int(delay_max), float(grav_bias_deg)
+        assert 0 <= self.delay_max <= 2, "a_hist 長度 3：延遲最多 2 步"
         self.episode_len = int(episode_len)
         self.scene = scene or wt.make_scene_xml()
         m = mujoco.MjModel.from_xml_path(self.scene)
@@ -279,6 +288,7 @@ class WheelEnv(Env):
                     cmd_ab=jnp.stack([cmd_a, cmd_b]), head_ab=jnp.stack([head_a, head_b]), standing=standing, small=small,
                     cmd_fix=jnp.zeros(3), cmd=jnp.zeros(3), last_a=jnp.zeros(ACT_DIM),
                     qvel_prev=data.qvel[self.VADR], foot_prev=data.xpos[self.FOOT_BIDS],
+                    touch_prev=jnp.zeros(4, bool), vfoot_prev=jnp.zeros((4, 3)),
                     push_t=jnp.int32(self.episode_len // 2) + jax.random.randint(k[5], (), 0, self.episode_len // 4))   # 10–15 s 後第一次推
         info["cmd"] = self._cmd_now(data, info)
         obs = self._obs_dict(data, info["cmd"], info["last_a"], jax.random.fold_in(rng, 6))   # 第一個 obs 也帶雜訊；fold_in 不動 split(6) 的出生／指令抽樣
@@ -339,11 +349,12 @@ class WheelEnv(Env):
             info["push_t"] = jnp.where(do_push, info["push_t"] + nxt, info["push_t"])
         data = self._physics(data, a)
         cmd = info["cmd"]
-        reward, fell, metrics = self._after_physics(data, info, a, cmd)
+        reward, fell, metrics, aux = self._after_physics(data, info, a, cmd)
         t1 = info["t"] + 1
         done_env = fell | (t1 >= self.episode_len)
         # 續走路徑
-        info_c = dict(info, rng=rng, t=t1, last_a=a, qvel_prev=data.qvel[self.VADR], foot_prev=data.xpos[self.FOOT_BIDS])
+        info_c = dict(info, rng=rng, t=t1, last_a=a, qvel_prev=data.qvel[self.VADR], foot_prev=data.xpos[self.FOOT_BIDS],
+                      touch_prev=aux["touch"], vfoot_prev=aux["vfoot"])
         info_c["cmd"] = self._cmd_now(data, info_c)
         obs_c = self._obs_dict(data, info_c["cmd"], a, k_noise)
         # 重生路徑（回合結束才用；每步都算，jit 下成本固定）
@@ -388,6 +399,14 @@ class WheelEnv(Env):
         floor_hit = C["active"] & (is_floor0 | is_floor1)
         touch = jnp.array([jnp.any(floor_hit & (other == self.WHEEL_GIDS[k])) for k in range(4)])
         foot = data.xpos[self.FOOT_BIDS]; vfoot = (foot - info["foot_prev"]) / CTRL_DT
+        grav_true = quat_rot_inv(q, jnp.array([0.0, 0.0, -1.0]))                   # 真實重力（不是帶偏差的 obs）
+        roll = grav_true[1] ** 2                                                     # 只罰 roll：上樓梯／斜坡的俯仰是正當的
+        touchdown = touch & ~info["touch_prev"]                                      # 本步觸地、上步沒觸地
+        vz_prev = jnp.maximum(0.0, -info["vfoot_prev"][:, 2])                        # 觸地前一步的下落速度
+        impact = jnp.sum(touchdown * vz_prev ** 2)
+        impact_vz = jnp.sum(touchdown * vz_prev)                                     # 本步落地事件的下落速度**總和**（診斷量；平均要除 td_n，不能除步數）
+        td_n = jnp.sum(touchdown).astype(jnp.float32)                                # 本步落地事件數
+        impact_fn = jnp.max(C["fn"] * floor_hit)                                     # 本步輪–地法向力峰（診斷量）
         axis = data.xmat[self.FOOT_BIDS][:, :, 1]                                   # 輪軸（FOOT_LINK 的 y 軸）世界向量
         slip = jnp.sum(touch * jnp.sum(vfoot * axis, axis=1) ** 2)                 # 他的 wheel_lateral_slip（spin_axis 1）
         ww_mask = jnp.isin(C["g0"], self.WHEEL_GIDS) & jnp.isin(C["g1"], self.WHEEL_GIDS)
@@ -411,8 +430,10 @@ class WheelEnv(Env):
                  tau_leg=-2e-4 * jnp.sum(tau[:12] ** 2), tau_wheel=-2e-4 * jnp.sum(tau[12:] ** 2),
                  acc_leg=-2.5e-7 * jnp.sum(qacc[:12] ** 2), acc_wheel=-2.5e-7 * jnp.sum(qacc[12:] ** 2),
                  rate=-0.01 * jnp.sum((a - info["last_a"]) ** 2),
-                 slip=-0.075 * slip, dev=-0.1 * dev, ww=-self.w_ww * ww, wgap=-self.w_gap * wgap, lim=-self.w_lim * lim)
-        aux = dict(vb=vb, w=w, touch=touch, ww_force=ww_force, gaps=gaps, err_lin=err_lin, err_ang=err_ang, C=C, sat_n=sat_n)
+                 slip=-0.075 * slip, dev=-0.1 * dev, ww=-self.w_ww * ww, wgap=-self.w_gap * wgap, lim=-self.w_lim * lim,
+                 roll=-self.w_roll * roll, impact=-self.w_impact * impact)
+        aux = dict(vb=vb, w=w, touch=touch, ww_force=ww_force, gaps=gaps, err_lin=err_lin, err_ang=err_ang, C=C, sat_n=sat_n,
+                   vfoot=vfoot, impact_vz=impact_vz, td_n=td_n, impact_fn=impact_fn)
         return T, aux
 
     def _after_physics(self, data, info, a, cmd):
@@ -427,8 +448,9 @@ class WheelEnv(Env):
         metrics = dict(T, reward=reward, lin_small=T["lin"] * info["small"], level=info["level"].astype(jnp.float32),
                        fell=fell.astype(jnp.float32), oob=oob.astype(jnp.float32), tilt=tilt.astype(jnp.float32), dist=jnp.linalg.norm(data.qpos[0:2] - info["xy0"]), ww_force=aux["ww_force"], gap_min=jnp.min(aux["gaps"]),
                        vx_err=jnp.abs(aux["vb"][0] - cmd[0]), vy_err=jnp.abs(aux["vb"][1] - cmd[1]), wz_err=jnp.abs(aux["w"][2] - cmd[2]),
-                       touch_n=jnp.sum(aux["touch"]).astype(jnp.float32), small=info["small"].astype(jnp.float32), standing=info["standing"].astype(jnp.float32), sat_n=aux["sat_n"])
-        return reward, fell, metrics
+                       touch_n=jnp.sum(aux["touch"]).astype(jnp.float32), small=info["small"].astype(jnp.float32), standing=info["standing"].astype(jnp.float32), sat_n=aux["sat_n"],
+                       impact_vz=aux["impact_vz"], td_n=aux["td_n"], impact_fn=aux["impact_fn"], mir=jnp.float32(0.0), delay=jnp.float32(0.0))   # mir／delay：Task 4／5 換真值
+        return reward, fell, metrics, aux
 
     @property
     def observation_size(self):

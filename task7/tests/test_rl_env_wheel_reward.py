@@ -68,7 +68,7 @@ def test_action_rate_and_signs(env):
     assert float(T["rate"]) == pytest.approx(-0.01 * 16 * 0.25, abs=1e-6)
     for k in ("vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap", "lim"):
         assert float(T[k]) <= 1e-9, k
-    assert set(T) == {"lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap", "lim"}
+    assert set(T) == set(rw.TERM_KEYS) and rw.TERM_KEYS[-2:] == ("roll", "impact")
 
 
 def test_joint_limit_penalty(env):
@@ -209,7 +209,61 @@ def test_out_of_map_terminates(env, field):
 def test_metrics_keys(env):
     s = jax.jit(env.step)(jax.jit(env.reset)(jax.random.PRNGKey(0)), jnp.zeros(16))
     assert set(s.metrics) == set(rw.METRIC_KEYS)
-    assert float(s.reward) == pytest.approx(sum(float(s.metrics[k]) for k in ("lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap", "lim")), abs=1e-5)
+    assert float(s.reward) == pytest.approx(sum(float(s.metrics[k]) for k in rw.TERM_KEYS), abs=1e-5)
     assert float(s.metrics["lim"]) == 0.0 and float(s.metrics["sat_n"]) == 0.0
     assert "gap_min" in s.metrics and 0.28 < float(s.metrics["gap_min"]) < 0.4               # 出生站姿：兩對左右輪實體間隙 ~308 mm
     assert float(s.metrics["small"]) == 0.0 and float(s.metrics["standing"]) == 0.0            # fixed_cmd：旗標固定 False
+
+
+@pytest.fixture(scope="module")
+def env_c(env):
+    """v1c 權重（fixed_cmd 下鏡像／延遲／偏差自動關）。"""
+    return rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, scene=env.scene, **rw.V1C)
+
+
+def test_v1c_preset_values():
+    assert rw.V1C == dict(mirror=True, w_roll=10.0, w_impact=3.0, delay_max=2, grav_bias_deg=2.0)
+
+
+def test_roll_penalty_is_true_gravity_y_squared(env, env_c):
+    base = np.asarray(_standing_data(env).qpos)
+    info = _info(env_c, _standing_data(env))
+    for deg, axis, expect in ((9.0, "x", -10.0 * np.sin(np.radians(9.0)) ** 2), (9.0, "y", 0.0), (0.0, "x", 0.0)):
+        q = base.copy(); h = np.radians(deg) / 2
+        q[3:7] = [np.cos(h), np.sin(h), 0.0, 0.0] if axis == "x" else [np.cos(h), 0.0, np.sin(h), 0.0]
+        d = jax.jit(mjx.forward)(env_c.sys, mjx.make_data(env_c.sys).replace(qpos=jnp.array(q)))
+        T, _ = env_c._reward_terms(d, info, jnp.zeros(16), jnp.zeros(3))
+        assert float(T["roll"]) == pytest.approx(expect, abs=1e-5), (deg, axis)
+    T0, _ = env._reward_terms(_standing_data(env), info, jnp.zeros(16), jnp.zeros(3))
+    assert float(T0["roll"]) == 0.0                                           # 預設 w_roll 0
+
+
+def _landed(env):
+    data = _standing_data(env).replace(ctrl=env._ctrl(jnp.zeros(16)))
+    phys = jax.jit(lambda d: env._physics(d, jnp.zeros(16)))
+    for _ in range(15):
+        data = phys(data)
+    return data
+
+
+def test_impact_penalty_on_touchdown_only(env, env_c):
+    data = _landed(env_c)
+    info = _info(env_c, data)
+    _, aux = env_c._reward_terms(data, info, jnp.zeros(16), jnp.zeros(3))
+    assert np.all(np.asarray(aux["touch"]))
+    info["touch_prev"] = jnp.array([False, True, True, True]); info["vfoot_prev"] = jnp.zeros((4, 3)).at[0, 2].set(-0.5)
+    T, _ = env_c._reward_terms(data, info, jnp.zeros(16), jnp.zeros(3))
+    assert float(T["impact"]) == pytest.approx(-3.0 * 0.25, abs=1e-6)        # 只有 FR 是「本步觸地、上步沒觸地」，vz_prev −0.5
+    info["touch_prev"] = jnp.ones(4, bool)
+    T, _ = env_c._reward_terms(data, info, jnp.zeros(16), jnp.zeros(3)); assert float(T["impact"]) == 0.0      # 持續觸地
+    info["touch_prev"] = jnp.array([False, True, True, True]); info["vfoot_prev"] = jnp.zeros((4, 3)).at[0, 2].set(+0.5)
+    T, _ = env_c._reward_terms(data, info, jnp.zeros(16), jnp.zeros(3)); assert float(T["impact"]) == 0.0      # 往上動不算落地
+    T0, _ = env._reward_terms(data, dict(info, touch_prev=jnp.array([False, True, True, True]), vfoot_prev=jnp.zeros((4, 3)).at[0, 2].set(-0.5)), jnp.zeros(16), jnp.zeros(3))
+    assert float(T0["impact"]) == 0.0                                        # 預設 w_impact 0
+
+
+def test_step_tracks_touch_prev_and_vfoot_prev(env_c):
+    s = jax.jit(env_c.reset)(jax.random.PRNGKey(0))
+    s2 = jax.jit(env_c.step)(s, jnp.zeros(16))
+    assert s2.info["touch_prev"].shape == (4,) and s2.info["vfoot_prev"].shape == (4, 3)
+    assert "impact_vz" in s2.metrics and "td_n" in s2.metrics and "impact_fn" in s2.metrics and float(s2.metrics["impact_vz"]) >= 0.0

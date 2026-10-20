@@ -123,9 +123,9 @@ def mirror_priv(p):
     return jnp.concatenate([mirror_obs(p[:OBS_DIM]), p[OBS_DIM:] * PRIV_MIRROR_SGN])
 
 
-def mirror_data(env, data):
+def mirror_data(env, data, sys=None):
     """測試用：把 MJX data 真的左右翻（y → −y、四元數 (w,x,y,z) → (w,−x,y,−z)、腿互換、ABAD 變號、ctrl 同樣翻），再 mjx.forward。
-    free joint 的 qvel 線速度在世界系（vy 變號）、角速度在機身系（ωx、ωz 變號）。"""
+    free joint 的 qvel 線速度在世界系（vy 變號）、角速度在機身系（ωx、ωz 變號）。sys：forward 用的模型（預設 env.sys；測試傳對稱化副本）。"""
     q, v = data.qpos, data.qvel
     q = q.at[1].multiply(-1.0).at[4].multiply(-1.0).at[6].multiply(-1.0)
     v = v.at[1].multiply(-1.0).at[3].multiply(-1.0).at[5].multiply(-1.0)
@@ -135,7 +135,7 @@ def mirror_data(env, data):
     idx16 = jnp.array([g * 4 + MIRROR_LR[k] for g in range(4) for k in range(4)])
     q = q.at[QA].set(jq[idx16] * sgn16); v = v.at[VA].set(jv[idx16] * sgn16)
     c = data.ctrl.at[env.AID].set(data.ctrl[env.AID][idx16] * sgn16)        # PD 目標／輪速也翻（ABAD offset 0，變號合法）
-    return mjx.forward(env.sys, data.replace(qpos=q, qvel=v, ctrl=c))
+    return mjx.forward(env.sys if sys is None else sys, data.replace(qpos=q, qvel=v, ctrl=c))
 
 
 class WheelEnv(Env):

@@ -82,6 +82,14 @@ def wrap_pi(a):
     return (a + jnp.pi) % (2 * jnp.pi) - jnp.pi
 
 
+def bias_matrix(roll, pitch):
+    """IMU 常數偏差 R ＝ Ry(pitch)·Rx(roll)（與 realbot/rl_obs_rl.grav_fix_matrix 同慣例）；policy 看到 g ＝ Rᵀ·g_true，狗端 --grav-offset 乘回 R 就歸零。"""
+    cr, sr, cp, sp = jnp.cos(roll), jnp.sin(roll), jnp.cos(pitch), jnp.sin(pitch)
+    rx = jnp.array([[1.0, 0.0, 0.0], [0.0, cr, -sr], [0.0, sr, cr]])
+    ry = jnp.array([[cp, 0.0, sp], [0.0, 1.0, 0.0], [-sp, 0.0, cp]])
+    return ry @ rx
+
+
 # ---------------------------------------------------------------- 左右鏡像（v1c 鏡像增強；y → −y）
 # 腿 FR↔FL、RR↔RL。四腿關節軸同向（ABAD x 軸、髖／膝／輪 y 軸），y 鏡射下繞 x／z 的量變號、繞 y 的不變：
 # ABAD 位置／速度／動作、ωx／ωz、grav_y、cmd vy／wz、機身 vy 變號；髖、膝、輪速、輪動作只換腿。
@@ -243,12 +251,16 @@ class WheelEnv(Env):
         jvel = data.qvel[self.VADR]
         return jnp.concatenate([ang, grav, cmd, jpos, jvel, last_a]).astype(jnp.float32)
 
-    def _obs_dict(self, data, cmd, last_a, rng_noise):
+    def _obs_dict(self, data, cmd, last_a, rng_noise, bias_rp=None):
         """非對稱 actor-critic（同他的 env.yaml）：policy 看帶雜訊的 53（狗上拿得到的量）；
-        critic 看無雜訊的同樣 53 ＋ 機身系線速度 3（實機量不到，只在訓練時給 value 估計用；匯出只取 policy 分支）。"""
+        critic 看無雜訊的同樣 53 ＋ 機身系線速度 3（實機量不到，只在訓練時給 value 估計用；匯出只取 policy 分支）。
+        bias_rp：IMU 常數偏差 (roll, pitch) rad，只旋轉 policy 的重力三維（grav_bias_deg > 0 才生效）。"""
         clean = self._obs(data, cmd, last_a)
         vb = quat_rot_inv(data.qpos[3:7], data.qvel[0:3])
-        return {"state": self._noisy(clean, rng_noise), "privileged_state": jnp.concatenate([clean, vb]).astype(jnp.float32)}
+        pol = clean
+        if self.grav_bias_deg > 0:
+            pol = clean.at[3:6].set(bias_matrix(bias_rp[0], bias_rp[1]).T @ clean[3:6])
+        return {"state": self._noisy(pol, rng_noise), "privileged_state": jnp.concatenate([clean, vb]).astype(jnp.float32)}
 
     def _maybe_mirror(self, obs, mir):
         """鏡像回合：policy（state）與 critic（privileged_state）都看左右翻過的世界。mirror=False 時原樣回傳（預設路徑不碰）。"""
@@ -294,15 +306,17 @@ class WheelEnv(Env):
         cmd_b, head_b, _, _ = self._sample_cmd(k[3], yaw)
         mir = jax.random.bernoulli(jax.random.fold_in(rng, 11)) if (self.mirror and not self.fixed_cmd) else jnp.bool_(False)
         delay = jax.random.randint(jax.random.fold_in(rng, 12), (), 0, self.delay_max + 1) if (self.delay_max > 0 and not self.fixed_cmd) else jnp.int32(0)
+        lim = jnp.radians(self.grav_bias_deg)
+        bias_rp = jax.random.uniform(jax.random.fold_in(rng, 13), (2,), minval=-lim, maxval=lim) if (self.grav_bias_deg > 0 and not self.fixed_cmd) else jnp.zeros(2)
         info = dict(rng=k[4], t=jnp.int32(0), kind=kind, level=level, xy0=xy,
                     cmd_ab=jnp.stack([cmd_a, cmd_b]), head_ab=jnp.stack([head_a, head_b]), standing=standing, small=small,
                     cmd_fix=jnp.zeros(3), cmd=jnp.zeros(3), last_a=jnp.zeros(ACT_DIM),
                     qvel_prev=data.qvel[self.VADR], foot_prev=data.xpos[self.FOOT_BIDS],
                     touch_prev=jnp.zeros(4, bool), vfoot_prev=jnp.zeros((4, 3)), mir=mir,
-                    delay=delay, a_hist=jnp.zeros((3, ACT_DIM)),
+                    delay=delay, a_hist=jnp.zeros((3, ACT_DIM)), bias_rp=bias_rp,
                     push_t=jnp.int32(self.episode_len // 2) + jax.random.randint(k[5], (), 0, self.episode_len // 4))   # 10–15 s 後第一次推
         info["cmd"] = self._cmd_now(data, info)
-        obs = self._obs_dict(data, info["cmd"], info["last_a"], jax.random.fold_in(rng, 6))   # 第一個 obs 也帶雜訊；fold_in 不動 split(6) 的出生／指令抽樣
+        obs = self._obs_dict(data, info["cmd"], info["last_a"], jax.random.fold_in(rng, 6), info["bias_rp"])   # 第一個 obs 也帶雜訊；fold_in 不動 split(6) 的出生／指令抽樣
         obs = self._maybe_mirror(obs, mir)
         z0 = jnp.zeros(())
         return State(data, obs, z0, z0, {k_: z0 for k_ in METRIC_KEYS}, info)
@@ -374,7 +388,7 @@ class WheelEnv(Env):
         info_c = dict(info, rng=rng, t=t1, last_a=a, qvel_prev=data.qvel[self.VADR], foot_prev=data.xpos[self.FOOT_BIDS],
                       touch_prev=aux["touch"], vfoot_prev=aux["vfoot"], a_hist=a_hist)
         info_c["cmd"] = self._cmd_now(data, info_c)
-        obs_c = self._obs_dict(data, info_c["cmd"], a, k_noise)
+        obs_c = self._obs_dict(data, info_c["cmd"], a, k_noise, info["bias_rp"])
         obs_c = self._maybe_mirror(obs_c, info["mir"])
         # 重生路徑（回合結束才用；每步都算，jit 下成本固定）
         kind_n, level_n = self._next_tile(k_tile, data, info)
@@ -382,7 +396,7 @@ class WheelEnv(Env):
         new_info = dict(new.info, cmd_fix=info["cmd_fix"]); new_info["cmd"] = self._cmd_now(new.pipeline_state, new_info)
         sel = lambda x, y: jnp.where(done_env, x, y)   # noqa: E731
         data_o = jax.tree_util.tree_map(sel, new.pipeline_state, data)
-        obs_n = self._obs_dict(new.pipeline_state, new_info["cmd"], new_info["last_a"], k_noise)
+        obs_n = self._obs_dict(new.pipeline_state, new_info["cmd"], new_info["last_a"], k_noise, new_info["bias_rp"])
         obs_n = self._maybe_mirror(obs_n, new_info["mir"])
         obs_o = jax.tree_util.tree_map(sel, obs_n, obs_c)
         info_o = {k_: (sel(new_info[k_], info_c[k_]) if k_ in new_info else info_c[k_]) for k_ in info_c}

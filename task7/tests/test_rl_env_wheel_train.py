@@ -117,3 +117,29 @@ def test_action_delay_buffer_and_sampling(env):
     s = s.replace(info={**s.info, "t": jnp.int32(rw.EPISODE_LEN - 1)})
     s2 = step(s, acts[0])
     assert int(s2.info["t"]) == 0 and np.all(np.asarray(s2.info["a_hist"]) == 0.0)
+
+
+def test_imu_bias_rotates_policy_gravity_only(env):
+    e = rw.WheelEnv(flat=True, noise=False, push=False, grav_bias_deg=2.0, scene=env.scene)
+    ks = jax.random.split(jax.random.PRNGKey(0), 400)
+    rp = np.degrees(np.asarray(jax.vmap(e.reset)(ks).info["bias_rp"]))
+    assert rp.shape == (400, 2) and np.abs(rp).max() <= 2.0 + 1e-6 and np.abs(rp).max() > 1.5 and np.abs(rp.mean(0)).max() < 0.4
+    assert np.all(np.asarray(jax.vmap(env.reset)(ks[:8]).info["bias_rp"]) == 0.0)                                                                  # 預設：0
+    assert np.all(np.asarray(jax.vmap(rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, grav_bias_deg=2.0, scene=env.scene).reset)(ks[:8]).info["bias_rp"]) == 0.0)   # fixed_cmd：0
+    step = jax.jit(e.step)
+    s = jax.jit(e.reset)(jax.random.PRNGKey(2))
+    for rp_deg in ((2.0, 0.0), (0.0, 2.0), (1.0, -1.0)):
+        s1 = s.replace(info={**s.info, "bias_rp": jnp.radians(jnp.array(rp_deg))})
+        s2 = step(s1, jnp.zeros(16))
+        g_pol, g_true = np.asarray(s2.obs["state"][3:6]), np.asarray(s2.obs["privileged_state"][3:6])
+        ang = np.degrees(np.arccos(np.clip(np.dot(g_pol, g_true) / np.linalg.norm(g_pol) / np.linalg.norm(g_true), -1, 1)))
+        want = np.degrees(np.arccos(np.cos(np.radians(rp_deg[0])) * np.cos(np.radians(rp_deg[1]))))     # Ry(p)·Rx(r) 作用在 (0,0,−1) 的夾角
+        assert ang == pytest.approx(want, abs=0.1), rp_deg      # 機身不完全水平時公式有二階誤差
+        np.testing.assert_allclose(np.asarray(s2.obs["state"][:3]), np.asarray(s2.obs["privileged_state"][:3]), atol=1e-6)     # 角速度不動
+        np.testing.assert_allclose(np.asarray(s2.obs["state"][6:]), np.asarray(s2.obs["privileged_state"][6:53]), atol=1e-6)   # 其餘不動（noise 關）
+    # 慣例與狗端 grav_fix_matrix 一致：bias (r,p) 注入後，乘回 grav_fix_matrix(r,p) 要歸零
+    sys.path.insert(0, str(ROOT / "realbot")); import rl_obs_rl  # noqa: E402
+    R = rl_obs_rl.grav_fix_matrix(2.0, -1.5)
+    g_true = np.array([0.1, -0.2, -0.97]); g_true /= np.linalg.norm(g_true)
+    g_pol = np.asarray(rw.bias_matrix(jnp.radians(2.0), jnp.radians(-1.5))).T @ g_true
+    np.testing.assert_allclose(R @ g_pol, g_true, atol=1e-6)

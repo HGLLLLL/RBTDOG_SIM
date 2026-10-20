@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""產生純 RL 自訓 v1 的 Colab notebook `rl_wheel_v1_colab.ipynb`（env：task7/inference/rl_env_wheel.py）。
+"""產生純 RL 自訓的 Colab notebook：`build(variant)` 回傳 v1 或 v1c；`main()` 同時寫 `rl_wheel_v1_colab.ipynb` 與
+`rl_wheel_v1c_colab.ipynb`（env：task7/inference/rl_env_wheel.py，產生器本身不 import 它）。
 安裝／版本兩格沿用 cpg_rl_max_colab.ipynb（與 build_nb_v3.py 同做法）。用法：python3 task7/notebooks/build_nb_wheel.py"""
 import json
 from pathlib import Path
@@ -163,17 +164,22 @@ md0_c = """# 純 RL 自訓 **v1c**：左右鏡像增強 ＋ roll 姿態角懲罰
 - 開訓前關卡已過：`outputs/reward_audit_wheel_{10k,v1b}_v1c.md`（`impact` 10k < v1b 一半、`roll` 左 > 右）。
 
 **流程**：第一格 throughput 測試選 `NUM_ENVS` → 訓練（每次 eval 存 pkl 到 `/content/rl_wheel_v1c/`，**不用雲端硬碟**；session 跑完立刻下載 `rl_wheel_v1c_params.pkl` 與最新的 `rl_wheel_v1c_step*.pkl`）→ 一個 session 5 億步（G4、4096 環境約 50 分鐘）→ 下個 session 把 `rl_wheel_v1c_step*.pkl` 上傳回 `/content/rl_wheel_v1c/`，`RESUME="auto"` 自動接。
-**5 億步中場檢查**：session 1 結束把 step 檔拉回本機 `export_policy_wheel.py` → 跑 spec §6 全表；roll 左右差沒縮、或 `impact_vz` 沒比 v1b 低 → 先調權重再跑 session 2。
+**5 億步中場檢查**：session 1 結束把 step 檔拉回本機 `export_policy_wheel.py` → 跑 spec §6 全表；roll 左右差沒縮、或驗收表的「落地 vz」沒比 v1b 低 → 先調權重再跑 session 2。
 **停損**：累計 2 億步時 `len < 600`、或 `lin < 0.5`、或 `wgap` 沒比 step 0 好／`gap` 中位 < 40 mm、或 `impact`、`roll` 沒比 step 0 往 0 走 → 停。
-**讀法**：`lin`／`ang` 往 2.5／2.5；`roll`、`impact` 往 0（`vz` 是落地事件平均下落速度 m/s，往下）；`mir` 應在 0.5 附近、`d` 在 1.0 附近（0–2 平均）；其餘同 v1。
+**讀法**：`lin`／`ang` 往 2.5／2.5；`roll`、`impact` 往 0；`land_vz` ＝ 每次落地平均下落速度 m/s（Σvz／Σ落地次數，不是除步數；v1b 本機驗收平移 0.5 約 0.36），往下；`mir` 應在 0.5 附近、`d` 在 1.0 附近（0–2 平均）；eval 也開鏡像／延遲／偏差，所以 eval reward 不是乾淨名目條件的數字，中場判讀以本機驗收表為準；其餘同 v1。
 """
 import_src_c = import_src.replace("env = rw.WheelEnv()", "env = rw.WheelEnv(**rw.V1C)")
 train_src_c = (train_src.replace("rl_wheel_v1", "rl_wheel_v1c")
+               .replace("（v1 用了 5 億；v1b 從 v1 的 step 檔續訓再 5 億）", "（v1c 從頭訓，兩個 session 各 5 億）")
                .replace("env = rw.WheelEnv()\neval_env = rw.WheelEnv(noise=False, push=False)",
                         "env = rw.WheelEnv(**rw.V1C)\neval_env = rw.WheelEnv(noise=False, push=False, **rw.V1C)")
+               .replace("    ps = lambda k: float(metrics.get(f\"eval/episode_{k}\", 0.0)) / L\n",
+                        "    ps = lambda k: float(metrics.get(f\"eval/episode_{k}\", 0.0)) / L\n"
+                        "    ev = lambda k: float(metrics.get(f\"eval/episode_{k}\", 0.0))                  # 回合總和（不除步數）\n"
+                        "    land_vz = ev('impact_vz') / max(ev('td_n'), 1e-9)                              # 每次落地平均下落速度 m/s ＝ Σvz／Σ落地次數（除步數會被無落地的步稀釋）\n")
                .replace("lim {ps('lim'):+.3f} sat {ps('sat_n'):.2f} | ",
-                        "lim {ps('lim'):+.3f} sat {ps('sat_n'):.2f} | roll {ps('roll'):+.3f} impact {ps('impact'):+.3f} vz {ps('impact_vz'):.2f} mir {ps('mir'):.2f} d {ps('delay'):.1f} | "))
-assert "rl_wheel_v1_step" not in train_src_c and "rw.V1C" in train_src_c and "ps('impact_vz')" in train_src_c
+                        "lim {ps('lim'):+.3f} sat {ps('sat_n'):.2f} | roll {ps('roll'):+.3f} impact {ps('impact'):+.3f} land_vz {land_vz:.2f} mir {ps('mir'):.2f} d {ps('delay'):.1f} | "))
+assert "rl_wheel_v1_step" not in train_src_c and "rw.V1C" in train_src_c and "ev('td_n')" in train_src_c and "land_vz" in train_src_c
 save_src_c = save_src.replace(WEIGHTS, WEIGHTS_C).replace("/content/rl_wheel_v1/", "/content/rl_wheel_v1c/")
 
 

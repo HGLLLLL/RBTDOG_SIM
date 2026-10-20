@@ -67,7 +67,7 @@ def test_v1c_notebook_cells():
     assert "env = rw.WheelEnv(**rw.V1C)" in code and "eval_env = rw.WheelEnv(noise=False, push=False, **rw.V1C)" in code
     assert 'DRIVE = "/content/rl_wheel_v1c"' in code and "rl_wheel_v1c_step{STEP_OFFSET + step:012d}.pkl" in code
     assert 'model.save_params("rl_wheel_v1c_params.pkl", params)' in code and "rl_wheel_v1_step" not in code
-    for k in ("ps('roll')", "ps('impact')", "ps('impact_vz')", "ps('mir')", "ps('delay')"):
+    for k in ("ps('roll')", "ps('impact')", "ev('impact_vz')", "ev('td_n')", "land_vz", "ps('mir')", "ps('delay')"):
         assert k in code, k
     assert "鏡像" in md and "2026-10-20" in md and "`impact`" in md and "`roll`" in md and "5 億步中場檢查" in md
     assert "停損" in md and "len < 600" in md and "`impact`、`roll` 沒比 step 0 往 0 走" in md
@@ -80,6 +80,7 @@ def test_v1c_notebook_matches_generator():
     spec = importlib.util.spec_from_file_location("build_nb_wheel", GEN)
     mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
     norm = lambda cells: [(c["cell_type"], "".join(c["source"])) for c in cells]
-    assert norm(mod.build("v1c")["cells"]) == norm(json.loads(NB_C.read_text(encoding="utf-8"))["cells"]), "先跑 python3 task7/notebooks/build_nb_wheel.py"
-    for i, c in enumerate([c for c in mod.build("v1c")["cells"] if c["cell_type"] == "code"][2:], start=2):
+    built = mod.build("v1c")
+    assert norm(built["cells"]) == norm(json.loads(NB_C.read_text(encoding="utf-8"))["cells"]), "先跑 python3 task7/notebooks/build_nb_wheel.py"
+    for i, c in enumerate([c for c in built["cells"] if c["cell_type"] == "code"][2:], start=2):
         ast.parse("".join(c["source"]), filename=f"v1c_code_cell_{i}")

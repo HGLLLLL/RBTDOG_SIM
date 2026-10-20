@@ -163,11 +163,18 @@ md0_c = """# 純 RL 自訓 **v1c**：左右鏡像增強 ＋ roll 姿態角懲罰
 - 不動：`wgap`／`ww`／`lim`／`w_ang`／σ 0.25／`acc_leg`／`rate`／課程／推力／網路。狗端零改動，`--grav-offset 0.7 -1.5` 照舊。
 - 開訓前關卡已過：`outputs/reward_audit_wheel_{10k,v1b}_v1c.md`（`impact` 10k < v1b 一半、`roll` 左 > 右）。
 
-**流程**：第一格 throughput 測試選 `NUM_ENVS` → 訓練（每次 eval 存 pkl 到 `/content/rl_wheel_v1c/`，**不用雲端硬碟**；session 跑完立刻下載 `rl_wheel_v1c_params.pkl` 與最新的 `rl_wheel_v1c_step*.pkl`）→ 一個 session 5 億步（G4、4096 環境約 50 分鐘）→ 下個 session 把 `rl_wheel_v1c_step*.pkl` 上傳回 `/content/rl_wheel_v1c/`，`RESUME="auto"` 自動接。
+**流程**：第 4 格掛載雲端硬碟（會跳一次授權，按完就可以離開）→ throughput 測試選 `NUM_ENVS` → 訓練（每次 eval 存 pkl 到 `/content/rl_wheel_v1c/` **並自動複製到雲端硬碟 `MyDrive/rl_wheel_v1c/`**，人不在、runtime 斷線都不會丟）→ 一個 session 5 億步（G4、4096 環境約 50 分鐘）→ 下個 session 掛載後 `RESUME="auto"` 自動從雲端硬碟接最新的 step 檔，不用手動上傳。
 **5 億步中場檢查**：session 1 結束把 step 檔拉回本機 `export_policy_wheel.py` → 跑 spec §6 全表；roll 左右差沒縮、或驗收表的「落地 vz」沒比 v1b 低 → 先調權重再跑 session 2；Colab 進度列的 `land_vz` 是 MJX 接觸口徑（v1b 左／右平移 0.43／0.70），本機驗收表的「落地 vz」是 CPU 淨空口徑（v1b 0.36／0.37），**兩者不能互比**，中場判讀以本機驗收表前後比為準。
 **停損**：累計 2 億步時 `len < 600`、或 `lin < 0.5`、或 `wgap` 沒比 step 0 好／`gap` 中位 < 40 mm、或 `impact`、`roll` 沒比 step 0 往 0 走、或 `level` 明顯低於 v1b 同步數的曲線（崎嶇地 `impact` 量級大：樓梯 8 側移 −0.75／步、方格 8 −0.48，平地 −0.17；policy 可能逃避高等級地形）→ 停。
 **讀法**：`lin`／`ang` 往 2.5／2.5；`roll`、`impact` 往 0；`land_vz` ＝ 每次落地平均下落速度 m/s（Σvz／Σ落地次數，不是除步數；MJX 口徑，v1b 平移 0.5 左／右 0.43／0.70，與本機驗收表的 0.36 不同口徑），往下；`mir` 應在 0.5 附近、`d` 在 1.0 附近（0–2 平均）；eval 也開鏡像／延遲／偏差，所以 eval reward 不是乾淨名目條件的數字，中場判讀以本機驗收表為準；其餘同 v1。
 """
+mount_src_c = '''# ---- 雲端硬碟（v1c，使用者 2026-10-20 要求：按下去就能離開）：先授權掛載；每次 eval 的 step 檔與最後的 params 都自動複製到 MyDrive/rl_wheel_v1c/，續訓也從那裡自動找
+from google.colab import drive
+drive.mount("/content/drive")
+import os
+GDRIVE = "/content/drive/MyDrive/rl_wheel_v1c"; os.makedirs(GDRIVE, exist_ok=True)
+print("雲端硬碟 OK →", GDRIVE, "｜已有：", sorted(os.listdir(GDRIVE)))
+'''
 import_src_c = import_src.replace("env = rw.WheelEnv()", "env = rw.WheelEnv(**rw.V1C)")
 train_src_c = (train_src.replace("rl_wheel_v1", "rl_wheel_v1c")
                .replace("（v1 用了 5 億；v1b 從 v1 的 step 檔續訓再 5 億）", "（v1c 從頭訓，兩個 session 各 5 億）")
@@ -177,10 +184,20 @@ train_src_c = (train_src.replace("rl_wheel_v1", "rl_wheel_v1c")
                         "    ps = lambda k: float(metrics.get(f\"eval/episode_{k}\", 0.0)) / L\n"
                         "    ev = lambda k: float(metrics.get(f\"eval/episode_{k}\", 0.0))                  # 回合總和（不除步數）\n"
                         "    land_vz = ev('impact_vz') / max(ev('td_n'), 1e-9)                              # 每次落地平均下落速度 m/s ＝ Σvz／Σ落地次數（除步數會被無落地的步稀釋）\n")
+               .replace("# 本機暫存（使用者決定不用雲端硬碟）；session 結束前自己下載", "# 本機暫存；每個 step 檔另外複製到 GDRIVE（雲端硬碟，上一格掛載），斷線也不丟")
+               .replace('glob.glob(f"{DRIVE}/rl_wheel_v1c_step*.pkl")', 'glob.glob(f"{DRIVE}/rl_wheel_v1c_step*.pkl") + glob.glob(f"{GDRIVE}/rl_wheel_v1c_step*.pkl")')
+               .replace('    model.save_params(f"{DRIVE}/rl_wheel_v1c_step{STEP_OFFSET + step:012d}.pkl", params)',
+                        '    p_ = f"{DRIVE}/rl_wheel_v1c_step{STEP_OFFSET + step:012d}.pkl"; model.save_params(p_, params)\n'
+                        '    import shutil; shutil.copy(p_, GDRIVE)                     # 自動上傳雲端硬碟（每次 eval 一份，runtime 斷線也不丟）')
                .replace("lim {ps('lim'):+.3f} sat {ps('sat_n'):.2f} | ",
                         "lim {ps('lim'):+.3f} sat {ps('sat_n'):.2f} | roll {ps('roll'):+.3f} impact {ps('impact'):+.3f} land_vz {land_vz:.2f} mir {ps('mir'):.2f} d {ps('delay'):.1f} | "))
 assert "rl_wheel_v1_step" not in train_src_c and "rw.V1C" in train_src_c and "ev('td_n')" in train_src_c and "land_vz" in train_src_c
-save_src_c = save_src.replace(WEIGHTS, WEIGHTS_C).replace("/content/rl_wheel_v1/", "/content/rl_wheel_v1c/")
+assert "shutil.copy(p_, GDRIVE)" in train_src_c and 'glob.glob(f"{GDRIVE}/rl_wheel_v1c_step*.pkl")' in train_src_c and "不用雲端硬碟" not in train_src_c
+save_src_c = (save_src.replace(WEIGHTS, WEIGHTS_C).replace("/content/rl_wheel_v1/", "/content/rl_wheel_v1c/")
+              .replace('import shutil; shutil.copy("rl_wheel_v1c_params.pkl", f"{DRIVE}/rl_wheel_v1c_params.pkl")',
+                       'import shutil; shutil.copy("rl_wheel_v1c_params.pkl", f"{DRIVE}/rl_wheel_v1c_params.pkl"); shutil.copy("rl_wheel_v1c_params.pkl", f"{GDRIVE}/rl_wheel_v1c_params.pkl")')
+              .replace("→ ⚠️ 立刻從檔案面板下載，runtime 斷線就沒了 → 放 task7/weights/", "→ ✅ 已自動上傳雲端硬碟 MyDrive/rl_wheel_v1c/（step 檔每次 eval 也都有副本），回來從那裡拿 → 放 task7/weights/"))
+assert "GDRIVE" in save_src_c and "立刻從檔案面板下載" not in save_src_c
 
 
 def cell(kind, src):
@@ -196,7 +213,7 @@ def build(variant="v1"):
         cells = [cell("markdown", md0), cell("code", install_src), cell("code", version_src), cell("code", clone_src),
                  cell("code", import_src), cell("code", bench_src), cell("code", train_src), cell("code", plot_src), cell("code", save_src)]
     elif variant == "v1c":
-        cells = [cell("markdown", md0_c), cell("code", install_src), cell("code", version_src), cell("code", clone_src),
+        cells = [cell("markdown", md0_c), cell("code", install_src), cell("code", version_src), cell("code", clone_src), cell("code", mount_src_c),
                  cell("code", import_src_c), cell("code", bench_src), cell("code", train_src_c), cell("code", plot_src), cell("code", save_src_c)]
     else:
         raise ValueError(variant)

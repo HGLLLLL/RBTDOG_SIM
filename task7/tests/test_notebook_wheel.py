@@ -70,6 +70,9 @@ def test_v1c_notebook_cells():
     for k in ("ps('roll')", "ps('impact')", "ev('impact_vz')", "ev('td_n')", "land_vz", "ps('mir')", "ps('delay')"):
         assert k in code, k
     assert "鏡像" in md and "2026-10-20" in md and "`impact`" in md and "`roll`" in md and "5 億步中場檢查" in md
+    assert 'drive.mount("/content/drive")' in code and 'GDRIVE = "/content/drive/MyDrive/rl_wheel_v1c"' in code     # v1c：自動上傳雲端硬碟（2026-10-20 使用者要求）
+    assert "shutil.copy(p_, GDRIVE)" in code and 'glob.glob(f"{GDRIVE}/rl_wheel_v1c_step*.pkl")' in code and 'f"{GDRIVE}/rl_wheel_v1c_params.pkl"' in code
+    assert "雲端硬碟" in md and "不用雲端硬碟" not in md
     assert "停損" in md and "len < 600" in md and "`impact`、`roll` 沒比 step 0 往 0 走" in md
     assert "`level` 明顯低於 v1b" in md and "兩者不能互比" in md
     # v1 notebook 內容不受影響

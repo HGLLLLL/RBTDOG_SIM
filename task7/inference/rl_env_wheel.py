@@ -54,6 +54,7 @@ FALL_COS = -0.5                         # 摔倒：機身系重力 z 分量 > �
 CURR_UP_DIST = 2.0
 LIM_SOFT = 0.9                          # 關節軟限位：中點 ± 0.9 × 半行程（同 Isaac soft_joint_pos_limit_factor；lim 罰 PD 目標超出它）
 WW_CAP = 3.0                            # ww 每個接觸 fn/100 的上限：腿交叉時 fn 可達 2755 N，單步 −760 會拉壞 critic
+IMPACT_SETTLE = 25                      # 步（0.5 s）：出生後輪子從 3 mm～數 cm 落到地面的時間，這段的落地不算衝擊事件；boxes 10 cm 自由落體 ≈ 0.14 s，25 步留餘裕
 TERM_KEYS = ("lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap", "lim", "roll", "impact")
 METRIC_KEYS = TERM_KEYS + ("reward", "lin_small", "level", "fell", "oob", "tilt", "dist", "ww_force", "gap_min", "vx_err", "vy_err", "wz_err", "touch_n", "small", "standing", "sat_n",
                            "impact_vz", "td_n", "impact_fn", "mir", "delay")
@@ -401,7 +402,7 @@ class WheelEnv(Env):
         foot = data.xpos[self.FOOT_BIDS]; vfoot = (foot - info["foot_prev"]) / CTRL_DT
         grav_true = quat_rot_inv(q, jnp.array([0.0, 0.0, -1.0]))                   # 真實重力（不是帶偏差的 obs）
         roll = grav_true[1] ** 2                                                     # 只罰 roll：上樓梯／斜坡的俯仰是正當的
-        touchdown = touch & ~info["touch_prev"]                                      # 本步觸地、上步沒觸地
+        touchdown = touch & ~info["touch_prev"] & (info["t"] >= IMPACT_SETTLE)       # 本步觸地、上步沒觸地；出生落定期（t 是本步前的計數）不算
         vz_prev = jnp.maximum(0.0, -info["vfoot_prev"][:, 2])                        # 觸地前一步的下落速度
         impact = jnp.sum(touchdown * vz_prev ** 2)
         impact_vz = jnp.sum(touchdown * vz_prev)                                     # 本步落地事件的下落速度**總和**（診斷量；平均要除 td_n，不能除步數）

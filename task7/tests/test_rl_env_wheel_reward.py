@@ -251,9 +251,12 @@ def test_impact_penalty_on_touchdown_only(env, env_c):
     info = _info(env_c, data)
     _, aux = env_c._reward_terms(data, info, jnp.zeros(16), jnp.zeros(3))
     assert np.all(np.asarray(aux["touch"]))
+    info["t"] = jnp.int32(rw.IMPACT_SETTLE)                                  # _info 的 t＝0（出生後第一步）→ 先移到落定期之後
     info["touch_prev"] = jnp.array([False, True, True, True]); info["vfoot_prev"] = jnp.zeros((4, 3)).at[0, 2].set(-0.5)
     T, _ = env_c._reward_terms(data, info, jnp.zeros(16), jnp.zeros(3))
     assert float(T["impact"]) == pytest.approx(-3.0 * 0.25, abs=1e-6)        # 只有 FR 是「本步觸地、上步沒觸地」，vz_prev −0.5
+    T, _ = env_c._reward_terms(data, dict(info, t=jnp.int32(rw.IMPACT_SETTLE - 1)), jnp.zeros(16), jnp.zeros(3))
+    assert float(T["impact"]) == 0.0                                         # 落定期內的觸地不算事件
     info["touch_prev"] = jnp.ones(4, bool)
     T, _ = env_c._reward_terms(data, info, jnp.zeros(16), jnp.zeros(3)); assert float(T["impact"]) == 0.0      # 持續觸地
     info["touch_prev"] = jnp.array([False, True, True, True]); info["vfoot_prev"] = jnp.zeros((4, 3)).at[0, 2].set(+0.5)
@@ -266,4 +269,20 @@ def test_step_tracks_touch_prev_and_vfoot_prev(env_c):
     s = jax.jit(env_c.reset)(jax.random.PRNGKey(0))
     s2 = jax.jit(env_c.step)(s, jnp.zeros(16))
     assert s2.info["touch_prev"].shape == (4,) and s2.info["vfoot_prev"].shape == (4, 3)
+    _, aux = env_c._reward_terms(s2.pipeline_state, s.info, jnp.zeros(16), s.info["cmd"])     # 同 data、同 foot_prev → 值必須一樣
+    assert np.array_equal(np.asarray(s2.info["touch_prev"]), np.asarray(aux["touch"]))
+    assert np.allclose(np.asarray(s2.info["vfoot_prev"]), np.asarray(aux["vfoot"]), atol=1e-6)
     assert "impact_vz" in s2.metrics and "td_n" in s2.metrics and "impact_fn" in s2.metrics and float(s2.metrics["impact_vz"]) >= 0.0
+
+
+def test_spawn_landing_is_not_counted(env_c):
+    """出生時輪子離地 3 mm（崎嶇可到數 cm）→ 前幾步的落地不是步態落地，不算 impact／td_n。"""
+    s = jax.jit(env_c.reset)(jax.random.PRNGKey(0))
+    step = jax.jit(env_c.step)
+    td, imp = [], []
+    for _ in range(8):
+        s = step(s, jnp.zeros(16))
+        td.append(float(s.metrics["td_n"])); imp.append(float(s.metrics["impact"]))
+    assert sum(td) == 0.0 and all(v == 0.0 for v in imp), (td, imp)
+    _, aux = env_c._reward_terms(s.pipeline_state, s.info, jnp.zeros(16), jnp.zeros(3))
+    assert np.all(np.asarray(aux["touch"]))                                  # 四輪都已著地：0 次是閘門擋掉，不是沒落地

@@ -6,6 +6,12 @@ from pathlib import Path
 
 NB = Path(__file__).resolve().parents[1] / "notebooks" / "rl_wheel_v1_colab.ipynb"
 GEN = NB.parent / "build_nb_wheel.py"
+NB_C = NB.parent / "rl_wheel_v1c_colab.ipynb"
+
+
+def _src_of(path, kind):
+    nb = json.loads(path.read_text(encoding="utf-8"))
+    return "\n".join("".join(c["source"]) for c in nb["cells"] if c["cell_type"] == kind)
 
 
 def _src(kind):
@@ -53,3 +59,27 @@ def test_notebook_matches_generator():
     norm = lambda cells: [(c["cell_type"], "".join(c["source"])) for c in cells]
     committed = json.loads(NB.read_text(encoding="utf-8"))
     assert norm(mod.build()["cells"]) == norm(committed["cells"]), "先跑 python3 task7/notebooks/build_nb_wheel.py"
+
+
+def test_v1c_notebook_cells():
+    assert NB_C.exists(), "先跑 python3 task7/notebooks/build_nb_wheel.py"
+    code = _src_of(NB_C, "code"); md = _src_of(NB_C, "markdown")
+    assert "env = rw.WheelEnv(**rw.V1C)" in code and "eval_env = rw.WheelEnv(noise=False, push=False, **rw.V1C)" in code
+    assert 'DRIVE = "/content/rl_wheel_v1c"' in code and "rl_wheel_v1c_step{STEP_OFFSET + step:012d}.pkl" in code
+    assert 'model.save_params("rl_wheel_v1c_params.pkl", params)' in code and "rl_wheel_v1_step" not in code
+    for k in ("ps('roll')", "ps('impact')", "ps('impact_vz')", "ps('mir')", "ps('delay')"):
+        assert k in code, k
+    assert "鏡像" in md and "2026-10-20" in md and "`impact`" in md and "`roll`" in md and "5 億步中場檢查" in md
+    assert "停損" in md and "len < 600" in md and "`impact`、`roll` 沒比 step 0 往 0 走" in md
+    # v1 notebook 內容不受影響
+    code1 = _src("code")
+    assert "rw.WheelEnv()" in code1 and 'DRIVE = "/content/rl_wheel_v1"' in code1 and "V1C" not in code1
+
+
+def test_v1c_notebook_matches_generator():
+    spec = importlib.util.spec_from_file_location("build_nb_wheel", GEN)
+    mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+    norm = lambda cells: [(c["cell_type"], "".join(c["source"])) for c in cells]
+    assert norm(mod.build("v1c")["cells"]) == norm(json.loads(NB_C.read_text(encoding="utf-8"))["cells"]), "先跑 python3 task7/notebooks/build_nb_wheel.py"
+    for i, c in enumerate([c for c in mod.build("v1c")["cells"] if c["cell_type"] == "code"][2:], start=2):
+        ast.parse("".join(c["source"]), filename=f"v1c_code_cell_{i}")

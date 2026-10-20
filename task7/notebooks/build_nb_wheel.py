@@ -7,6 +7,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 OUT = HERE / "rl_wheel_v1_colab.ipynb"
 WEIGHTS = "rl_wheel_v1_params.pkl"
+OUT_C = HERE / "rl_wheel_v1c_colab.ipynb"
+WEIGHTS_C = "rl_wheel_v1c_params.pkl"
 OLD = json.loads((HERE / "cpg_rl_max_colab.ipynb").read_text(encoding="utf-8"))
 _code = [c for c in OLD["cells"] if c["cell_type"] == "code"]
 install_src, version_src = "".join(_code[0]["source"]), "".join(_code[1]["source"])
@@ -150,6 +152,31 @@ print("已存 {WEIGHTS}（/content 與 /content/rl_wheel_v1/）→ ⚠️ 立刻
 '''
 
 
+md0_c = """# 純 RL 自訓 **v1c**：左右鏡像增強 ＋ roll 姿態角懲罰 ＋ 落地衝擊懲罰 ＋ 動作延遲／IMU 偏差 DR · Colab GPU（2026-10-20）
+
+從頭訓（不從 v1b 續），環境 `WheelEnv(**rw.V1C)`（spec `docs/superpowers/specs/2026-10-20-rl-wheel-v1c-design.md`；v1b 的 reward 盤點 `docs/results/Y_v1b_reward總表_2026-10-20.md`）：
+- **鏡像增強**：每回合 50% 把 obs 左右翻給 policy、動作翻回物理 → policy 本身左右對稱（v1b 左平移持續側傾 7–10°、右 1–4°，三版 policy 歪的方向隨機）。
+- **`roll`**：罰真實重力 y 分量平方（w 10，roll 9° ≈ −0.25／步）；原本的 `angxy` 只罰角速度，固定側傾時是 0。
+- **`impact`**：罰觸地前一步足端下落速度平方（w 3）；原本沒有任何接觸力項。
+- **DR**：動作延遲每回合抽 0–2 步、IMU roll／pitch 常數偏差每回合抽 ±2°（只動 policy 的重力 obs）。
+- 不動：`wgap`／`ww`／`lim`／`w_ang`／σ 0.25／`acc_leg`／`rate`／課程／推力／網路。狗端零改動，`--grav-offset 0.7 -1.5` 照舊。
+- 開訓前關卡已過：`outputs/reward_audit_wheel_{10k,v1b}_v1c.md`（`impact` 10k < v1b 一半、`roll` 左 > 右）。
+
+**流程**：第一格 throughput 測試選 `NUM_ENVS` → 訓練（每次 eval 存 pkl 到 `/content/rl_wheel_v1c/`，**不用雲端硬碟**；session 跑完立刻下載 `rl_wheel_v1c_params.pkl` 與最新的 `rl_wheel_v1c_step*.pkl`）→ 一個 session 5 億步（G4、4096 環境約 50 分鐘）→ 下個 session 把 `rl_wheel_v1c_step*.pkl` 上傳回 `/content/rl_wheel_v1c/`，`RESUME="auto"` 自動接。
+**5 億步中場檢查**：session 1 結束把 step 檔拉回本機 `export_policy_wheel.py` → 跑 spec §6 全表；roll 左右差沒縮、或 `impact_vz` 沒比 v1b 低 → 先調權重再跑 session 2。
+**停損**：累計 2 億步時 `len < 600`、或 `lin < 0.5`、或 `wgap` 沒比 step 0 好／`gap` 中位 < 40 mm、或 `impact`、`roll` 沒比 step 0 往 0 走 → 停。
+**讀法**：`lin`／`ang` 往 2.5／2.5；`roll`、`impact` 往 0（`vz` 是落地事件平均下落速度 m/s，往下）；`mir` 應在 0.5 附近、`d` 在 1.0 附近（0–2 平均）；其餘同 v1。
+"""
+import_src_c = import_src.replace("env = rw.WheelEnv()", "env = rw.WheelEnv(**rw.V1C)")
+train_src_c = (train_src.replace("rl_wheel_v1", "rl_wheel_v1c")
+               .replace("env = rw.WheelEnv()\neval_env = rw.WheelEnv(noise=False, push=False)",
+                        "env = rw.WheelEnv(**rw.V1C)\neval_env = rw.WheelEnv(noise=False, push=False, **rw.V1C)")
+               .replace("lim {ps('lim'):+.3f} sat {ps('sat_n'):.2f} | ",
+                        "lim {ps('lim'):+.3f} sat {ps('sat_n'):.2f} | roll {ps('roll'):+.3f} impact {ps('impact'):+.3f} vz {ps('impact_vz'):.2f} mir {ps('mir'):.2f} d {ps('delay'):.1f} | "))
+assert "rl_wheel_v1_step" not in train_src_c and "rw.V1C" in train_src_c and "ps('impact_vz')" in train_src_c
+save_src_c = save_src.replace(WEIGHTS, WEIGHTS_C).replace("/content/rl_wheel_v1/", "/content/rl_wheel_v1c/")
+
+
 def cell(kind, src):
     c = {"cell_type": kind, "metadata": {}, "source": src.splitlines(keepends=True)}
     if kind == "code":
@@ -157,19 +184,25 @@ def cell(kind, src):
     return c
 
 
-def build():
-    """回傳 notebook dict（測試用來比對已 commit 的 ipynb）。"""
+def build(variant="v1"):
+    """回傳 notebook dict（測試用來比對已 commit 的 ipynb）。variant：v1（內容不變）或 v1c。"""
+    if variant == "v1":
+        cells = [cell("markdown", md0), cell("code", install_src), cell("code", version_src), cell("code", clone_src),
+                 cell("code", import_src), cell("code", bench_src), cell("code", train_src), cell("code", plot_src), cell("code", save_src)]
+    elif variant == "v1c":
+        cells = [cell("markdown", md0_c), cell("code", install_src), cell("code", version_src), cell("code", clone_src),
+                 cell("code", import_src_c), cell("code", bench_src), cell("code", train_src_c), cell("code", plot_src), cell("code", save_src_c)]
+    else:
+        raise ValueError(variant)
     return {"nbformat": 4, "nbformat_minor": 5,
-            "metadata": {"kernelspec": {"name": "python3", "display_name": "Python 3"}, "accelerator": "GPU"},
-            "cells": [cell("markdown", md0), cell("code", install_src), cell("code", version_src), cell("code", clone_src),
-                      cell("code", import_src), cell("code", bench_src), cell("code", train_src), cell("code", plot_src),
-                      cell("code", save_src)]}
+            "metadata": {"kernelspec": {"name": "python3", "display_name": "Python 3"}, "accelerator": "GPU"}, "cells": cells}
 
 
 def main():
-    nb = build()
-    OUT.write_text(json.dumps(nb, ensure_ascii=False, indent=1), encoding="utf-8")
-    print("→", OUT, f"({len(nb['cells'])} cells)")
+    for variant, out in (("v1", OUT), ("v1c", OUT_C)):
+        nb = build(variant)
+        out.write_text(json.dumps(nb, ensure_ascii=False, indent=1), encoding="utf-8")
+        print("→", out, f"({len(nb['cells'])} cells)")
 
 
 if __name__ == "__main__":

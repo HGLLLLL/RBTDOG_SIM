@@ -52,6 +52,18 @@ def segments(c, thr, dt, lo=None, min_s=0.06):
     return out
 
 
+def landing_vz(clr, dt, thr=0.005):
+    """落地衝擊（v1c 及格線用）：每腿「淨空由 > thr 降到 ≤ thr」算一次觸地，取觸地前一步的下落速度 (clr[t−2] − clr[t−1]) / dt（m/s，負值截 0）。
+    clr：(T, 4) m。回傳 (事件平均 vz, 事件數)；與 WheelEnv 的 impact 項同口徑（觸地前一步的 vz）。"""
+    ev = []
+    for k in range(clr.shape[1]):
+        c = clr[:, k]
+        for t in range(2, len(c)):
+            if c[t] <= thr and c[t - 1] > thr:
+                ev.append(max(0.0, float(c[t - 2] - c[t - 1]) / dt))
+    return (float(np.mean(ev)) if ev else 0.0), len(ev)
+
+
 class Sim:
     def __init__(self, io, dt=0.005, ideal=False, wheel_kv=1.0, scene=None, grav_bias=(0.0, 0.0), grav_offset=(0.0, 0.0)):
         import mujoco, max_model as mm
@@ -210,6 +222,7 @@ def metrics(R, cmd, dt_pol=0.02):
     g["fell"] = R["fell"]; g["sat"] = 100.0 * np.mean(R["sat"][w] > 0)
     err = R["err"][w]; g["err_abad"] = err[:, 0:4].max(); g["err_hk"] = err[:, 4:12].max()
     dq = np.abs(np.diff(R["tgt"][w][:, :12], axis=0)) / dt_pol; g["vcmd"] = dq.max()
+    g["land_vz"], g["land_n"] = landing_vz(R["clr"][w], dt_pol)
     g["gap_rr"] = float(R["gap"][w].min() * 1000.0)
     return g
 
@@ -254,17 +267,17 @@ def main():
         print(f"{name}: vx {g['vx']:+.2f} vy {g['vy']:+.2f} yaw {g['yaw']:+.0f}°/s roll std {g['roll_std']:.2f}/pk {g['roll_max']:.1f} z {g['z']:.3f} "
               f"lift {g['lift']} steps/s {g['steps_s']} τ abad/hip/knee/wheel {g['tau_abad']:.0f}/{g['tau_hip']:.0f}/{g['tau_knee']:.0f}/{g['tau_wheel']:.1f} "
               f"|a| {g['a_abs']:.2f} max {g['a_max']:.2f} >1 {g['a_gt1']:.0f}% wheel_v {g['wheel_v']:.1f} jv {g['jv_max']:.1f} "
-              f"err abad/hk {g['err_abad']:.2f}/{g['err_hk']:.2f} vcmd {g['vcmd']:.1f} sat {g['sat']:.0f}% gap {g['gap_rr']:.0f} fell {g['fell']}  ({time.time()-t0:.1f}s)")
+              f"err abad/hk {g['err_abad']:.2f}/{g['err_hk']:.2f} vcmd {g['vcmd']:.1f} sat {g['sat']:.0f}% gap {g['gap_rr']:.0f} land {g['land_vz']:.2f}/{g['land_n']} fell {g['fell']}  ({time.time()-t0:.1f}s)")
     mode = "ideal" if a.ideal else "real"
     L = [f"# RL_only 純 RL 步態在 MuJoCo 重現（{mode}{'，' + a.tag if a.tag else ''}）", "",
          f"模型 `scene_flat_mjx_v3f.xml`（腿 kp 60/120/120 kd 1.0、輪 kv {a.wheel_kv}、forcerange 150/33）；子步 {a.dt} s × {sim.sub}；指令 {a.secs} s（先 {a.settle} s 零指令站定）；統計取指令後 1 s 起。",
          f"{'關節摩擦／慣量歸零（IdealPD）' if a.ideal else '含實機辨識的關節摩擦 1.85/1.5、輪 0.13'}；動作延遲 {a.delay} 步、obs 雜訊 {'開' if a.noise else '關'}、推力 ±{a.push} m/s；輪輪 pair {'開' if a.self_collision else '關'}；"
          f"IMU 偏差 roll {a.grav_bias[0]:+g}° pitch {a.grav_bias[1]:+g}°、重力歸零 {a.grav_offset[0]:+g}／{a.grav_offset[1]:+g}°；policy `{Path(a.npz or a.onnx).name}`。", "",
-         "| 指令 | 摔 | vx | vy | 偏航 °/s（±std） | roll std/峰 ° | 機身高 | 抬腳 mm（FR,FL,RR,RL） | 步/秒 | τ ABAD/髖/膝/輪 | \\|a\\| 平均/最大/>1% | 輪速峰 | 關節速峰 | 誤差峰 ABAD/髖膝 | 命令速峰 | 飽和% | 後輪 gap mm |",
-         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+         "| 指令 | 摔 | vx | vy | 偏航 °/s（±std） | roll std/峰 ° | 機身高 | 抬腳 mm（FR,FL,RR,RL） | 步/秒 | τ ABAD/髖/膝/輪 | \\|a\\| 平均/最大/>1% | 輪速峰 | 關節速峰 | 誤差峰 ABAD/髖膝 | 命令速峰 | 飽和% | 後輪 gap mm | 落地 vz m/s（次） |",
+         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for name, cmd, g in rows:
         L.append(f"| {name} | {'%.1f s' % g['fell'] if g['fell'] is not None else '—'} | {g['vx']:+.2f} | {g['vy']:+.2f} | {g['yaw']:+.0f}（±{g['yaw_std']:.0f}） | {g['roll_std']:.2f}/{g['roll_max']:.1f} | {g['z']:.3f} | {g['lift']} | {g['steps_s']} | "
-                 f"{g['tau_abad']:.0f}/{g['tau_hip']:.0f}/{g['tau_knee']:.0f}/{g['tau_wheel']:.1f} | {g['a_abs']:.2f}/{g['a_max']:.2f}/{g['a_gt1']:.0f} | {g['wheel_v']:.1f} | {g['jv_max']:.1f} | {g['err_abad']:.2f}/{g['err_hk']:.2f} | {g['vcmd']:.1f} | {g['sat']:.0f} | {g['gap_rr']:.0f} |")
+                 f"{g['tau_abad']:.0f}/{g['tau_hip']:.0f}/{g['tau_knee']:.0f}/{g['tau_wheel']:.1f} | {g['a_abs']:.2f}/{g['a_max']:.2f}/{g['a_gt1']:.0f} | {g['wheel_v']:.1f} | {g['jv_max']:.1f} | {g['err_abad']:.2f}/{g['err_hk']:.2f} | {g['vcmd']:.1f} | {g['sat']:.0f} | {g['gap_rr']:.0f} | {g['land_vz']:.2f}（{g['land_n']}） |")
     out = out_dir / f"eval_rl_only_{mode}{('_' + a.tag) if a.tag else ''}.md"; out.write_text("\n".join(L) + "\n", encoding="utf-8"); print("→", out)
     if a.video:
         os.environ.setdefault("MUJOCO_GL", "egl")

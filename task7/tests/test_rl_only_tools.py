@@ -58,3 +58,17 @@ def test_rough_scene_with_pairs():
     mujoco = pytest.importorskip("mujoco")
     m = mujoco.MjModel.from_xml_path(rt.make_scene_xml(pairs=True))
     assert m.npair == 4 and m.nhfield == 1
+
+
+def test_landing_vz_counts_touchdowns_and_uses_pre_touch_velocity():
+    dt = 0.02
+    clr = np.zeros((40, 4))                     # 四腿：三腿一直在地上，FR 抬一次再落
+    c = np.zeros(40); c[10:20] = [0.01, 0.02, 0.03, 0.03, 0.03, 0.03, 0.02, 0.016, 0.008, 0.0]   # 0.016→0.008 是觸地前一步：vz ＝ 0.4 m/s
+    clr[:, 0] = c
+    mean_vz, n = ri.landing_vz(clr, dt)
+    assert n == 1 and mean_vz == pytest.approx(0.4, rel=1e-6)
+    clr[:, 1] = c                               # 兩腿同樣 → 兩個事件、平均不變
+    assert ri.landing_vz(clr, dt) == (pytest.approx(0.4, rel=1e-6), 2)
+    assert ri.landing_vz(np.zeros((40, 4)), dt) == (0.0, 0)           # 從沒離地：0 事件
+    up = np.zeros((40, 4)); up[5:, 2] = 0.05                           # 抬起不落：0 事件
+    assert ri.landing_vz(up, dt) == (0.0, 0)

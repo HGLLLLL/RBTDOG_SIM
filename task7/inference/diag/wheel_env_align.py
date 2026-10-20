@@ -27,7 +27,7 @@ def run_env(pol, cmds, secs, settle, std, w_ang=2.5, w_lim=2.0, preset=None):
     """pol：ri.load_policy 給的 callable，obs(53,) → 他的尺度動作(16,)。"""
     import jax, jax.numpy as jnp
     import rl_env_wheel as rw
-    kw = dict(rw.V1C) if preset == "v1c" else {}
+    kw = {"v1c": dict(rw.V1C), "v1f": dict(rw.V1F)}.get(preset, {})
     env = rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, std=std, w_ang=w_ang, w_lim=w_lim, **kw)   # fixed_cmd：鏡像／延遲／偏差自動關，只剩 roll／impact 權重
     n = len(cmds)
     reset = jax.jit(jax.vmap(env.reset)); step = jax.jit(jax.vmap(env.step))
@@ -98,7 +98,7 @@ def main():
     ap.add_argument("--tag", default="10k", help="輸出檔名 align_<tag>.md、reward_audit_wheel_<tag>.md（10k 沿用舊檔名 reward_audit_wheel_v1.md）")
     ap.add_argument("--w-ang", type=float, default=2.5); ap.add_argument("--w-lim", type=float, default=2.0)
     ap.add_argument("--secs", type=float, default=8.0); ap.add_argument("--settle", type=float, default=1.0)
-    ap.add_argument("--preset", default="", choices=["", "v1c"], help="v1c：WheelEnv(**rw.V1C)（roll／impact 權重開；fixed_cmd 下鏡像／延遲／偏差關）")
+    ap.add_argument("--preset", default="", choices=["", "v1c", "v1f"], help="v1c：WheelEnv(**rw.V1C)（roll／impact 權重開；fixed_cmd 下鏡像／延遲／偏差關）")
     a = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
     pol = ri.load_policy(None if a.npz else a.onnx, a.npz)
@@ -138,7 +138,7 @@ def main():
     keys = list(T.keys())
     nT = len(rw.TERM_KEYS)
     A = [f"# reward 攤帳：{pname} 在 WheelEnv 平地 {len(CMDS)} 指令（每步平均；std 0.25 為主，括號內 std 0.5）  —  tag {a.tag}", "",
-         f"權重：w_ang {a.w_ang:g}、w_lim {a.w_lim:g}（lin 2.5，其餘照 spec §3）" + f"；preset {a.preset or '無（v1b）'}" + (f"；preset v1c {json.dumps(rw.V1C)}" if a.preset == "v1c" else ""),
+         f"權重：w_ang {a.w_ang:g}、w_lim {a.w_lim:g}（lin 2.5，其餘照 spec §3）" + f"；preset {a.preset or '無（v1b）'}" + (f"；preset {a.preset} {json.dumps(dict(rw.V1C) if a.preset == 'v1c' else dict(rw.V1F))}" if a.preset else ""),
          f"取指令後 1 s 起（{a.secs - 1:.0f} s × 50 步）；前 {nT} 欄是 reward 項（已乘權重），合計＝{nT} 項和；`lim` 罰 PD 目標超出軟限位、`sat_n` 是每步 PD 目標超出硬限位的腿關節數（平均）；`lin_small` 在 fixed_cmd 下恆 0（small 旗標固定 False）；`ww_force` 是輪輪法向力 N、`gap_min` 是前後兩對左右輪實體間隙的較小者 m（輪心距 − 0.034）、`touch_n` 是觸地輪數（診斷量，不進 reward）。"
          "std 0.5 的 lin／ang 由同一條 rollout 的 vx/vy/wz 誤差解析算出（std 不影響動力學）。", "",
          "| 指令 | " + " | ".join(keys) + " | 合計 |", "|---|" + "---|" * (len(keys) + 1)]

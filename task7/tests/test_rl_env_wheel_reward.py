@@ -68,7 +68,7 @@ def test_action_rate_and_signs(env):
     assert float(T["rate"]) == pytest.approx(-0.01 * 16 * 0.25, abs=1e-6)
     for k in ("vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap", "lim"):
         assert float(T[k]) <= 1e-9, k
-    assert set(T) == set(rw.TERM_KEYS) and rw.TERM_KEYS[-2:] == ("roll", "impact")
+    assert set(T) == set(rw.TERM_KEYS) and rw.TERM_KEYS[-3:] == ("roll", "impact", "knee")
 
 
 def test_joint_limit_penalty(env):
@@ -289,3 +289,23 @@ def test_spawn_landing_is_not_counted(env_c):
     assert sum(td) == 0.0 and all(v == 0.0 for v in imp), (td, imp)
     _, aux = env_c._reward_terms(s.pipeline_state, s.info, jnp.zeros(16), jnp.zeros(3))
     assert np.all(np.asarray(aux["touch"]))                                  # 四輪都已著地：0 次是閘門擋掉，不是沒落地
+
+
+def test_v1f_preset_angxy_and_knee_hinge(env):
+    """V1F：不加延遲 DR；angxy 權重 0.5；膝 hinge 只罰比 60° 更直的部分。預設 w_angxy 0.05／w_knee 0 ＝ v1b。"""
+    assert rw.V1F == dict(mirror=True, w_roll=10.0, w_impact=3.0, impact_v0=0.3, delay_max=0, grav_bias_deg=2.0, w_angxy=0.5, w_knee=0.5, knee_min_deg=60.0)
+    ef = rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, scene=env.scene, **rw.V1F)
+    data = _standing_data(env); info = _info(ef, data)
+    d = data.replace(qvel=data.qvel.at[3].set(1.0).at[4].set(0.5))                       # ωx 1、ωy 0.5 rad/s
+    T, _ = ef._reward_terms(d, info, jnp.zeros(16), jnp.zeros(3)); T0, _ = env._reward_terms(d, info, jnp.zeros(16), jnp.zeros(3))
+    assert float(T["angxy"]) == pytest.approx(-0.5 * 1.25, abs=1e-5) and float(T0["angxy"]) == pytest.approx(-0.05 * 1.25, abs=1e-5)
+    assert float(T["knee"]) == 0.0                                                         # 預設站姿膝 86° > 60°：不罰
+    q = data.qpos; kn = np.asarray(env.QADR)[8:12]
+    q2 = q.at[kn[0]].set(-np.radians(42.0)).at[kn[2]].set(np.radians(42.0))                # FR、RR 膝伸到 42°（v1d 平移姿態）
+    d2 = jax.jit(mjx.forward)(ef.sys, data.replace(qpos=q2))
+    T2, _ = ef._reward_terms(d2, _info(ef, d2), jnp.zeros(16), jnp.zeros(3))
+    assert float(T2["knee"]) == pytest.approx(-0.5 * 2 * np.radians(60.0 - 42.0), abs=1e-5)
+    q3 = q.at[kn[1]].set(-np.radians(70.0))                                                # 膝彎更多（70° < 86°… 仍 > 60°）：不罰
+    d3 = jax.jit(mjx.forward)(ef.sys, data.replace(qpos=q3))
+    assert float(ef._reward_terms(d3, _info(ef, d3), jnp.zeros(16), jnp.zeros(3))[0]["knee"]) == 0.0
+    assert float(env._reward_terms(d2, _info(env, d2), jnp.zeros(16), jnp.zeros(3))[0]["knee"]) == 0.0   # 預設 w_knee 0

@@ -12,6 +12,8 @@ OUT_C = HERE / "rl_wheel_v1c_colab.ipynb"
 WEIGHTS_C = "rl_wheel_v1c_params.pkl"
 OUT_D = HERE / "rl_wheel_v1d_colab.ipynb"
 WEIGHTS_D = "rl_wheel_v1d_params.pkl"
+OUT_F = HERE / "rl_wheel_v1f_colab.ipynb"
+WEIGHTS_F = "rl_wheel_v1f_params.pkl"
 OLD = json.loads((HERE / "cpg_rl_max_colab.ipynb").read_text(encoding="utf-8"))
 _code = [c for c in OLD["cells"] if c["cell_type"] == "code"]
 install_src, version_src = "".join(_code[0]["source"]), "".join(_code[1]["source"])
@@ -225,6 +227,25 @@ save_src_d = save_src_c.replace("rl_wheel_v1c", "rl_wheel_v1d")
 assert "rl_wheel_v1d_params.pkl" in save_src_d and "rl_wheel_v1c" not in save_src_d
 
 
+# ---- v1f（2026-10-21，使用者定）：v1d 平移腿伸直（膝 42°）、前後晃 3 倍、直走超速 +0.1 → 拿掉延遲 DR（v1b 沒有也走得好），
+#      加 w_angxy 0.5（罰 roll／pitch 角速度）與膝 hinge（比 60° 更直才罰）。其餘同 v1d：v1b 熱啟動、鏡像、roll、impact 門檻、IMU 偏差 DR。
+md0_f = md0_d.replace("# 純 RL 自訓 **v1d**：v1b 熱啟動 ＋ ", "# 純 RL 自訓 **v1f**：v1b 熱啟動 ＋ ").replace("（2026-10-20 晚）", "（2026-10-21）").replace(
+    "環境 `WheelEnv(**rw.V1C)`", "環境 `WheelEnv(**rw.V1F)`").replace(
+    "- **DR**：動作延遲每回合抽 0–2 步、IMU roll／pitch 常數偏差每回合抽 ±2°（只動 policy 的重力 obs）。",
+    "- **DR**：IMU roll／pitch 常數偏差每回合抽 ±2°（只動 policy 的重力 obs）。**不加動作延遲 DR**：v1d（有延遲 DR）平移時膝伸到 42°、機身 0.59 m、pitch 晃 3 倍、直走超速 +0.1，v1b 沒有延遲 DR 實機 24 趟走得好（使用者 10-21 定）。\n"
+    "- **防「用伸直腿、前後晃躲側傾」**：`angxy` 0.05 → **0.5**（罰 roll／pitch **角速度**，樓梯上的靜態俯仰不受罰）；新項 `knee`（w 0.5）罰膝比 **60°** 更直的部分（v1b 平移膝 64–80° 不罰、v1d 的 42° 罰）。").replace(
+    "rl_wheel_v1d", "rl_wheel_v1f").replace("MyDrive/rl_wheel_v1d/", "MyDrive/rl_wheel_v1f/").replace("/content/rl_wheel_v1d/", "/content/rl_wheel_v1f/")
+md0_f = md0_f.replace("**讀法**：", "**讀法**：`knee` 往 0（v1b 起點應 ≈ 0）、`angxy` 看有沒有比 v1b 起點（約 −0.1）大很多；")
+assert "rw.V1F" in md0_f and "rl_wheel_v1d" not in md0_f and "不加動作延遲 DR" in md0_f and "`knee`" in md0_f
+mount_src_f = mount_src_d.replace("rl_wheel_v1d", "rl_wheel_v1f").replace("（v1d，", "（v1f，")
+import_src_f = import_src_c.replace("rw.V1C", "rw.V1F")
+train_src_f = (train_src_d.replace("rl_wheel_v1d", "rl_wheel_v1f").replace("rw.V1C", "rw.V1F")
+               .replace("（v1d 從 v1b 熱啟動，每 session 5 億，可多跑）", "（v1f 從 v1b 熱啟動，每 session 5 億，可多跑）")
+               .replace("roll {ps('roll'):+.3f} impact {ps('impact'):+.3f}", "roll {ps('roll'):+.3f} impact {ps('impact'):+.3f} knee {ps('knee'):+.3f} angxy {ps('angxy'):+.3f}"))
+assert "rw.V1F" in train_src_f and "rl_wheel_v1d" not in train_src_f and "ps('knee')" in train_src_f and "INIT_FROM" in train_src_f
+save_src_f = save_src_d.replace("rl_wheel_v1d", "rl_wheel_v1f")
+
+
 def cell(kind, src):
     c = {"cell_type": kind, "metadata": {}, "source": src.splitlines(keepends=True)}
     if kind == "code":
@@ -243,6 +264,9 @@ def build(variant="v1"):
     elif variant == "v1d":
         cells = [cell("markdown", md0_d), cell("code", install_src), cell("code", version_src), cell("code", clone_src), cell("code", mount_src_d),
                  cell("code", import_src_c), cell("code", bench_src), cell("code", train_src_d), cell("code", plot_src), cell("code", save_src_d)]
+    elif variant == "v1f":
+        cells = [cell("markdown", md0_f), cell("code", install_src), cell("code", version_src), cell("code", clone_src), cell("code", mount_src_f),
+                 cell("code", import_src_f), cell("code", bench_src), cell("code", train_src_f), cell("code", plot_src), cell("code", save_src_f)]
     else:
         raise ValueError(variant)
     return {"nbformat": 4, "nbformat_minor": 5,
@@ -250,7 +274,7 @@ def build(variant="v1"):
 
 
 def main():
-    for variant, out in (("v1", OUT), ("v1c", OUT_C), ("v1d", OUT_D)):
+    for variant, out in (("v1", OUT), ("v1c", OUT_C), ("v1d", OUT_D), ("v1f", OUT_F)):
         nb = build(variant)
         out.write_text(json.dumps(nb, ensure_ascii=False, indent=1), encoding="utf-8")
         print("→", out, f"({len(nb['cells'])} cells)")

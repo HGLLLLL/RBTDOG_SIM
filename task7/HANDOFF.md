@@ -12,7 +12,7 @@
 
 - **v1c 從頭訓 5 億步（10-20 22:15）的結果：不能用。** 所有帶 vy 的指令實際 vy 0.00（完全不抬腳，步頻 0.14）、直走超速 20%、原地轉蹲到 0.35 m、斜走加轉摔；崎嶇地 114 趟 0 摔但全靠滾。
   攤帳（`outputs/reward_audit_wheel_v1c_s1.md`）：平移 0.5 的 `lin` 0.04 vs v1b 2.40、`impact` 0、`roll` −0.02 → 每步少拿 2 分只為省 0.3 分 ＝ **局部解，不是理性取捨**；判斷是 `impact`（無門檻、w 3）把早期笨拙落地（1～2 m/s、每次 −3～−12）的探索殺掉，policy 學成「永遠不抬腳」。v1 同樣 5 億步平移做到 0.48。
-  表：`outputs/rl_wheel/eval_rl_only_real_{v1c_s1,diag_v1c_s1}.md`、`eval_rl_wheel_rough_real_v1c_s1.md`；權重 `weights/rl_wheel_v1c_{params.pkl,np.npz}` 留作對照。使用者的 Colab 進度列還沒拿到（要：vyerr／impact 前 1 億步走勢）。
+  表：`outputs/rl_wheel/eval_rl_only_real_{v1c_s1,diag_v1c_s1}.md`、`eval_rl_wheel_rough_real_v1c_s1.md`；權重 `weights/rl_wheel_v1c_{params.pkl,np.npz}` 留作對照。Colab 進度列（10-20 深夜拿到）：step 0 `impact` **−4.58／步**（比 lin＋ang 滿分 5 還大）、`land_vz` 2.49 m/s、`roll` −1.89；**到 2,650 萬步 impact 已是 0、land_vz 0.00**，那時 vxerr 還 0.76 → 踏步在學會任何事之前就被清掉，之後 4.7 億步沒再抬腳；`lin` 5 億步只到 0.86（v1 2.1 億步 1.01）；`vyerr` 0.32–0.38 分不出「追一半」和「不動」（指令抽到 ±1.0 本來追不滿），這個指標不能當側向軸是否活著的證據。**之後若走從頭訓：門檻不夠（隨機 policy 落地 2.5 m/s，門檻後每次仍 −14），一定要加前 1–2 億步 `w_impact` 0→3 暖身。**
 - **v1d（使用者選 C，10-20 深夜）**：**從 v1b 熱啟動**（`INIT_FROM` 還原 normalizer／policy／value，步數從 0 算）續訓，環境同 `V1C` 但 `impact` 改門檻形式 `max(0, vz − 0.3)²`（`impact_v0`；10k 等級 0.10–0.19 m/s 免費、v1b 0.43–0.71 仍罰）。每 session 5 億，**使用者：有必要可以多跑幾個 session**。檔名／雲端硬碟資料夾全用 v1d，`RESUME="auto"` 不會撿到 v1c 的 step 檔。代價：不保證「天生對稱」，靠鏡像把左右拉齊；拉不齊再走「從頭訓＋impact 暖身」。
   門檻後攤帳（同檔名覆寫）：`impact` 10k −0.001／−0.001／−0.005、v1b −0.040／−0.240／−0.069（vy +0.5／−0.5／+0.6）；roll 不變。
 

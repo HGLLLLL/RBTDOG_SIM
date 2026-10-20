@@ -250,6 +250,13 @@ class WheelEnv(Env):
         vb = quat_rot_inv(data.qpos[3:7], data.qvel[0:3])
         return {"state": self._noisy(clean, rng_noise), "privileged_state": jnp.concatenate([clean, vb]).astype(jnp.float32)}
 
+    def _maybe_mirror(self, obs, mir):
+        """鏡像回合：policy（state）與 critic（privileged_state）都看左右翻過的世界。mirror=False 時原樣回傳（預設路徑不碰）。"""
+        if not self.mirror:
+            return obs
+        return {"state": jnp.where(mir, mirror_obs(obs["state"]), obs["state"]),
+                "privileged_state": jnp.where(mir, mirror_priv(obs["privileged_state"]), obs["privileged_state"])}
+
     def _ctrl(self, a):
         """a：他的尺度（已乘 ACT_GAIN）→ 致動器 ctrl（腿 PD 目標 rad、輪速 rad/s）。"""
         return jnp.zeros(self.sys.nu).at[self.AID].set(a * ACT_SCALE + ACT_OFFSET)
@@ -285,14 +292,16 @@ class WheelEnv(Env):
         data = mjx.forward(self.sys, data)
         cmd_a, head_a, standing, small = self._sample_cmd(k[2], yaw)
         cmd_b, head_b, _, _ = self._sample_cmd(k[3], yaw)
+        mir = jax.random.bernoulli(jax.random.fold_in(rng, 11)) if (self.mirror and not self.fixed_cmd) else jnp.bool_(False)
         info = dict(rng=k[4], t=jnp.int32(0), kind=kind, level=level, xy0=xy,
                     cmd_ab=jnp.stack([cmd_a, cmd_b]), head_ab=jnp.stack([head_a, head_b]), standing=standing, small=small,
                     cmd_fix=jnp.zeros(3), cmd=jnp.zeros(3), last_a=jnp.zeros(ACT_DIM),
                     qvel_prev=data.qvel[self.VADR], foot_prev=data.xpos[self.FOOT_BIDS],
-                    touch_prev=jnp.zeros(4, bool), vfoot_prev=jnp.zeros((4, 3)),
+                    touch_prev=jnp.zeros(4, bool), vfoot_prev=jnp.zeros((4, 3)), mir=mir,
                     push_t=jnp.int32(self.episode_len // 2) + jax.random.randint(k[5], (), 0, self.episode_len // 4))   # 10–15 s 後第一次推
         info["cmd"] = self._cmd_now(data, info)
         obs = self._obs_dict(data, info["cmd"], info["last_a"], jax.random.fold_in(rng, 6))   # 第一個 obs 也帶雜訊；fold_in 不動 split(6) 的出生／指令抽樣
+        obs = self._maybe_mirror(obs, mir)
         z0 = jnp.zeros(())
         return State(data, obs, z0, z0, {k_: z0 for k_ in METRIC_KEYS}, info)
 
@@ -340,7 +349,8 @@ class WheelEnv(Env):
     def step(self, state, action):
         info = dict(state.info)
         data = state.pipeline_state
-        a = ACT_GAIN * action
+        a_pol = ACT_GAIN * action
+        a = jnp.where(info["mir"], mirror_act(a_pol), a_pol) if self.mirror else a_pol      # 鏡像回合：policy 的動作翻回物理側
         rng, k_noise, k_tile, k_spawn, k_push, k_next = jax.random.split(info["rng"], 6)
         if self.push:                                   # 他的 push_by_setting_velocity：機身 x/y 速度「設成」U(−0.5, 0.5)
             do_push = info["t"] == info["push_t"]
@@ -358,6 +368,7 @@ class WheelEnv(Env):
                       touch_prev=aux["touch"], vfoot_prev=aux["vfoot"])
         info_c["cmd"] = self._cmd_now(data, info_c)
         obs_c = self._obs_dict(data, info_c["cmd"], a, k_noise)
+        obs_c = self._maybe_mirror(obs_c, info["mir"])
         # 重生路徑（回合結束才用；每步都算，jit 下成本固定）
         kind_n, level_n = self._next_tile(k_tile, data, info)
         new = self._spawn_state(k_spawn, kind_n, level_n)
@@ -365,6 +376,7 @@ class WheelEnv(Env):
         sel = lambda x, y: jnp.where(done_env, x, y)   # noqa: E731
         data_o = jax.tree_util.tree_map(sel, new.pipeline_state, data)
         obs_n = self._obs_dict(new.pipeline_state, new_info["cmd"], new_info["last_a"], k_noise)
+        obs_n = self._maybe_mirror(obs_n, new_info["mir"])
         obs_o = jax.tree_util.tree_map(sel, obs_n, obs_c)
         info_o = {k_: (sel(new_info[k_], info_c[k_]) if k_ in new_info else info_c[k_]) for k_ in info_c}
         return state.replace(pipeline_state=data_o, obs=obs_o, reward=reward, done=fell.astype(jnp.float32), metrics=metrics, info=info_o)
@@ -450,7 +462,7 @@ class WheelEnv(Env):
                        fell=fell.astype(jnp.float32), oob=oob.astype(jnp.float32), tilt=tilt.astype(jnp.float32), dist=jnp.linalg.norm(data.qpos[0:2] - info["xy0"]), ww_force=aux["ww_force"], gap_min=jnp.min(aux["gaps"]),
                        vx_err=jnp.abs(aux["vb"][0] - cmd[0]), vy_err=jnp.abs(aux["vb"][1] - cmd[1]), wz_err=jnp.abs(aux["w"][2] - cmd[2]),
                        touch_n=jnp.sum(aux["touch"]).astype(jnp.float32), small=info["small"].astype(jnp.float32), standing=info["standing"].astype(jnp.float32), sat_n=aux["sat_n"],
-                       impact_vz=aux["impact_vz"], td_n=aux["td_n"], impact_fn=aux["impact_fn"], mir=jnp.float32(0.0), delay=jnp.float32(0.0))   # mir／delay：Task 4／5 換真值
+                       impact_vz=aux["impact_vz"], td_n=aux["td_n"], impact_fn=aux["impact_fn"], mir=info["mir"].astype(jnp.float32), delay=jnp.float32(0.0))   # delay：Task 5 換真值
         return reward, fell, metrics, aux
 
     @property

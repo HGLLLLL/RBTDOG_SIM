@@ -137,3 +137,60 @@ def test_model_lr_asymmetry_is_within_dr(env):
             r, l = _bid(env, f"{R}_{link}_LINK"), _bid(env, f"{L}_{link}_LINK")
             assert abs(mass[l] - mass[r]) / mass[r] < 0.01, (R, L, link, mass[r], mass[l])
             np.testing.assert_allclose(ipos[l], ipos[r] * YFLIP, atol=1e-3, err_msg=f"{R}/{L} {link} ipos")
+
+
+@pytest.fixture(scope="module")
+def env_m(env):
+    return rw.WheelEnv(flat=True, noise=False, push=False, mirror=True, scene=env.scene)
+
+
+def test_mir_is_sampled_half_and_off_under_fixed_cmd(env, env_m):
+    ks = jax.random.split(jax.random.PRNGKey(0), 400)
+    mir = np.asarray(jax.vmap(env_m.reset)(ks).info["mir"])
+    assert mir.dtype == bool and 0.4 < mir.mean() < 0.6
+    assert not np.any(np.asarray(jax.vmap(env.reset)(ks).info["mir"]))          # fixed_cmd：恆 False
+    assert not np.any(np.asarray(jax.vmap(rw.WheelEnv(flat=True, noise=False, push=False, scene=env.scene).reset)(ks[:8]).info["mir"]))   # 預設 mirror=False
+
+
+def test_mirror_episode_obs_and_ctrl(env_m):
+    s = jax.jit(env_m.reset)(jax.random.PRNGKey(3))
+    step = jax.jit(env_m.step)
+    a = jnp.sin(jnp.arange(16) * 0.7) * 0.4
+    for mir in (False, True):
+        s1 = s.replace(info={**s.info, "mir": jnp.bool_(mir)})
+        s2 = step(s1, a)
+        d = s2.pipeline_state
+        a_phys = rw.mirror_act(rw.ACT_GAIN * a) if mir else rw.ACT_GAIN * a
+        np.testing.assert_allclose(np.asarray(d.ctrl[env_m.AID]), np.asarray(env_m._ctrl(a_phys)[env_m.AID]), atol=1e-6)     # 動作鏡像回物理
+        np.testing.assert_allclose(np.asarray(s2.info["last_a"]), np.asarray(a_phys), atol=1e-6)                   # last_a 存物理側
+        clean = env_m._obs(d, s2.info["cmd"], s2.info["last_a"])
+        want = rw.mirror_obs(clean) if mir else clean
+        np.testing.assert_allclose(np.asarray(s2.obs["state"]), np.asarray(want), atol=1e-6)                      # policy 看鏡像 obs
+        np.testing.assert_allclose(np.asarray(s2.obs["state"][37:53]), np.asarray(rw.ACT_GAIN * a), atol=1e-6)   # policy 看到自己的上一步輸出
+        vb = rw.quat_rot_inv(d.qpos[3:7], d.qvel[0:3]); priv = jnp.concatenate([clean, vb])
+        np.testing.assert_allclose(np.asarray(s2.obs["privileged_state"]), np.asarray(rw.mirror_priv(priv) if mir else priv), atol=1e-6)
+        assert float(s2.metrics["mir"]) == float(mir)
+        assert bool(s2.info["mir"]) == mir                                                                           # 回合內不變
+
+
+def test_mirror_episode_reward_equals_mirrored_world(env_m):
+    """鏡像回合的 reward ＝ 把真實狀態翻過去、用翻過的動作算出的 reward（reward 對稱 ⇒ 鏡像資料是同一套物理的另一邊）。"""
+    s = jax.jit(env_m.reset)(jax.random.PRNGKey(5))
+    step = jax.jit(env_m.step)
+    for i in range(4):
+        s = step(s, jnp.sin(jnp.arange(16) * 0.9 + i) * 0.3)
+    # mirror_data 末尾 mjx.forward 會用步後 qpos／qvel 重算 actuator_force 與接觸；step 留下的 actuator_force 是最後一個子步「積分前」的值。
+    # 兩邊都走同一次 forward 才是同一個時刻（不 forward 時 tau_leg 差 0.10、tau_wheel 差 9e-4，全是這個時間錯位）。
+    d, info = mjx.forward(env_m.sys, s.pipeline_state), dict(s.info)
+    a = jnp.sin(jnp.arange(16)) * 0.6
+    cmd = jnp.array([0.3, 0.4, 0.2])
+    T, _ = env_m._reward_terms(d, info, a, cmd)
+    dm = rw.mirror_data(env_m, d)
+    LR = jnp.array(rw.MIRROR_LR); ym = jnp.array([1.0, -1.0, 1.0])
+    idx16 = jnp.array([g * 4 + rw.MIRROR_LR[k] for g in range(4) for k in range(4)]); sgn16 = jnp.concatenate([-jnp.ones(4), jnp.ones(12)])
+    info_m = dict(info, last_a=rw.mirror_act(info["last_a"]), qvel_prev=info["qvel_prev"][idx16] * sgn16,
+                  foot_prev=info["foot_prev"][LR] * ym, touch_prev=info["touch_prev"][LR], vfoot_prev=info["vfoot_prev"][LR] * ym)
+    Tm, _ = env_m._reward_terms(dm, info_m, rw.mirror_act(a), cmd * jnp.array([1.0, -1.0, -1.0]))
+    for k in rw.TERM_KEYS:
+        tol = 1e-3 if k in ("slip", "ww", "impact", "tau_leg", "tau_wheel") else 1e-4     # 接觸表排序與求解器容差
+        assert float(Tm[k]) == pytest.approx(float(T[k]), abs=tol), k

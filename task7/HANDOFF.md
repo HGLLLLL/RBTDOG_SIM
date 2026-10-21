@@ -1,6 +1,6 @@
 # task7 交接：D1 Max 現況卡
 
-- 最後更新：**2026-10-21 上午（v1f 訓完 5 億步、MuJoCo 及格線全過：對稱 roll 2.1／1.7°、落地 0.10／0.17、崎嶇地 0 摔、直走準；等上機 trip29）**（分支 `main`）
+- 最後更新：**2026-10-21 上午（v1f 及格線全過但使用者看影片抓到平移「腿外張、右平移步頻快」→ 量測＝兩腿踏、兩腿被拖著橫滑 0.5 m/s；不上機，改 v1g）**（分支 `main`）
 - **這份只放「現在」，上限 150 行。** 收工時覆寫本檔，不是往上疊。
   被取代的段落搬到 `docs/handoff_history/`（2026-08-25～09-22 全文在 `HANDOFF_2026-08-25_2026-09-22_全文.md`；
   09-22 §1 在 `HANDOFF_2026-09-22_§1_v3.7b_Colab訓練.md`；10-06 §1 trip25 在 `HANDOFF_2026-10-06_§1_trip25.md`；10-14 §1 trip26／27 在 `HANDOFF_2026-10-14_§1_trip26-27收工.md`。查歷史用 grep）。
@@ -8,7 +8,11 @@
 
 ---
 
-## 1. 下次第一件事：**v1f 上機（trip29）**，操作卡 `docs/現場操作卡_純RL自訓v1b_trip26_2026-10-14.md` **§9**；先給使用者看並排影片定姿態
+## 1. 下次第一件事：**v1g＝修掉 v1f 的「拖腿橫滑」**（spec 待寫；trip29 卡 §9 保留，換 npz 即可）
+
+- **v1f 不上機（10-21 使用者看影片）**：平移時「腿外張、右平移步頻快」。量測（vy ±0.5）：**只有兩～三條腿踏步，右前／右後（左平移）或右前（右平移）全程觸地 99–100%、被拖著沿輪軸橫滑 0.49–0.53 m/s（＝整個機身速度）**；v1b 四腿都踏（觸地 56–80%、滑 0.13–0.33）。外張＝被拖的腿 ABAD 外張 8°（FR −8.0／RR −7.9；§5 承重外張 ±4.5° 的線）。左平移 2 腿踏、右平移 3 腿踏 → 使用者看到的步頻差。**機制**：roll＋impact 讓「四腿踏步」每一步都要付錢，而 `slip`（0.075）太便宜：拖兩輪橫滑 0.5 m/s 每步只扣 0.04，比抬腳（impact）＋重心轉移（roll）便宜 → 膝 hinge 擋掉鎖膝後，policy 走到下一條最便宜的路。實機上拖著承重輪橫滑是高摩擦、會抖、會磨胎，不能上。
+- **policy 對稱度實測**：|π(鏡像 o) 翻回 − π(o)| 平均 v1b 0.41、v1f 0.39（動作尺度 0.5–1）→ **鏡像增強 5 億步沒讓網路變對稱**，roll 左右一樣小是 roll 懲罰＋拖腿步態的結果。要真對稱得用架構對稱化 π_sym＝½[π(o)＋M π(M o)]（狗端要改 policy_np 兩次前向）。
+- **v1g 方向（待使用者定）**：讓拖腿比踏步貴——`slip` 0.075 → ~0.75（v1f 拖腿 raw ≈ 0.5／步 → −0.4、v1b ≈ 0.15 → −0.1）；ABAD 外張 hinge（|ABAD| > 6° 才罰）；可考慮 impact 3 → 2 降壓。**開訓前關卡**：在新 reward 下攤帳，v1b 的四腿步態每步總分必須高於 v1f 的拖腿步態，否則權重再調。
 
 - **v1f 及格線全過**（Z 文件 `docs/results/Z_純RL自訓v1f_MuJoCo及格線_2026-10-21.md`）：對稱 vy ±0.5 roll 峰 **2.1／1.7°**（v1b 9.3／3.6）；落地 vz **0.10／0.17**（v1b 0.36／0.37）；平地 13／斜走 9／延遲雜訊 8／崎嶇地 114 全 0 摔（v1b 崎嶇 1 摔）；直走 0.33／0.54／1.05 準（v1d 的 +0.1 超速消失＝延遲 DR 造成）；wz 26／57；護欄內（延遲雜訊下 ABAD 誤差峰 0.68 貼 0.70）。
   姿態：機身高與前後晃回到 v1b 水準（0.54 m、pitch std 0.6–1.0°）；膝 55–60°（貼 hinge）比 v1b 的 64–80° 直一點、髖較垂直、抬腳 5–9 mm（v1b 13–20）。**使用者看 `outputs/rl_wheel/compare_v1b_vs_v1f_mesh.mp4` 決定**：可接受就上機；要更蹲就 `knee_min_deg` 60 → 70 ＋ 髖 hinge 再訓（50 分）。
@@ -23,7 +27,7 @@
 
 | 權重 | 狀態 | 驗收表（`outputs/`） |
 |---|---|---|
-| **rl_wheel_v1f**（5 億步，v1b 熱啟動）`weights/rl_wheel_v1f_params.pkl`／`rl_wheel_v1f_np.npz`（sha `5370132e3f15`） | ★ **及格線全過、待上機（trip29）**：對稱 roll 2.1／1.7°、落地 0.10／0.17、崎嶇地 0 摔、直走準；膝 55–60° 貼 hinge（使用者看影片定） | `rl_wheel/eval_rl_only_real_{v1f,diag_v1f,diag_d1n_v1f,vxlow_v1f}.md`、`eval_rl_wheel_rough_real_v1f.md`；**Z 文件** |
+| **rl_wheel_v1f**（5 億步，v1b 熱啟動）`weights/rl_wheel_v1f_params.pkl`／`rl_wheel_v1f_np.npz`（sha `5370132e3f15`） | 及格線全過但**不上機**：平移是兩腿踏、兩腿拖著橫滑 0.5 m/s（表上看不出，影片看得出）；roll 2.1／1.7°、落地 0.10／0.17、崎嶇地 0 摔、直走準 | `rl_wheel/eval_rl_only_real_{v1f,diag_v1f,diag_d1n_v1f,vxlow_v1f}.md`、`eval_rl_wheel_rough_real_v1f.md`；**Z 文件** |
 | rl_wheel_v1d（2.12 億步中場）`weights/rl_wheel_v1d_s212_np.npz`（sha `652aecce2ed3`） | 對稱 roll 1.6／2.7°、落地 0.22／0.17、rough 0 摔 **但** 平移膝 42°、pitch 晃 3 倍、直走 +0.1（§1）；不上機 | `rl_wheel/eval_*_v1d_s212.md`、`compare_v1b_vs_v1d_s212_mesh.mp4`（本機） |
 | rl_wheel_v1c（從頭訓 5 億，**失敗**）`weights/rl_wheel_v1c_{params.pkl,np.npz}`（sha `06d649a136c3`） | 側向軸死掉、不抬腳（§1）；留作對照 | `rl_wheel/eval_rl_only_real_{v1c_s1,diag_v1c_s1}.md`、`eval_rl_wheel_rough_real_v1c_s1.md`、`reward_audit_wheel_v1c_s1.md` |
 | **rl_wheel_v1b**（自訓，MJX，10 億步）`weights/rl_wheel_v1b_params.pkl`／`rl_wheel_v1b_np.npz`（sha `a02a4631d3f3`） | ★ **已上機（trip26／27／28）**：trip26＋27 24 趟 0 摔，trip28（10-20）主管實體看步態；後輪不碰、慢轉不飄、vy 0.3 會動；`--grav-offset 0.7 -1.5` 標準旗標；弱點＝左平移 roll 7–10°、平移落地重。模擬：斜走 9 條、倒退 5 條 0 摔（`rl_wheel/eval_rl_only_real_{diag,back}_*_v1b.md`） | `rl_wheel/eval_rl_only_{real,ideal}_v1b.md`、`eval_rl_wheel_rough_real_v1b.md`、`eval_rl_only_real_landcol_v1b.md`（落地 vz 欄）；X 文件 |

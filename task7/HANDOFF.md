@@ -1,6 +1,6 @@
 # task7 交接：D1 Max 現況卡
 
-- 最後更新：**2026-10-21 凌晨（v1d 中場：對稱＋落地輕達成但腿伸直、前後晃、直走超速 → v1f＝v1b 熱啟動＋V1F（拿掉延遲 DR、angxy 0.5、膝 hinge），notebook 已 push，等使用者 Colab）**（分支 `main`）
+- 最後更新：**2026-10-21 上午（v1f 訓完 5 億步、MuJoCo 及格線全過：對稱 roll 2.1／1.7°、落地 0.10／0.17、崎嶇地 0 摔、直走準；等上機 trip29）**（分支 `main`）
 - **這份只放「現在」，上限 150 行。** 收工時覆寫本檔，不是往上疊。
   被取代的段落搬到 `docs/handoff_history/`（2026-08-25～09-22 全文在 `HANDOFF_2026-08-25_2026-09-22_全文.md`；
   09-22 §1 在 `HANDOFF_2026-09-22_§1_v3.7b_Colab訓練.md`；10-06 §1 trip25 在 `HANDOFF_2026-10-06_§1_trip25.md`；10-14 §1 trip26／27 在 `HANDOFF_2026-10-14_§1_trip26-27收工.md`。查歷史用 grep）。
@@ -8,42 +8,22 @@
 
 ---
 
-## 1. 下次第一件事：**v1f 開訓（Colab，`notebooks/rl_wheel_v1f_colab.ipynb`）**，訓完跑中場檢查（同 v1d 那套：平地 13、斜走 9、延遲雜訊 8、崎嶇地 114、姿態量測）
+## 1. 下次第一件事：**v1f 上機（trip29）**，操作卡 `docs/現場操作卡_純RL自訓v1b_trip26_2026-10-14.md` **§9**；先給使用者看並排影片定姿態
 
-- **v1f（使用者 10-21 定：「基於 v1b 現在效果的優化版，解踏地與 roll」）**：`WheelEnv(**rw.V1F)`＝v1b 熱啟動＋鏡像＋roll 10＋impact 3（門檻 0.3）＋IMU 偏差 ±2°，**不加延遲 DR**（使用者：v1b 沒有也走得好；v1d 的三個退步嫌疑都是它），加 `w_angxy` 0.05 → **0.5**（罰 roll／pitch 角速度，擋「前後晃」）、新項 **`knee`**（w 0.5）罰膝比 **60°** 更直的部分（擋「伸直腿」；v1b 平移膝 64–80° 不罰）。攤帳（`outputs/reward_audit_wheel_{v1b,v1d}_v1f.md`）：v1b 平移 knee −0.01／angxy −0.09、合計 3.95；v1d 平移 knee **−0.68**／angxy −0.25、合計 2.72 → 在 V1F 下 v1b 的姿態每步多 1.2 分，梯度方向對；單項 ≤ 0.7。進度列多印 `knee`、`angxy`；中場看：膝不低於 60°、pitch std 回到 1° 以下、roll 峰 ≤ 3°、落地 vz ≤ 0.25、直走 0.5 → ≤ 0.55。
-
-- **v1c 從頭訓 5 億步（10-20 22:15）的結果：不能用。** 所有帶 vy 的指令實際 vy 0.00（完全不抬腳，步頻 0.14）、直走超速 20%、原地轉蹲到 0.35 m、斜走加轉摔；崎嶇地 114 趟 0 摔但全靠滾。
-  攤帳（`outputs/reward_audit_wheel_v1c_s1.md`）：平移 0.5 的 `lin` 0.04 vs v1b 2.40、`impact` 0、`roll` −0.02 → 每步少拿 2 分只為省 0.3 分 ＝ **局部解，不是理性取捨**；判斷是 `impact`（無門檻、w 3）把早期笨拙落地（1～2 m/s、每次 −3～−12）的探索殺掉，policy 學成「永遠不抬腳」。v1 同樣 5 億步平移做到 0.48。
-  表：`outputs/rl_wheel/eval_rl_only_real_{v1c_s1,diag_v1c_s1}.md`、`eval_rl_wheel_rough_real_v1c_s1.md`；權重 `weights/rl_wheel_v1c_{params.pkl,np.npz}` 留作對照。Colab 進度列（10-20 深夜拿到）：step 0 `impact` **−4.58／步**（比 lin＋ang 滿分 5 還大）、`land_vz` 2.49 m/s、`roll` −1.89；**到 2,650 萬步 impact 已是 0、land_vz 0.00**，那時 vxerr 還 0.76 → 踏步在學會任何事之前就被清掉，之後 4.7 億步沒再抬腳；`lin` 5 億步只到 0.86（v1 2.1 億步 1.01）；`vyerr` 0.32–0.38 分不出「追一半」和「不動」（指令抽到 ±1.0 本來追不滿），這個指標不能當側向軸是否活著的證據。**之後若走從頭訓：門檻不夠（隨機 policy 落地 2.5 m/s，門檻後每次仍 −14），一定要加前 1–2 億步 `w_impact` 0→3 暖身。**
-- **v1d 中場檢查（10-21 00:30，step 2.12 億 checkpoint `weights/rl_wheel_v1d_step000212336640.pkl` → `rl_wheel_v1d_s212_np.npz` sha `652aecce2ed3`；表 `outputs/rl_wheel/eval_rl_only_real_{v1d_s212,diag_v1d_s212,diag_d1n_v1d_s212}.md`、`eval_rl_wheel_rough_real_v1d_s212.md`、`align_v1d_s212.md`、`outputs/reward_audit_wheel_v1d_s212.md`）：**兩個目標達成**——vy ±0.5 roll 峰 **1.6°／2.7°**（v1b 9.3／3.6，左右差 1.1°）；落地 vz **0.22／0.17**（v1b 0.36／0.37）；平移追蹤 0.54／−0.51、0.3 → 0.31、0.6 → 0.64；斜走 9 條 roll 峰 ≤ 2.6°、0 摔；延遲 1 步＋雜訊 8 條 0 摔（ABAD 誤差峰 0.67，護欄 0.80）；崎嶇地 114 趟 **0 摔**（v1b 1），boxes 10 cm 側移 0.41 過；護欄內、gap ≥ 214。訓練曲線 2,650 萬步起就平（lin 1.8、impact −0.06、land_vz 0.17、fell 0），後面步數大概不會再變。
-  **退步一條：直走速度偏置**——0.1→0.17、0.2→0.30、0.3→0.42、0.5→0.63、1.0→1.09，倒退 −0.3→−0.39、−0.5→−0.60（正反都超、斜走時 vx 卻準）；wz +1.0 只 53°/s（門檻 54，邊緣）。已排除：延遲 1／2 步同樣、ideal 同樣、重力俯仰 ±2° 只動 0.59～0.66、**MJX 環境裡一樣超速且每步少拿 lin 0.5** → policy 學出來的增益誤差；v1c 從頭訓也有（0.61／1.25）、v1b 沒有 → 來源是 v1c 新加的 DR（延遲或 IMU 偏差），不是熱啟動。要確認得做消融（v1e＝v1d 關延遲 DR，50 分）。
-  **姿態退步（使用者 10-21 看影片指出）**：平移時腿伸很直、前後晃。量測（vy 0.5，v1b → v1d）：膝 64–80° → **42°**（預設 86°）、髖 35° → 10°、機身高 0.53 → **0.59 m**、pitch std 0.7° → **2.2°**（3 倍）、roll 峰 9° → 2°。攤帳（同一套 v1c reward）：v1d 每步付 `dev` −0.59（v1b −0.19）、`lin` 少 0.2，只換到 roll／impact 各省 0.18／0.03 → **v1d 的平移姿態在名目條件下總分 3.63 < v1b 的 4.05**，不是 reward 平地上想要的，是對隨機化條件（延遲／IMU 偏差／鏡像）的妥協。機制：只罰 roll 不罰 pitch → 踏步時的重心轉移從側傾改成前後俯仰（免費方向）；腿伸直＝垂直剛度高、載重換腿時機身不歪，也不用付側傾分。
-  候選修法（v1e，從 v1b 再起、50 分）：① `angxy` 0.05 → 0.5（罰 roll／pitch **角速度**，晃動是速率現象、樓梯上的靜態俯仰不受罰）；② 膝伸直 hinge：罰 |q_knee| 比預設 86° 更直的部分（彎更多免費），權重攤帳定；③ 消融 DR（delay_max 0 或 grav_bias 0 各一版）找直走增益誤差與姿態的來源。
-  **決定待使用者**：(a) 接受，上機時直走指令打 8 折（0.25 → 實際約 0.33）並寫進操作卡；(b) 先做消融找原因再上機。及格線的「vx 誤差 ≤ 0.05」這格目前不過。
-- **v1d（使用者選 C，10-20 深夜）**：**從 v1b 熱啟動**（`INIT_FROM` 還原 normalizer／policy／value，步數從 0 算）續訓，環境同 `V1C` 但 `impact` 改門檻形式 `max(0, vz − 0.3)²`（`impact_v0`；10k 等級 0.10–0.19 m/s 免費、v1b 0.43–0.71 仍罰）。每 session 5 億，**使用者：有必要可以多跑幾個 session**。檔名／雲端硬碟資料夾全用 v1d，`RESUME="auto"` 不會撿到 v1c 的 step 檔。代價：不保證「天生對稱」，靠鏡像把左右拉齊；拉不齊再走「從頭訓＋impact 暖身」。
-  門檻後攤帳（同檔名覆寫）：`impact` 10k −0.001／−0.001／−0.005、v1b −0.040／−0.240／−0.069（vy +0.5／−0.5／+0.6）；roll 不變。
-
-- **v1c 是什麼**（spec `docs/superpowers/specs/2026-10-20-rl-wheel-v1c-design.md`、plan `docs/superpowers/plans/2026-10-20-rl-wheel-v1c.md`、reward 盤點 `docs/results/Y_v1b_reward總表_2026-10-20.md`）：
-  從頭訓、`WheelEnv(**rw.V1C)`＝鏡像增強（每回合 50% obs 翻給 policy、動作翻回物理）＋ `roll`（只罰 roll，w 10）＋ `impact`（觸地前一步足端 vz²，w 3，出生後 25 步不計）＋ 動作延遲 DR 0–2 步 ＋ IMU 常數偏差 DR ±2°。
-  目標只有兩個：**左右對稱**（v1b 左平移 roll 7–10°、右 1–4°）與**落地輕**。σ 0.25、`acc_leg`／`rate`、`wgap`、`lim`、`w_ang` 全不動；「從容」（步頻）這版不列目標。
-  **不採用**（查證過，spec §0）：降碰撞懲罰（`wgap` 訓練全程為 0 沒輸出過梯度）、σ 放寬（買到的是欠追蹤）、加重 `dev`（罰離站姿不罰左右差）。
-- **攤帳關卡（10-20 晚，`outputs/reward_audit_wheel_{10k,v1b}_v1c.md`）**：(a) `impact` 10k／v1b ＝ 0.11／0.03／0.20（vy +0.5／−0.5／+0.6）→ 過；每次落地 vz（Σimpact_vz／Σtd_n）10k 0.12／0.10／0.19、v1b 0.43／0.71／0.44 m/s。
-  (b) v1b `roll` 左平移 −0.179 vs 右 −0.024 → 過。(c) v1b `roll+impact` −0.33／−0.53／−0.28，右平移那列超 −0.5 下限 7%，單項最大 0.51 < 1 → **接受，w_impact 維持 3.0**。
-  順帶：v1b **右**平移落地反而比左重（0.71 vs 0.43 m/s、94 vs 77 次），roll 是左大；兩個問題在不同邊。
-- **Colab 步驟**：先 `git push`（notebook 是 clone GitHub main）→ 開 `notebooks/rl_wheel_v1f_colab.ipynb`（v1c／v1d 那兩本留著不用），第 4 格掛載雲端硬碟（授權一次就能離開）、G4、throughput 格自動選 4096、`TIMESTEPS` 5 億／session；**每次 eval 的 step 檔與最後的 `rl_wheel_v1c_params.pkl` 自動複製到 `MyDrive/rl_wheel_v1f/`**（10-20 使用者要求），session 2 掛載後 `RESUME="auto"` 自動從雲端硬碟接；第一個 session 訓練格要印「熱啟動自 rbtdog_sim/task7/weights/rl_wheel_v1b_params.pkl」，step 0 的 `knee` 應 ≈ 0、`lin` ≈ 1.6。
-  進度列讀法：`roll`、`impact` 往 0；`land_vz` ＝ Σvz／Σ落地次數（MJX 接觸口徑；v1b 左／右平移 0.43／0.70），往下；**和本機驗收表「落地 vz」（CPU 淨空口徑，v1b 0.36／0.37）不同尺度、不能互比**；`mir` ≈ 0.5、`d` ≈ 1.0；eval 也開鏡像／延遲／偏差，eval reward 不是乾淨名目數字。
-  停損（累計 2 億）：`len < 600`／`lin < 0.5`／gap 中位 < 40 mm／`impact`、`roll` 沒往 0 走／`level` 明顯低於 v1b 同步數（崎嶇地 impact 大：stairs 8 側移 −0.75／步、boxes 8 −0.48，平地 −0.17；最終審查補量）。**5 億步中場檢查**：step 檔拉回本機 `export_policy_wheel.py` → 跑 §6 表，roll 左右差沒縮或「落地 vz」沒比 v1b 低 → 先調權重再跑 session 2。
-- **訓完及格線**（spec §6；工具同 v1b、每條 `--self-collision`；完整指令在 plan Task 11）：摔 0（平地 real／ideal／push、斜走 9 條、倒退 5 條）、崎嶇地 114 趟 ≤ 1；vy ±0.5 ≥ 0.42、wz 0.5 ≥ 24°/s；**對稱** vy ±0.5 roll 峰左右差 ≤ 3° 且都 ≤ 6°；**落地輕** 驗收表「落地 vz」欄低於 v1b（v1b 0.36／0.37）；ABAD 誤差峰 ≤ 0.70、髖膝 ≤ 0.45、gap ≥ 200 mm；延遲 1 步＋雜訊 0 摔、延遲 2 步左平移不摔。任一格不過不上機，v1b 權重不動。**跑及格線前先修 `landing_vz` 的遲滯**（5 mm 門檻無遲滯／最小騰空時間，抖動會灌水事件數、拉低平均；修完 v1b 的 `eval_rl_only_real_landcol_v1b.md` 要重跑當基準）。
-  結果寫 `docs/results/Z_純RL自訓v1c_MuJoCo_<日期>.md`；過了寫 trip29 操作卡（照 trip26 卡 §8 格式）。
-- **全套 pytest @98a57c3（環境改動全部完成後）：1118 passed, 1 warning（jaxopt），37 分**（10-20 晚）。
+- **v1f 及格線全過**（Z 文件 `docs/results/Z_純RL自訓v1f_MuJoCo及格線_2026-10-21.md`）：對稱 vy ±0.5 roll 峰 **2.1／1.7°**（v1b 9.3／3.6）；落地 vz **0.10／0.17**（v1b 0.36／0.37）；平地 13／斜走 9／延遲雜訊 8／崎嶇地 114 全 0 摔（v1b 崎嶇 1 摔）；直走 0.33／0.54／1.05 準（v1d 的 +0.1 超速消失＝延遲 DR 造成）；wz 26／57；護欄內（延遲雜訊下 ABAD 誤差峰 0.68 貼 0.70）。
+  姿態：機身高與前後晃回到 v1b 水準（0.54 m、pitch std 0.6–1.0°）；膝 55–60°（貼 hinge）比 v1b 的 64–80° 直一點、髖較垂直、抬腳 5–9 mm（v1b 13–20）。**使用者看 `outputs/rl_wheel/compare_v1b_vs_v1f_mesh.mp4` 決定**：可接受就上機；要更蹲就 `knee_min_deg` 60 → 70 ＋ 髖 hinge 再訓（50 分）。
+- **v1f 是什麼**：`WheelEnv(**rw.V1F)`＝v1b 熱啟動＋鏡像 50%＋roll 10＋impact 3（門檻 0.3 m/s）＋IMU 偏差 ±2° DR＋`angxy` 0.5（罰 roll／pitch 角速度）＋`knee`（膝比 60° 更直才罰，w 0.5）；**無延遲 DR**。狗端零改動，`--grav-offset 0.7 -1.5` 照舊，npz sha `5370132e3f15`。
+- **三版教訓（Z §4）**：v1c 從頭訓＋無門檻 impact → 2,650 萬步內踏步被清零、側向軸死；v1d 延遲 DR → 多給命令（直走 +0.1）、鎖膝（42°）、前後晃 3 倍；只罰 roll 會把重心轉移推到 pitch，用角速度項補。從頭訓若再做：impact 要 0→3 暖身。
+- **上機（trip29，§9 卡）**：站立 → 直走 0.3／0.5 → 轉 ±0.5／±1.0 → 平移 ±0.5（**重點：左右 roll 一樣小、踏地聲比 v1b 輕**；`CGB` 旗標可當場跑 v1b 對照）→ 斜走 ±0.3 → 平移 0.6。狗端 log 先 `clean_dog_logs.sh`。
+- 影子跟跑 `test_policy_rl_{np,closed_loop}.py` 是給學長 ONNX 版的（要 ONNX 對照），自訓 npz 不適用；匯出一致性由 `test_export_policy_wheel.py` 蓋。
+- **全套 pytest**：knee／w_angxy 改動後的全套 10-21 上午背景跑，結果補這裡；分檔跑過：reward＋golden 21、mirror／train／wheel／tools 30、notebook 7 全 passed。
 - **工具坑**：`conda run -n rbtdog python - <<EOF` 不會把 heredoc 餵進 stdin，python 片段先寫成檔案；`--cmds` 以負號開頭要寫 `--cmds=-0.3,...`。
-- **給經理的訊息（10-20 下午）**寫「已開始訓練」；實際開訓要等 push 後在 Colab 按下去。
 
 ## 2. 權重現況
 
 | 權重 | 狀態 | 驗收表（`outputs/`） |
 |---|---|---|
-| **rl_wheel_v1f**（待訓）`notebooks/rl_wheel_v1f_colab.ipynb` | v1b 熱啟動＋V1F（無延遲 DR、angxy 0.5、knee hinge 60°）；中場看姿態 | `reward_audit_wheel_{v1b,v1d}_v1f.md` |
+| **rl_wheel_v1f**（5 億步，v1b 熱啟動）`weights/rl_wheel_v1f_params.pkl`／`rl_wheel_v1f_np.npz`（sha `5370132e3f15`） | ★ **及格線全過、待上機（trip29）**：對稱 roll 2.1／1.7°、落地 0.10／0.17、崎嶇地 0 摔、直走準；膝 55–60° 貼 hinge（使用者看影片定） | `rl_wheel/eval_rl_only_real_{v1f,diag_v1f,diag_d1n_v1f,vxlow_v1f}.md`、`eval_rl_wheel_rough_real_v1f.md`；**Z 文件** |
 | rl_wheel_v1d（2.12 億步中場）`weights/rl_wheel_v1d_s212_np.npz`（sha `652aecce2ed3`） | 對稱 roll 1.6／2.7°、落地 0.22／0.17、rough 0 摔 **但** 平移膝 42°、pitch 晃 3 倍、直走 +0.1（§1）；不上機 | `rl_wheel/eval_*_v1d_s212.md`、`compare_v1b_vs_v1d_s212_mesh.mp4`（本機） |
 | rl_wheel_v1c（從頭訓 5 億，**失敗**）`weights/rl_wheel_v1c_{params.pkl,np.npz}`（sha `06d649a136c3`） | 側向軸死掉、不抬腳（§1）；留作對照 | `rl_wheel/eval_rl_only_real_{v1c_s1,diag_v1c_s1}.md`、`eval_rl_wheel_rough_real_v1c_s1.md`、`reward_audit_wheel_v1c_s1.md` |
 | **rl_wheel_v1b**（自訓，MJX，10 億步）`weights/rl_wheel_v1b_params.pkl`／`rl_wheel_v1b_np.npz`（sha `a02a4631d3f3`） | ★ **已上機（trip26／27／28）**：trip26＋27 24 趟 0 摔，trip28（10-20）主管實體看步態；後輪不碰、慢轉不飄、vy 0.3 會動；`--grav-offset 0.7 -1.5` 標準旗標；弱點＝左平移 roll 7–10°、平移落地重。模擬：斜走 9 條、倒退 5 條 0 摔（`rl_wheel/eval_rl_only_real_{diag,back}_*_v1b.md`） | `rl_wheel/eval_rl_only_{real,ideal}_v1b.md`、`eval_rl_wheel_rough_real_v1b.md`、`eval_rl_only_real_landcol_v1b.md`（落地 vz 欄）；X 文件 |

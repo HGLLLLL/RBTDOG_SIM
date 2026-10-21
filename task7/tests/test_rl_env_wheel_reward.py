@@ -309,3 +309,16 @@ def test_v1f_preset_angxy_and_knee_hinge(env):
     d3 = jax.jit(mjx.forward)(ef.sys, data.replace(qpos=q3))
     assert float(ef._reward_terms(d3, _info(ef, d3), jnp.zeros(16), jnp.zeros(3))[0]["knee"]) == 0.0
     assert float(env._reward_terms(d2, _info(env, d2), jnp.zeros(16), jnp.zeros(3))[0]["knee"]) == 0.0   # 預設 w_knee 0
+
+
+def test_v1g_slip_weight(env):
+    """V1G：只比 V1F 多 w_slip 0.75（拖腿橫滑變貴）；預設 0.075 ＝ v1b。"""
+    assert rw.V1G == dict(rw.V1F, w_slip=0.75) and rw.WheelEnv.__init__.__defaults__[-1] == 0.075
+    eg = rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, scene=env.scene, **rw.V1G)
+    data = _standing_data(env).replace(ctrl=env._ctrl(jnp.zeros(16)))
+    phys = jax.jit(lambda d: env._physics(d, jnp.zeros(16)))
+    for _ in range(15):
+        data = phys(data)
+    info = _info(eg, data); info["foot_prev"] = data.xpos[eg.FOOT_BIDS] - jnp.array([0.0, 0.3 * rw.CTRL_DT, 0.0])   # 四輪沿輪軸側滑 0.3 m/s
+    Tg, _ = eg._reward_terms(data, info, jnp.zeros(16), jnp.zeros(3)); Tb, _ = env._reward_terms(data, info, jnp.zeros(16), jnp.zeros(3))
+    assert float(Tg["slip"]) == pytest.approx(-0.75 * 4 * 0.09, rel=0.05) and float(Tb["slip"]) == pytest.approx(-0.075 * 4 * 0.09, rel=0.05)

@@ -9,6 +9,7 @@ GEN = NB.parent / "build_nb_wheel.py"
 NB_C = NB.parent / "rl_wheel_v1c_colab.ipynb"
 NB_D = NB.parent / "rl_wheel_v1d_colab.ipynb"
 NB_F = NB.parent / "rl_wheel_v1f_colab.ipynb"
+NB_G = NB.parent / "rl_wheel_v1g_colab.ipynb"
 
 
 def _src_of(path, kind):
@@ -128,3 +129,21 @@ def test_v1f_notebook_cells():
     assert norm(built["cells"]) == norm(json.loads(NB_F.read_text(encoding="utf-8"))["cells"]), "先跑 python3 task7/notebooks/build_nb_wheel.py"
     for i, c in enumerate([c for c in built["cells"] if c["cell_type"] == "code"][2:], start=2):
         ast.parse("".join(c["source"]), filename=f"v1f_code_cell_{i}")
+
+
+def test_v1g_notebook_cells():
+    """v1g：v1f ＋ w_slip 0.75（拖腿橫滑變貴）；檔名全 v1g。"""
+    assert NB_G.exists(), "先跑 python3 task7/notebooks/build_nb_wheel.py"
+    code = _src_of(NB_G, "code"); md = _src_of(NB_G, "markdown")
+    assert "env = rw.WheelEnv(**rw.V1G)" in code and "eval_env = rw.WheelEnv(noise=False, push=False, **rw.V1G)" in code and "rw.V1F" not in code
+    assert 'INIT_FROM = "rbtdog_sim/task7/weights/rl_wheel_v1b_params.pkl"' in code and "ps('slip')" in code
+    assert 'DRIVE = "/content/rl_wheel_v1g"' in code and 'GDRIVE = "/content/drive/MyDrive/rl_wheel_v1g"' in code and 'model.save_params("rl_wheel_v1g_params.pkl", params)' in code
+    assert "rl_wheel_v1f" not in code and "拖腿橫滑" in md and "rl_wheel_v1f" not in md
+    assert "rl_wheel_v1g" not in _src_of(NB_F, "code")
+    spec = importlib.util.spec_from_file_location("build_nb_wheel", GEN)
+    mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+    norm = lambda cells: [(c["cell_type"], "".join(c["source"])) for c in cells]
+    built = mod.build("v1g")
+    assert norm(built["cells"]) == norm(json.loads(NB_G.read_text(encoding="utf-8"))["cells"]), "先跑 python3 task7/notebooks/build_nb_wheel.py"
+    for i, c in enumerate([c for c in built["cells"] if c["cell_type"] == "code"][2:], start=2):
+        ast.parse("".join(c["source"]), filename=f"v1g_code_cell_{i}")

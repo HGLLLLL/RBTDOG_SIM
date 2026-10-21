@@ -65,6 +65,9 @@ V1C = dict(mirror=True, w_roll=10.0, w_impact=3.0, impact_v0=0.3, delay_max=2, g
 # V1F（10-21，使用者定）：v1b 熱啟動、**不加延遲 DR**（v1d 平移腿伸直到膝 42°、pitch 晃 3 倍、直走超速 +0.1，嫌疑是延遲 DR）；
 #   加 w_angxy 0.5（罰 roll／pitch 角速度：只罰 roll 讓 policy 把重心轉移改成前後晃）、膝 hinge（|q_knee| 比 knee_min_deg 60° 更直的部分；v1b 平移膝 64–80° 不罰）。
 V1F = dict(mirror=True, w_roll=10.0, w_impact=3.0, impact_v0=0.3, delay_max=0, grav_bias_deg=2.0, w_angxy=0.5, w_knee=0.5, knee_min_deg=60.0)
+# V1G（10-21，使用者定）：v1f 平移＝兩腿踏、兩腿被拖著橫滑 0.5 m/s（直腿外張是拖腿的幾何必然；|vy| 越大拖越多腿）。原因是 slip 0.075 太便宜：
+#   拖兩輪每步只扣 0.04，比抬腳（impact）＋重心轉移（roll）便宜。只改 w_slip ×10；impact／膝 hinge 不動、不加 ABAD hinge（原廠平移 ABAD 擺幅 11–20°）。
+V1G = dict(V1F, w_slip=0.75)
 
 
 def quat_rot_inv(q, v):
@@ -161,7 +164,7 @@ class WheelEnv(Env):
                  std: float = 0.25, w_ww: float = 1.0, w_gap: float = 2.0, episode_len: int = EPISODE_LEN,
                  w_ang: float = 2.5, w_lim: float = 2.0,
                  mirror: bool = False, w_roll: float = 0.0, w_impact: float = 0.0, impact_v0: float = 0.0, delay_max: int = 0, grav_bias_deg: float = 0.0,
-                 w_angxy: float = 0.05, w_knee: float = 0.0, knee_min_deg: float = 60.0):
+                 w_angxy: float = 0.05, w_knee: float = 0.0, knee_min_deg: float = 60.0, w_slip: float = 0.075):
         """flat：全圖平地、出生在原點（對齊驗證）；fixed_cmd：指令讀 info["cmd_fix"]（不重抽、不站立、不小指令）；
         fixed_tile=(kind_idx, level)：固定出生方塊、不升降課程。std／w_ww／w_gap／small_frac 是三項改動的旋鈕（w_gap：輪輪實體間隙 hinge）。
         w_ang：偏航追蹤權重（v1 是 1.25，v1b 2.5：原地轉時 tau_leg ≈ −2／步壓過 ang 最多 1.25）；w_lim：腿關節 PD 目標超出軟限位的懲罰（v1 是 0，v1b 2.0）。
@@ -173,6 +176,7 @@ class WheelEnv(Env):
         self.w_ang, self.w_lim = float(w_ang), float(w_lim)
         self.mirror, self.w_roll, self.w_impact, self.impact_v0 = bool(mirror), float(w_roll), float(w_impact), float(impact_v0)
         self.w_angxy, self.w_knee, self.knee_min = float(w_angxy), float(w_knee), float(np.radians(knee_min_deg))
+        self.w_slip = float(w_slip)
         self.delay_max, self.grav_bias_deg = int(delay_max), float(grav_bias_deg)
         assert 0 <= self.delay_max <= 2, "a_hist 長度 3：延遲最多 2 步"
         self.episode_len = int(episode_len)
@@ -471,7 +475,7 @@ class WheelEnv(Env):
                  tau_leg=-2e-4 * jnp.sum(tau[:12] ** 2), tau_wheel=-2e-4 * jnp.sum(tau[12:] ** 2),
                  acc_leg=-2.5e-7 * jnp.sum(qacc[:12] ** 2), acc_wheel=-2.5e-7 * jnp.sum(qacc[12:] ** 2),
                  rate=-0.01 * jnp.sum((a - info["last_a"]) ** 2),
-                 slip=-0.075 * slip, dev=-0.1 * dev, ww=-self.w_ww * ww, wgap=-self.w_gap * wgap, lim=-self.w_lim * lim,
+                 slip=-self.w_slip * slip, dev=-0.1 * dev, ww=-self.w_ww * ww, wgap=-self.w_gap * wgap, lim=-self.w_lim * lim,
                  roll=-self.w_roll * roll, impact=-self.w_impact * impact,
                  knee=-self.w_knee * jnp.sum(jnp.maximum(0.0, self.knee_min - jnp.abs(qleg[8:12]))))   # 膝比 knee_min 更直的部分（rad，4 膝和）；彎更多免費
         aux = dict(vb=vb, w=w, touch=touch, ww_force=ww_force, gaps=gaps, err_lin=err_lin, err_ang=err_ang, C=C, sat_n=sat_n,

@@ -14,6 +14,8 @@ OUT_D = HERE / "rl_wheel_v1d_colab.ipynb"
 WEIGHTS_D = "rl_wheel_v1d_params.pkl"
 OUT_F = HERE / "rl_wheel_v1f_colab.ipynb"
 WEIGHTS_F = "rl_wheel_v1f_params.pkl"
+OUT_G = HERE / "rl_wheel_v1g_colab.ipynb"
+WEIGHTS_G = "rl_wheel_v1g_params.pkl"
 OLD = json.loads((HERE / "cpg_rl_max_colab.ipynb").read_text(encoding="utf-8"))
 _code = [c for c in OLD["cells"] if c["cell_type"] == "code"]
 install_src, version_src = "".join(_code[0]["source"]), "".join(_code[1]["source"])
@@ -246,6 +248,21 @@ assert "rw.V1F" in train_src_f and "rl_wheel_v1d" not in train_src_f and "ps('kn
 save_src_f = save_src_d.replace("rl_wheel_v1d", "rl_wheel_v1f")
 
 
+# ---- v1g（2026-10-21，使用者定）：v1f 平移＝兩腿踏、兩腿被拖著橫滑 0.5 m/s（直腿外張是拖腿的幾何必然）→ 只改 w_slip 0.075 → 0.75，其餘同 v1f。
+md0_g = md0_f.replace("# 純 RL 自訓 **v1f**：", "# 純 RL 自訓 **v1g**：").replace("環境 `WheelEnv(**rw.V1F)`", "環境 `WheelEnv(**rw.V1G)`").replace(
+    "- **防「用伸直腿、前後晃躲側傾」**：",
+    "- **防「拖腿橫滑」（v1g 唯一改動）**：`slip` 0.075 → **0.75**。v1f 平移時只有兩腿踏、另外兩腿全程觸地被拖著橫滑 0.5 m/s（每步只扣 0.04，比抬腳＋重心轉移便宜），直腿外張是拖腿的幾何必然；原廠平移四腿都踏、次要腿原地重放（L 文件）。攤帳關卡：V1G 下 v1b 四腿步態每步總分要高於 v1f 拖腿步態。\n"
+    "- **防「用伸直腿、前後晃躲側傾」**：").replace("rl_wheel_v1f", "rl_wheel_v1g").replace("MyDrive/rl_wheel_v1f/", "MyDrive/rl_wheel_v1g/").replace("/content/rl_wheel_v1f/", "/content/rl_wheel_v1g/")
+md0_g = md0_g.replace("**讀法**：", "**讀法**：`slip` 起點（v1b）約 −0.1，往 0；")
+assert "rw.V1G" in md0_g and "rl_wheel_v1f" not in md0_g and "拖腿橫滑" in md0_g
+mount_src_g = mount_src_f.replace("rl_wheel_v1f", "rl_wheel_v1g").replace("（v1f，", "（v1g，")
+import_src_g = import_src_f.replace("rw.V1F", "rw.V1G")
+train_src_g = (train_src_f.replace("rl_wheel_v1f", "rl_wheel_v1g").replace("rw.V1F", "rw.V1G")
+               .replace("（v1f 從 v1b 熱啟動，每 session 5 億，可多跑）", "（v1g 從 v1b 熱啟動，每 session 5 億，可多跑）"))
+assert "rw.V1G" in train_src_g and "rl_wheel_v1f" not in train_src_g and "INIT_FROM" in train_src_g and "ps('slip')" in train_src_g
+save_src_g = save_src_f.replace("rl_wheel_v1f", "rl_wheel_v1g")
+
+
 def cell(kind, src):
     c = {"cell_type": kind, "metadata": {}, "source": src.splitlines(keepends=True)}
     if kind == "code":
@@ -267,6 +284,9 @@ def build(variant="v1"):
     elif variant == "v1f":
         cells = [cell("markdown", md0_f), cell("code", install_src), cell("code", version_src), cell("code", clone_src), cell("code", mount_src_f),
                  cell("code", import_src_f), cell("code", bench_src), cell("code", train_src_f), cell("code", plot_src), cell("code", save_src_f)]
+    elif variant == "v1g":
+        cells = [cell("markdown", md0_g), cell("code", install_src), cell("code", version_src), cell("code", clone_src), cell("code", mount_src_g),
+                 cell("code", import_src_g), cell("code", bench_src), cell("code", train_src_g), cell("code", plot_src), cell("code", save_src_g)]
     else:
         raise ValueError(variant)
     return {"nbformat": 4, "nbformat_minor": 5,
@@ -274,7 +294,7 @@ def build(variant="v1"):
 
 
 def main():
-    for variant, out in (("v1", OUT), ("v1c", OUT_C), ("v1d", OUT_D), ("v1f", OUT_F)):
+    for variant, out in (("v1", OUT), ("v1c", OUT_C), ("v1d", OUT_D), ("v1f", OUT_F), ("v1g", OUT_G)):
         nb = build(variant)
         out.write_text(json.dumps(nb, ensure_ascii=False, indent=1), encoding="utf-8")
         print("→", out, f"({len(nb['cells'])} cells)")

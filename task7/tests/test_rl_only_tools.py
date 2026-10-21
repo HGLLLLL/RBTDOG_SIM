@@ -72,3 +72,11 @@ def test_landing_vz_counts_touchdowns_and_uses_pre_touch_velocity():
     assert ri.landing_vz(np.zeros((40, 4)), dt) == (0.0, 0)           # 從沒離地：0 事件
     up = np.zeros((40, 4)); up[5:, 2] = 0.05                           # 抬起不落：0 事件
     assert ri.landing_vz(up, dt) == (0.0, 0)
+
+
+def test_landing_counts_per_leg():
+    dt = 0.02
+    clr = np.zeros((40, 4)); c = np.zeros(40); c[10:20] = [0.01, 0.02, 0.03, 0.03, 0.03, 0.03, 0.02, 0.016, 0.008, 0.0]
+    clr[:, 1] = c; clr[:, 3] = c; clr[25:30, 3] = 0.02                       # FL 一次、RL 兩次、FR／RR 從沒離地
+    assert ri.landing_counts(clr, dt) == [0, 1, 0, 2]
+    assert sum(ri.landing_counts(clr, dt)) == ri.landing_vz(clr, dt)[1]       # 總數與 landing_vz 一致

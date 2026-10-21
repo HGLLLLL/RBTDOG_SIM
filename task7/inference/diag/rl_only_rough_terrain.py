@@ -195,7 +195,7 @@ def metrics(R, cmd, dt_pol=0.02):
     g["fell"] = R["fell"]; g["sat"] = 100.0 * np.mean(R["sat"][w] > 0)
     err = R["err"][w]; g["err_abad"] = err[:, 0:4].max(); g["err_hk"] = err[:, 4:12].max()
     g["vcmd"] = (np.abs(np.diff(R["tgt"][w][:, :12], axis=0)) / dt_pol).max()
-    g["land_vz"], g["land_n"] = ri.landing_vz(R["clr"][w], dt_pol)
+    g["land_vz"], g["land_n"] = ri.landing_vz(R["clr"][w], dt_pol); g["land_legs"] = ri.landing_counts(R["clr"][w], dt_pol)
     g["gap_rr"] = float(R["gap"][w].min() * 1000.0)
     return g
 
@@ -204,10 +204,10 @@ def fmt_row(label, cmd, g):
     name = f"vx {cmd[0]:+.1f} vy {cmd[1]:+.1f} wz {cmd[2]:+.1f}"
     fell = "—" if g["fell"] is None else f"**{g['fell']:.1f} s**"
     return (f"| {label} | {name} | {fell} | {g['vx']:+.2f} | {g['vy']:+.2f} | {g['yaw']:+.0f} | {g['dist']:.1f} | {g['roll_std']:.1f}/{g['roll_max']:.0f} | {g['pitch_std']:.1f}/{g['pitch_max']:.0f} | "
-            f"{g['lift']} | {g['steps_s']} | {g['air']} | {g['tsteps_s']} | {g['tair']} | {g['tau_abad']:.0f}/{g['tau_hip']:.0f}/{g['tau_knee']:.0f} | {g['err_abad']:.2f}/{g['err_hk']:.2f} | {g['vcmd']:.0f} | {g['jv_max']:.0f} | {g['sat']:.0f} | {g['gap_rr']:.0f} | {g['land_vz']:.2f}（{g['land_n']}） |")
+            f"{g['lift']} | {g['steps_s']} | {g['air']} | {g['tsteps_s']} | {g['tair']} | {g['tau_abad']:.0f}/{g['tau_hip']:.0f}/{g['tau_knee']:.0f} | {g['err_abad']:.2f}/{g['err_hk']:.2f} | {g['vcmd']:.0f} | {g['jv_max']:.0f} | {g['sat']:.0f} | {g['gap_rr']:.0f} | {g['land_vz']:.2f}（{g['land_n']}＝{'/'.join(str(x) for x in g['land_legs'])}） |")
 
 
-HDR = ("| 地形 | 指令 | 摔 | vx | vy | 偏航°/s | 位移 m | roll std/峰 | pitch std/峰 | 淨空中位 mm（FR,FL,RR,RL） | 淨空步/秒 | 淨空離地% | **真離地步/秒（接觸）** | **真離地%** | τ ABAD/髖/膝 | 誤差峰 ABAD/髖膝 | 命令速峰 | 關節速峰 | 飽和% | 後輪 gap mm | 落地 vz m/s（次） |\n"
+HDR = ("| 地形 | 指令 | 摔 | vx | vy | 偏航°/s | 位移 m | roll std/峰 | pitch std/峰 | 淨空中位 mm（FR,FL,RR,RL） | 淨空步/秒 | 淨空離地% | **真離地步/秒（接觸）** | **真離地%** | τ ABAD/髖/膝 | 誤差峰 ABAD/髖膝 | 命令速峰 | 關節速峰 | 飽和% | 後輪 gap mm | 落地 vz m/s（次＝FR/FL/RR/RL） |\n"
        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|")
 
 

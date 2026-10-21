@@ -16,6 +16,8 @@ OUT_F = HERE / "rl_wheel_v1f_colab.ipynb"
 WEIGHTS_F = "rl_wheel_v1f_params.pkl"
 OUT_G = HERE / "rl_wheel_v1g_colab.ipynb"
 WEIGHTS_G = "rl_wheel_v1g_params.pkl"
+OUT_H = HERE / "rl_wheel_v1h_colab.ipynb"
+WEIGHTS_H = "rl_wheel_v1h_params.pkl"
 OLD = json.loads((HERE / "cpg_rl_max_colab.ipynb").read_text(encoding="utf-8"))
 _code = [c for c in OLD["cells"] if c["cell_type"] == "code"]
 install_src, version_src = "".join(_code[0]["source"]), "".join(_code[1]["source"])
@@ -264,6 +266,24 @@ assert "ps('stuck')" in train_src_g and "rw.V1G" in train_src_g and "rl_wheel_v1
 save_src_g = save_src_f.replace("rl_wheel_v1f", "rl_wheel_v1g")
 
 
+# ---- v1h（2026-10-21 下午，使用者定「1＋2」）：v1g 中場平移膝 50–58°（比 hinge 60° 更直）、機身 0.57 m；動機＝roll 懲罰在地形上逼它站直。
+#      1 直接鎖姿態：膝 hinge 65°／w 2、機身高 hinge（> 0.56 m 線性 w 10）；2 減壓：w_roll 10 → 5。其餘同 v1g。
+md0_h = md0_g.replace("# 純 RL 自訓 **v1g**：", "# 純 RL 自訓 **v1h**：").replace("環境 `WheelEnv(**rw.V1G)`", "環境 `WheelEnv(**rw.V1H)`").replace(
+    "- **防「用伸直腿、前後晃躲側傾」**：",
+    "- **鎖姿態（v1h 的改動，使用者定「1＋2」）**：v1g 中場平移膝 50–58°（比 hinge 60° 更直、每步寧願付 knee −0.24）、機身 0.57 m（v1b 0.53），動機是 roll 懲罰在地形上逼它站直（直腿垂直剛度高）。"
+    "1 直接鎖：膝 hinge 60° → **65°**（70° 會讓 v1b 自己平地扣 −0.4、樓梯 −0.6，關卡 12 列輸 2 列）、w 0.5 → **2.0**；新項 **`height`**（w 10）罰機身對地形高度超過 **0.56 m** 的部分（v1b 平移 0.53–0.56）。2 減壓：`roll` 10 → **5**。關卡加地形列（rough／boxes／stairs 第 9 級側移），v1b 要每列都贏。\n"
+    "- **防「用伸直腿、前後晃躲側傾」**：").replace("rl_wheel_v1g", "rl_wheel_v1h").replace("MyDrive/rl_wheel_v1g/", "MyDrive/rl_wheel_v1h/").replace("/content/rl_wheel_v1g/", "/content/rl_wheel_v1h/")
+md0_h = md0_h.replace("**讀法**：", "**讀法**：`height` 往 0（v1b 起點平移時 ≈ 0）、`knee` 起點（v1b 在 65° 地板下）約 −0.1 往 0；")
+assert "rw.V1H" in md0_h and "rl_wheel_v1g" not in md0_h and "`height`" in md0_h
+mount_src_h = mount_src_g.replace("rl_wheel_v1g", "rl_wheel_v1h").replace("（v1g，", "（v1h，")
+import_src_h = import_src_g.replace("rw.V1G", "rw.V1H")
+train_src_h = (train_src_g.replace("rl_wheel_v1g", "rl_wheel_v1h").replace("rw.V1G", "rw.V1H")
+               .replace("（v1g 從 v1b 熱啟動，每 session 5 億，可多跑）", "（v1h 從 v1b 熱啟動，每 session 5 億，可多跑）")
+               .replace("stuck {ps('stuck'):+.3f} slip {ps('slip'):+.3f}", "stuck {ps('stuck'):+.3f} slip {ps('slip'):+.3f} height {ps('height'):+.3f}"))
+assert "ps('height')" in train_src_h and "rw.V1H" in train_src_h and "rl_wheel_v1g" not in train_src_h and "INIT_FROM" in train_src_h
+save_src_h = save_src_g.replace("rl_wheel_v1g", "rl_wheel_v1h")
+
+
 def cell(kind, src):
     c = {"cell_type": kind, "metadata": {}, "source": src.splitlines(keepends=True)}
     if kind == "code":
@@ -288,6 +308,9 @@ def build(variant="v1"):
     elif variant == "v1g":
         cells = [cell("markdown", md0_g), cell("code", install_src), cell("code", version_src), cell("code", clone_src), cell("code", mount_src_g),
                  cell("code", import_src_g), cell("code", bench_src), cell("code", train_src_g), cell("code", plot_src), cell("code", save_src_g)]
+    elif variant == "v1h":
+        cells = [cell("markdown", md0_h), cell("code", install_src), cell("code", version_src), cell("code", clone_src), cell("code", mount_src_h),
+                 cell("code", import_src_h), cell("code", bench_src), cell("code", train_src_h), cell("code", plot_src), cell("code", save_src_h)]
     else:
         raise ValueError(variant)
     return {"nbformat": 4, "nbformat_minor": 5,
@@ -295,7 +318,7 @@ def build(variant="v1"):
 
 
 def main():
-    for variant, out in (("v1", OUT), ("v1c", OUT_C), ("v1d", OUT_D), ("v1f", OUT_F), ("v1g", OUT_G)):
+    for variant, out in (("v1", OUT), ("v1c", OUT_C), ("v1d", OUT_D), ("v1f", OUT_F), ("v1g", OUT_G), ("v1h", OUT_H)):
         nb = build(variant)
         out.write_text(json.dumps(nb, ensure_ascii=False, indent=1), encoding="utf-8")
         print("→", out, f"({len(nb['cells'])} cells)")

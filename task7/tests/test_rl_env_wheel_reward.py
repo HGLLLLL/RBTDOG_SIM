@@ -68,7 +68,7 @@ def test_action_rate_and_signs(env):
     assert float(T["rate"]) == pytest.approx(-0.01 * 16 * 0.25, abs=1e-6)
     for k in ("vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap", "lim"):
         assert float(T[k]) <= 1e-9, k
-    assert set(T) == set(rw.TERM_KEYS) and rw.TERM_KEYS[-4:] == ("roll", "impact", "knee", "stuck")
+    assert set(T) == set(rw.TERM_KEYS) and rw.TERM_KEYS[-5:] == ("roll", "impact", "knee", "stuck", "height")
 
 
 def test_joint_limit_penalty(env):
@@ -313,7 +313,7 @@ def test_v1f_preset_angxy_and_knee_hinge(env):
 
 def test_v1g_slip_weight(env):
     """V1G：只比 V1F 多 w_slip 0.75（拖腿橫滑變貴）；預設 0.075 ＝ v1b。"""
-    assert rw.V1G == dict(rw.V1F, w_slip=0.75, w_stuck=1.0) and rw.WheelEnv.__init__.__defaults__[-2] == 0.075
+    assert rw.V1G == dict(rw.V1F, w_slip=0.75, w_stuck=1.0) and rw.WheelEnv.__init__.__defaults__[-4] == 0.075
     eg = rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, scene=env.scene, **rw.V1G)
     data = _standing_data(env).replace(ctrl=env._ctrl(jnp.zeros(16)))
     phys = jax.jit(lambda d: env._physics(d, jnp.zeros(16)))
@@ -360,3 +360,23 @@ def test_stuck_timer_carried_through_step(env):
     assert seen_neg and float(s.metrics["stance_max"]) > 0.7
     s = s.replace(info={**s.info, "t": jnp.int32(rw.EPISODE_LEN - 1)})
     s2 = step(s, jnp.zeros(16)); assert np.all(np.asarray(s2.info["stance_t"]) == 0.0)                # 重生清零
+
+
+def test_v1h_height_hinge_and_posture_params(env):
+    """V1H：膝 hinge 65°／w 2、機身高 > 0.56 m 線性罰 w 10、w_roll 5；預設 w_height 0。"""
+    assert rw.V1H == dict(rw.V1G, w_roll=5.0, w_knee=2.0, knee_min_deg=65.0, w_height=10.0, h_max=0.56)
+    eh = rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, scene=env.scene, **rw.V1H)
+    data = _standing_data(env); info = _info(eh, data)
+    T, _ = eh._reward_terms(data, info, jnp.zeros(16), jnp.zeros(3))
+    assert float(T["height"]) == 0.0                                                   # 站立 0.48 < 0.56
+    hi = _standing_data(env, z_extra=0.10)                                             # 機身抬到 0.58
+    Th, _ = eh._reward_terms(hi, _info(eh, hi), jnp.zeros(16), jnp.zeros(3))
+    h = float(hi.qpos[2] - wt.BASE_H)
+    assert float(Th["height"]) == pytest.approx(-10.0 * (h - 0.56), abs=2e-3) and float(Th["height"]) < -0.1
+    T0, _ = env._reward_terms(hi, _info(env, hi), jnp.zeros(16), jnp.zeros(3)); assert float(T0["height"]) == 0.0   # 預設 w 0
+    q = data.qpos; kn = np.asarray(env.QADR)[8:12]
+    q2 = q.at[kn[0]].set(-np.radians(60.0))                                            # 膝 60°：在 V1F／V1G（60°）不罰，V1H（65°）罰 5°×2
+    d2 = jax.jit(mjx.forward)(eh.sys, data.replace(qpos=q2))
+    assert float(eh._reward_terms(d2, _info(eh, d2), jnp.zeros(16), jnp.zeros(3))[0]["knee"]) == pytest.approx(-2.0 * np.radians(5.0), abs=1e-5)
+    eg = rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, scene=env.scene, **rw.V1G)
+    assert float(eg._reward_terms(d2, _info(eg, d2), jnp.zeros(16), jnp.zeros(3))[0]["knee"]) == 0.0

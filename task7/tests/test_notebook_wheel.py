@@ -10,6 +10,7 @@ NB_C = NB.parent / "rl_wheel_v1c_colab.ipynb"
 NB_D = NB.parent / "rl_wheel_v1d_colab.ipynb"
 NB_F = NB.parent / "rl_wheel_v1f_colab.ipynb"
 NB_G = NB.parent / "rl_wheel_v1g_colab.ipynb"
+NB_H = NB.parent / "rl_wheel_v1h_colab.ipynb"
 
 
 def _src_of(path, kind):
@@ -148,3 +149,21 @@ def test_v1g_notebook_cells():
     assert norm(built["cells"]) == norm(json.loads(NB_G.read_text(encoding="utf-8"))["cells"]), "先跑 python3 task7/notebooks/build_nb_wheel.py"
     for i, c in enumerate([c for c in built["cells"] if c["cell_type"] == "code"][2:], start=2):
         ast.parse("".join(c["source"]), filename=f"v1g_code_cell_{i}")
+
+
+def test_v1h_notebook_cells():
+    """v1h：v1g ＋ 膝 hinge 70°／w 2、機身高 hinge 0.56 m、roll 5；檔名全 v1h。"""
+    assert NB_H.exists(), "先跑 python3 task7/notebooks/build_nb_wheel.py"
+    code = _src_of(NB_H, "code"); md = _src_of(NB_H, "markdown")
+    assert "env = rw.WheelEnv(**rw.V1H)" in code and "eval_env = rw.WheelEnv(noise=False, push=False, **rw.V1H)" in code and "rw.V1G" not in code
+    assert "ps('height')" in code and "ps('stuck')" in code and 'INIT_FROM = "rbtdog_sim/task7/weights/rl_wheel_v1b_params.pkl"' in code
+    assert 'DRIVE = "/content/rl_wheel_v1h"' in code and 'GDRIVE = "/content/drive/MyDrive/rl_wheel_v1h"' in code and 'model.save_params("rl_wheel_v1h_params.pkl", params)' in code
+    assert "rl_wheel_v1g" not in code and "`height`" in md and "0.56 m" in md and "rl_wheel_v1g" not in md
+    assert "rl_wheel_v1h" not in _src_of(NB_G, "code")
+    spec = importlib.util.spec_from_file_location("build_nb_wheel", GEN)
+    mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+    norm = lambda cells: [(c["cell_type"], "".join(c["source"])) for c in cells]
+    built = mod.build("v1h")
+    assert norm(built["cells"]) == norm(json.loads(NB_H.read_text(encoding="utf-8"))["cells"]), "先跑 python3 task7/notebooks/build_nb_wheel.py"
+    for i, c in enumerate([c for c in built["cells"] if c["cell_type"] == "code"][2:], start=2):
+        ast.parse("".join(c["source"]), filename=f"v1h_code_cell_{i}")

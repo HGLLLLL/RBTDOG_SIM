@@ -23,12 +23,16 @@ CMDS = [(0, 0, 0), (0.3, 0, 0), (0.5, 0, 0), (1.0, 0, 0), (0, 0.3, 0), (0, 0.5, 
 EXTRA = ("vx_err", "vy_err", "wz_err", "lin_small", "ww_force", "gap_min", "touch_n", "sat_n", "impact_vz", "td_n", "impact_fn")
 
 
-def run_env(pol, cmds, secs, settle, std, w_ang=2.5, w_lim=2.0, preset=None):
+def run_env(pol, cmds, secs, settle, std, w_ang=2.5, w_lim=2.0, preset=None, terrain=None, overrides=None):
     """pol：ri.load_policy 給的 callable，obs(53,) → 他的尺度動作(16,)。"""
     import jax, jax.numpy as jnp
     import rl_env_wheel as rw
-    kw = {"v1c": dict(rw.V1C), "v1f": dict(rw.V1F), "v1g": dict(rw.V1G)}.get(preset, {})
-    env = rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, std=std, w_ang=w_ang, w_lim=w_lim, **kw)   # fixed_cmd：鏡像／延遲／偏差自動關，只剩 roll／impact 權重
+    kw = {"v1c": dict(rw.V1C), "v1f": dict(rw.V1F), "v1g": dict(rw.V1G), "v1h": dict(rw.V1H)}.get(preset, {})
+    kw.update(overrides or {})                                   # --set k=v：試權重用（10-21），不改 preset 本身
+    if terrain:                                                   # 地形列（10-21）：平地關卡抓不到「地形上少踏步划算」→ 固定方塊、不 CPU 對照
+        kind, level = terrain.split(":"); env = rw.WheelEnv(flat=False, noise=False, push=False, fixed_cmd=True, fixed_tile=(wt.KINDS.index(kind), int(level)), std=std, w_ang=w_ang, w_lim=w_lim, **kw)
+    else:
+        env = rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, std=std, w_ang=w_ang, w_lim=w_lim, **kw)   # fixed_cmd：鏡像／延遲／偏差自動關，只剩 roll／impact 權重
     n = len(cmds)
     reset = jax.jit(jax.vmap(env.reset)); step = jax.jit(jax.vmap(env.step))
     obs_f = jax.jit(jax.vmap(env._obs)); vb_f = jax.jit(jax.vmap(rw.quat_rot_inv))
@@ -98,16 +102,30 @@ def main():
     ap.add_argument("--tag", default="10k", help="輸出檔名 align_<tag>.md、reward_audit_wheel_<tag>.md（10k 沿用舊檔名 reward_audit_wheel_v1.md）")
     ap.add_argument("--w-ang", type=float, default=2.5); ap.add_argument("--w-lim", type=float, default=2.0)
     ap.add_argument("--secs", type=float, default=8.0); ap.add_argument("--settle", type=float, default=1.0)
-    ap.add_argument("--preset", default="", choices=["", "v1c", "v1f", "v1g"], help="v1c：WheelEnv(**rw.V1C)（roll／impact 權重開；fixed_cmd 下鏡像／延遲／偏差關）")
+    ap.add_argument("--terrain", default="", help="KIND:LEVEL（rough／boxes／stairs，0–9）：只跑 MJX 攤帳、不做 CPU 對照；輸出檔名加 _<kind><level>")
+    ap.add_argument("--cmds", default="", help="覆寫指令列表 'vx,vy,wz;…'（地形列通常只跑平移）")
+    ap.add_argument("--set", action="append", default=[], help="覆寫 preset 的單一權重，如 --set w_impact=2（可重複）；輸出檔名加 _set")
+    ap.add_argument("--preset", default="", choices=["", "v1c", "v1f", "v1g", "v1h"], help="v1c：WheelEnv(**rw.V1C)（roll／impact 權重開；fixed_cmd 下鏡像／延遲／偏差關）")
     a = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
     pol = ri.load_policy(None if a.npz else a.onnx, a.npz)
+    cmds = [tuple(float(x) for x in c.split(",")) for c in a.cmds.split(";")] if a.cmds else CMDS
+    overrides = {k: float(v) for k, v in (x.split("=") for x in a.set)}
+    if a.set:
+        a.tag = f"{a.tag}_set"
+    if a.terrain:
+        a.tag = f"{a.tag}_{a.terrain.replace(':', '')}"
     pname = Path(a.npz or a.onnx).name
     f_align = OUT / f"align_{a.tag}.md"
     f_audit = ROOT / "outputs" / ("reward_audit_wheel_v1.md" if a.tag == "10k" else f"reward_audit_wheel_{a.tag}.md")
-    t0 = time.time(); RC = run_cpu(pol, CMDS, a.secs, a.settle); t_cpu = time.time() - t0; print(f"CPU done {t_cpu:.0f}s", flush=True)
-    RS = run_cpu(pol, CMDS, a.secs, a.settle, env_scene=True)
-    t0 = time.time(); RE = run_env(pol, CMDS, a.secs, a.settle, std=0.25, w_ang=a.w_ang, w_lim=a.w_lim, preset=a.preset); t_env = time.time() - t0; print(f"env done {t_env:.0f}s", flush=True)
+    CMDS[:] = cmds
+    if a.terrain:
+        t0 = time.time(); RE = run_env(pol, CMDS, a.secs, a.settle, std=0.25, w_ang=a.w_ang, w_lim=a.w_lim, preset=a.preset, terrain=a.terrain, overrides=overrides); t_env = time.time() - t0; print(f"env done {t_env:.0f}s", flush=True)
+        RC = RS = [dict(vx=float("nan"), vy=float("nan"), yaw=float("nan"), lift=[], a_max=float("nan"), gap=float("nan"), fell=False) for _ in CMDS]; t_cpu = 0.0
+    else:
+        t0 = time.time(); RC = run_cpu(pol, CMDS, a.secs, a.settle); t_cpu = time.time() - t0; print(f"CPU done {t_cpu:.0f}s", flush=True)
+        RS = run_cpu(pol, CMDS, a.secs, a.settle, env_scene=True)
+        t0 = time.time(); RE = run_env(pol, CMDS, a.secs, a.settle, std=0.25, w_ang=a.w_ang, w_lim=a.w_lim, preset=a.preset, overrides=overrides); t_env = time.time() - t0; print(f"env done {t_env:.0f}s", flush=True)
     L = [f"# 對齊：{pname} 在 WheelEnv（MJX，平地）vs CPU rl_only_infer（real）  —  tag {a.tag}", "",
          f"MJX {t_env:.0f} s（{len(CMDS)} 環境 vmap）、CPU {t_cpu:.0f} s；指令 {a.secs} s（先 {a.settle} s 零指令）；統計取指令後 1 s 起。"
          "後輪 gap ＝ 後輪實體間隙近似 ＝ 輪心距 − 0.034（官方網格內側面 +0.017 ×2，V 文件口徑；傾斜時高估 ~7 mm）（mm，取最小；env 與 cpu `gap_rr` 同式）。追蹤差 ＝ |env − cpu| / |指令|，只算有下指令的軸。",
@@ -138,7 +156,7 @@ def main():
     keys = list(T.keys())
     nT = len(rw.TERM_KEYS)
     A = [f"# reward 攤帳：{pname} 在 WheelEnv 平地 {len(CMDS)} 指令（每步平均；std 0.25 為主，括號內 std 0.5）  —  tag {a.tag}", "",
-         f"權重：w_ang {a.w_ang:g}、w_lim {a.w_lim:g}（lin 2.5，其餘照 spec §3）" + f"；preset {a.preset or '無（v1b）'}" + (f"；preset {a.preset} {json.dumps({'v1c': dict(rw.V1C), 'v1f': dict(rw.V1F), 'v1g': dict(rw.V1G)}[a.preset])}" if a.preset else ""),
+         f"權重：w_ang {a.w_ang:g}、w_lim {a.w_lim:g}（lin 2.5，其餘照 spec §3）" + f"；preset {a.preset or '無（v1b）'}" + (f"；preset {a.preset} {json.dumps({'v1c': dict(rw.V1C), 'v1f': dict(rw.V1F), 'v1g': dict(rw.V1G), 'v1h': dict(rw.V1H)}[a.preset])}" if a.preset else ""),
          f"取指令後 1 s 起（{a.secs - 1:.0f} s × 50 步）；前 {nT} 欄是 reward 項（已乘權重），合計＝{nT} 項和；`lim` 罰 PD 目標超出軟限位、`sat_n` 是每步 PD 目標超出硬限位的腿關節數（平均）；`lin_small` 在 fixed_cmd 下恆 0（small 旗標固定 False）；`ww_force` 是輪輪法向力 N、`gap_min` 是前後兩對左右輪實體間隙的較小者 m（輪心距 − 0.034）、`touch_n` 是觸地輪數（診斷量，不進 reward）。"
          "std 0.5 的 lin／ang 由同一條 rollout 的 vx/vy/wz 誤差解析算出（std 不影響動力學）。", "",
          "| 指令 | " + " | ".join(keys) + " | 合計 |", "|---|" + "---|" * (len(keys) + 1)]

@@ -11,6 +11,7 @@ NB_D = NB.parent / "rl_wheel_v1d_colab.ipynb"
 NB_F = NB.parent / "rl_wheel_v1f_colab.ipynb"
 NB_G = NB.parent / "rl_wheel_v1g_colab.ipynb"
 NB_H = NB.parent / "rl_wheel_v1h_colab.ipynb"
+NB_I = NB.parent / "rl_wheel_v1i_colab.ipynb"
 
 
 def _src_of(path, kind):
@@ -167,3 +168,21 @@ def test_v1h_notebook_cells():
     assert norm(built["cells"]) == norm(json.loads(NB_H.read_text(encoding="utf-8"))["cells"]), "先跑 python3 task7/notebooks/build_nb_wheel.py"
     for i, c in enumerate([c for c in built["cells"] if c["cell_type"] == "code"][2:], start=2):
         ast.parse("".join(c["source"]), filename=f"v1h_code_cell_{i}")
+
+
+def test_v1i_notebook_cells():
+    """v1i：v1h ＋ splay（腳相對髖前後 > 8 cm 罰）；檔名全 v1i。"""
+    assert NB_I.exists(), "先跑 python3 task7/notebooks/build_nb_wheel.py"
+    code = _src_of(NB_I, "code"); md = _src_of(NB_I, "markdown")
+    assert "env = rw.WheelEnv(**rw.V1I)" in code and "eval_env = rw.WheelEnv(noise=False, push=False, **rw.V1I)" in code and "rw.V1H" not in code
+    assert "ps('splay')" in code and "ps('height')" in code and 'INIT_FROM = "rbtdog_sim/task7/weights/rl_wheel_v1b_params.pkl"' in code
+    assert 'DRIVE = "/content/rl_wheel_v1i"' in code and 'GDRIVE = "/content/drive/MyDrive/rl_wheel_v1i"' in code and 'model.save_params("rl_wheel_v1i_params.pkl", params)' in code
+    assert "rl_wheel_v1h" not in code and "`splay`" in md and "8 cm" in md and "rl_wheel_v1h" not in md
+    assert "rl_wheel_v1i" not in _src_of(NB_H, "code")
+    spec = importlib.util.spec_from_file_location("build_nb_wheel", GEN)
+    mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+    norm = lambda cells: [(c["cell_type"], "".join(c["source"])) for c in cells]
+    built = mod.build("v1i")
+    assert norm(built["cells"]) == norm(json.loads(NB_I.read_text(encoding="utf-8"))["cells"]), "先跑 python3 task7/notebooks/build_nb_wheel.py"
+    for i, c in enumerate([c for c in built["cells"] if c["cell_type"] == "code"][2:], start=2):
+        ast.parse("".join(c["source"]), filename=f"v1i_code_cell_{i}")

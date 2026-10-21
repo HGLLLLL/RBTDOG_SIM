@@ -55,7 +55,7 @@ CURR_UP_DIST = 2.0
 LIM_SOFT = 0.9                          # 關節軟限位：中點 ± 0.9 × 半行程（同 Isaac soft_joint_pos_limit_factor；lim 罰 PD 目標超出它）
 WW_CAP = 3.0                            # ww 每個接觸 fn/100 的上限：腿交叉時 fn 可達 2755 N，單步 −760 會拉壞 critic
 IMPACT_SETTLE = 25                      # 步（0.5 s）：出生後輪子從 3 mm～數 cm 落到地面的時間，這段的落地不算衝擊事件；boxes 10 cm 自由落體 ≈ 0.14 s，25 步留餘裕
-TERM_KEYS = ("lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap", "lim", "roll", "impact", "knee", "stuck", "height")
+TERM_KEYS = ("lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap", "lim", "roll", "impact", "knee", "stuck", "height", "splay")
 METRIC_KEYS = TERM_KEYS + ("reward", "lin_small", "level", "fell", "oob", "tilt", "dist", "ww_force", "gap_min", "vx_err", "vy_err", "wz_err", "touch_n", "small", "standing", "sat_n",
                            "impact_vz", "td_n", "impact_fn", "mir", "delay", "stance_max")
 # v1c 預設（spec 2026-10-20 §2）：鏡像增強、roll 姿態角懲罰、落地衝擊懲罰、動作延遲 0–2 步、IMU 常數偏差 ±2°。WheelEnv() 預設＝v1b。
@@ -75,6 +75,10 @@ V1G = dict(V1F, w_slip=0.75, w_stuck=1.0)
 # V1H（10-21 下午，使用者定「1＋2」）：v1g 中場平移膝 50–58°（比 hinge 60° 更直、每步付 knee −0.24）、機身 0.57 m；動機＝roll 懲罰在地形上逼它站直（直腿垂直剛度高）。
 #   1 直接鎖姿態：膝 hinge 65°／w 2.0（70° 讓 v1b 自己平地扣 −0.4、樓梯 −0.6，12 列關卡輸 2 列 → 65°）、機身高 hinge（對地形高度 > h_max 0.56 m 才罰，線性 w 10；v1b 平移 0.53–0.56）；2 減壓：w_roll 10 → 5。其餘同 V1G。
 V1H = dict(V1G, w_roll=5.0, w_knee=2.0, knee_min_deg=65.0, w_height=10.0, h_max=0.56)
+# V1I（10-21 傍晚，使用者定）：v1h 平移時前腳在髖前 14–21 cm、後腳在髖後 9–17 cm、前後腳距 95–98 cm（v1b 60–75），髖角 ±46° 開到 7–19°——
+#   站高／鎖膝／拖腿都被封後，policy 用「拉長支撐面」讓踏步時機身不晃，髖開＋膝 65° 的組合髖到腳距離仍長＝繞過膝 hinge 的直腿。
+#   直接約束物理量：腳相對髖在機身 x 方向的距離 > splay_max 0.08 m 才罰（v1b 平移 ±8 cm、站立 ±1 cm），線性 w 3。
+V1I = dict(V1H, w_splay=3.0, splay_max=0.08)
 
 
 def quat_rot_inv(q, v):
@@ -172,7 +176,7 @@ class WheelEnv(Env):
                  w_ang: float = 2.5, w_lim: float = 2.0,
                  mirror: bool = False, w_roll: float = 0.0, w_impact: float = 0.0, impact_v0: float = 0.0, delay_max: int = 0, grav_bias_deg: float = 0.0,
                  w_angxy: float = 0.05, w_knee: float = 0.0, knee_min_deg: float = 60.0, w_slip: float = 0.075, w_stuck: float = 0.0,
-                 w_height: float = 0.0, h_max: float = 0.56):
+                 w_height: float = 0.0, h_max: float = 0.56, w_splay: float = 0.0, splay_max: float = 0.08):
         """flat：全圖平地、出生在原點（對齊驗證）；fixed_cmd：指令讀 info["cmd_fix"]（不重抽、不站立、不小指令）；
         fixed_tile=(kind_idx, level)：固定出生方塊、不升降課程。std／w_ww／w_gap／small_frac 是三項改動的旋鈕（w_gap：輪輪實體間隙 hinge）。
         w_ang：偏航追蹤權重（v1 是 1.25，v1b 2.5：原地轉時 tau_leg ≈ −2／步壓過 ang 最多 1.25）；w_lim：腿關節 PD 目標超出軟限位的懲罰（v1 是 0，v1b 2.0）。
@@ -186,6 +190,7 @@ class WheelEnv(Env):
         self.w_angxy, self.w_knee, self.knee_min = float(w_angxy), float(w_knee), float(np.radians(knee_min_deg))
         self.w_slip, self.w_stuck = float(w_slip), float(w_stuck)
         self.w_height, self.h_max = float(w_height), float(h_max)
+        self.w_splay, self.splay_max = float(w_splay), float(splay_max)
         self.delay_max, self.grav_bias_deg = int(delay_max), float(grav_bias_deg)
         assert 0 <= self.delay_max <= 2, "a_hist 長度 3：延遲最多 2 步"
         self.episode_len = int(episode_len)
@@ -229,6 +234,7 @@ class WheelEnv(Env):
         rb[np.asarray(self.WHEEL_GIDS)] = wt.WHEEL_R + 0.002
         self.sys = self.sys.replace(_impl=self.sys._impl.replace(geom_rbound_hfield=rb))
         self.FOOT_BIDS = jnp.array([mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, f"{p}_FOOT_LINK") for p in FEET])
+        self.HIP_BIDS = jnp.array([mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, f"{p}_HIP_LINK") for p in FEET])     # splay 項：腳相對髖的機身 x 距離
         self.Z_STAND = self._z_stand(m)
 
     # ---------------------------------------------------------------- 幾何
@@ -466,6 +472,8 @@ class WheelEnv(Env):
         need_step = (jnp.abs(cmd[1]) > 0.1) | (jnp.abs(cmd[2]) > 0.3)                     # 側移／旋轉才需要踏步；直走、站立不罰
         stuck = need_step * jnp.sum(jnp.minimum(jnp.maximum(stance_t - STUCK_T0, 0.0), STUCK_CAP))
         h_base = data.qpos[2] - self._terrain_h(data.qpos[0], data.qpos[1])              # 機身對地形高（站立 0.48、v1b 平移 0.53–0.56）
+        dxy = jax.vmap(lambda f, h: quat_rot_inv(q, f - h))(foot, data.xpos[self.HIP_BIDS])   # 腳相對髖，機身系（+x 往前）
+        splay = jnp.sum(jnp.maximum(0.0, jnp.abs(dxy[:, 0]) - self.splay_max))             # 腳在髖前後超過 splay_max 的部分（m，4 腿和）
         axis = data.xmat[self.FOOT_BIDS][:, :, 1]                                   # 輪軸（FOOT_LINK 的 y 軸）世界向量
         slip = jnp.sum(touch * jnp.sum(vfoot * axis, axis=1) ** 2)                 # 他的 wheel_lateral_slip（spin_axis 1）
         ww_mask = jnp.isin(C["g0"], self.WHEEL_GIDS) & jnp.isin(C["g1"], self.WHEEL_GIDS)
@@ -493,7 +501,8 @@ class WheelEnv(Env):
                  roll=-self.w_roll * roll, impact=-self.w_impact * impact,
                  knee=-self.w_knee * jnp.sum(jnp.maximum(0.0, self.knee_min - jnp.abs(qleg[8:12]))),   # 膝比 knee_min 更直的部分（rad，4 膝和）；彎更多免費
                  stuck=-self.w_stuck * stuck,                                                        # 踏步指令下不離地的腿（秒數超過 STUCK_T0、上限 STUCK_CAP）
-                 height=-self.w_height * jnp.maximum(0.0, h_base - self.h_max))                    # 機身比 h_max 高的部分（m，線性）；擋「站高鎖膝」
+                 height=-self.w_height * jnp.maximum(0.0, h_base - self.h_max),                    # 機身比 h_max 高的部分（m，線性）；擋「站高鎖膝」
+                 splay=-self.w_splay * splay)                                                       # 腳離髖前後太遠（擋「拉長支撐面」）
         aux = dict(vb=vb, w=w, touch=touch, ww_force=ww_force, gaps=gaps, err_lin=err_lin, err_ang=err_ang, C=C, sat_n=sat_n,
                    vfoot=vfoot, impact_vz=impact_vz, td_n=td_n, impact_fn=impact_fn, stance_t=stance_t)
         return T, aux

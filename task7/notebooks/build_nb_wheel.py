@@ -18,6 +18,8 @@ OUT_G = HERE / "rl_wheel_v1g_colab.ipynb"
 WEIGHTS_G = "rl_wheel_v1g_params.pkl"
 OUT_H = HERE / "rl_wheel_v1h_colab.ipynb"
 WEIGHTS_H = "rl_wheel_v1h_params.pkl"
+OUT_I = HERE / "rl_wheel_v1i_colab.ipynb"
+WEIGHTS_I = "rl_wheel_v1i_params.pkl"
 OLD = json.loads((HERE / "cpg_rl_max_colab.ipynb").read_text(encoding="utf-8"))
 _code = [c for c in OLD["cells"] if c["cell_type"] == "code"]
 install_src, version_src = "".join(_code[0]["source"]), "".join(_code[1]["source"])
@@ -284,6 +286,23 @@ assert "ps('height')" in train_src_h and "rw.V1H" in train_src_h and "rl_wheel_v
 save_src_h = save_src_g.replace("rl_wheel_v1g", "rl_wheel_v1h")
 
 
+# ---- v1i（2026-10-21 傍晚，使用者定）：v1h 平移時前腳在髖前 14–21 cm、後腳在髖後 9–17 cm（前後腳距 95–98 cm，v1b 60–75）——站高／鎖膝／拖腿都封掉後
+#      policy 改用「拉長支撐面」讓踏步時機身不晃。加 `splay`：腳相對髖的機身 x 距離 > 8 cm 才罰（線性 w 3）。其餘同 v1h。
+md0_i = md0_h.replace("# 純 RL 自訓 **v1h**：", "# 純 RL 自訓 **v1i**：").replace("環境 `WheelEnv(**rw.V1H)`", "環境 `WheelEnv(**rw.V1I)`").replace(
+    "- **鎖姿態（v1h 的改動，使用者定「1＋2」）**：",
+    "- **腳要在髖下方（v1i 的改動，使用者定）**：v1h 平移時髖角從 ±46° 開到 7–19°，前腳在髖前 14–21 cm、後腳在髖後 9–17 cm，前後腳距 95–98 cm（v1b 60–75）；站高、鎖膝、拖腿都被封後，policy 用拉長支撐面讓踏步時機身不晃，髖開＋膝 65° 的髖到腳距離仍長＝繞過膝 hinge。新項 **`splay`**（w 3）罰腳相對髖在機身前後方向超過 **8 cm** 的部分（v1b 平移 ±8 cm 內、站立 ±1 cm）。關卡：V1I 下 v1b 要贏 v1h。\n"
+    "- **鎖姿態（v1h 的改動，使用者定「1＋2」）**：").replace("rl_wheel_v1h", "rl_wheel_v1i").replace("MyDrive/rl_wheel_v1h/", "MyDrive/rl_wheel_v1i/").replace("/content/rl_wheel_v1h/", "/content/rl_wheel_v1i/")
+md0_i = md0_i.replace("**讀法**：", "**讀法**：`splay` 起點（v1b）≈ 0、往 0；")
+assert "rw.V1I" in md0_i and "rl_wheel_v1h" not in md0_i and "`splay`" in md0_i
+mount_src_i = mount_src_h.replace("rl_wheel_v1h", "rl_wheel_v1i").replace("（v1h，", "（v1i，")
+import_src_i = import_src_h.replace("rw.V1H", "rw.V1I")
+train_src_i = (train_src_h.replace("rl_wheel_v1h", "rl_wheel_v1i").replace("rw.V1H", "rw.V1I")
+               .replace("（v1h 從 v1b 熱啟動，每 session 5 億，可多跑）", "（v1i 從 v1b 熱啟動，每 session 5 億，可多跑）")
+               .replace("height {ps('height'):+.3f}", "height {ps('height'):+.3f} splay {ps('splay'):+.3f}"))
+assert "ps('splay')" in train_src_i and "rw.V1I" in train_src_i and "rl_wheel_v1h" not in train_src_i and "INIT_FROM" in train_src_i
+save_src_i = save_src_h.replace("rl_wheel_v1h", "rl_wheel_v1i")
+
+
 def cell(kind, src):
     c = {"cell_type": kind, "metadata": {}, "source": src.splitlines(keepends=True)}
     if kind == "code":
@@ -311,6 +330,9 @@ def build(variant="v1"):
     elif variant == "v1h":
         cells = [cell("markdown", md0_h), cell("code", install_src), cell("code", version_src), cell("code", clone_src), cell("code", mount_src_h),
                  cell("code", import_src_h), cell("code", bench_src), cell("code", train_src_h), cell("code", plot_src), cell("code", save_src_h)]
+    elif variant == "v1i":
+        cells = [cell("markdown", md0_i), cell("code", install_src), cell("code", version_src), cell("code", clone_src), cell("code", mount_src_i),
+                 cell("code", import_src_i), cell("code", bench_src), cell("code", train_src_i), cell("code", plot_src), cell("code", save_src_i)]
     else:
         raise ValueError(variant)
     return {"nbformat": 4, "nbformat_minor": 5,
@@ -318,7 +340,7 @@ def build(variant="v1"):
 
 
 def main():
-    for variant, out in (("v1", OUT), ("v1c", OUT_C), ("v1d", OUT_D), ("v1f", OUT_F), ("v1g", OUT_G), ("v1h", OUT_H)):
+    for variant, out in (("v1", OUT), ("v1c", OUT_C), ("v1d", OUT_D), ("v1f", OUT_F), ("v1g", OUT_G), ("v1h", OUT_H), ("v1i", OUT_I)):
         nb = build(variant)
         out.write_text(json.dumps(nb, ensure_ascii=False, indent=1), encoding="utf-8")
         print("→", out, f"({len(nb['cells'])} cells)")

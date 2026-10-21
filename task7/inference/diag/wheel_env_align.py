@@ -27,7 +27,7 @@ def run_env(pol, cmds, secs, settle, std, w_ang=2.5, w_lim=2.0, preset=None, ter
     """pol：ri.load_policy 給的 callable，obs(53,) → 他的尺度動作(16,)。"""
     import jax, jax.numpy as jnp
     import rl_env_wheel as rw
-    kw = {"v1c": dict(rw.V1C), "v1f": dict(rw.V1F), "v1g": dict(rw.V1G), "v1h": dict(rw.V1H)}.get(preset, {})
+    kw = {"v1c": dict(rw.V1C), "v1f": dict(rw.V1F), "v1g": dict(rw.V1G), "v1h": dict(rw.V1H), "v1i": dict(rw.V1I)}.get(preset, {})
     kw.update(overrides or {})                                   # --set k=v：試權重用（10-21），不改 preset 本身
     if terrain:                                                   # 地形列（10-21）：平地關卡抓不到「地形上少踏步划算」→ 固定方塊、不 CPU 對照
         kind, level = terrain.split(":"); env = rw.WheelEnv(flat=False, noise=False, push=False, fixed_cmd=True, fixed_tile=(wt.KINDS.index(kind), int(level)), std=std, w_ang=w_ang, w_lim=w_lim, **kw)
@@ -105,7 +105,7 @@ def main():
     ap.add_argument("--terrain", default="", help="KIND:LEVEL（rough／boxes／stairs，0–9）：只跑 MJX 攤帳、不做 CPU 對照；輸出檔名加 _<kind><level>")
     ap.add_argument("--cmds", default="", help="覆寫指令列表 'vx,vy,wz;…'（地形列通常只跑平移）")
     ap.add_argument("--set", action="append", default=[], help="覆寫 preset 的單一權重，如 --set w_impact=2（可重複）；輸出檔名加 _set")
-    ap.add_argument("--preset", default="", choices=["", "v1c", "v1f", "v1g", "v1h"], help="v1c：WheelEnv(**rw.V1C)（roll／impact 權重開；fixed_cmd 下鏡像／延遲／偏差關）")
+    ap.add_argument("--preset", default="", choices=["", "v1c", "v1f", "v1g", "v1h", "v1i"], help="v1c：WheelEnv(**rw.V1C)（roll／impact 權重開；fixed_cmd 下鏡像／延遲／偏差關）")
     a = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
     pol = ri.load_policy(None if a.npz else a.onnx, a.npz)
@@ -156,7 +156,7 @@ def main():
     keys = list(T.keys())
     nT = len(rw.TERM_KEYS)
     A = [f"# reward 攤帳：{pname} 在 WheelEnv 平地 {len(CMDS)} 指令（每步平均；std 0.25 為主，括號內 std 0.5）  —  tag {a.tag}", "",
-         f"權重：w_ang {a.w_ang:g}、w_lim {a.w_lim:g}（lin 2.5，其餘照 spec §3）" + f"；preset {a.preset or '無（v1b）'}" + (f"；preset {a.preset} {json.dumps({'v1c': dict(rw.V1C), 'v1f': dict(rw.V1F), 'v1g': dict(rw.V1G), 'v1h': dict(rw.V1H)}[a.preset])}" if a.preset else ""),
+         f"權重：w_ang {a.w_ang:g}、w_lim {a.w_lim:g}（lin 2.5，其餘照 spec §3）" + f"；preset {a.preset or '無（v1b）'}" + (f"；preset {a.preset} {json.dumps({'v1c': dict(rw.V1C), 'v1f': dict(rw.V1F), 'v1g': dict(rw.V1G), 'v1h': dict(rw.V1H), 'v1i': dict(rw.V1I)}[a.preset])}" if a.preset else ""),
          f"取指令後 1 s 起（{a.secs - 1:.0f} s × 50 步）；前 {nT} 欄是 reward 項（已乘權重），合計＝{nT} 項和；`lim` 罰 PD 目標超出軟限位、`sat_n` 是每步 PD 目標超出硬限位的腿關節數（平均）；`lin_small` 在 fixed_cmd 下恆 0（small 旗標固定 False）；`ww_force` 是輪輪法向力 N、`gap_min` 是前後兩對左右輪實體間隙的較小者 m（輪心距 − 0.034）、`touch_n` 是觸地輪數（診斷量，不進 reward）。"
          "std 0.5 的 lin／ang 由同一條 rollout 的 vx/vy/wz 誤差解析算出（std 不影響動力學）。", "",
          "| 指令 | " + " | ".join(keys) + " | 合計 |", "|---|" + "---|" * (len(keys) + 1)]

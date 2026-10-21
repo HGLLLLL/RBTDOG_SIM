@@ -68,7 +68,7 @@ def test_action_rate_and_signs(env):
     assert float(T["rate"]) == pytest.approx(-0.01 * 16 * 0.25, abs=1e-6)
     for k in ("vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap", "lim"):
         assert float(T[k]) <= 1e-9, k
-    assert set(T) == set(rw.TERM_KEYS) and rw.TERM_KEYS[-5:] == ("roll", "impact", "knee", "stuck", "height")
+    assert set(T) == set(rw.TERM_KEYS) and rw.TERM_KEYS[-6:] == ("roll", "impact", "knee", "stuck", "height", "splay")
 
 
 def test_joint_limit_penalty(env):
@@ -313,7 +313,7 @@ def test_v1f_preset_angxy_and_knee_hinge(env):
 
 def test_v1g_slip_weight(env):
     """V1G：只比 V1F 多 w_slip 0.75（拖腿橫滑變貴）；預設 0.075 ＝ v1b。"""
-    assert rw.V1G == dict(rw.V1F, w_slip=0.75, w_stuck=1.0) and rw.WheelEnv.__init__.__defaults__[-4] == 0.075
+    assert rw.V1G == dict(rw.V1F, w_slip=0.75, w_stuck=1.0) and rw.WheelEnv.__init__.__defaults__[-6] == 0.075
     eg = rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, scene=env.scene, **rw.V1G)
     data = _standing_data(env).replace(ctrl=env._ctrl(jnp.zeros(16)))
     phys = jax.jit(lambda d: env._physics(d, jnp.zeros(16)))
@@ -380,3 +380,23 @@ def test_v1h_height_hinge_and_posture_params(env):
     assert float(eh._reward_terms(d2, _info(eh, d2), jnp.zeros(16), jnp.zeros(3))[0]["knee"]) == pytest.approx(-2.0 * np.radians(5.0), abs=1e-5)
     eg = rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, scene=env.scene, **rw.V1G)
     assert float(eg._reward_terms(d2, _info(eg, d2), jnp.zeros(16), jnp.zeros(3))[0]["knee"]) == 0.0
+
+
+def test_v1i_splay_penalty(env):
+    """V1I：腳相對髖在機身 x 方向超過 8 cm 才罰（線性 w 3）；站姿 0；髖打開讓腳往前就罰；預設 w 0。"""
+    assert rw.V1I == dict(rw.V1H, w_splay=3.0, splay_max=0.08)
+    ei = rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, scene=env.scene, **rw.V1I)
+    data = _standing_data(env); info = _info(ei, data)
+    T, _ = ei._reward_terms(data, info, jnp.zeros(16), jnp.zeros(3))
+    assert float(T["splay"]) == 0.0                                                     # 站姿：腳在髖正下方 ±1 cm
+    q = data.qpos; hp = np.asarray(env.QADR)[4:8]
+    q2 = q.at[hp[0]].set(0.1)                                                           # FR 髖 0.8 → 0.1 rad：腳往前伸
+    d2 = jax.jit(mjx.forward)(ei.sys, data.replace(qpos=q2))
+    dx = float(rw.quat_rot_inv(d2.qpos[3:7], d2.xpos[ei.FOOT_BIDS[0]] - d2.xpos[ei.HIP_BIDS[0]])[0])
+    assert dx > 0.12                                                                    # 真的往前超過 12 cm
+    T2, _ = ei._reward_terms(d2, _info(ei, d2), jnp.zeros(16), jnp.zeros(3))
+    assert float(T2["splay"]) == pytest.approx(-3.0 * (abs(dx) - 0.08), abs=1e-4) and float(T2["splay"]) < -0.1
+    assert float(env._reward_terms(d2, _info(env, d2), jnp.zeros(16), jnp.zeros(3))[0]["splay"]) == 0.0   # 預設 w 0
+    q3 = q.at[hp[0]].set(0.65)                                                          # 小幅：腳約 3–5 cm 內 → 0
+    d3 = jax.jit(mjx.forward)(ei.sys, data.replace(qpos=q3))
+    assert float(ei._reward_terms(d3, _info(ei, d3), jnp.zeros(16), jnp.zeros(3))[0]["splay"]) == 0.0

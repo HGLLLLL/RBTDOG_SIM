@@ -1,6 +1,6 @@
 # task7 交接：D1 Max 現況卡
 
-- 最後更新：**2026-10-21 傍晚（v1h 訓完 5 億步：姿態回到 v1b 水準（膝 65–74°、機身 0.51 m）、落地 0.19／0.18、左平移四腿踏 roll 1.1°、崎嶇地 0/125 摔；剩右前腿在右平移／低速平移仍釘著、右 roll 4.5°；等使用者看影片定上機或再修）**（分支 `main`）
+- 最後更新：**2026-10-21 晚（v1h 看影片：平移時前腳往前 14–21 cm、後腳往後 9–17 cm 伸開 → v1i 加 `splay` 項（腳離髖前後 > 8 cm 罰），關卡 13 列過 10；notebook 已 push，等使用者 Colab）**（分支 `main`）
 - **這份只放「現在」，上限 150 行。** 收工時覆寫本檔，不是往上疊。
   被取代的段落搬到 `docs/handoff_history/`（2026-08-25～09-22 全文在 `HANDOFF_2026-08-25_2026-09-22_全文.md`；
   09-22 §1 在 `HANDOFF_2026-09-22_§1_v3.7b_Colab訓練.md`；10-06 §1 trip25 在 `HANDOFF_2026-10-06_§1_trip25.md`；10-14 §1 trip26／27 在 `HANDOFF_2026-10-14_§1_trip26-27收工.md`。查歷史用 grep）。
@@ -8,7 +8,10 @@
 
 ---
 
-## 1. 下次第一件事：**使用者看 `outputs/rl_wheel/compare_v1b_vs_v1h_mesh.mp4` 定：v1h 上機（trip29 卡 §9 換 `rl_wheel_v1h_np.npz` sha `9de7024271b4`）或再修右前腿**
+## 1. 下次第一件事：**v1i 開訓（Colab `notebooks/rl_wheel_v1i_colab.ipynb`）**，訓完跑全套＋姿態量測（腳相對髖前後距離要回到 v1b 的 ±8 cm）；trip29 卡 §9 換 npz 即可
+
+- **v1h 影片問題（使用者 10-21 傍晚）**：右前腿釘著可接受（有抬一點），但平移時**前腳往前、後腳往後伸開**。量測（平移 0.5）：前腳在髖前 14–21 cm、後腳在髖後 9–17 cm、前後腳距 95–98 cm（v1b 60–75、站立 65）、髖角 ±46° 開到 7–19°；v1d 75–88 → v1f 90–96 → v1h 95–98，**每加一道姿態約束就伸多一點**。機制：站高、鎖膝、拖腿都被封後，policy 用拉長支撐面讓踏步時機身不晃（roll／pitch 角速度都在罰）；髖開＋膝 65° 的髖到腳距離仍長＝繞過膝 hinge 的直腿，`dev` 對髖只有 0.1/rad 擋不住。
+- **v1i**：`WheelEnv(**rw.V1I)`＝V1H ＋ **`splay`**（w 3）罰腳相對髖在機身 x 方向超過 **0.08 m** 的部分（v1b 平移 ±8 cm 內、站立 ±1 cm）——約束物理量不約束關節角，髖膝怎麼配都繞不過。關卡（`reward_audit_wheel_{v1b,v1h}_v1i{,_rough9,_boxes9,_stairs9}.md`）：13 列 v1b 贏 10；`splay` v1b 全 ≈ 0（最多 −0.07）、v1h 平地／rough −0.33～−0.89；輸的 3 列同 v1h 關卡（boxes9 vy 0.3 −1.12、stairs9 +0.5 −0.80、−0.5 −0.14，v1b 自己在第 9 級追蹤差／落地重），照前例接受。訓練盯 `splay`（v1b 起點 ≈ 0）、`knee`、`height`、`stuck`。訓完量：前後腳距 ≤ 75 cm、腳相對髖 ±8 cm、膝 ≥ 65、機身 ≤ 0.56、每腿落地、roll、落地 vz。
 
 - **v1h 結果**（AA 文件 §5；表 `outputs/rl_wheel/eval_rl_only_real_{v1h,diag_v1h,diag_d1n_v1h}.md`、`eval_rl_wheel_rough_real_v1h.md`）：姿態 ✅ 膝 65–74°／機身 0.51 m／pitch std 0.3–0.7°／ABAD 0–5°；落地 ✅ 0.19／0.18；左平移 ✅ 四腿 14/14/14/15、roll 1.1°；崎嶇地 ✅ 0/125；直走準；延遲雜訊 0 摔。**未解**：右平移右前腿 5 次（觸地 96%、橫滑 0.44）、roll 4.5°（v1b 3.6；左右差 3.4° > 門檻 3）；vy 0.3 右前 0 次；wz 0.5 只兩腿踏（v1b 也差）。同一條腿（FR）在 v1f／v1g／v1h 都是弱的那條，policy 鏡像殘差 0.4 沒變 → 網路本身不對稱，stuck（每腿上限 1／步）它在那幾個情境選擇付。
 - **再修的選項**：(a) `STUCK_CAP` 1 → 3（付不起）；(b) 架構對稱化 π_sym＝½[π(o)＋M π(M o)]（真對稱；狗端 policy_np 兩次前向，匯出要改）；(c) 先上機，右前腿在實機上拖不拖用耳朵和 log 判。
@@ -45,7 +48,8 @@
 
 | 權重 | 狀態 | 驗收表（`outputs/`） |
 |---|---|---|
-| **rl_wheel_v1h**（5 億步，v1b 熱啟動）`weights/rl_wheel_v1h_params.pkl`／`rl_wheel_v1h_np.npz`（sha `9de7024271b4`） | ★ **候選上機版**：姿態回 v1b、落地 0.19／0.18、左平移四腿 roll 1.1°、崎嶇地 0/125；右前腿在右平移仍釘（AA §5） | `rl_wheel/eval_*_v1h.md`、`compare_v1b_vs_v1h_mesh.mp4`（本機） |
+| **rl_wheel_v1i**（待訓）`notebooks/rl_wheel_v1i_colab.ipynb` | V1H＋splay（腳離髖前後 > 8 cm 罰）；關卡 10/13 | `reward_audit_wheel_{v1b,v1h}_v1i*.md` |
+| rl_wheel_v1h（5 億步，v1b 熱啟動）`weights/rl_wheel_v1h_params.pkl`／`rl_wheel_v1h_np.npz`（sha `9de7024271b4`） | 膝 65–74°／機身 0.51、落地 0.19／0.18、左平移四腿 roll 1.1°、崎嶇地 0/125；**但平移前後腳伸開（腳距 95–98 cm）**、右前腿釘（AA §5） | `rl_wheel/eval_*_v1h.md`、`compare_v1b_vs_v1h_mesh.mp4`（本機） |
 | rl_wheel_v1g（2.12 億步中場）`weights/rl_wheel_v1g_s212_np.npz` | 不上機：膝 50–58°、FR 釘、boxes 10 摔 2 | `rl_wheel/eval_*_v1g_s212.md` |
 | **rl_wheel_v1f**（5 億步，v1b 熱啟動）`weights/rl_wheel_v1f_params.pkl`／`rl_wheel_v1f_np.npz`（sha `5370132e3f15`） | 及格線全過但**不上機**：平移是兩腿踏、兩腿拖著橫滑 0.5 m/s（表上看不出，影片看得出）；roll 2.1／1.7°、落地 0.10／0.17、崎嶇地 0 摔、直走準 | `rl_wheel/eval_rl_only_real_{v1f,diag_v1f,diag_d1n_v1f,vxlow_v1f}.md`、`eval_rl_wheel_rough_real_v1f.md`；**Z 文件** |
 | rl_wheel_v1d（2.12 億步中場）`weights/rl_wheel_v1d_s212_np.npz`（sha `652aecce2ed3`） | 對稱 roll 1.6／2.7°、落地 0.22／0.17、rough 0 摔 **但** 平移膝 42°、pitch 晃 3 倍、直走 +0.1（§1）；不上機 | `rl_wheel/eval_*_v1d_s212.md`、`compare_v1b_vs_v1d_s212_mesh.mp4`（本機） |

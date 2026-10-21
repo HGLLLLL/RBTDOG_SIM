@@ -1,6 +1,6 @@
 # task7 交接：D1 Max 現況卡
 
-- 最後更新：**2026-10-21 深夜（v1i 2.12 億步中場：姿態完全回到 v1b 範圍（腳在髖下 ±4 cm、腳距 69／78、膝 62–70°）、左 roll 3.3°／右 1.0°、落地 0.14／0.18、vy 0.3 四腿踏；右前腿在右平移仍釘；等使用者看影片定上機）**（分支 `main`）
+- 最後更新：**2026-10-21 深夜（v1j 環境＋notebook 就緒：V1I ＋ `abad_cm`（四腿 ABAD 共模 > 2° 罰、w 5），從 v1i s212 熱啟動；原廠對照 AA §7：v1i 不偏高不過直、差在 ABAD 共模；等使用者開 Colab）**（分支 `main`）
 - **這份只放「現在」，上限 150 行。** 收工時覆寫本檔，不是往上疊。
   被取代的段落搬到 `docs/handoff_history/`（2026-08-25～09-22 全文在 `HANDOFF_2026-08-25_2026-09-22_全文.md`；
   09-22 §1 在 `HANDOFF_2026-09-22_§1_v3.7b_Colab訓練.md`；10-06 §1 trip25 在 `HANDOFF_2026-10-06_§1_trip25.md`；10-14 §1 trip26／27 在 `HANDOFF_2026-10-14_§1_trip26-27收工.md`。查歷史用 grep）。
@@ -8,7 +8,12 @@
 
 ---
 
-## 1. 下次第一件事：**使用者看 `outputs/rl_wheel/compare_v1b_vs_v1i_s212_mesh.mp4` 定 v1i 上機**（trip29 卡 §9 換 `rl_wheel_v1i_s212_np.npz` sha `2bc2c3d2bc72`；Colab 5 億步跑完的 params 可再驗一次，2 億後曲線已平）
+## 1. 下次第一件事：**使用者開 Colab 跑 `notebooks/rl_wheel_v1j_colab.ipynb`**（從 v1i s212 熱啟動、每 session 5 億；2 億步中場匯出 → 量共模／姿態／落地／roll／每腿落地／崎嶇地 → 影片 → 定上機）。v1i s212 仍是可上機的備案（trip29 卡 §9 換 `rl_wheel_v1i_s212_np.npz` sha `2bc2c3d2bc72`）
+
+- **★ 使用者 10-21 定「v1i 先上機」→ trip29 照 `docs/現場操作卡_純RL自訓v1i_trip29_2026-10-21.md`（獨立完整卡；v1b 卡 §9 作廢）**。`push_to_dog.sh` 已加 `rl_wheel_v1i_s212_np.npz`（檔 sha `bfb36aa94588`／權重指紋 `2bc2c3d2bc72`）；本機沒有 `logs/m_logs_trip28/`，清狗端前先確認。
+- **10-21 晚補量**（側視影片 `outputs/rl_wheel/v1i_s212_lateral_side_mesh.mp4`、`eval_rl_only_real_v1i_s212_side.md`、工具 `inference/diag/leg_reach.py`、`rl_only_infer.py --cam`）：右平移 −0.3 **右後腿 0 次落地（觸地 100%、被拖）**；使用者看到「右後腳過度後伸」＝右平移時右後腳在髖後 −8.4（−0.5）／−5.9 cm（−0.3）、右後髖 20° vs 左後 43°——**v1b 同樣 −8.0**（熱啟動帶來）；`splay` 門檻 8 cm 正是 v1b 的量，只扣 ≈ 0.01／步；左平移不鏡像＝網路不對稱同源；後輪橫距 ≥ 28 cm，不是避撞。修法 (a) `splay_max` 降 5–6 cm、(b) π_sym，使用者選先上機看。
+
+- **v1j**（AA §8）：`WheelEnv(**rw.V1J)`＝V1I ＋ **`abad_cm`**＝−5·max(0, |四腿 ABAD 平均| − 2°)（rad）。動機：原廠平移四腿 ABAD 對稱外張 ±5–7°、共模 ±1.2° 內；v1b 一動共模 −4～−7°、v1i −2～−3°（整排腳往右偏）。只罰共模，差模（跨幅、外張）免費。熱啟動 `weights/rl_wheel_v1i_s212_params.pkl`（＝v1i step 212M 檔改名）。關卡：v1i vs v1h 19 列贏 16（輸的 3 列是 stuck／boxes9 舊弱點，和 abad_cm 無關）；v1b vs v1h 11/19（新輸 3 列全是 v1b 付 abad_cm 0.3–0.45）。訓練盯 `abad_cm`（起點 ≈ −0.1 → 0）。中場量：|共模| ≤ 2°（`inference/diag/posture_vs_oem.py` 的「ABAD 共模」欄）。
 
 - **v1i s212 結果**（AA 文件 §6）：姿態 ✅ 腳相對髖 ±4 cm／腳距 69／78 cm／髖 30°／膝 62–70°／機身 0.55／pitch std 0.6–0.8；對稱 ✅ 左 roll 3.3°（v1b 9.3）、右 1.0°；落地 ✅ 0.14／0.18；vy 0.3 四腿 17/17/17/17；左平移四腿 16/17/17/17；斜走 9、延遲雜訊 8 全 0 摔；崎嶇地 1/125（boxes 10 側移，v1b 同格）；直走準。**仍在**：右平移右前腿釘（1 次、觸地 100%、橫滑 0.51；使用者 v1h 時說可接受）；wz 0.5 兩腿釘（v1b 也弱）；延遲雜訊下 gap 最低 130、wz −1.0 gap 187（< 200，v1b 213）。
 - **原廠對照（AA §7，`inference/diag/posture_vs_oem.py`）**：原廠遙控器站立 0.534 m、平移 0.545 m／膝 64–67°／腿伸長 0.45；v1i 平移 0.55／膝 62–70°／0.45–0.46 → **不偏高、不過直**；差在 ABAD 原廠四腿對稱外張 ±5–7°、v1i 同號 −2～−6°（整排偏一側）＋後腿髖左右不一。v1b 平移 0.53 比原廠低（帶 roll）。`h_max` 0.56 不必降；要降是「比原廠低」的選擇（使用者定）。

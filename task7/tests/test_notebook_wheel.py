@@ -12,6 +12,7 @@ NB_F = NB.parent / "rl_wheel_v1f_colab.ipynb"
 NB_G = NB.parent / "rl_wheel_v1g_colab.ipynb"
 NB_H = NB.parent / "rl_wheel_v1h_colab.ipynb"
 NB_I = NB.parent / "rl_wheel_v1i_colab.ipynb"
+NB_J = NB.parent / "rl_wheel_v1j_colab.ipynb"
 
 
 def _src_of(path, kind):
@@ -186,3 +187,15 @@ def test_v1i_notebook_cells():
     assert norm(built["cells"]) == norm(json.loads(NB_I.read_text(encoding="utf-8"))["cells"]), "先跑 python3 task7/notebooks/build_nb_wheel.py"
     for i, c in enumerate([c for c in built["cells"] if c["cell_type"] == "code"][2:], start=2):
         ast.parse("".join(c["source"]), filename=f"v1i_code_cell_{i}")
+
+
+def test_v1j_notebook_cells():
+    """v1j：v1i ＋ abad_cm（四腿 ABAD 共模 > 2° 罰）；從 v1i s212 熱啟動；檔名全 v1j。"""
+    assert NB_J.exists(), "先跑 python3 task7/notebooks/build_nb_wheel.py"
+    code = _src_of(NB_J, "code"); md = _src_of(NB_J, "markdown")
+    assert "env = rw.WheelEnv(**rw.V1J)" in code and "eval_env = rw.WheelEnv(noise=False, push=False, **rw.V1J)" in code and "rw.V1I" not in code
+    assert "ps('abad_cm')" in code and "ps('splay')" in code and 'INIT_FROM = "rbtdog_sim/task7/weights/rl_wheel_v1i_s212_params.pkl"' in code
+    assert 'DRIVE = "/content/rl_wheel_v1j"' in code and 'GDRIVE = "/content/drive/MyDrive/rl_wheel_v1j"' in code and 'model.save_params("rl_wheel_v1j_params.pkl", params)' in code
+    assert "rl_wheel_v1i" not in code.replace("rl_wheel_v1i_s212_params.pkl", "") and "`abad_cm`" in md and "2°" in md and "rl_wheel_v1i" not in md
+    assert "rl_wheel_v1j" not in _src_of(NB_I, "code")
+    assert (NB.parent.parent / "weights" / "rl_wheel_v1i_s212_params.pkl").exists()

@@ -20,6 +20,8 @@ OUT_H = HERE / "rl_wheel_v1h_colab.ipynb"
 WEIGHTS_H = "rl_wheel_v1h_params.pkl"
 OUT_I = HERE / "rl_wheel_v1i_colab.ipynb"
 WEIGHTS_I = "rl_wheel_v1i_params.pkl"
+OUT_J = HERE / "rl_wheel_v1j_colab.ipynb"
+WEIGHTS_J = "rl_wheel_v1j_params.pkl"
 OLD = json.loads((HERE / "cpg_rl_max_colab.ipynb").read_text(encoding="utf-8"))
 _code = [c for c in OLD["cells"] if c["cell_type"] == "code"]
 install_src, version_src = "".join(_code[0]["source"]), "".join(_code[1]["source"])
@@ -302,6 +304,23 @@ train_src_i = (train_src_h.replace("rl_wheel_v1h", "rl_wheel_v1i").replace("rw.V
 assert "ps('splay')" in train_src_i and "rw.V1I" in train_src_i and "rl_wheel_v1h" not in train_src_i and "INIT_FROM" in train_src_i
 save_src_i = save_src_h.replace("rl_wheel_v1h", "rl_wheel_v1i")
 
+# ---- v1j（2026-10-21 深夜，使用者定）：原廠平移 ABAD 四腿對稱外張 ±5–7°、四腿平均（共模）±1.2° 內；v1b 動作時共模 −4～−7°、v1i −2.4～−3.4°（整排腳往右偏，AA §7）。
+#      加 `abad_cm`：|四腿 ABAD 平均| > 2° 才罰（線性 w 5）；差模（跨幅、外張）不碰。從 v1i s212 熱啟動（只差 1–2°，不必從 v1b 重學）。其餘同 v1i。
+md0_j = md0_i.replace("# 純 RL 自訓 **v1i**：", "# 純 RL 自訓 **v1j**：").replace("環境 `WheelEnv(**rw.V1I)`", "環境 `WheelEnv(**rw.V1J)`").replace(
+    "- **腳要在髖下方（v1i 的改動，使用者定）**：",
+    "- **四腿 ABAD 共模歸零（v1j 的改動，使用者定）**：原廠平移時四腿 ABAD 對稱外張 ±5–7°，四腿平均（共模＝整排腳相對機身的側向偏移）在 ±1.2° 內、逐時 5–95% 在 ±4.6° 內；v1b 任何動作指令下共模 −4～−7°、v1i −2.4～−3.4°（整排腳往右偏）。新項 **`abad_cm`**（w 5）罰 |四腿 ABAD 平均| 超過 **2°** 的部分（rad、線性）；左右反號的外張、側向跨幅都不罰。**從 v1i s212 熱啟動**（`rl_wheel_v1i_s212_params.pkl`），不是 v1b。\n"
+    "- **腳要在髖下方（v1i 的改動，使用者定）**：").replace("rl_wheel_v1i", "rl_wheel_v1j").replace("MyDrive/rl_wheel_v1i/", "MyDrive/rl_wheel_v1j/").replace("/content/rl_wheel_v1i/", "/content/rl_wheel_v1j/")
+md0_j = md0_j.replace("**讀法**：`splay` 起點（v1b）≈ 0、往 0；", "**讀法**：`abad_cm` 起點（v1i）≈ −0.1、往 0；`splay` 起點 ≈ 0；")
+assert "rw.V1J" in md0_j and "rl_wheel_v1i" not in md0_j and "`abad_cm`" in md0_j and "v1i s212 熱啟動" in md0_j
+mount_src_j = mount_src_i.replace("rl_wheel_v1i", "rl_wheel_v1j").replace("（v1i，", "（v1j，")
+import_src_j = import_src_i.replace("rw.V1I", "rw.V1J")
+train_src_j = (train_src_i.replace("rl_wheel_v1i", "rl_wheel_v1j").replace("rw.V1I", "rw.V1J")
+               .replace("（v1i 從 v1b 熱啟動，每 session 5 億，可多跑）", "（v1j 從 v1i s212 熱啟動，每 session 5 億，可多跑）")
+               .replace('INIT_FROM = "rbtdog_sim/task7/weights/rl_wheel_v1b_params.pkl"', 'INIT_FROM = "rbtdog_sim/task7/weights/rl_wheel_v1i_s212_params.pkl"')
+               .replace("splay {ps('splay'):+.3f}", "splay {ps('splay'):+.3f} abad_cm {ps('abad_cm'):+.3f}"))
+assert "ps('abad_cm')" in train_src_j and "rw.V1J" in train_src_j and "rl_wheel_v1i_s212_params.pkl" in train_src_j and "rl_wheel_v1i" not in train_src_j.replace("rl_wheel_v1i_s212_params.pkl", "")
+save_src_j = save_src_i.replace("rl_wheel_v1i", "rl_wheel_v1j")
+
 
 def cell(kind, src):
     c = {"cell_type": kind, "metadata": {}, "source": src.splitlines(keepends=True)}
@@ -333,6 +352,9 @@ def build(variant="v1"):
     elif variant == "v1i":
         cells = [cell("markdown", md0_i), cell("code", install_src), cell("code", version_src), cell("code", clone_src), cell("code", mount_src_i),
                  cell("code", import_src_i), cell("code", bench_src), cell("code", train_src_i), cell("code", plot_src), cell("code", save_src_i)]
+    elif variant == "v1j":
+        cells = [cell("markdown", md0_j), cell("code", install_src), cell("code", version_src), cell("code", clone_src), cell("code", mount_src_j),
+                 cell("code", import_src_j), cell("code", bench_src), cell("code", train_src_j), cell("code", plot_src), cell("code", save_src_j)]
     else:
         raise ValueError(variant)
     return {"nbformat": 4, "nbformat_minor": 5,
@@ -340,7 +362,7 @@ def build(variant="v1"):
 
 
 def main():
-    for variant, out in (("v1", OUT), ("v1c", OUT_C), ("v1d", OUT_D), ("v1f", OUT_F), ("v1g", OUT_G), ("v1h", OUT_H), ("v1i", OUT_I)):
+    for variant, out in (("v1", OUT), ("v1c", OUT_C), ("v1d", OUT_D), ("v1f", OUT_F), ("v1g", OUT_G), ("v1h", OUT_H), ("v1i", OUT_I), ("v1j", OUT_J)):
         nb = build(variant)
         out.write_text(json.dumps(nb, ensure_ascii=False, indent=1), encoding="utf-8")
         print("→", out, f"({len(nb['cells'])} cells)")

@@ -1,4 +1,5 @@
 """WheelEnv reward 十三項（他的十項＋輪輪接觸＋std／站立倍率）、終止、接觸判定。spec §3。"""
+import inspect
 import sys
 from pathlib import Path
 
@@ -68,7 +69,7 @@ def test_action_rate_and_signs(env):
     assert float(T["rate"]) == pytest.approx(-0.01 * 16 * 0.25, abs=1e-6)
     for k in ("vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap", "lim"):
         assert float(T[k]) <= 1e-9, k
-    assert set(T) == set(rw.TERM_KEYS) and rw.TERM_KEYS[-6:] == ("roll", "impact", "knee", "stuck", "height", "splay")
+    assert set(T) == set(rw.TERM_KEYS) and rw.TERM_KEYS[-7:] == ("roll", "impact", "knee", "stuck", "height", "splay", "abad_cm")
 
 
 def test_joint_limit_penalty(env):
@@ -313,7 +314,7 @@ def test_v1f_preset_angxy_and_knee_hinge(env):
 
 def test_v1g_slip_weight(env):
     """V1G：只比 V1F 多 w_slip 0.75（拖腿橫滑變貴）；預設 0.075 ＝ v1b。"""
-    assert rw.V1G == dict(rw.V1F, w_slip=0.75, w_stuck=1.0) and rw.WheelEnv.__init__.__defaults__[-6] == 0.075
+    assert rw.V1G == dict(rw.V1F, w_slip=0.75, w_stuck=1.0) and inspect.signature(rw.WheelEnv.__init__).parameters['w_slip'].default == 0.075
     eg = rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, scene=env.scene, **rw.V1G)
     data = _standing_data(env).replace(ctrl=env._ctrl(jnp.zeros(16)))
     phys = jax.jit(lambda d: env._physics(d, jnp.zeros(16)))
@@ -400,3 +401,24 @@ def test_v1i_splay_penalty(env):
     q3 = q.at[hp[0]].set(0.65)                                                          # 小幅：腳約 3–5 cm 內 → 0
     d3 = jax.jit(mjx.forward)(ei.sys, data.replace(qpos=q3))
     assert float(ei._reward_terms(d3, _info(ei, d3), jnp.zeros(16), jnp.zeros(3))[0]["splay"]) == 0.0
+
+
+def test_v1j_abad_cm_penalty(env):
+    """V1J：四腿 ABAD 平均（共模）超過 2° 才罰（線性 w 5）；站姿 0；四腿同向偏 0.1 rad 罰 5×(0.1−2°)；左右反號外張（差模）免費；預設 w 0。"""
+    assert rw.V1J == dict(rw.V1I, w_abad_cm=5.0, abad_cm_deg=2.0)
+    ej = rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, scene=env.scene, **rw.V1J)
+    data = _standing_data(env)
+    assert float(ej._reward_terms(data, _info(ej, data), jnp.zeros(16), jnp.zeros(3))[0]["abad_cm"]) == 0.0
+    q = data.qpos; ab = np.asarray(env.QADR)[0:4]                                       # FR FL RR RL（_standing_data 的 abad= 是左右反號＝差模，這裡要同向）
+    def _with(vals):
+        return jax.jit(mjx.forward)(ej.sys, data.replace(qpos=q.at[jnp.array(ab)].set(jnp.array(vals))))
+    d2 = _with([0.1, 0.1, 0.1, 0.1])                                                    # 四腿同向 0.1 rad（5.7°）：共模 5.7°
+    T2, _ = ej._reward_terms(d2, _info(ej, d2), jnp.zeros(16), jnp.zeros(3))
+    assert float(T2["abad_cm"]) == pytest.approx(-5.0 * (0.1 - np.radians(2.0)), abs=1e-5) and float(T2["abad_cm"]) < -0.3
+    assert float(env._reward_terms(d2, _info(env, d2), jnp.zeros(16), jnp.zeros(3))[0]["abad_cm"]) == 0.0   # 預設 w 0
+    d3 = _with([-0.12, 0.12, -0.12, 0.12])                                              # 外張 ±6.9°（差模）：共模 0 → 免費
+    assert float(ej._reward_terms(d3, _info(ej, d3), jnp.zeros(16), jnp.zeros(3))[0]["abad_cm"]) == 0.0
+    d4 = _with([0.03, 0.03, 0.03, 0.03])                                                # 1.7° < 2°：免費
+    assert float(ej._reward_terms(d4, _info(ej, d4), jnp.zeros(16), jnp.zeros(3))[0]["abad_cm"]) == 0.0
+    d5 = _with([-0.1, -0.1, -0.1, -0.1])                                                # 反向同值：|mean| 一樣罰
+    assert float(ej._reward_terms(d5, _info(ej, d5), jnp.zeros(16), jnp.zeros(3))[0]["abad_cm"]) == pytest.approx(float(T2["abad_cm"]), abs=1e-6)

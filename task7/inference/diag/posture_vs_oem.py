@@ -1,7 +1,7 @@
 """原廠 trip21 平移 vs 模擬 v1b/v1i：同一套 FK（realbot/kin.fk，控制器座標＝MJCF 座標）量
 機身高（ABAD 平面離地＝−min 足端 z ＋ 輪半徑；原廠平移平均傾角 < 1°，FK 準）、hip/knee/ABAD 角、腿伸長（ABAD→輪軸距，上限 0.54）。
     conda run -n rbtdog python task7/inference/diag/posture_vs_oem.py
-結果：docs/results/AA_v1b後各版比較_2026-10-21.md §7。"""
+結果：docs/results/AA_v1b後各版比較_2026-10-21.md §7（姿態）、§8（ABAD 共模＝四腿平均，v1j 的 abad_cm 項量的就是這個）。"""
 import sys, json, numpy as np
 sys.path.insert(0, "task7/inference"); sys.path.insert(0, "task7/realbot")
 import kin, coord, m6_rec
@@ -20,7 +20,8 @@ def stats(name, q1, q2, q3, extra=""):
     print(f"{name:<22} 高 {h.mean():.3f}±{h.std():.3f} | 膝° fl/fr/bl/br " + "/".join(f"{knee[:, k].mean():.0f}" for k in range(4))
           + f"（5–95% {np.percentile(knee, 5):.0f}–{np.percentile(knee, 95):.0f}）| 髖° " + "/".join(f"{hip[:, k].mean():.0f}" for k in range(4))
           + f" | ABAD° " + "/".join(f"{ab[:, k].mean():+.0f}" for k in range(4)) + f" 擺幅 {np.ptp(ab, axis=0).mean():.0f}"
-          + f" | 伸長 m 均 {ext.mean():.3f} 最大 {np.percentile(ext, 95):.3f}" + extra)
+          + f" | 伸長 m 均 {ext.mean():.3f} 最大 {np.percentile(ext, 95):.3f}"
+          + f" | ABAD 共模° 均 {np.degrees(q1.mean(1)).mean():+.1f}（5–95% {np.percentile(np.degrees(q1.mean(1)), 5):+.1f}～{np.percentile(np.degrees(q1.mean(1)), 95):+.1f}）" + extra)
 
 print("=== 原廠 trip21（控制器座標；動作區間）===")
 files = {"ref_idle": "160456", "ref_fwd_mid": "160825", "ref_left": "161123", "ref_right_a": "161150", "ref_right_b": "161223", "ref_turn_left": "161316"}

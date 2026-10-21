@@ -55,7 +55,7 @@ CURR_UP_DIST = 2.0
 LIM_SOFT = 0.9                          # 關節軟限位：中點 ± 0.9 × 半行程（同 Isaac soft_joint_pos_limit_factor；lim 罰 PD 目標超出它）
 WW_CAP = 3.0                            # ww 每個接觸 fn/100 的上限：腿交叉時 fn 可達 2755 N，單步 −760 會拉壞 critic
 IMPACT_SETTLE = 25                      # 步（0.5 s）：出生後輪子從 3 mm～數 cm 落到地面的時間，這段的落地不算衝擊事件；boxes 10 cm 自由落體 ≈ 0.14 s，25 步留餘裕
-TERM_KEYS = ("lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap", "lim", "roll", "impact", "knee", "stuck", "height", "splay")
+TERM_KEYS = ("lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap", "lim", "roll", "impact", "knee", "stuck", "height", "splay", "abad_cm")
 METRIC_KEYS = TERM_KEYS + ("reward", "lin_small", "level", "fell", "oob", "tilt", "dist", "ww_force", "gap_min", "vx_err", "vy_err", "wz_err", "touch_n", "small", "standing", "sat_n",
                            "impact_vz", "td_n", "impact_fn", "mir", "delay", "stance_max")
 # v1c 預設（spec 2026-10-20 §2）：鏡像增強、roll 姿態角懲罰、落地衝擊懲罰、動作延遲 0–2 步、IMU 常數偏差 ±2°。WheelEnv() 預設＝v1b。
@@ -79,6 +79,10 @@ V1H = dict(V1G, w_roll=5.0, w_knee=2.0, knee_min_deg=65.0, w_height=10.0, h_max=
 #   站高／鎖膝／拖腿都被封後，policy 用「拉長支撐面」讓踏步時機身不晃，髖開＋膝 65° 的組合髖到腳距離仍長＝繞過膝 hinge 的直腿。
 #   直接約束物理量：腳相對髖在機身 x 方向的距離 > splay_max 0.08 m 才罰（v1b 平移 ±8 cm、站立 ±1 cm），線性 w 3。
 V1I = dict(V1H, w_splay=3.0, splay_max=0.08)
+# V1J（10-21 深夜，使用者定）：原廠平移時四腿 ABAD 對稱外張 ±5–7°、四腿平均（共模＝整排腳相對機身的側向偏移）在 ±1.2° 內、逐時 5–95% 在 ±4.6° 內；
+#   v1b 任何動作指令下共模 −4～−7°、v1i −2.4～−3.4°（整排腳往右偏；AA §7）。新項 `abad_cm`：|mean(ABAD 四腿)| 超過 abad_cm_deg 2° 的部分（rad）線性 w 5
+#   （v1b ≈ −0.4／步、v1i ≈ −0.1、原廠 ≈ −0.01）。四個 ABAD 軸都是 +x，mean 就是共模；不碰差模（側向跨幅、外張都免費）。其餘同 V1I。
+V1J = dict(V1I, w_abad_cm=5.0, abad_cm_deg=2.0)
 
 
 def quat_rot_inv(q, v):
@@ -176,7 +180,8 @@ class WheelEnv(Env):
                  w_ang: float = 2.5, w_lim: float = 2.0,
                  mirror: bool = False, w_roll: float = 0.0, w_impact: float = 0.0, impact_v0: float = 0.0, delay_max: int = 0, grav_bias_deg: float = 0.0,
                  w_angxy: float = 0.05, w_knee: float = 0.0, knee_min_deg: float = 60.0, w_slip: float = 0.075, w_stuck: float = 0.0,
-                 w_height: float = 0.0, h_max: float = 0.56, w_splay: float = 0.0, splay_max: float = 0.08):
+                 w_height: float = 0.0, h_max: float = 0.56, w_splay: float = 0.0, splay_max: float = 0.08,
+                 w_abad_cm: float = 0.0, abad_cm_deg: float = 2.0):
         """flat：全圖平地、出生在原點（對齊驗證）；fixed_cmd：指令讀 info["cmd_fix"]（不重抽、不站立、不小指令）；
         fixed_tile=(kind_idx, level)：固定出生方塊、不升降課程。std／w_ww／w_gap／small_frac 是三項改動的旋鈕（w_gap：輪輪實體間隙 hinge）。
         w_ang：偏航追蹤權重（v1 是 1.25，v1b 2.5：原地轉時 tau_leg ≈ −2／步壓過 ang 最多 1.25）；w_lim：腿關節 PD 目標超出軟限位的懲罰（v1 是 0，v1b 2.0）。
@@ -191,6 +196,7 @@ class WheelEnv(Env):
         self.w_slip, self.w_stuck = float(w_slip), float(w_stuck)
         self.w_height, self.h_max = float(w_height), float(h_max)
         self.w_splay, self.splay_max = float(w_splay), float(splay_max)
+        self.w_abad_cm, self.abad_cm_max = float(w_abad_cm), float(np.radians(abad_cm_deg))
         self.delay_max, self.grav_bias_deg = int(delay_max), float(grav_bias_deg)
         assert 0 <= self.delay_max <= 2, "a_hist 長度 3：延遲最多 2 步"
         self.episode_len = int(episode_len)
@@ -502,7 +508,8 @@ class WheelEnv(Env):
                  knee=-self.w_knee * jnp.sum(jnp.maximum(0.0, self.knee_min - jnp.abs(qleg[8:12]))),   # 膝比 knee_min 更直的部分（rad，4 膝和）；彎更多免費
                  stuck=-self.w_stuck * stuck,                                                        # 踏步指令下不離地的腿（秒數超過 STUCK_T0、上限 STUCK_CAP）
                  height=-self.w_height * jnp.maximum(0.0, h_base - self.h_max),                    # 機身比 h_max 高的部分（m，線性）；擋「站高鎖膝」
-                 splay=-self.w_splay * splay)                                                       # 腳離髖前後太遠（擋「拉長支撐面」）
+                 splay=-self.w_splay * splay,                                                       # 腳離髖前後太遠（擋「拉長支撐面」）
+                 abad_cm=-self.w_abad_cm * jnp.maximum(0.0, jnp.abs(jnp.mean(qleg[0:4])) - self.abad_cm_max))   # ABAD 共模（整排腳側偏）超過 abad_cm_deg 的部分
         aux = dict(vb=vb, w=w, touch=touch, ww_force=ww_force, gaps=gaps, err_lin=err_lin, err_ang=err_ang, C=C, sat_n=sat_n,
                    vfoot=vfoot, impact_vz=impact_vz, td_n=td_n, impact_fn=impact_fn, stance_t=stance_t)
         return T, aux

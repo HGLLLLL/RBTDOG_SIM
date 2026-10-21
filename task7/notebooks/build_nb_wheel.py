@@ -251,15 +251,16 @@ save_src_f = save_src_d.replace("rl_wheel_v1d", "rl_wheel_v1f")
 # ---- v1g（2026-10-21，使用者定）：v1f 平移＝兩腿踏、兩腿被拖著橫滑 0.5 m/s（直腿外張是拖腿的幾何必然）→ 只改 w_slip 0.075 → 0.75，其餘同 v1f。
 md0_g = md0_f.replace("# 純 RL 自訓 **v1f**：", "# 純 RL 自訓 **v1g**：").replace("環境 `WheelEnv(**rw.V1F)`", "環境 `WheelEnv(**rw.V1G)`").replace(
     "- **防「用伸直腿、前後晃躲側傾」**：",
-    "- **防「拖腿橫滑」（v1g 唯一改動）**：`slip` 0.075 → **0.75**。v1f 平移時只有兩腿踏、另外兩腿全程觸地被拖著橫滑 0.5 m/s（每步只扣 0.04，比抬腳＋重心轉移便宜），直腿外張是拖腿的幾何必然；原廠平移四腿都踏、次要腿原地重放（L 文件）。攤帳關卡：V1G 下 v1b 四腿步態每步總分要高於 v1f 拖腿步態。\n"
+    "- **防「拖腿橫滑」（v1g 的改動）**：`slip` 0.075 → **0.75**，加新項 **`stuck`**（w 1.0）：側移或旋轉指令下，任一腿足端淨空 < 5 mm 連續超過 0.6 s 就罰（超過秒數、上限 1 s）；直走、站立不罰。v1f 平移時只有兩腿踏、另外兩腿全程觸地被拖著橫滑 0.5 m/s（每步只扣 0.04，比抬腳＋重心轉移便宜），直腿外張是拖腿的幾何必然；原廠平移四腿都踏、次要腿每週期原地重放 8–10 mm（L 文件）→ 不觸發 stuck。只調 slip ×10 的關卡沒過（vy 0.3 v1f 仍勝）才加 stuck。攤帳關卡：V1G 下 v1b 四腿步態每步總分要高於 v1f 拖腿步態。\n"
     "- **防「用伸直腿、前後晃躲側傾」**：").replace("rl_wheel_v1f", "rl_wheel_v1g").replace("MyDrive/rl_wheel_v1f/", "MyDrive/rl_wheel_v1g/").replace("/content/rl_wheel_v1f/", "/content/rl_wheel_v1g/")
-md0_g = md0_g.replace("**讀法**：", "**讀法**：`slip` 起點（v1b）約 −0.1，往 0；")
+md0_g = md0_g.replace("**讀法**：", "**讀法**：`stuck` 起點（v1b）應 ≈ 0、全程 ≈ 0（變負＝有腿被拖）；`slip` 起點約 −0.1，往 0；")
 assert "rw.V1G" in md0_g and "rl_wheel_v1f" not in md0_g and "拖腿橫滑" in md0_g
 mount_src_g = mount_src_f.replace("rl_wheel_v1f", "rl_wheel_v1g").replace("（v1f，", "（v1g，")
 import_src_g = import_src_f.replace("rw.V1F", "rw.V1G")
 train_src_g = (train_src_f.replace("rl_wheel_v1f", "rl_wheel_v1g").replace("rw.V1F", "rw.V1G")
-               .replace("（v1f 從 v1b 熱啟動，每 session 5 億，可多跑）", "（v1g 從 v1b 熱啟動，每 session 5 億，可多跑）"))
-assert "rw.V1G" in train_src_g and "rl_wheel_v1f" not in train_src_g and "INIT_FROM" in train_src_g and "ps('slip')" in train_src_g
+               .replace("（v1f 從 v1b 熱啟動，每 session 5 億，可多跑）", "（v1g 從 v1b 熱啟動，每 session 5 億，可多跑）")
+               .replace("knee {ps('knee'):+.3f} angxy {ps('angxy'):+.3f}", "knee {ps('knee'):+.3f} angxy {ps('angxy'):+.3f} stuck {ps('stuck'):+.3f} slip {ps('slip'):+.3f}"))
+assert "ps('stuck')" in train_src_g and "rw.V1G" in train_src_g and "rl_wheel_v1f" not in train_src_g and "INIT_FROM" in train_src_g and "ps('slip')" in train_src_g
 save_src_g = save_src_f.replace("rl_wheel_v1f", "rl_wheel_v1g")
 
 

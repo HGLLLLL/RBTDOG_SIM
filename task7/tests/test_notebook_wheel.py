@@ -136,7 +136,8 @@ def test_v1g_notebook_cells():
     assert NB_G.exists(), "先跑 python3 task7/notebooks/build_nb_wheel.py"
     code = _src_of(NB_G, "code"); md = _src_of(NB_G, "markdown")
     assert "env = rw.WheelEnv(**rw.V1G)" in code and "eval_env = rw.WheelEnv(noise=False, push=False, **rw.V1G)" in code and "rw.V1F" not in code
-    assert 'INIT_FROM = "rbtdog_sim/task7/weights/rl_wheel_v1b_params.pkl"' in code and "ps('slip')" in code
+    assert 'INIT_FROM = "rbtdog_sim/task7/weights/rl_wheel_v1b_params.pkl"' in code and "ps('slip')" in code and "ps('stuck')" in code
+    assert "`stuck`" in md and "0.6 s" in md
     assert 'DRIVE = "/content/rl_wheel_v1g"' in code and 'GDRIVE = "/content/drive/MyDrive/rl_wheel_v1g"' in code and 'model.save_params("rl_wheel_v1g_params.pkl", params)' in code
     assert "rl_wheel_v1f" not in code and "拖腿橫滑" in md and "rl_wheel_v1f" not in md
     assert "rl_wheel_v1g" not in _src_of(NB_F, "code")

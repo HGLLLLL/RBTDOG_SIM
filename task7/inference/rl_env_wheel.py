@@ -55,9 +55,9 @@ CURR_UP_DIST = 2.0
 LIM_SOFT = 0.9                          # 關節軟限位：中點 ± 0.9 × 半行程（同 Isaac soft_joint_pos_limit_factor；lim 罰 PD 目標超出它）
 WW_CAP = 3.0                            # ww 每個接觸 fn/100 的上限：腿交叉時 fn 可達 2755 N，單步 −760 會拉壞 critic
 IMPACT_SETTLE = 25                      # 步（0.5 s）：出生後輪子從 3 mm～數 cm 落到地面的時間，這段的落地不算衝擊事件；boxes 10 cm 自由落體 ≈ 0.14 s，25 步留餘裕
-TERM_KEYS = ("lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap", "lim", "roll", "impact", "knee")
+TERM_KEYS = ("lin", "ang", "vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap", "lim", "roll", "impact", "knee", "stuck")
 METRIC_KEYS = TERM_KEYS + ("reward", "lin_small", "level", "fell", "oob", "tilt", "dist", "ww_force", "gap_min", "vx_err", "vy_err", "wz_err", "touch_n", "small", "standing", "sat_n",
-                           "impact_vz", "td_n", "impact_fn", "mir", "delay")
+                           "impact_vz", "td_n", "impact_fn", "mir", "delay", "stance_max")
 # v1c 預設（spec 2026-10-20 §2）：鏡像增強、roll 姿態角懲罰、落地衝擊懲罰、動作延遲 0–2 步、IMU 常數偏差 ±2°。WheelEnv() 預設＝v1b。
 V1C = dict(mirror=True, w_roll=10.0, w_impact=3.0, impact_v0=0.3, delay_max=2, grav_bias_deg=2.0)
 # impact_v0（10-20 晚加）：只罰超過 0.3 m/s 的落地速度 → 10k 等級的輕落地（0.10–0.19）免費、v1b 等級（0.43–0.71）仍罰。
@@ -67,7 +67,11 @@ V1C = dict(mirror=True, w_roll=10.0, w_impact=3.0, impact_v0=0.3, delay_max=2, g
 V1F = dict(mirror=True, w_roll=10.0, w_impact=3.0, impact_v0=0.3, delay_max=0, grav_bias_deg=2.0, w_angxy=0.5, w_knee=0.5, knee_min_deg=60.0)
 # V1G（10-21，使用者定）：v1f 平移＝兩腿踏、兩腿被拖著橫滑 0.5 m/s（直腿外張是拖腿的幾何必然；|vy| 越大拖越多腿）。原因是 slip 0.075 太便宜：
 #   拖兩輪每步只扣 0.04，比抬腳（impact）＋重心轉移（roll）便宜。只改 w_slip ×10；impact／膝 hinge 不動、不加 ABAD hinge（原廠平移 ABAD 擺幅 11–20°）。
-V1G = dict(V1F, w_slip=0.75)
+# stuck（10-21 下午，使用者定）：slip ×10 關卡沒過（vy 0.3 v1f 拖腿仍勝；v1b 四腿步態自己也滑、MJX 拖輪接觸斷續）→ 直接罰「不離地的腿」：
+#   每腿淨空 < STUCK_CLR 連續站立 > STUCK_T0 s，且指令要踏步（|vy| > 0.1 或 |wz| > 0.3）時，罰 min(超過秒數, STUCK_CAP)。原廠平移次要腿每週期原地重放 8–10 mm／0.2 s、週期 0.47 s → 不觸發；
+#   直走／站立不生效。淨空門檻 5 mm 是為了把原廠那種低抬腳算成「有抬」。
+STUCK_CLR, STUCK_T0, STUCK_CAP = 0.005, 0.6, 1.0
+V1G = dict(V1F, w_slip=0.75, w_stuck=1.0)
 
 
 def quat_rot_inv(q, v):
@@ -164,7 +168,7 @@ class WheelEnv(Env):
                  std: float = 0.25, w_ww: float = 1.0, w_gap: float = 2.0, episode_len: int = EPISODE_LEN,
                  w_ang: float = 2.5, w_lim: float = 2.0,
                  mirror: bool = False, w_roll: float = 0.0, w_impact: float = 0.0, impact_v0: float = 0.0, delay_max: int = 0, grav_bias_deg: float = 0.0,
-                 w_angxy: float = 0.05, w_knee: float = 0.0, knee_min_deg: float = 60.0, w_slip: float = 0.075):
+                 w_angxy: float = 0.05, w_knee: float = 0.0, knee_min_deg: float = 60.0, w_slip: float = 0.075, w_stuck: float = 0.0):
         """flat：全圖平地、出生在原點（對齊驗證）；fixed_cmd：指令讀 info["cmd_fix"]（不重抽、不站立、不小指令）；
         fixed_tile=(kind_idx, level)：固定出生方塊、不升降課程。std／w_ww／w_gap／small_frac 是三項改動的旋鈕（w_gap：輪輪實體間隙 hinge）。
         w_ang：偏航追蹤權重（v1 是 1.25，v1b 2.5：原地轉時 tau_leg ≈ −2／步壓過 ang 最多 1.25）；w_lim：腿關節 PD 目標超出軟限位的懲罰（v1 是 0，v1b 2.0）。
@@ -176,7 +180,7 @@ class WheelEnv(Env):
         self.w_ang, self.w_lim = float(w_ang), float(w_lim)
         self.mirror, self.w_roll, self.w_impact, self.impact_v0 = bool(mirror), float(w_roll), float(w_impact), float(impact_v0)
         self.w_angxy, self.w_knee, self.knee_min = float(w_angxy), float(w_knee), float(np.radians(knee_min_deg))
-        self.w_slip = float(w_slip)
+        self.w_slip, self.w_stuck = float(w_slip), float(w_stuck)
         self.delay_max, self.grav_bias_deg = int(delay_max), float(grav_bias_deg)
         assert 0 <= self.delay_max <= 2, "a_hist 長度 3：延遲最多 2 步"
         self.episode_len = int(episode_len)
@@ -323,7 +327,7 @@ class WheelEnv(Env):
                     cmd_ab=jnp.stack([cmd_a, cmd_b]), head_ab=jnp.stack([head_a, head_b]), standing=standing, small=small,
                     cmd_fix=jnp.zeros(3), cmd=jnp.zeros(3), last_a=jnp.zeros(ACT_DIM),
                     qvel_prev=data.qvel[self.VADR], foot_prev=data.xpos[self.FOOT_BIDS],
-                    touch_prev=jnp.zeros(4, bool), vfoot_prev=jnp.zeros((4, 3)), mir=mir,
+                    touch_prev=jnp.zeros(4, bool), vfoot_prev=jnp.zeros((4, 3)), stance_t=jnp.zeros(4), mir=mir,
                     delay=delay, a_hist=jnp.zeros((3, ACT_DIM)), bias_rp=bias_rp,
                     push_t=jnp.int32(self.episode_len // 2) + jax.random.randint(k[5], (), 0, self.episode_len // 4))   # 10–15 s 後第一次推
         info["cmd"] = self._cmd_now(data, info)
@@ -397,7 +401,7 @@ class WheelEnv(Env):
         done_env = fell | (t1 >= self.episode_len)
         # 續走路徑
         info_c = dict(info, rng=rng, t=t1, last_a=a, qvel_prev=data.qvel[self.VADR], foot_prev=data.xpos[self.FOOT_BIDS],
-                      touch_prev=aux["touch"], vfoot_prev=aux["vfoot"], a_hist=a_hist)
+                      touch_prev=aux["touch"], vfoot_prev=aux["vfoot"], stance_t=aux["stance_t"], a_hist=a_hist)
         info_c["cmd"] = self._cmd_now(data, info_c)
         obs_c = self._obs_dict(data, info_c["cmd"], a, k_noise, info["bias_rp"])
         obs_c = self._maybe_mirror(obs_c, info["mir"])
@@ -452,6 +456,10 @@ class WheelEnv(Env):
         impact_vz = jnp.sum(touchdown * vz_prev)                                     # 本步落地事件的下落速度**總和**（診斷量；平均要除 td_n，不能除步數）
         td_n = jnp.sum(touchdown).astype(jnp.float32)                                # 本步落地事件數
         impact_fn = jnp.max(C["fn"] * floor_hit)                                     # 本步輪–地法向力峰（診斷量）
+        clr = foot[:, 2] - wt.WHEEL_R - jax.vmap(self._terrain_h)(foot[:, 0], foot[:, 1])   # 足端淨空（對地形；不用接觸旗標，MJX 拖輪的接觸會斷續）
+        stance_t = jnp.where(clr < STUCK_CLR, info["stance_t"] + CTRL_DT, 0.0)           # 連續站立秒數（離地就歸零）
+        need_step = (jnp.abs(cmd[1]) > 0.1) | (jnp.abs(cmd[2]) > 0.3)                     # 側移／旋轉才需要踏步；直走、站立不罰
+        stuck = need_step * jnp.sum(jnp.minimum(jnp.maximum(stance_t - STUCK_T0, 0.0), STUCK_CAP))
         axis = data.xmat[self.FOOT_BIDS][:, :, 1]                                   # 輪軸（FOOT_LINK 的 y 軸）世界向量
         slip = jnp.sum(touch * jnp.sum(vfoot * axis, axis=1) ** 2)                 # 他的 wheel_lateral_slip（spin_axis 1）
         ww_mask = jnp.isin(C["g0"], self.WHEEL_GIDS) & jnp.isin(C["g1"], self.WHEEL_GIDS)
@@ -477,9 +485,10 @@ class WheelEnv(Env):
                  rate=-0.01 * jnp.sum((a - info["last_a"]) ** 2),
                  slip=-self.w_slip * slip, dev=-0.1 * dev, ww=-self.w_ww * ww, wgap=-self.w_gap * wgap, lim=-self.w_lim * lim,
                  roll=-self.w_roll * roll, impact=-self.w_impact * impact,
-                 knee=-self.w_knee * jnp.sum(jnp.maximum(0.0, self.knee_min - jnp.abs(qleg[8:12]))))   # 膝比 knee_min 更直的部分（rad，4 膝和）；彎更多免費
+                 knee=-self.w_knee * jnp.sum(jnp.maximum(0.0, self.knee_min - jnp.abs(qleg[8:12]))),   # 膝比 knee_min 更直的部分（rad，4 膝和）；彎更多免費
+                 stuck=-self.w_stuck * stuck)                                                        # 踏步指令下不離地的腿（秒數超過 STUCK_T0、上限 STUCK_CAP）
         aux = dict(vb=vb, w=w, touch=touch, ww_force=ww_force, gaps=gaps, err_lin=err_lin, err_ang=err_ang, C=C, sat_n=sat_n,
-                   vfoot=vfoot, impact_vz=impact_vz, td_n=td_n, impact_fn=impact_fn)
+                   vfoot=vfoot, impact_vz=impact_vz, td_n=td_n, impact_fn=impact_fn, stance_t=stance_t)
         return T, aux
 
     def _after_physics(self, data, info, a, cmd):
@@ -495,7 +504,8 @@ class WheelEnv(Env):
                        fell=fell.astype(jnp.float32), oob=oob.astype(jnp.float32), tilt=tilt.astype(jnp.float32), dist=jnp.linalg.norm(data.qpos[0:2] - info["xy0"]), ww_force=aux["ww_force"], gap_min=jnp.min(aux["gaps"]),
                        vx_err=jnp.abs(aux["vb"][0] - cmd[0]), vy_err=jnp.abs(aux["vb"][1] - cmd[1]), wz_err=jnp.abs(aux["w"][2] - cmd[2]),
                        touch_n=jnp.sum(aux["touch"]).astype(jnp.float32), small=info["small"].astype(jnp.float32), standing=info["standing"].astype(jnp.float32), sat_n=aux["sat_n"],
-                       impact_vz=aux["impact_vz"], td_n=aux["td_n"], impact_fn=aux["impact_fn"], mir=info["mir"].astype(jnp.float32), delay=info["delay"].astype(jnp.float32))
+                       impact_vz=aux["impact_vz"], td_n=aux["td_n"], impact_fn=aux["impact_fn"], mir=info["mir"].astype(jnp.float32), delay=info["delay"].astype(jnp.float32),
+                       stance_max=jnp.max(aux["stance_t"]))
         return reward, fell, metrics, aux
 
     @property

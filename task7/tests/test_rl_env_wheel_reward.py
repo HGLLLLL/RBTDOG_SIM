@@ -68,7 +68,7 @@ def test_action_rate_and_signs(env):
     assert float(T["rate"]) == pytest.approx(-0.01 * 16 * 0.25, abs=1e-6)
     for k in ("vz", "angxy", "tau_leg", "tau_wheel", "acc_leg", "acc_wheel", "rate", "slip", "dev", "ww", "wgap", "lim"):
         assert float(T[k]) <= 1e-9, k
-    assert set(T) == set(rw.TERM_KEYS) and rw.TERM_KEYS[-3:] == ("roll", "impact", "knee")
+    assert set(T) == set(rw.TERM_KEYS) and rw.TERM_KEYS[-4:] == ("roll", "impact", "knee", "stuck")
 
 
 def test_joint_limit_penalty(env):
@@ -313,7 +313,7 @@ def test_v1f_preset_angxy_and_knee_hinge(env):
 
 def test_v1g_slip_weight(env):
     """V1G：只比 V1F 多 w_slip 0.75（拖腿橫滑變貴）；預設 0.075 ＝ v1b。"""
-    assert rw.V1G == dict(rw.V1F, w_slip=0.75) and rw.WheelEnv.__init__.__defaults__[-1] == 0.075
+    assert rw.V1G == dict(rw.V1F, w_slip=0.75, w_stuck=1.0) and rw.WheelEnv.__init__.__defaults__[-2] == 0.075
     eg = rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, scene=env.scene, **rw.V1G)
     data = _standing_data(env).replace(ctrl=env._ctrl(jnp.zeros(16)))
     phys = jax.jit(lambda d: env._physics(d, jnp.zeros(16)))
@@ -322,3 +322,41 @@ def test_v1g_slip_weight(env):
     info = _info(eg, data); info["foot_prev"] = data.xpos[eg.FOOT_BIDS] - jnp.array([0.0, 0.3 * rw.CTRL_DT, 0.0])   # 四輪沿輪軸側滑 0.3 m/s
     Tg, _ = eg._reward_terms(data, info, jnp.zeros(16), jnp.zeros(3)); Tb, _ = env._reward_terms(data, info, jnp.zeros(16), jnp.zeros(3))
     assert float(Tg["slip"]) == pytest.approx(-0.75 * 4 * 0.09, rel=0.05) and float(Tb["slip"]) == pytest.approx(-0.075 * 4 * 0.09, rel=0.05)
+
+
+def test_stuck_penalty_only_when_stepping_is_required(env):
+    """stuck：踏步指令（|vy|>0.1 或 |wz|>0.3）下，淨空 < 5 mm 連續站立超過 0.6 s 的腿，罰 min(超過秒數, 1)；直走／站立不罰；預設 w 0。"""
+    eg = rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, scene=env.scene, **rw.V1G)
+    data = _standing_data(env).replace(ctrl=env._ctrl(jnp.zeros(16)))
+    phys = jax.jit(lambda d: env._physics(d, jnp.zeros(16)))
+    for _ in range(15):
+        data = phys(data)                                                            # 四輪落地站穩
+    info = _info(eg, data); info["stance_t"] = jnp.array([1.0, 0.5, 0.0, 2.0])      # FR 已站 1.0 s、FL 0.5、RR 0、RL 2.0
+    T, aux = eg._reward_terms(data, info, jnp.zeros(16), jnp.array([0.0, 0.5, 0.0]))
+    st = np.asarray(aux["stance_t"])
+    assert np.allclose(st, [1.02, 0.52, 0.02, 2.02], atol=1e-6)                      # 四輪都在地上：各加一步 0.02 s
+    assert float(T["stuck"]) == pytest.approx(-1.0 * (min(1.02 - 0.6, 1.0) + 0.0 + 0.0 + min(2.02 - 0.6, 1.0)), abs=1e-5)   # FR 0.42、RL 封頂 1.0
+    T2, _ = eg._reward_terms(data, info, jnp.zeros(16), jnp.array([0.5, 0.0, 0.0])); assert float(T2["stuck"]) == 0.0     # 直走不罰
+    T3, _ = eg._reward_terms(data, info, jnp.zeros(16), jnp.zeros(3)); assert float(T3["stuck"]) == 0.0                   # 站立不罰
+    T4, _ = eg._reward_terms(data, info, jnp.zeros(16), jnp.array([0.0, 0.0, 0.5])); assert float(T4["stuck"]) < 0.0       # 旋轉要踏步
+    lifted = _standing_data(env, z_extra=0.05)                                       # 四輪離地 5 cm：計時歸零
+    _, aux2 = eg._reward_terms(lifted, info, jnp.zeros(16), jnp.array([0.0, 0.5, 0.0]))
+    assert np.all(np.asarray(aux2["stance_t"]) == 0.0)
+    T0, _ = env._reward_terms(data, info, jnp.zeros(16), jnp.array([0.0, 0.5, 0.0])); assert float(T0["stuck"]) == 0.0    # 預設 w_stuck 0
+
+
+def test_stuck_timer_carried_through_step(env):
+    """step 裡 stance_t 由 info 攜帶：站著不動、指令 vy 0.5（fixed_cmd）→ 0.6 s 後 metrics 的 stuck 轉負、stance_max 累加。"""
+    eg = rw.WheelEnv(flat=True, noise=False, push=False, fixed_cmd=True, scene=env.scene, **rw.V1G)
+    s = jax.jit(eg.reset)(jax.random.PRNGKey(0)); step = jax.jit(eg.step)
+    s = s.replace(info={**s.info, "cmd_fix": jnp.array([0.0, 0.5, 0.0]), "cmd": jnp.array([0.0, 0.5, 0.0])})
+    seen_neg = False
+    for i in range(45):
+        s = step(s, jnp.zeros(16))
+        if i == 20:
+            assert float(s.metrics["stance_max"]) > 0.3 and float(s.metrics["stuck"]) == 0.0      # 0.4 s：還沒超過 0.6
+        if float(s.metrics["stuck"]) < 0.0:
+            seen_neg = True
+    assert seen_neg and float(s.metrics["stance_max"]) > 0.7
+    s = s.replace(info={**s.info, "t": jnp.int32(rw.EPISODE_LEN - 1)})
+    s2 = step(s, jnp.zeros(16)); assert np.all(np.asarray(s2.info["stance_t"]) == 0.0)                # 重生清零

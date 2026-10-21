@@ -43,3 +43,16 @@ step 0（＝v1b 在 V1F 下）：lin 2.01、impact −0.14、land_vz 0.29、roll
 - 並排 `outputs/rl_wheel/compare_v1b_vs_v1f_mesh.mp4`（＋`_small`；本機，被 .gitignore）：平地左右平移、斜走、直走、原地轉、boxes 10 側移、stairs 8 側移、rough 6 直走。
 - 表：`outputs/rl_wheel/eval_rl_only_real_{v1f,diag_v1f,diag_d1n_v1f,vxlow_v1f}.md`、`eval_rl_wheel_rough_real_v1f.md`；攤帳 `outputs/reward_audit_wheel_{v1b,v1d}_v1f.md`。
 - 三版教訓：impact 無門檻會殺掉從零開始的探索（v1c，2,650 萬步內落地事件清零）；延遲 DR 讓 policy 學成「多給命令、鎖膝、前後晃」（v1d）；只罰 roll 不罰 pitch 會把重心轉移推到前後方向（v1d），用角速度項（angxy）補、靜態俯仰不受罰。
+
+## 5. v1b 之後各版總整理（2026-10-21 下午）
+
+| 版本 | 和 v1b 比改了什麼 | 結果 | 問題／為什麼放棄 |
+|---|---|---|---|
+| **v1c**（10-20 晚，從頭訓 5 億） | 鏡像增強、roll 10、impact 3（無門檻）、延遲 DR 0–2 步、IMU 偏差 ±2° | 不平移（vy 全 0）、直走超速 20%、原地轉蹲 0.35 m | impact 把早期落地每次扣 −3～−12，2,650 萬步內踏步清光、側向軸死。從頭訓要 impact 暖身 |
+| **v1d**（10-21 凌晨，v1b 熱啟動 5 億） | 同 v1c，impact 改門檻（> 0.3 m/s 才罰） | roll 9.3／3.6° → 1.6／2.7°、落地 0.36 → 0.22／0.17、rough 0 摔 | 膝 42°、機身 0.59 m、pitch 晃 3 倍、直走 +0.1：延遲 DR 帶出；只罰 roll 讓重心轉移改走 pitch |
+| v1e（沒做） | 消融：只關延遲 DR | — | 使用者不追超速原因 |
+| **v1f**（10-21 上午，v1b 熱啟動 5 億） | v1d − 延遲 DR ＋ angxy 0.5 ＋ 膝 hinge 60° | 及格線全過：roll 2.1／1.7°、落地 0.10／0.17、直走準、pitch 回 v1b、rough 0 摔 | 影片：平移腿外張、左右步頻不同 → 兩腿踏、兩腿被拖橫滑 0.5 m/s（|vy| 越大拖越多）；slip 0.075 太便宜。鏡像增強沒讓網路對稱（殘差 0.41 → 0.39） |
+| v1g 第一版（10-21 中午，未開訓） | v1f ＋ slip ×10 | 關卡：vy 0.5 只贏 0.11、vy 0.3 輸 | v1b 自己也滑 0.13–0.17；MJX 拖輪接觸斷續 |
+| **v1g 定案**（10-21 下午） | v1f ＋ slip 0.75 ＋ `stuck`（側移／旋轉下任一腿連續不離地 > 0.6 s 罰） | 關卡：v1b 四腿每步贏 v1f 拖腿 0.8–1.1，v1b 的 stuck 全 0 | 待訓。盯第三條路：抬腳峰 < 8 mm 的小抖動 |
+
+貫穿的教訓：每加一個「讓某行為變貴」的項，policy 就找下一條最便宜的路（鎖膝 → 拖腿）；關卡改成「新 reward 下 v1b 好步態必須贏壞步態」，訓練前就擋。

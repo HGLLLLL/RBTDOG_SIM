@@ -41,7 +41,7 @@
 - **三版教訓（Z §4）**：v1c 從頭訓＋無門檻 impact → 2,650 萬步內踏步被清零、側向軸死；v1d 延遲 DR → 多給命令（直走 +0.1）、鎖膝（42°）、前後晃 3 倍；只罰 roll 會把重心轉移推到 pitch，用角速度項補。從頭訓若再做：impact 要 0→3 暖身。
 - **上機（trip29，§9 卡）**：站立 → 直走 0.3／0.5 → 轉 ±0.5／±1.0 → 平移 ±0.5（**重點：左右 roll 一樣小、踏地聲比 v1b 輕**；`CGB` 旗標可當場跑 v1b 對照）→ 斜走 ±0.3 → 平移 0.6。狗端 log 先 `clean_dog_logs.sh`。
 - 影子跟跑 `test_policy_rl_{np,closed_loop}.py` 是給學長 ONNX 版的（要 ONNX 對照），自訓 npz 不適用；匯出一致性由 `test_export_policy_wheel.py` 蓋。
-- **全套 pytest @af165f8（knee／w_angxy 改動後）：1121 passed, 1 warning（jaxopt），35 分**（10-21 上午）。
+- **全套 pytest @af165f8：1121 passed（10-21 上午）；@4cc7734（v1h：stuck／height 項後）：1128 passed, 1 warning**（10-21 晚；v1i 的 splay 只分檔跑過 26＋10＋31 passed）。
 - **工具坑**：`conda run -n rbtdog python - <<EOF` 不會把 heredoc 餵進 stdin，python 片段先寫成檔案；`--cmds` 以負號開頭要寫 `--cmds=-0.3,...`。
 
 ## 2. 權重現況

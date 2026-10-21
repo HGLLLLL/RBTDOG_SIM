@@ -1,6 +1,6 @@
 # task7 交接：D1 Max 現況卡
 
-- 最後更新：**2026-10-21 下午（v1h＝v1g＋膝 hinge 65°／w 2＋機身高 hinge 0.56 m＋roll 5，關卡 13 列過 10 列、輸的 3 列在第 9 級難地形；notebook 已 push，等使用者 Colab）**（分支 `main`）
+- 最後更新：**2026-10-21 傍晚（v1h 訓完 5 億步：姿態回到 v1b 水準（膝 65–74°、機身 0.51 m）、落地 0.19／0.18、左平移四腿踏 roll 1.1°、崎嶇地 0/125 摔；剩右前腿在右平移／低速平移仍釘著、右 roll 4.5°；等使用者看影片定上機或再修）**（分支 `main`）
 - **這份只放「現在」，上限 150 行。** 收工時覆寫本檔，不是往上疊。
   被取代的段落搬到 `docs/handoff_history/`（2026-08-25～09-22 全文在 `HANDOFF_2026-08-25_2026-09-22_全文.md`；
   09-22 §1 在 `HANDOFF_2026-09-22_§1_v3.7b_Colab訓練.md`；10-06 §1 trip25 在 `HANDOFF_2026-10-06_§1_trip25.md`；10-14 §1 trip26／27 在 `HANDOFF_2026-10-14_§1_trip26-27收工.md`。查歷史用 grep）。
@@ -8,7 +8,10 @@
 
 ---
 
-## 1. 下次第一件事：**v1h 開訓（Colab `notebooks/rl_wheel_v1h_colab.ipynb`）**，2.1 億步中場看膝角／機身高／每腿落地；trip29 卡 §9 換 npz 即可
+## 1. 下次第一件事：**使用者看 `outputs/rl_wheel/compare_v1b_vs_v1h_mesh.mp4` 定：v1h 上機（trip29 卡 §9 換 `rl_wheel_v1h_np.npz` sha `9de7024271b4`）或再修右前腿**
+
+- **v1h 結果**（AA 文件 §5；表 `outputs/rl_wheel/eval_rl_only_real_{v1h,diag_v1h,diag_d1n_v1h}.md`、`eval_rl_wheel_rough_real_v1h.md`）：姿態 ✅ 膝 65–74°／機身 0.51 m／pitch std 0.3–0.7°／ABAD 0–5°；落地 ✅ 0.19／0.18；左平移 ✅ 四腿 14/14/14/15、roll 1.1°；崎嶇地 ✅ 0/125；直走準；延遲雜訊 0 摔。**未解**：右平移右前腿 5 次（觸地 96%、橫滑 0.44）、roll 4.5°（v1b 3.6；左右差 3.4° > 門檻 3）；vy 0.3 右前 0 次；wz 0.5 只兩腿踏（v1b 也差）。同一條腿（FR）在 v1f／v1g／v1h 都是弱的那條，policy 鏡像殘差 0.4 沒變 → 網路本身不對稱，stuck（每腿上限 1／步）它在那幾個情境選擇付。
+- **再修的選項**：(a) `STUCK_CAP` 1 → 3（付不起）；(b) 架構對稱化 π_sym＝½[π(o)＋M π(M o)]（真對稱；狗端 policy_np 兩次前向，匯出要改）；(c) 先上機，右前腿在實機上拖不拖用耳朵和 log 判。
 
 - **v1h（使用者定「1＋2」，10-21 下午）**：`WheelEnv(**rw.V1H)`＝V1G ＋ 膝 hinge **65°／w 2**（70° 讓 v1b 自己平地扣 −0.4、樓梯 −0.6，使用者改 65）＋ 新項 **`height`**（機身對地形高 > 0.56 m 線性罰 w 10）＋ `roll` 10 → **5**。impact 3／門檻 0.3、stuck、slip 不動。
   **關卡（`reward_audit_wheel_{v1b,v1g}_v1h{,_rough9,_boxes9,_stairs9}.md`，工具新增 `--terrain KIND:LEVEL`、`--set k=v`）**：13 列 v1b 贏 10 列——平地 4 列差 0.6–1.6、rough9 三列差 0.8–1.4、boxes9 ±0.5 差 0.6–1.1、stairs9 −0.5 差 0.1；**輸 3 列**：boxes9 vy 0.3（−0.54）、stairs9 vy +0.5（−0.39）、stairs9 vy 0.3（−0.12）。試過 impact 3 → 2 沒翻盤（−0.51／−0.24／−0.07）：輸的主因是 v1b 在第 9 級地形上本來就追蹤差（boxes9 vy 0.3 的 lin 只 1.63）、落地重（stairs9 impact −0.4～−0.7），v1g 在那裡的優勢有一部分是真的。第 9 級是訓練分布少數（平均等級 2.4），**接受這三列、impact 維持 3**（控制者判斷；使用者定 65°）。
@@ -42,6 +45,8 @@
 
 | 權重 | 狀態 | 驗收表（`outputs/`） |
 |---|---|---|
+| **rl_wheel_v1h**（5 億步，v1b 熱啟動）`weights/rl_wheel_v1h_params.pkl`／`rl_wheel_v1h_np.npz`（sha `9de7024271b4`） | ★ **候選上機版**：姿態回 v1b、落地 0.19／0.18、左平移四腿 roll 1.1°、崎嶇地 0/125；右前腿在右平移仍釘（AA §5） | `rl_wheel/eval_*_v1h.md`、`compare_v1b_vs_v1h_mesh.mp4`（本機） |
+| rl_wheel_v1g（2.12 億步中場）`weights/rl_wheel_v1g_s212_np.npz` | 不上機：膝 50–58°、FR 釘、boxes 10 摔 2 | `rl_wheel/eval_*_v1g_s212.md` |
 | **rl_wheel_v1f**（5 億步，v1b 熱啟動）`weights/rl_wheel_v1f_params.pkl`／`rl_wheel_v1f_np.npz`（sha `5370132e3f15`） | 及格線全過但**不上機**：平移是兩腿踏、兩腿拖著橫滑 0.5 m/s（表上看不出，影片看得出）；roll 2.1／1.7°、落地 0.10／0.17、崎嶇地 0 摔、直走準 | `rl_wheel/eval_rl_only_real_{v1f,diag_v1f,diag_d1n_v1f,vxlow_v1f}.md`、`eval_rl_wheel_rough_real_v1f.md`；**Z 文件** |
 | rl_wheel_v1d（2.12 億步中場）`weights/rl_wheel_v1d_s212_np.npz`（sha `652aecce2ed3`） | 對稱 roll 1.6／2.7°、落地 0.22／0.17、rough 0 摔 **但** 平移膝 42°、pitch 晃 3 倍、直走 +0.1（§1）；不上機 | `rl_wheel/eval_*_v1d_s212.md`、`compare_v1b_vs_v1d_s212_mesh.mp4`（本機） |
 | rl_wheel_v1c（從頭訓 5 億，**失敗**）`weights/rl_wheel_v1c_{params.pkl,np.npz}`（sha `06d649a136c3`） | 側向軸死掉、不抬腳（§1）；留作對照 | `rl_wheel/eval_rl_only_real_{v1c_s1,diag_v1c_s1}.md`、`eval_rl_wheel_rough_real_v1c_s1.md`、`reward_audit_wheel_v1c_s1.md` |
